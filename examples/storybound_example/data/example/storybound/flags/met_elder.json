@@ -1,0 +1,5 @@
+{
+  "type": "bool",
+  "scope": "player",
+  "description": "The player has talked to the village elder."
+}

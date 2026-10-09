@@ -1,0 +1,39 @@
+package dev.dzenthai.storybound;
+
+import com.mojang.logging.LogUtils;
+import dev.dzenthai.storybound.command.StoryboundCommands;
+import dev.dzenthai.storybound.config.StoryboundConfig;
+import dev.dzenthai.storybound.core.CoreDefinitions;
+import dev.dzenthai.storybound.core.data.StoryboundDataEvents;
+import dev.dzenthai.storybound.core.state.StateEvents;
+import dev.dzenthai.storybound.core.state.StoryAttachments;
+import dev.dzenthai.storybound.network.StoryboundNetwork;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.common.NeoForge;
+import org.slf4j.Logger;
+
+@Mod(Storybound.MOD_ID)
+public final class Storybound {
+    public static final String MOD_ID = "storybound";
+    public static final Logger LOGGER = LogUtils.getLogger();
+
+    public Storybound(IEventBus modBus, ModContainer container) {
+        container.registerConfig(ModConfig.Type.COMMON, StoryboundConfig.COMMON_SPEC);
+
+        CoreDefinitions.bootstrap();
+        StoryAttachments.register(modBus);
+
+        modBus.addListener(StoryboundNetwork::register);
+        StoryboundDataEvents.register(NeoForge.EVENT_BUS);
+        StateEvents.register(NeoForge.EVENT_BUS);
+        NeoForge.EVENT_BUS.addListener(StoryboundCommands::register);
+    }
+
+    public static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+    }
+}

@@ -1,0 +1,15 @@
+Storybound
+Copyright (C) 2026 dzenthai
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License version 3, as published by the
+Free Software Foundation. See LICENSE for the full text.
+
+Third-party notices
+-------------------
+
+Ideas for the following parts are taken from MIT-licensed projects. If code from
+them is incorporated, their copyright and permission notices are reproduced here.
+
+- VNDialog (dialogue screen) - https://github.com/YourZi/VNDialog
+- server_waypoint (server waypoints) - https://github.com/2676959/server_waypoint
