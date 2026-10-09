@@ -1,0 +1,8 @@
+{
+  "trigger": { "type": "entity_killed", "entity": "#minecraft:raiders" },
+  "conditions": [
+    { "type": "flag", "key": "example:met_elder" },
+    { "type": "var", "key": "example:village_reputation", "op": "<", "value": 100 }
+  ],
+  "actions": { "type": "add_var", "key": "example:village_reputation", "amount": 5 }
+}

@@ -5,6 +5,8 @@ import dev.dzenthai.storybound.command.StoryboundCommands;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.StoryboundDataEvents;
+import dev.dzenthai.storybound.core.logic.LogicEvents;
+import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.core.state.StateEvents;
 import dev.dzenthai.storybound.core.state.StoryAttachments;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
@@ -24,12 +26,14 @@ public final class Storybound {
     public Storybound(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, StoryboundConfig.COMMON_SPEC);
 
+        LogicRegistries.register(modBus);
         CoreDefinitions.bootstrap();
         StoryAttachments.register(modBus);
 
         modBus.addListener(StoryboundNetwork::register);
         StoryboundDataEvents.register(NeoForge.EVENT_BUS);
         StateEvents.register(NeoForge.EVENT_BUS);
+        LogicEvents.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(StoryboundCommands::register);
     }
 

@@ -7,6 +7,7 @@
   "commands.storybound.value.cleared": "%s [%s] у %s очищен",
   "commands.storybound.value.bad_scope": "Неизвестная область «%s», ожидается player, party или world",
   "commands.storybound.value.bad_value": "«%s» не подходит для типа %s",
+  "commands.storybound.trigger.fired": "Триггер %s запущен для игроков: %s",
   "commands.storybound_client.definitions.entry": "%s: %s",
   "commands.storybound_client.definitions.empty": "Нет синхронизируемых видов определений",
   "commands.storybound_client.flags.empty": "Нет синхронизируемых флагов",
@@ -15,6 +16,7 @@
   "storybound.state.wrong_scope": "%s объявлен в области %s, а не %s",
   "storybound.state.wrong_type": "%s объявлен как %s, получено %s",
   "storybound.state.not_int": "%s — не число",
+  "storybound.action.take_item.not_enough": "Не хватает предметов: нужно %s, есть %s",
 
   "storybound.party.default_name": "Отряд %s",
   "storybound.party.created": "Отряд «%s» создан. Пригласить игрока: /storybound party invite <игрок>",
@@ -51,5 +53,7 @@
   "storybound.configuration.waypoints": "Метки",
   "storybound.configuration.dialogues": "Диалоги",
   "storybound.configuration.party": "Отряд",
-  "storybound.configuration.copyStateOnLeave": "Сохранять прогресс при выходе из отряда"
+  "storybound.configuration.copyStateOnLeave": "Сохранять прогресс при выходе из отряда",
+  "storybound.configuration.actions": "Действия",
+  "storybound.configuration.commandPermissionLevel": "Уровень прав для run_command"
 }

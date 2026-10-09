@@ -18,9 +18,28 @@ sourceSets {
     gametest
 }
 
+// Dev-only runtime mods (e.g. KubeJS for integration testing): on the run classpath, never in the published metadata.
+configurations {
+    localRuntime
+    runtimeClasspath.extendsFrom localRuntime
+}
+
 repositories {
     mavenLocal()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'LatvianModder'
+                url = 'https://maven.latvian.dev/releases'
+            }
+        }
+        filter {
+            includeGroup 'dev.latvian.mods'
+        }
+    }
 }
+
+var withKubeJS = project.dev_with_kubejs.toBoolean()
 
 neoForge {
     version = project.neo_version
@@ -33,18 +52,22 @@ neoForge {
     runs {
         client {
             client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         server {
             server()
             programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         gameTestServer {
             type = 'gameTestServer'
             // Otherwise tests would run inside run/world, which is kept for manual testing.
             gameDirectory = project.file('run/gametest')
+            // KubeJS breaks GameTest mock players (it sends unguarded packets on login),
+            // so with KubeJS installed only the integration tests run.
+            systemProperty 'neoforge.enabledGameTestNamespaces', withKubeJS ? "${mod_id}_kubejs" : project.mod_id
         }
         configureEach {
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
             logLevel = org.slf4j.event.Level.DEBUG
         }
     }
@@ -64,6 +87,14 @@ neoForge {
 dependencies {
     gametestImplementation sourceSets.main.output
 
+    // KubeJS bundles its own libraries (jar-in-jar), so transitive Maven dependencies are not needed.
+    compileOnly("dev.latvian.mods:kubejs-neoforge:${kubejs_min_version}") { transitive = false }
+    compileOnly("dev.latvian.mods:rhino:${rhino_min_version}") { transitive = false }
+    if (withKubeJS) {
+        localRuntime("dev.latvian.mods:kubejs-neoforge:${kubejs_version}") { transitive = false }
+        localRuntime("dev.latvian.mods:rhino:${rhino_version}") { transitive = false }
+    }
+
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -81,7 +112,8 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             mod_license            : mod_license,
             mod_version            : mod_version,
             mod_authors            : mod_authors,
-            mod_description        : mod_description
+            mod_description        : mod_description,
+            kubejs_version_range   : kubejs_version_range
     ]
     inputs.properties replaceProperties
     expand replaceProperties
@@ -97,7 +129,17 @@ tasks.withType(JavaCompile).configureEach {
 
 // The game test server reuses its world; world and party SavedData must not leak between runs.
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
-    doFirst { delete 'run/gametest/world' }
+    doFirst {
+        delete 'run/gametest/world'
+        // Test scripts for the KubeJS integration; KubeJS reads them from the game directory.
+        delete 'run/gametest/kubejs/server_scripts'
+        if (withKubeJS) {
+            copy {
+                from 'src/gametest/kubejs'
+                into 'run/gametest/kubejs'
+            }
+        }
+    }
 }
 
 tasks.named('test', Test) {

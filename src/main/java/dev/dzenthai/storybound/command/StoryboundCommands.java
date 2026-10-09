@@ -22,6 +22,7 @@ public final class StoryboundCommands {
                         .executes(StoryboundCommands::validate))
                 .then(StoryStateCommands.flag())
                 .then(StoryStateCommands.var())
+                .then(TriggerCommands.trigger())
                 .then(PartyCommands.party()));
     }
 

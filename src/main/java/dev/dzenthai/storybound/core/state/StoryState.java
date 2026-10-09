@@ -3,10 +3,12 @@ package dev.dzenthai.storybound.core.state;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
 import org.jetbrains.annotations.Nullable;
@@ -72,6 +74,19 @@ public final class StoryState {
             case PLAYER -> player.getUUID();
             case PARTY -> PartyData.get(player.server).ownerOf(player.getUUID());
             case WORLD -> null;
+        };
+    }
+
+    /** Online players who share the storage identified by {@code scope} and {@code owner}. */
+    public static List<ServerPlayer> onlinePlayersOf(MinecraftServer server, StoryScope scope, @Nullable UUID owner) {
+        List<ServerPlayer> online = server.getPlayerList().getPlayers();
+        return switch (scope) {
+            case PLAYER -> online.stream().filter(player -> player.getUUID().equals(owner)).toList();
+            case PARTY -> {
+                PartyData parties = PartyData.get(server);
+                yield online.stream().filter(player -> parties.ownerOf(player.getUUID()).equals(owner)).toList();
+            }
+            case WORLD -> List.copyOf(online);
         };
     }
 

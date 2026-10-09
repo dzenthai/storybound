@@ -1,0 +1,33 @@
+package dev.dzenthai.storybound.core.logic;
+
+import com.mojang.datafixers.util.Either;
+import com.mojang.serialization.Codec;
+import dev.dzenthai.storybound.core.logic.condition.LogicConditions;
+import java.util.List;
+import java.util.function.Function;
+
+/** Codecs for the logic language. Lazy, because the type registries are filled after class loading. */
+public final class LogicCodecs {
+    private static final Codec<Condition> SINGLE_CONDITION = Codec.lazyInitialized(() ->
+            LogicRegistries.typeCodec(LogicRegistries.CONDITION_TYPES, "condition")
+                    .<Condition>dispatch("type", Condition::type, ConditionType::codec));
+
+    private static final Codec<Action> SINGLE_ACTION = Codec.lazyInitialized(() ->
+            LogicRegistries.typeCodec(LogicRegistries.ACTION_TYPES, "action")
+                    .<Action>dispatch("type", Action::type, ActionType::codec));
+
+    /** A condition object, or an array of conditions that must all pass. */
+    public static final Codec<Condition> CONDITION = Codec.either(SINGLE_CONDITION, SINGLE_CONDITION.listOf())
+            .xmap(either -> either.map(Function.identity(), LogicConditions.All::new), condition -> Either.left(condition));
+
+    /** An action object or an array of actions, run in order. */
+    public static final Codec<List<Action>> ACTIONS = Codec.either(SINGLE_ACTION, SINGLE_ACTION.listOf())
+            .xmap(either -> either.map(List::of, Function.identity()),
+                    actions -> actions.size() == 1 ? Either.left(actions.getFirst()) : Either.right(actions));
+
+    public static final Codec<Trigger<?>> TRIGGER = Codec.lazyInitialized(() ->
+            LogicRegistries.typeCodec(LogicRegistries.TRIGGER_TYPES, "trigger")
+                    .<Trigger<?>>dispatch("type", Trigger::type, TriggerType::codec));
+
+    private LogicCodecs() {}
+}

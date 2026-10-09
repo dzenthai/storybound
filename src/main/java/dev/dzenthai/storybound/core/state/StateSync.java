@@ -4,7 +4,6 @@ import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import dev.dzenthai.storybound.network.SyncStoryValuesPayload;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,20 +33,8 @@ public final class StateSync {
             return;
         }
         SyncStoryValuesPayload payload = new SyncStoryValuesPayload(false, Map.of(key, value));
-        for (ServerPlayer player : recipients(server, scope, owner)) {
+        for (ServerPlayer player : StoryState.onlinePlayersOf(server, scope, owner)) {
             StoryboundNetwork.sendToPlayer(player, payload);
         }
-    }
-
-    private static List<ServerPlayer> recipients(MinecraftServer server, StoryScope scope, @Nullable UUID owner) {
-        List<ServerPlayer> online = server.getPlayerList().getPlayers();
-        return switch (scope) {
-            case PLAYER -> online.stream().filter(player -> player.getUUID().equals(owner)).toList();
-            case PARTY -> {
-                PartyData parties = PartyData.get(server);
-                yield online.stream().filter(player -> parties.ownerOf(player.getUUID()).equals(owner)).toList();
-            }
-            case WORLD -> online;
-        };
     }
 }

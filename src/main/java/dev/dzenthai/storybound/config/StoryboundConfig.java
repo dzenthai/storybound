@@ -27,6 +27,7 @@ public final class StoryboundConfig {
         public final ModConfigSpec.BooleanValue waypoints;
         public final ModConfigSpec.BooleanValue dialogues;
         public final ModConfigSpec.BooleanValue copyPartyStateOnLeave;
+        public final ModConfigSpec.IntValue commandPermissionLevel;
 
         Common(ModConfigSpec.Builder builder) {
             builder.comment("Storybound modules. A disabled module loads no data, registers no triggers and sends no packets.")
@@ -46,6 +47,13 @@ public final class StoryboundConfig {
                             "If false, they return to the solo progress they had before joining.")
                     .translation("storybound.configuration.copyStateOnLeave")
                     .define("copyStateOnLeave", true);
+            builder.pop();
+
+            builder.translation("storybound.configuration.actions").push("actions");
+            commandPermissionLevel = builder
+                    .comment("Permission level of commands run by the run_command action (0-4). 2 matches command blocks.")
+                    .translation("storybound.configuration.commandPermissionLevel")
+                    .defineInRange("commandPermissionLevel", 2, 0, 4);
             builder.pop();
         }
     }

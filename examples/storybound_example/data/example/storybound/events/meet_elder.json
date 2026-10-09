@@ -1,0 +1,9 @@
+{
+  "trigger": { "type": "entity_interacted", "entity": "minecraft:villager" },
+  "conditions": { "type": "flag", "key": "example:met_elder", "value": false },
+  "actions": [
+    { "type": "set_flag", "key": "example:met_elder" },
+    { "type": "play_sound", "sound": "minecraft:entity.villager.yes" }
+  ],
+  "once": "player"
+}
