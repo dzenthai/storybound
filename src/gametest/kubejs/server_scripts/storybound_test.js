@@ -18,3 +18,17 @@ StoryboundEvents.customTrigger('gametest:script_trigger', e => {
   Storybound.triggers // touch the binding getter
   Storybound.flags(e.player).add('gametest:script_trigger_count', 1)
 })
+
+StoryboundEvents.questStateChanged('gametest:kjs_quest', e => {
+  Storybound.flags(e.player).set('gametest:kjs_quest_state', e.newState)
+})
+
+StoryboundEvents.questStageChanged('gametest:kjs_quest', e => {
+  Storybound.flags(e.player).set('gametest:kjs_quest_stage', e.newStage)
+})
+
+StoryboundEvents.customTrigger('gametest:kjs_complete', e => {
+  let quests = Storybound.quests(e.player)
+  quests.complete('gametest:kjs_quest')
+  Storybound.flags(e.player).set('gametest:kjs_read_state', quests.state('gametest:kjs_quest'))
+})

@@ -23,6 +23,8 @@ public final class StoryboundCommands {
                 .then(StoryStateCommands.flag())
                 .then(StoryStateCommands.var())
                 .then(TriggerCommands.trigger())
+                .then(DocumentCommands.document())
+                .then(QuestCommands.quest())
                 .then(PartyCommands.party()));
     }
 

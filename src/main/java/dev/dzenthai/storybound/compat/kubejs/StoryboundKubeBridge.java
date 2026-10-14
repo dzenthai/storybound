@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.compat.kubejs;
 
 import dev.dzenthai.storybound.core.event.CustomTriggerEvent;
 import dev.dzenthai.storybound.core.event.PartyEvent;
+import dev.dzenthai.storybound.core.event.QuestChangedEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
 import java.util.Locale;
 import net.neoforged.neoforge.common.NeoForge;
@@ -15,6 +16,7 @@ final class StoryboundKubeBridge {
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onCustomTrigger);
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onPartyJoined);
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onPartyLeft);
+        NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onQuestChanged);
     }
 
     private static void onValueChanged(StoryValueChangedEvent event) {
@@ -39,6 +41,15 @@ final class StoryboundKubeBridge {
         if (StoryboundJSEvents.PARTY_LEFT.hasListeners()) {
             String reason = event.getReason().name().toLowerCase(Locale.ROOT);
             StoryboundJSEvents.PARTY_LEFT.post(new PartyKubeEvent(event.getServer(), event.getPartyId(), event.getPlayer(), reason));
+        }
+    }
+
+    private static void onQuestChanged(QuestChangedEvent event) {
+        if (event.statusChanged() && StoryboundJSEvents.QUEST_STATE_CHANGED.hasListeners(event.getQuest())) {
+            StoryboundJSEvents.QUEST_STATE_CHANGED.post(new QuestChangedKubeEvent(event), event.getQuest());
+        }
+        if (event.stageChanged() && StoryboundJSEvents.QUEST_STAGE_CHANGED.hasListeners(event.getQuest())) {
+            StoryboundJSEvents.QUEST_STAGE_CHANGED.post(new QuestChangedKubeEvent(event), event.getQuest());
         }
     }
 }

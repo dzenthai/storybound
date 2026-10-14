@@ -1,0 +1,16 @@
+{
+  "example.document.elder_letter.title": "A Letter from the Elder",
+  "example.document.village_chronicle.title": "Chronicle of Brightwater",
+  "example.document.hunters_oath.title": "The Hunter's Oath",
+  "example.journal.category.oaths": "Oaths",
+  "example.place.village": "Brightwater",
+
+  "example.quest.wolf_hunt.title": "Wolves at the Gate",
+  "example.quest.wolf_hunt.active": "Wolves have been taking sheep from the pastures of Brightwater. The elder is offering a reward to whoever drives them off.",
+  "example.quest.wolf_hunt.completed": "The pack is broken, and Brightwater's shepherds sleep a little easier.",
+  "example.quest.wolf_hunt.log.hunt": "The elder's letter spoke of a wolf pack growing bolder by the night. Thinning it out should keep the flocks safe.",
+  "example.quest.wolf_hunt.log.report": "The wolves are dead. The elder will want to hear of it.",
+  "example.quest.wolf_hunt.objective.wolves": "Kill wolves",
+  "example.quest.wolf_hunt.objective.oath": "Read the Hunter's Oath",
+  "example.quest.wolf_hunt.objective.report": "Return to the elder"
+}

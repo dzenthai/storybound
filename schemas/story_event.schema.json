@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/story_event.schema.json",
+  "title": "Storybound story event",
+  "description": "data/<namespace>/storybound/events/<path>.json — when the trigger fires and the conditions pass, run the actions.",
+  "type": "object",
+  "required": ["trigger", "actions"],
+  "additionalProperties": false,
+  "properties": {
+    "trigger": { "$ref": "logic.schema.json#/definitions/trigger" },
+    "conditions": { "$ref": "logic.schema.json#/definitions/conditions" },
+    "actions": { "$ref": "logic.schema.json#/definitions/actions" },
+    "on_fail": {
+      "description": "abort: stop at a failed action (an aborted 'once' event may run again). continue: log and run the rest.",
+      "enum": ["abort", "continue"],
+      "default": "abort"
+    },
+    "once": {
+      "description": "Run only once per this scope. Absent means every time.",
+      "enum": ["player", "party", "world"]
+    }
+  }
+}

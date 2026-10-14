@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/document_style.schema.json",
+  "title": "Storybound document style",
+  "description": "assets/<namespace>/storybound/styles/<path>.json — the look of a document. For books the texture is the whole two-page spread.",
+  "type": "object",
+  "required": ["texture", "width", "height"],
+  "additionalProperties": false,
+  "properties": {
+    "texture": { "type": "string", "description": "e.g. mypack:textures/gui/document/parchment.png" },
+    "width": { "type": "integer", "minimum": 16, "maximum": 1024, "description": "Sheet size in GUI pixels; the texture is drawn at this size." },
+    "height": { "type": "integer", "minimum": 16, "maximum": 1024 },
+    "texture_width": { "type": "integer", "minimum": 1, "description": "Texture file size, if it differs from width." },
+    "texture_height": { "type": "integer", "minimum": 1 },
+    "padding": {
+      "description": "Text margins inside the sheet (for books: inside each page).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "left": { "type": "integer", "default": 16 },
+        "top": { "type": "integer", "default": 16 },
+        "right": { "type": "integer", "default": 16 },
+        "bottom": { "type": "integer", "default": 20 }
+      }
+    },
+    "font": { "type": "string", "default": "minecraft:default", "description": "A font from assets/<ns>/font/." },
+    "color": { "type": "string", "default": "#3b2a1a" },
+    "line_height": { "type": "integer", "minimum": 6, "maximum": 64, "default": 10 },
+    "show_title": { "type": "boolean", "default": true, "description": "Print the document title at the top of the text." },
+    "open_sound": { "type": "string" },
+    "turn_sound": { "type": "string" }
+  }
+}

@@ -5,10 +5,10 @@ import com.mojang.serialization.MapCodec;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.ConditionType;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
+import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.ScriptHooks;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import java.util.List;
-import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
 
 /** Combinators, randomness and script hooks. */
@@ -37,8 +37,8 @@ public final class LogicConditions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            conditions.forEach(condition -> condition.collectFlags(sink));
+        public void collectReferences(References references) {
+            conditions.forEach(condition -> condition.collectReferences(references));
         }
     }
 
@@ -61,8 +61,8 @@ public final class LogicConditions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            conditions.forEach(condition -> condition.collectFlags(sink));
+        public void collectReferences(References references) {
+            conditions.forEach(condition -> condition.collectReferences(references));
         }
     }
 
@@ -80,8 +80,8 @@ public final class LogicConditions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            condition.collectFlags(sink);
+        public void collectReferences(References references) {
+            condition.collectReferences(references);
         }
     }
 

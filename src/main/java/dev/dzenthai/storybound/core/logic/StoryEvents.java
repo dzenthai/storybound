@@ -54,17 +54,27 @@ public final class StoryEvents {
         }
     }
 
+    /** Walks every id a story event refers to; modules use it to validate references to their data. */
+    public static void collectReferences(StoryEvent event, References references) {
+        event.trigger().collectReferences(references);
+        event.conditions().collectReferences(references);
+        event.actions().forEach(action -> action.collectReferences(references));
+    }
+
     /**
      * Warns about flags nobody declared (usually a typo) and about {@code take_item} placed after
      * other actions: if it aborts, the earlier actions have already happened.
      */
     static void validate(Consumer<ValidationIssue> sink) {
         CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> {
-            Set<ResourceLocation> keys = new LinkedHashSet<>();
-            event.trigger().collectFlags(keys::add);
-            event.conditions().collectFlags(keys::add);
-            event.actions().forEach(action -> action.collectFlags(keys::add));
-            for (ResourceLocation key : keys) {
+            Set<ResourceLocation> flags = new LinkedHashSet<>();
+            collectReferences(event, new References() {
+                @Override
+                public void flag(ResourceLocation key) {
+                    flags.add(key);
+                }
+            });
+            for (ResourceLocation key : flags) {
                 if (!CoreDefinitions.FLAGS.serverStore().contains(key)) {
                     sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id, "Uses undeclared flag " + key));
                 }

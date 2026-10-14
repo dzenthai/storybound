@@ -6,6 +6,7 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.ConditionType;
+import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
@@ -13,7 +14,6 @@ import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.StoryValues;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
 
 /** Checks against Story State. An omitted scope means the flag's declared scope. */
@@ -41,8 +41,8 @@ public final class StateConditions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            sink.accept(key);
+        public void collectReferences(References references) {
+            references.flag(key);
         }
     }
 
@@ -69,8 +69,8 @@ public final class StateConditions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            sink.accept(key);
+        public void collectReferences(References references) {
+            references.flag(key);
         }
     }
 

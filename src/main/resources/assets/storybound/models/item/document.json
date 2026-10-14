@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "storybound:item/document_letter"
+  },
+  "overrides": [
+    { "predicate": { "storybound:kind": 0.1 }, "model": "storybound:item/document_book" },
+    { "predicate": { "storybound:kind": 0.2 }, "model": "storybound:item/document_scroll" },
+    { "predicate": { "storybound:kind": 0.3 }, "model": "storybound:item/document_note" },
+    { "predicate": { "storybound:kind": 0.4 }, "model": "storybound:item/document_letter" }
+  ]
+}

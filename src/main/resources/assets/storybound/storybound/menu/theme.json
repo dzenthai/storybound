@@ -1,0 +1,18 @@
+{
+  "panel": "storybound:menu/panel",
+  "tab": "storybound:menu/tab",
+  "tab_selected": "storybound:menu/tab_selected",
+  "title": "#7A1F1F",
+  "ink": "#3B2A1A",
+  "muted": "#8A7A62",
+  "accent": "#7A1F1F",
+  "unseen": "#B8860B",
+  "completed": "#4E7A2E",
+  "failed": "#9A2A20",
+  "selection": "#40000000",
+  "hover": "#20000000",
+  "divider": "#5A4630",
+  "hud_background": "#70000000",
+  "hud_title": "#E8C66A",
+  "hud_text": "#F0E6D2"
+}

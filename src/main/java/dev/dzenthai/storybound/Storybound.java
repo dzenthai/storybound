@@ -9,6 +9,11 @@ import dev.dzenthai.storybound.core.logic.LogicEvents;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.core.state.StateEvents;
 import dev.dzenthai.storybound.core.state.StoryAttachments;
+import dev.dzenthai.storybound.module.document.DocumentEvents;
+import dev.dzenthai.storybound.module.document.DocumentRegistries;
+import dev.dzenthai.storybound.module.journal.Journal;
+import dev.dzenthai.storybound.module.quest.QuestEvents;
+import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
@@ -29,11 +34,16 @@ public final class Storybound {
         LogicRegistries.register(modBus);
         CoreDefinitions.bootstrap();
         StoryAttachments.register(modBus);
+        DocumentRegistries.register(modBus);
+        Journal.register(modBus);
+        QuestRegistries.register(modBus);
 
         modBus.addListener(StoryboundNetwork::register);
         StoryboundDataEvents.register(NeoForge.EVENT_BUS);
         StateEvents.register(NeoForge.EVENT_BUS);
         LogicEvents.register(NeoForge.EVENT_BUS);
+        DocumentEvents.register(NeoForge.EVENT_BUS);
+        QuestEvents.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(StoryboundCommands::register);
     }
 

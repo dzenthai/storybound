@@ -1,0 +1,16 @@
+{
+  "example.document.elder_letter.title": "Письмо старосты",
+  "example.document.village_chronicle.title": "Летопись Светловодья",
+  "example.document.hunters_oath.title": "Клятва охотника",
+  "example.journal.category.oaths": "Клятвы",
+  "example.place.village": "Светловодье",
+
+  "example.quest.wolf_hunt.title": "Волки у ворот",
+  "example.quest.wolf_hunt.active": "Волки таскают овец с пастбищ Светловодья. Староста обещает награду тому, кто их отгонит.",
+  "example.quest.wolf_hunt.completed": "Стая разбита, и пастухи Светловодья спят спокойнее.",
+  "example.quest.wolf_hunt.log.hunt": "В письме староста писал о стае, что наглеет с каждой ночью. Если её проредить, стада будут в безопасности.",
+  "example.quest.wolf_hunt.log.report": "Волки мертвы. Старосте стоит об этом узнать.",
+  "example.quest.wolf_hunt.objective.wolves": "Убейте волков",
+  "example.quest.wolf_hunt.objective.oath": "Прочтите клятву охотника",
+  "example.quest.wolf_hunt.objective.report": "Вернитесь к старосте"
+}

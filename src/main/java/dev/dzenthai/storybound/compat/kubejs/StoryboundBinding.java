@@ -2,8 +2,12 @@ package dev.dzenthai.storybound.compat.kubejs;
 
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
+import dev.dzenthai.storybound.core.state.QuestProgress;
+import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
+import dev.dzenthai.storybound.module.quest.QuestLogic;
+import dev.dzenthai.storybound.module.quest.Quests;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
@@ -14,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
  * Storybound.flags(player).set('mypack:met_ciri', true)
  * Storybound.flags(player).get('mypack:gold')
  * Storybound.triggers.fire('mypack:bell_rung', player)
+ * Storybound.quests(player).state('mypack:wolf_hunt')
  * </pre>
  */
 public class StoryboundBinding {
@@ -21,6 +26,10 @@ public class StoryboundBinding {
 
     public Flags flags(ServerPlayer player) {
         return new Flags(player);
+    }
+
+    public QuestsView quests(ServerPlayer player) {
+        return new QuestsView(player);
     }
 
     public Triggers getTriggers() {
@@ -100,6 +109,48 @@ public class StoryboundBinding {
         /** Fires a {@code custom} trigger: story events with that id run, {@code customTrigger} listeners are notified. */
         public void fire(ResourceLocation id, ServerPlayer player) {
             TriggerDispatcher.fireCustom(player, id);
+        }
+    }
+
+    /** Quest progress of one player, read from each quest's own scope. Changes run the quest's actions and triggers. */
+    public static class QuestsView {
+        private final ServerPlayer player;
+
+        QuestsView(ServerPlayer player) {
+            this.player = player;
+        }
+
+        /** {@code unknown}, {@code active}, {@code completed} or {@code failed}. */
+        public String state(ResourceLocation quest) {
+            return QuestLogic.State.of(Quests.progress(player, quest).map(QuestProgress::status)).getSerializedName();
+        }
+
+        public @Nullable String stage(ResourceLocation quest) {
+            return Quests.progress(player, quest).flatMap(QuestProgress::stage).orElse(null);
+        }
+
+        public boolean start(ResourceLocation quest) {
+            return Quests.start(player, quest);
+        }
+
+        public boolean complete(ResourceLocation quest) {
+            return Quests.setStatus(player, quest, QuestStatus.COMPLETED);
+        }
+
+        public boolean fail(ResourceLocation quest) {
+            return Quests.setStatus(player, quest, QuestStatus.FAILED);
+        }
+
+        public boolean reset(ResourceLocation quest) {
+            return Quests.setStatus(player, quest, null);
+        }
+
+        public boolean setStage(ResourceLocation quest, String stage) {
+            return Quests.setStage(player, quest, stage);
+        }
+
+        public void track(@Nullable ResourceLocation quest) {
+            Quests.track(player, quest);
         }
     }
 }

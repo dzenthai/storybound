@@ -16,7 +16,12 @@ import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
+import dev.dzenthai.storybound.module.quest.QuestDefinition;
+import dev.dzenthai.storybound.module.quest.QuestRegistries;
+import dev.dzenthai.storybound.module.quest.Quests;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -72,6 +77,26 @@ public final class KubeJSGameTests {
 
         TriggerDispatcher.fireCustom(player, key("script_trigger"));
         expect(helper, stored(player, "script_trigger_count"), Optional.of(new StoryValue.Int(1)), "customTrigger listener ran once");
+
+        ResourceLocation quest = key("kjs_quest");
+        Map<ResourceLocation, QuestDefinition> previous = QuestRegistries.QUESTS.serverStore().all();
+        Map<ResourceLocation, QuestDefinition> installed = new LinkedHashMap<>(previous);
+        installed.put(quest, QuestDefinition.CODEC.parse(ops(helper), JsonParser.parseString(
+                "{ \"title\": \"gametest.quest\", \"stages\": [ { \"id\": \"a\" }, { \"id\": \"b\" } ] }"))
+                .getOrThrow(message -> new GameTestAssertException(message)));
+        QuestRegistries.QUESTS.serverStore().replace(installed);
+        try {
+            Quests.start(player, quest);
+            expect(helper, stored(player, "kjs_quest_state"), Optional.of(new StoryValue.Str("active")), "questStateChanged on start");
+            expect(helper, stored(player, "kjs_quest_stage"), Optional.of(new StoryValue.Str("a")), "questStageChanged on start");
+            Quests.setStage(player, quest, "b");
+            expect(helper, stored(player, "kjs_quest_stage"), Optional.of(new StoryValue.Str("b")), "questStageChanged on a new stage");
+            TriggerDispatcher.fireCustom(player, key("kjs_complete"));
+            expect(helper, stored(player, "kjs_quest_state"), Optional.of(new StoryValue.Str("completed")), "binding completed the quest");
+            expect(helper, stored(player, "kjs_read_state"), Optional.of(new StoryValue.Str("completed")), "binding reads the quest state");
+        } finally {
+            QuestRegistries.QUESTS.serverStore().replace(previous);
+        }
         helper.succeed();
     }
 

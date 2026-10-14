@@ -1,0 +1,11 @@
+{
+  "texture": "storybound:textures/gui/document/parchment.png",
+  "width": 192,
+  "height": 240,
+  "padding": { "left": 16, "top": 16, "right": 16, "bottom": 18 },
+  "font": "storybound:document",
+  "color": "#3b2a1a",
+  "line_height": 10,
+  "show_title": false,
+  "open_sound": "minecraft:item.book.page_turn"
+}

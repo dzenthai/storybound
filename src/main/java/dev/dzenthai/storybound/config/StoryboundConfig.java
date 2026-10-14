@@ -30,7 +30,7 @@ public final class StoryboundConfig {
         public final ModConfigSpec.IntValue commandPermissionLevel;
 
         Common(ModConfigSpec.Builder builder) {
-            builder.comment("Storybound modules. A disabled module loads no data, registers no triggers and sends no packets.")
+            builder.comment("Storybound modules. A disabled module subscribes no triggers, refuses to change its state and hides its tab.")
                     .translation("storybound.configuration.modules")
                     .push("modules");
             quests = builder.translation("storybound.configuration.quests").define("quests", true);

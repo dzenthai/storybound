@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/document.schema.json",
+  "title": "Storybound document",
+  "description": "data/<namespace>/storybound/documents/<path>.json. The text lives in the resource pack: assets/<ns>/storybound/texts/<lang>/<content path>.sbt.",
+  "type": "object",
+  "required": ["kind", "title"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "description": "book: two-page spread with page turning; scroll, note, letter: one scrolling column.",
+      "enum": ["book", "scroll", "note", "letter"]
+    },
+    "title": { "$ref": "logic.schema.json#/definitions/story_text" },
+    "content": {
+      "description": "The .sbt text id; defaults to the document id.",
+      "$ref": "logic.schema.json#/definitions/id"
+    },
+    "style": {
+      "description": "assets/<ns>/storybound/styles/<id>.json; defaults by kind: book_leather, scroll, note_torn, parchment.",
+      "$ref": "logic.schema.json#/definitions/id"
+    },
+    "journal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "description": "Journal section; defaults by kind: books, scrolls, notes, letters. Name: '<ns>.journal.category.<path>'.",
+          "$ref": "logic.schema.json#/definitions/id"
+        },
+        "add_on_read": { "type": "boolean", "default": true }
+      }
+    },
+    "on_read": {
+      "description": "Runs on the player's first read only; never sent to clients.",
+      "$ref": "logic.schema.json#/definitions/actions"
+    },
+    "custom_model_data": {
+      "description": "Applied to the item when issued; pair with an override in the item model.",
+      "type": "integer"
+    }
+  }
+}

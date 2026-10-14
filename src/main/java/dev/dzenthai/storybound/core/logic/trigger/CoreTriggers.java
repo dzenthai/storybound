@@ -7,13 +7,13 @@ import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
 import dev.dzenthai.storybound.core.logic.Area;
 import dev.dzenthai.storybound.core.logic.ItemMatcher;
+import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.TriggerType;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.StoryValues;
 import java.util.Optional;
-import java.util.function.Consumer;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.registries.Registries;
@@ -53,8 +53,8 @@ public final class CoreTriggers {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            sink.accept(key);
+        public void collectReferences(References references) {
+            references.flag(key);
         }
     }
 

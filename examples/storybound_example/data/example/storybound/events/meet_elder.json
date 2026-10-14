@@ -3,7 +3,8 @@
   "conditions": { "type": "flag", "key": "example:met_elder", "value": false },
   "actions": [
     { "type": "set_flag", "key": "example:met_elder" },
-    { "type": "play_sound", "sound": "minecraft:entity.villager.yes" }
+    { "type": "play_sound", "sound": "minecraft:entity.villager.yes" },
+    { "type": "give_document", "document": "example:elder_letter" }
   ],
   "once": "player"
 }

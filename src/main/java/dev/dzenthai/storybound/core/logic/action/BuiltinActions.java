@@ -28,6 +28,8 @@ public final class BuiltinActions {
             REGISTER.register("run_command", () -> new ActionType<>(WorldActions.RunCommand.CODEC));
     public static final DeferredHolder<ActionType<?>, ActionType<WorldActions.Script>> KUBEJS =
             REGISTER.register("kubejs", () -> new ActionType<>(WorldActions.Script.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<WorldActions.Notify>> NOTIFY =
+            REGISTER.register("notify", () -> new ActionType<>(WorldActions.Notify.CODEC));
 
     private BuiltinActions() {}
 }

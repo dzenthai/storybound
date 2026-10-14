@@ -1,8 +1,5 @@
 package dev.dzenthai.storybound.core.logic;
 
-import java.util.function.Consumer;
-import net.minecraft.resources.ResourceLocation;
-
 /**
  * Something that happens in the game and can start story logic.
  *
@@ -13,6 +10,6 @@ public interface Trigger<E> {
 
     boolean matches(StoryContext context, E event);
 
-    /** Reports story value keys this trigger listens to, so the validator can flag undeclared ones. */
-    default void collectFlags(Consumer<ResourceLocation> sink) {}
+    /** Reports the ids this trigger refers to (flags, documents), for validation. */
+    default void collectReferences(References references) {}
 }

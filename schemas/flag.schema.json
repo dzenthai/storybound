@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/flag.schema.json",
+  "title": "Storybound flag declaration",
+  "description": "data/<namespace>/storybound/flags/<path>.json — declares a story flag or variable. The file id is the flag key.",
+  "type": "object",
+  "required": ["type"],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "description": "Value type. A declared flag can only hold this type.",
+      "enum": ["bool", "int", "string"]
+    },
+    "default": {
+      "description": "Value when nothing was written. Defaults to false, 0 or an empty string."
+    },
+    "scope": {
+      "description": "Where the value lives. A declared flag can only be written in this scope.",
+      "enum": ["player", "party", "world"],
+      "default": "player"
+    },
+    "sync": {
+      "description": "Send the value to clients (for UI and client scripts). Other flags stay on the server.",
+      "type": "boolean",
+      "default": false
+    },
+    "description": {
+      "description": "A note for modpack authors; never shown to players.",
+      "type": "string"
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "type": { "const": "bool" } } }, "then": { "properties": { "default": { "type": "boolean" } } } },
+    { "if": { "properties": { "type": { "const": "int" } } }, "then": { "properties": { "default": { "type": "integer" } } } },
+    { "if": { "properties": { "type": { "const": "string" } } }, "then": { "properties": { "default": { "type": "string" } } } }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["**/data/*/storybound/flags/**/*.json"],
+      "url": "./schemas/flag.schema.json"
+    },
+    {
+      "fileMatch": ["**/data/*/storybound/events/**/*.json"],
+      "url": "./schemas/story_event.schema.json"
+    },
+    {
+      "fileMatch": ["**/data/*/storybound/documents/**/*.json"],
+      "url": "./schemas/document.schema.json"
+    },
+    {
+      "fileMatch": ["**/data/*/storybound/quests/**/*.json"],
+      "url": "./schemas/quest.schema.json"
+    },
+    {
+      "fileMatch": ["**/assets/*/storybound/styles/**/*.json"],
+      "url": "./schemas/document_style.schema.json"
+    },
+    {
+      "fileMatch": ["**/assets/*/storybound/menu/theme.json"],
+      "url": "./schemas/menu_theme.schema.json"
+    }
+  ]
+}

@@ -18,6 +18,14 @@ public interface StoryboundJSEvents {
     TargetedEventHandler<ResourceLocation> CUSTOM_TRIGGER = GROUP.server("customTrigger", () -> CustomTriggerKubeEvent.class)
             .supportsTarget(EventTargetType.ID);
 
+    /** {@code StoryboundEvents.questStateChanged('mypack:wolf_hunt', e => e.newState === 'completed' && ...)}. */
+    TargetedEventHandler<ResourceLocation> QUEST_STATE_CHANGED = GROUP.server("questStateChanged", () -> QuestChangedKubeEvent.class)
+            .supportsTarget(EventTargetType.ID);
+
+    /** {@code StoryboundEvents.questStageChanged('mypack:wolf_hunt', e => e.newStage ...)}. */
+    TargetedEventHandler<ResourceLocation> QUEST_STAGE_CHANGED = GROUP.server("questStageChanged", () -> QuestChangedKubeEvent.class)
+            .supportsTarget(EventTargetType.ID);
+
     EventHandler PARTY_JOINED = GROUP.server("partyJoined", () -> PartyKubeEvent.class);
     EventHandler PARTY_LEFT = GROUP.server("partyLeft", () -> PartyKubeEvent.class);
 

@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -22,31 +23,38 @@ public final class DefinitionType<T> {
     private final String directory;
     private final Codec<T> codec;
     private final @Nullable Predicate<T> syncFilter;
+    private final UnaryOperator<T> clientView;
     private final Supplier<StreamCodec<RegistryFriendlyByteBuf, T>> streamCodec;
     private final DefinitionStore<T> serverStore = new DefinitionStore<>();
     private final DefinitionStore<T> clientStore = new DefinitionStore<>();
 
-    private DefinitionType(ResourceLocation id, String directory, Codec<T> codec, @Nullable Predicate<T> syncFilter) {
+    private DefinitionType(ResourceLocation id, String directory, Codec<T> codec, @Nullable Predicate<T> syncFilter, UnaryOperator<T> clientView) {
         this.id = id;
         this.directory = directory;
         this.codec = codec;
         this.syncFilter = syncFilter;
+        this.clientView = clientView;
         this.streamCodec = Suppliers.memoize(() -> ByteBufCodecs.fromCodecWithRegistries(codec));
     }
 
     /** Definitions that never leave the server (dialogues, NPC bindings). */
     public static <T> DefinitionType<T> serverOnly(ResourceLocation id, String directory, Codec<T> codec) {
-        return new DefinitionType<>(id, directory, codec, null);
+        return new DefinitionType<>(id, directory, codec, null, UnaryOperator.identity());
     }
 
     /** Definitions the client receives in full (quests, Codex). */
     public static <T> DefinitionType<T> synced(ResourceLocation id, String directory, Codec<T> codec) {
-        return new DefinitionType<>(id, directory, codec, value -> true);
+        return new DefinitionType<>(id, directory, codec, value -> true, UnaryOperator.identity());
     }
 
     /** The client receives only definitions that pass the filter. */
     public static <T> DefinitionType<T> synced(ResourceLocation id, String directory, Codec<T> codec, Predicate<T> filter) {
-        return new DefinitionType<>(id, directory, codec, filter);
+        return new DefinitionType<>(id, directory, codec, filter, UnaryOperator.identity());
+    }
+
+    /** The client receives every definition, stripped by {@code clientView} of what it must not see (e.g. actions). */
+    public static <T> DefinitionType<T> syncedView(ResourceLocation id, String directory, Codec<T> codec, UnaryOperator<T> clientView) {
+        return new DefinitionType<>(id, directory, codec, value -> true, clientView);
     }
 
     public ResourceLocation id() {
@@ -85,7 +93,7 @@ public final class DefinitionType<T> {
         Map<ResourceLocation, T> result = new LinkedHashMap<>();
         serverStore.all().forEach((key, value) -> {
             if (syncFilter.test(value)) {
-                result.put(key, value);
+                result.put(key, clientView.apply(value));
             }
         });
         return result;

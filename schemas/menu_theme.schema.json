@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/menu_theme.schema.json",
+  "title": "Storybound Adventure Menu theme",
+  "description": "assets/storybound/storybound/menu/theme.json in a resource pack. Sprites are GUI sprites (assets/<ns>/textures/gui/sprites/<path>.png), usually nine-sliced by their .mcmeta.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "panel": { "$ref": "logic.schema.json#/definitions/id", "default": "storybound:menu/panel" },
+    "tab": { "$ref": "logic.schema.json#/definitions/id", "default": "storybound:menu/tab" },
+    "tab_selected": { "$ref": "logic.schema.json#/definitions/id", "default": "storybound:menu/tab_selected" },
+    "title": { "$ref": "#/definitions/color" },
+    "ink": { "$ref": "#/definitions/color" },
+    "muted": { "$ref": "#/definitions/color" },
+    "accent": { "$ref": "#/definitions/color" },
+    "unseen": { "$ref": "#/definitions/color" },
+    "completed": { "$ref": "#/definitions/color" },
+    "failed": { "$ref": "#/definitions/color" },
+    "selection": { "$ref": "#/definitions/color" },
+    "hover": { "$ref": "#/definitions/color" },
+    "divider": { "$ref": "#/definitions/color" },
+    "hud_background": { "$ref": "#/definitions/color" },
+    "hud_title": { "$ref": "#/definitions/color" },
+    "hud_text": { "$ref": "#/definitions/color" }
+  },
+  "definitions": {
+    "color": {
+      "description": "#RRGGBB (opaque) or #AARRGGBB.",
+      "type": "string",
+      "pattern": "^#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
+    }
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/quest.schema.json",
+  "title": "Storybound quest",
+  "description": "data/<namespace>/storybound/quests/<path>.json — a quest with a state (unknown, active, completed, failed) and stages with objectives.",
+  "type": "object",
+  "required": ["title"],
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "description": "Group in the Quests tab; name: '<ns>.quest.category.<path>'. Built in: main, side, contract.",
+      "$ref": "logic.schema.json#/definitions/id",
+      "default": "side"
+    },
+    "scope": {
+      "description": "Whose progress this is: one player's, the party's (shared by members) or the whole world's.",
+      "$ref": "logic.schema.json#/definitions/scope",
+      "default": "player"
+    },
+    "title": { "$ref": "logic.schema.json#/definitions/story_text" },
+    "description": {
+      "description": "Shown above the stage log when 'text' has nothing for the current state.",
+      "$ref": "logic.schema.json#/definitions/story_text"
+    },
+    "text": {
+      "description": "Description per state, shown above the stage log.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active": { "$ref": "logic.schema.json#/definitions/story_text" },
+        "completed": { "$ref": "logic.schema.json#/definitions/story_text" },
+        "failed": { "$ref": "logic.schema.json#/definitions/story_text" }
+      }
+    },
+    "start": {
+      "description": "Starts the quest for the player when the trigger fires and the conditions pass. Without it, start the quest with set_quest_state or set_quest_stage.",
+      "type": "object",
+      "required": ["trigger"],
+      "additionalProperties": false,
+      "properties": {
+        "trigger": { "$ref": "logic.schema.json#/definitions/trigger" },
+        "conditions": { "$ref": "logic.schema.json#/definitions/conditions" }
+      }
+    },
+    "stages": {
+      "description": "In order; the quest starts at the first one.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/stage" }
+    },
+    "fail_when": {
+      "description": "Checked every second while the quest is active; when it holds, the quest fails.",
+      "$ref": "logic.schema.json#/definitions/conditions"
+    },
+    "on_start": { "$ref": "logic.schema.json#/definitions/actions" },
+    "on_complete": {
+      "description": "Story effects, run once (for the player who finished the quest).",
+      "$ref": "logic.schema.json#/definitions/actions"
+    },
+    "on_failed": { "$ref": "logic.schema.json#/definitions/actions" },
+    "rewards": {
+      "description": "Run on completion for every online player sharing the quest, so each party member is paid.",
+      "$ref": "logic.schema.json#/definitions/actions"
+    },
+    "notify": {
+      "description": "Show toasts when the quest starts, advances and ends.",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "definitions": {
+    "stage": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[^@]" },
+        "log": {
+          "description": "The stage's entry in the quest's story, shown from the moment the stage is reached.",
+          "$ref": "logic.schema.json#/definitions/story_text"
+        },
+        "objectives": {
+          "description": "The stage ends when every required objective reaches its count. Without required objectives it waits for set_quest_stage or set_quest_state.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/objective" }
+        },
+        "next": {
+          "description": "A stage id, @complete or @fail. Omitted: the following stage, or completion after the last one.",
+          "type": "string"
+        },
+        "on_enter": { "$ref": "logic.schema.json#/definitions/actions" }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "required": ["trigger"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Defaults to the objective's position in the stage.",
+          "type": "string"
+        },
+        "trigger": { "$ref": "logic.schema.json#/definitions/trigger" },
+        "conditions": { "$ref": "logic.schema.json#/definitions/conditions" },
+        "count": { "type": "integer", "minimum": 1, "maximum": 100000, "default": 1 },
+        "text": {
+          "description": "The line in the Quests tab and on the HUD; an objective without text is not shown.",
+          "$ref": "logic.schema.json#/definitions/story_text"
+        },
+        "hidden": { "type": "boolean", "default": false },
+        "optional": {
+          "description": "Counted and shown, but not needed to finish the stage.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}

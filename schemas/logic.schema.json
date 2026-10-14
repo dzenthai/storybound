@@ -1,0 +1,450 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/logic.schema.json",
+  "title": "Storybound logic language",
+  "description": "Shared definitions for conditions, actions and triggers. Referenced by other Storybound schemas.",
+  "definitions": {
+    "id": {
+      "type": "string",
+      "pattern": "^([a-z0-9_.-]+:)?[a-z0-9_./-]+$"
+    },
+    "scope": { "enum": ["player", "party", "world"] },
+    "quest_state": { "enum": ["unknown", "active", "completed", "failed"] },
+    "literal": {
+      "description": "A plain value; the JSON type picks the story value type. Numbers must be whole.",
+      "type": ["boolean", "integer", "string"]
+    },
+    "id_list": {
+      "description": "An id, a #tag or a list of ids.",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "story_text": {
+      "description": "Player-facing text: a translation key, or the full form.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["key"],
+          "additionalProperties": false,
+          "properties": {
+            "key": { "type": "string" },
+            "args": {
+              "description": "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:translation.key}, or plain text.",
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "fallback": { "type": "string" },
+            "variant_by": {
+              "description": "A story variable; the client uses '<key>.<value>' when that key exists.",
+              "$ref": "#/definitions/id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["literal"],
+          "additionalProperties": false,
+          "properties": { "literal": { "description": "Prototyping only: not translatable.", "type": "string" } }
+        }
+      ]
+    },
+    "area": {
+      "type": "object",
+      "required": ["center", "radius"],
+      "additionalProperties": false,
+      "properties": {
+        "center": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+        "radius": { "type": "number", "minimum": 0, "maximum": 4096 },
+        "dimension": { "$ref": "#/definitions/id" }
+      }
+    },
+
+    "conditions": {
+      "description": "One condition, or an array of conditions that must all pass.",
+      "oneOf": [
+        { "$ref": "#/definitions/condition" },
+        { "type": "array", "items": { "$ref": "#/definitions/condition" } }
+      ]
+    },
+    "condition": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "enum": ["flag", "storybound:flag"] },
+            "key": { "$ref": "#/definitions/id" },
+            "scope": { "$ref": "#/definitions/scope" },
+            "value": { "type": "boolean", "default": true }
+          },
+          "required": ["key"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["var", "storybound:var"] },
+            "key": { "$ref": "#/definitions/id" },
+            "scope": { "$ref": "#/definitions/scope" },
+            "op": { "enum": ["=", "==", "!=", ">", ">=", "<", "<="], "default": "=" },
+            "value": { "$ref": "#/definitions/literal" }
+          },
+          "required": ["key", "value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["has_item", "storybound:has_item"] },
+            "item": { "$ref": "#/definitions/id" },
+            "tag": { "$ref": "#/definitions/id" },
+            "count": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          "oneOf": [ { "required": ["item"] }, { "required": ["tag"] } ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["location", "storybound:location"] },
+            "dimension": { "$ref": "#/definitions/id" },
+            "biome": { "$ref": "#/definitions/id_list" },
+            "area": { "$ref": "#/definitions/area" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["in_party", "storybound:in_party"] },
+            "min_size": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["chance", "storybound:chance"] },
+            "value": { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["all", "storybound:all", "any", "storybound:any"] },
+            "conditions": { "type": "array", "items": { "$ref": "#/definitions/condition" } }
+          },
+          "required": ["conditions"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["not", "storybound:not"] },
+            "condition": { "$ref": "#/definitions/conditions" }
+          },
+          "required": ["condition"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["kubejs", "storybound:kubejs"] },
+            "id": { "$ref": "#/definitions/id" }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["document_read", "storybound:document_read"] },
+            "document": { "$ref": "#/definitions/id" }
+          },
+          "required": ["document"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The quest is in this state; with stage, it is active at that stage.",
+          "properties": {
+            "type": { "enum": ["quest", "storybound:quest"] },
+            "quest": { "$ref": "#/definitions/id" },
+            "state": { "$ref": "#/definitions/quest_state" },
+            "stage": { "type": "string" }
+          },
+          "required": ["quest"],
+          "anyOf": [ { "required": ["state"] }, { "required": ["stage"] } ],
+          "additionalProperties": false
+        },
+        {
+          "description": "A condition type added by another mod.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "pattern": "^[a-z0-9_.-]+:",
+              "not": { "pattern": "^storybound:" }
+            }
+          }
+        }
+      ]
+    },
+
+    "actions": {
+      "description": "One action, or an array of actions run in order.",
+      "oneOf": [
+        { "$ref": "#/definitions/action" },
+        { "type": "array", "items": { "$ref": "#/definitions/action" } }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "enum": ["set_flag", "storybound:set_flag"] },
+            "key": { "$ref": "#/definitions/id" },
+            "scope": { "$ref": "#/definitions/scope" },
+            "value": { "type": "boolean", "default": true }
+          },
+          "required": ["key"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["clear_flag", "storybound:clear_flag"] },
+            "key": { "$ref": "#/definitions/id" },
+            "scope": { "$ref": "#/definitions/scope" }
+          },
+          "required": ["key"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["set_var", "storybound:set_var"] },
+            "key": { "$ref": "#/definitions/id" },
+            "scope": { "$ref": "#/definitions/scope" },
+            "value": { "$ref": "#/definitions/literal" }
+          },
+          "required": ["key", "value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["add_var", "storybound:add_var"] },
+            "key": { "$ref": "#/definitions/id" },
+            "scope": { "$ref": "#/definitions/scope" },
+            "amount": { "type": "integer" }
+          },
+          "required": ["key", "amount"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["give_item", "storybound:give_item"] },
+            "item": { "$ref": "#/definitions/id" },
+            "count": { "type": "integer", "minimum": 1, "maximum": 2304, "default": 1 },
+            "components": { "type": "object" }
+          },
+          "required": ["item"],
+          "additionalProperties": false
+        },
+        {
+          "description": "All or nothing: with too few items it takes none and fails.",
+          "properties": {
+            "type": { "enum": ["take_item", "storybound:take_item"] },
+            "item": { "$ref": "#/definitions/id" },
+            "tag": { "$ref": "#/definitions/id" },
+            "count": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          "oneOf": [ { "required": ["item"] }, { "required": ["tag"] } ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["play_sound", "storybound:play_sound"] },
+            "sound": { "$ref": "#/definitions/id" },
+            "source": { "enum": ["master", "music", "record", "weather", "block", "hostile", "neutral", "player", "ambient", "voice"], "default": "master" },
+            "volume": { "type": "number", "minimum": 0, "maximum": 10, "default": 1 },
+            "pitch": { "type": "number", "minimum": 0.5, "maximum": 2, "default": 1 }
+          },
+          "required": ["sound"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["run_command", "storybound:run_command"] },
+            "command": { "type": "string" }
+          },
+          "required": ["command"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["kubejs", "storybound:kubejs"] },
+            "id": { "$ref": "#/definitions/id" }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["give_document", "storybound:give_document"] },
+            "document": { "$ref": "#/definitions/id" },
+            "count": { "type": "integer", "minimum": 1, "maximum": 64, "default": 1 }
+          },
+          "required": ["document"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A note in the Journal; writing the same id again replaces it. Arguments are resolved when written.",
+          "properties": {
+            "type": { "enum": ["journal_entry", "storybound:journal_entry"] },
+            "id": { "$ref": "#/definitions/id" },
+            "category": { "$ref": "#/definitions/id", "default": "notes" },
+            "title": { "$ref": "#/definitions/story_text" },
+            "text": { "$ref": "#/definitions/story_text" }
+          },
+          "required": ["id", "title", "text"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A toast on the player's screen.",
+          "properties": {
+            "type": { "enum": ["notify", "storybound:notify"] },
+            "title": { "$ref": "#/definitions/story_text" },
+            "text": { "$ref": "#/definitions/story_text" }
+          },
+          "required": ["title"],
+          "additionalProperties": false
+        },
+        {
+          "description": "unknown resets the quest; active starts it (or reopens a finished one); completed runs on_complete and rewards.",
+          "properties": {
+            "type": { "enum": ["set_quest_state", "storybound:set_quest_state"] },
+            "quest": { "$ref": "#/definitions/id" },
+            "state": { "$ref": "#/definitions/quest_state" }
+          },
+          "required": ["quest", "state"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Moves an active quest to a stage, starting it first if it is unknown.",
+          "properties": {
+            "type": { "enum": ["set_quest_stage", "storybound:set_quest_stage"] },
+            "quest": { "$ref": "#/definitions/id" },
+            "stage": { "type": "string" }
+          },
+          "required": ["quest", "stage"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Tracks the quest on the player's HUD; without quest, tracks nothing.",
+          "properties": {
+            "type": { "enum": ["track_quest", "storybound:track_quest"] },
+            "quest": { "$ref": "#/definitions/id" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "An action type added by another mod.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "pattern": "^[a-z0-9_.-]+:",
+              "not": { "pattern": "^storybound:" }
+            }
+          }
+        }
+      ]
+    },
+
+    "trigger": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "enum": ["flag_changed", "storybound:flag_changed"] },
+            "key": { "$ref": "#/definitions/id" },
+            "value": { "$ref": "#/definitions/literal" }
+          },
+          "required": ["key"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["entity_killed", "storybound:entity_killed", "entity_interacted", "storybound:entity_interacted"] },
+            "entity": { "$ref": "#/definitions/id_list" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["area_entered", "storybound:area_entered"] },
+            "area": { "$ref": "#/definitions/area" },
+            "fire_on_login": { "type": "boolean", "default": false }
+          },
+          "required": ["area"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["item_obtained", "storybound:item_obtained"] },
+            "item": { "$ref": "#/definitions/id" },
+            "tag": { "$ref": "#/definitions/id" }
+          },
+          "oneOf": [ { "required": ["item"] }, { "required": ["tag"] } ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["party_joined", "storybound:party_joined", "party_left", "storybound:party_left"] }
+          },
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "enum": ["custom", "storybound:custom"] },
+            "id": { "$ref": "#/definitions/id" }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Fires on every read; first_time limits it to the first one.",
+          "properties": {
+            "type": { "enum": ["document_read", "storybound:document_read"] },
+            "document": { "$ref": "#/definitions/id" },
+            "first_time": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "A quest's state changed (to state, if given). unknown means it was reset.",
+          "properties": {
+            "type": { "enum": ["quest_state_changed", "storybound:quest_state_changed"] },
+            "quest": { "$ref": "#/definitions/id" },
+            "state": { "$ref": "#/definitions/quest_state" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "A quest moved to another stage (to stage, if given).",
+          "properties": {
+            "type": { "enum": ["quest_stage_changed", "storybound:quest_stage_changed"] },
+            "quest": { "$ref": "#/definitions/id" },
+            "stage": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "A trigger type added by another mod.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "pattern": "^[a-z0-9_.-]+:",
+              "not": { "pattern": "^storybound:" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

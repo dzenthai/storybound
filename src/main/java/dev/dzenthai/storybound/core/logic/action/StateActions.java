@@ -6,13 +6,13 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.ActionType;
+import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.StoryValues;
 import java.util.Optional;
-import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
 
 /** Writes to Story State. An omitted scope means the flag's declared scope. */
@@ -42,8 +42,8 @@ public final class StateActions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            sink.accept(key);
+        public void collectReferences(References references) {
+            references.flag(key);
         }
     }
 
@@ -64,8 +64,8 @@ public final class StateActions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            sink.accept(key);
+        public void collectReferences(References references) {
+            references.flag(key);
         }
     }
 
@@ -88,8 +88,8 @@ public final class StateActions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            sink.accept(key);
+        public void collectReferences(References references) {
+            references.flag(key);
         }
     }
 
@@ -112,8 +112,8 @@ public final class StateActions {
         }
 
         @Override
-        public void collectFlags(Consumer<ResourceLocation> sink) {
-            sink.accept(key);
+        public void collectReferences(References references) {
+            references.flag(key);
         }
     }
 }

@@ -1,0 +1,5 @@
+{
+  "kind": "letter",
+  "title": "example.document.elder_letter.title",
+  "on_read": { "type": "set_flag", "key": "example:read_elder_letter" }
+}

@@ -68,6 +68,19 @@ public final class StoryState {
         return result;
     }
 
+    /** A quest's progress in a scope; empty means the quest is unknown there. */
+    public static Optional<QuestProgress> getQuest(ServerPlayer player, StoryScope scope, ResourceLocation quest) {
+        return container(player, scope).quest(quest);
+    }
+
+    /**
+     * Raw write of a quest's progress ({@code null} forgets the quest). The quest module owns the
+     * rules, events and sync; other code should go through it.
+     */
+    public static void setQuest(ServerPlayer player, StoryScope scope, ResourceLocation quest, @Nullable QuestProgress progress) {
+        container(player, scope).putQuest(quest, progress);
+    }
+
     /** Player UUID, party (or solo party) id, or null for the {@code world} scope. */
     public static @Nullable UUID owner(ServerPlayer player, StoryScope scope) {
         return switch (scope) {

@@ -12,7 +12,11 @@ import dev.dzenthai.storybound.core.logic.ActionType;
 import dev.dzenthai.storybound.core.logic.ItemMatcher;
 import dev.dzenthai.storybound.core.logic.ScriptHooks;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.notify.NotifyKind;
+import dev.dzenthai.storybound.core.notify.Notifications;
+import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.Arrays;
+import java.util.Optional;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentPatch;
@@ -154,6 +158,25 @@ public final class WorldActions {
         @Override
         public void run(StoryContext context) {
             ScriptHooks.runAction(id, context);
+        }
+    }
+
+    /** {@code { "type": "notify", "title": "mypack.toast.rumour", "text": "mypack.toast.rumour.text" }}: a toast for the player. */
+    public record Notify(StoryText title, Optional<StoryText> text) implements Action {
+        public static final MapCodec<Notify> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                StoryText.CODEC.fieldOf("title").forGetter(Notify::title),
+                StoryText.CODEC.optionalFieldOf("text").forGetter(Notify::text)
+        ).apply(instance, Notify::new));
+
+        @Override
+        public ActionType<?> type() {
+            return BuiltinActions.NOTIFY.get();
+        }
+
+        @Override
+        public void run(StoryContext context) {
+            ServerPlayer player = context.player();
+            Notifications.send(player, NotifyKind.INFO, title.resolve(player), text.map(value -> value.resolve(player)));
         }
     }
 }
