@@ -1,0 +1,10 @@
+{
+  "participants": {},
+  "presentation": "hud",
+  "broadcast": false,
+  "start": "one_down",
+  "nodes": {
+    "one_down": { "type": "line", "speaker": "player", "text": "example.dialogue.first_wolf.one_down", "next": "tree_line" },
+    "tree_line": { "type": "line", "speaker": "player", "text": "example.dialogue.first_wolf.tree_line" }
+  }
+}

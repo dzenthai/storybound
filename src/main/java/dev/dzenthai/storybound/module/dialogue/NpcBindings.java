@@ -1,0 +1,175 @@
+package dev.dzenthai.storybound.module.dialogue;
+
+import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.StoryException;
+import dev.dzenthai.storybound.core.event.NpcInteractEvent;
+import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.state.StoryScope;
+import dev.dzenthai.storybound.core.state.StoryState;
+import dev.dzenthai.storybound.core.state.StoryValue;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
+import net.neoforged.neoforge.common.NeoForge;
+import org.jetbrains.annotations.Nullable;
+
+/**
+ * Starts dialogues from NPCs: on right-click and when a player comes close. An entity's own binding
+ * (from {@code /storybound npc bind}) wins; otherwise the first binding file, by id, whose selector matches.
+ */
+public final class NpcBindings {
+    private static final int PROXIMITY_INTERVAL = 10;
+    private static final String ONCE_PREFIX = "npc_once/";
+
+    private static List<Map.Entry<ResourceLocation, NpcBinding>> files = List.of();
+    private static double searchRadius = NpcBinding.Proximity.DEFAULT.radius();
+    /** Player → entities within a proximity radius at the last check; a dialogue starts only on coming close. */
+    private static final Map<UUID, Set<UUID>> NEAR = new HashMap<>();
+    /** Player → entity → tick of the last proximity start, for the cooldown. */
+    private static final Map<UUID, Map<UUID, Long>> LAST_START = new HashMap<>();
+    /** Players whose next check is their first since logging in: it only records who is near. */
+    private static final Set<UUID> FRESH = new HashSet<>();
+
+    private NpcBindings() {}
+
+    /** Caches the loaded binding files in id order; called after every data load. */
+    public static void rebuild() {
+        List<Map.Entry<ResourceLocation, NpcBinding>> sorted = new ArrayList<>(DialogueRegistries.NPC_BINDINGS.serverStore().all().entrySet());
+        sorted.sort(Map.Entry.comparingByKey(Comparator.comparing(ResourceLocation::toString)));
+        files = List.copyOf(sorted);
+        searchRadius = files.stream().flatMap(entry -> entry.getValue().proximity().stream())
+                .mapToDouble(NpcBinding.Proximity::radius).max().orElse(0);
+        searchRadius = Math.max(searchRadius, NpcBinding.Proximity.DEFAULT.radius());
+    }
+
+    /** The binding that applies to the entity; {@code id} is null for one stored on the entity. */
+    public static Optional<Found> find(Entity entity) {
+        if (entity.hasData(DialogueRegistries.NPC_BINDING)) {
+            return Optional.of(new Found(null, entity.getData(DialogueRegistries.NPC_BINDING).toBinding(entity)));
+        }
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
+            if (entry.getValue().entity().matches(entity)) {
+                return Optional.of(new Found(entry.getKey(), entry.getValue()));
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** A right-click on an entity. A dialogue started here also cancels the vanilla interaction (trading). */
+    static void interacted(ServerPlayer player, Entity target) {
+        if (!Dialogues.isEnabled() || Dialogues.state(player).isPresent()) {
+            return;
+        }
+        Found found = find(target).orElse(null);
+        if (found == null) {
+            return;
+        }
+        if (found.binding().custom() && found.id() != null) {
+            NeoForge.EVENT_BUS.post(new NpcInteractEvent(player, target, found.id()));
+        }
+        if (found.binding().interact() && Dialogues.state(player).isEmpty()) {
+            found.binding().pick(new StoryContext(player, target)).ifPresent(dialogue -> Dialogues.start(player, dialogue, target));
+        }
+    }
+
+    /** Proximity starts; every 10 ticks. Public for tests. */
+    public static void tick(MinecraftServer server) {
+        long now = server.getTickCount();
+        if (now % PROXIMITY_INTERVAL != 0 || !Dialogues.isEnabled()) {
+            return;
+        }
+        for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
+            checkProximity(player, now);
+        }
+    }
+
+    /** One proximity check for one player; public for tests. */
+    public static void checkProximity(ServerPlayer player, long now) {
+        UUID playerId = player.getUUID();
+        if (player.isSpectator() || !player.isAlive()) {
+            NEAR.remove(playerId);
+            return;
+        }
+        boolean fresh = FRESH.remove(playerId);
+        Set<UUID> previous = NEAR.getOrDefault(playerId, Set.of());
+        Set<UUID> near = new HashSet<>();
+        AABB box = player.getBoundingBox().inflate(searchRadius);
+        for (Entity entity : player.level().getEntities(player, box, candidate -> candidate instanceof LivingEntity && candidate.isAlive())) {
+            Found found = find(entity).orElse(null);
+            NpcBinding.Proximity proximity = found != null ? found.binding().proximity().orElse(null) : null;
+            if (proximity == null || entity.distanceToSqr(player) > proximity.radius() * proximity.radius()
+                    || (proximity.lineOfSight() && !player.hasLineOfSight(entity))) {
+                continue;
+            }
+            near.add(entity.getUUID());
+            if (!fresh && !previous.contains(entity.getUUID())) {
+                tryStart(player, entity, found, proximity, now);
+            }
+        }
+        NEAR.put(playerId, near);
+    }
+
+    private static void tryStart(ServerPlayer player, Entity entity, Found found, NpcBinding.Proximity proximity, long now) {
+        if (Dialogues.state(player).isPresent()) {
+            return;
+        }
+        Map<UUID, Long> starts = LAST_START.computeIfAbsent(player.getUUID(), id -> new HashMap<>());
+        Long last = starts.get(entity.getUUID());
+        if (last != null && now - last < proximity.cooldown() * 20L) {
+            return;
+        }
+        ResourceLocation once = proximity.once() ? onceKey(found, entity) : null;
+        if (once != null && StoryState.getStored(player, StoryScope.PLAYER, once).isPresent()) {
+            return;
+        }
+        Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, entity));
+        if (dialogue.isPresent() && Dialogues.start(player, dialogue.get(), entity)) {
+            starts.put(entity.getUUID(), now);
+            if (once != null) {
+                try {
+                    StoryState.set(player, StoryScope.PLAYER, once, new StoryValue.Bool(true));
+                } catch (StoryException e) {
+                    Storybound.LOGGER.warn("Storybound: could not update {}: {}", once, e.getMessage());
+                }
+            }
+        }
+    }
+
+    /** The internal player flag of a {@code once} proximity binding. */
+    public static ResourceLocation onceKey(Found found, Entity entity) {
+        return found.id() != null
+                ? Storybound.id(ONCE_PREFIX + found.id().getNamespace() + "/" + found.id().getPath())
+                : Storybound.id(ONCE_PREFIX + "entity/" + entity.getUUID());
+    }
+
+    static void loggedIn(ServerPlayer player) {
+        FRESH.add(player.getUUID());
+    }
+
+    static void forget(ServerPlayer player) {
+        NEAR.remove(player.getUUID());
+        LAST_START.remove(player.getUUID());
+        FRESH.remove(player.getUUID());
+    }
+
+    static void reset() {
+        NEAR.clear();
+        LAST_START.clear();
+        FRESH.clear();
+    }
+
+    /** @param id the binding file, or null for a binding stored on the entity */
+    public record Found(@Nullable ResourceLocation id, NpcBinding binding) {}
+}

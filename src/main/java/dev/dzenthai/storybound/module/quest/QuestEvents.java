@@ -1,14 +1,13 @@
 package dev.dzenthai.storybound.module.quest;
 
 import dev.dzenthai.storybound.Storybound;
-import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.logic.Action;
+import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
-import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.trigger.Subscription;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
@@ -43,6 +42,7 @@ public final class QuestEvents {
         gameBus.addListener(QuestEvents::onPartyJoined);
         gameBus.addListener(QuestEvents::onPartyLeft);
         gameBus.addListener(QuestEvents::onServerTick);
+        LogicOwners.register(QuestRegistries.QUESTS, QuestEvents::collectReferences);
         ValidationService.registerValidator(QuestEvents::validate);
     }
 
@@ -112,7 +112,7 @@ public final class QuestEvents {
 
     /**
      * Checks each quest's own structure (unique stage ids, {@code next} targets, objectives with triggers)
-     * and that story events and quests refer only to existing quests and stages.
+     * and that every definition with logic refers only to existing quests and stages.
      */
     private static void validate(Consumer<ValidationIssue> sink) {
         DefinitionType<QuestDefinition> type = QuestRegistries.QUESTS;
@@ -142,10 +142,8 @@ public final class QuestEvents {
                     }
                 });
             }
-            collectReferences(quest, unknownQuests(type, id, sink));
         });
-        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) ->
-                StoryEvents.collectReferences(event, unknownQuests(CoreDefinitions.EVENTS, id, sink)));
+        LogicOwners.walkAll((owner, id) -> unknownQuests(owner, id, sink));
     }
 
     /** Walks every id a quest's logic refers to. */

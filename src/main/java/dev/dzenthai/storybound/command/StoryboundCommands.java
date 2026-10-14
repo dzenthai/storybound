@@ -25,6 +25,8 @@ public final class StoryboundCommands {
                 .then(TriggerCommands.trigger())
                 .then(DocumentCommands.document())
                 .then(QuestCommands.quest())
+                .then(DialogueCommands.dialogue())
+                .then(NpcCommands.npc())
                 .then(PartyCommands.party()));
     }
 

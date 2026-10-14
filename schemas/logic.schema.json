@@ -343,6 +343,22 @@
           "additionalProperties": false
         },
         {
+          "description": "Starts a dialogue; the context entity (e.g. the interacted NPC) becomes its bound participant. Fails while the player is already talking.",
+          "properties": {
+            "type": { "enum": ["start_dialogue", "storybound:start_dialogue"] },
+            "dialogue": { "$ref": "#/definitions/id" }
+          },
+          "required": ["dialogue"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Ends the player's dialogue as finished, so dialogue_ended fires.",
+          "properties": {
+            "type": { "enum": ["end_dialogue", "storybound:end_dialogue"] }
+          },
+          "additionalProperties": false
+        },
+        {
           "description": "An action type added by another mod.",
           "properties": {
             "type": {
@@ -431,6 +447,15 @@
             "type": { "enum": ["quest_stage_changed", "storybound:quest_stage_changed"] },
             "quest": { "$ref": "#/definitions/id" },
             "stage": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "A dialogue finished (not interrupted): its base dialogue and the last node it passed.",
+          "properties": {
+            "type": { "enum": ["dialogue_ended", "storybound:dialogue_ended"] },
+            "dialogue": { "$ref": "#/definitions/id" },
+            "node": { "type": "string" }
           },
           "additionalProperties": false
         },

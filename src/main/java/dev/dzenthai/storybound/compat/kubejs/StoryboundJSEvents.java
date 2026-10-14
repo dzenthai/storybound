@@ -26,6 +26,18 @@ public interface StoryboundJSEvents {
     TargetedEventHandler<ResourceLocation> QUEST_STAGE_CHANGED = GROUP.server("questStageChanged", () -> QuestChangedKubeEvent.class)
             .supportsTarget(EventTargetType.ID);
 
+    /** {@code StoryboundEvents.dialogueStarted('mypack:elder', e => ...)}; the id is optional. */
+    TargetedEventHandler<ResourceLocation> DIALOGUE_STARTED = GROUP.server("dialogueStarted", () -> DialogueKubeEvent.class)
+            .supportsTarget(EventTargetType.ID);
+
+    /** {@code StoryboundEvents.dialogueEnded('mypack:elder', e => e.aborted ? ... : ...)}, also for interrupted dialogues. */
+    TargetedEventHandler<ResourceLocation> DIALOGUE_ENDED = GROUP.server("dialogueEnded", () -> DialogueKubeEvent.class)
+            .supportsTarget(EventTargetType.ID);
+
+    /** {@code StoryboundEvents.npcInteract('mypack:elder', e => Storybound.dialogues(e.player).start('mypack:elder_night', e.entity))}; the binding id is optional. */
+    TargetedEventHandler<ResourceLocation> NPC_INTERACT = GROUP.server("npcInteract", () -> NpcInteractKubeEvent.class)
+            .supportsTarget(EventTargetType.ID);
+
     EventHandler PARTY_JOINED = GROUP.server("partyJoined", () -> PartyKubeEvent.class);
     EventHandler PARTY_LEFT = GROUP.server("partyLeft", () -> PartyKubeEvent.class);
 

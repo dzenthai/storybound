@@ -54,11 +54,16 @@ neoForge {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
-        // A second player for party tests: another name (offline UUIDs come from the name) and its own folder.
+        // More players for party and dialogue tests: other names (offline UUIDs come from the name) and their own folders.
         client2 {
             client()
             gameDirectory = project.file('run/client2')
             programArguments.addAll '--username', 'Dev2'
+        }
+        client3 {
+            client()
+            gameDirectory = project.file('run/client3')
+            programArguments.addAll '--username', 'Dev3'
         }
         server {
             server()

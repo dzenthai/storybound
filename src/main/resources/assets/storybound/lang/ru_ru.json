@@ -72,6 +72,16 @@
   "commands.storybound.quest.entry": "%s: %s, этап %s",
   "commands.storybound.quest.entry_tracked": " (отслеживается)",
   "commands.storybound.quest.none": "У %s нет квестов",
+  "storybound.dialogue.title": "Диалог",
+  "storybound.dialogue.unknown": "Неизвестный диалог %s",
+  "storybound.dialogue.cannot_start": "Диалог %s не может начаться: неизвестный диалог, игрок уже разговаривает или модуль диалогов отключён",
+  "commands.storybound.dialogue.started": "Диалог %s начат для игроков: %s",
+  "commands.storybound.dialogue.stopped": "Остановлены диалоги игроков: %s",
+  "commands.storybound.npc.bound": "%s теперь начинает диалог %s",
+  "commands.storybound.npc.unbound": "У %s больше нет собственной привязки",
+  "commands.storybound.npc.not_bound": "У %s нет собственной привязки",
+  "commands.storybound.npc.none": "К %s не относится ни одна привязка",
+  "commands.storybound.npc.info": "%s: привязка %s, диалоги %s, режимы %s",
 
   "storybound.party.default_name": "Отряд %s",
   "storybound.party.created": "Отряд «%s» создан. Пригласить игрока: /storybound party invite <игрок>",
@@ -111,10 +121,15 @@
   "storybound.configuration.copyStateOnLeave": "Сохранять прогресс при выходе из отряда",
   "storybound.configuration.actions": "Действия",
   "storybound.configuration.commandPermissionLevel": "Уровень прав для run_command",
+  "storybound.configuration.dialogue": "Диалоги",
+  "storybound.configuration.maxDistance": "Расстояние, прерывающее диалог",
+  "storybound.configuration.interruptOnDamage": "Урон прерывает диалог",
   "storybound.configuration.section.storybound.client.toml": "Настройки клиента",
   "storybound.configuration.section.storybound.client.toml.title": "Storybound: настройки клиента",
   "storybound.configuration.hud": "Интерфейс",
   "storybound.configuration.questTracker": "Показывать отслеживаемый квест",
   "storybound.configuration.questTrackerCorner": "Угол экрана для квеста",
-  "storybound.configuration.questTrackerOffsetY": "Отступ квеста от края"
+  "storybound.configuration.questTrackerOffsetY": "Отступ квеста от края",
+  "storybound.configuration.textSpeed": "Скорость текста в диалогах (символов в секунду)",
+  "storybound.configuration.speechBubbles": "Реплики из чужих диалогов над головой"
 }

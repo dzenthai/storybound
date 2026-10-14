@@ -1,15 +1,18 @@
 package dev.dzenthai.storybound.compat.kubejs;
 
 import dev.dzenthai.storybound.core.StoryException;
+import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
+import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.quest.QuestLogic;
 import dev.dzenthai.storybound.module.quest.Quests;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -19,6 +22,7 @@ import org.jetbrains.annotations.Nullable;
  * Storybound.flags(player).get('mypack:gold')
  * Storybound.triggers.fire('mypack:bell_rung', player)
  * Storybound.quests(player).state('mypack:wolf_hunt')
+ * Storybound.dialogues(player).start('mypack:elder', npc)
  * </pre>
  */
 public class StoryboundBinding {
@@ -30,6 +34,10 @@ public class StoryboundBinding {
 
     public QuestsView quests(ServerPlayer player) {
         return new QuestsView(player);
+    }
+
+    public DialoguesView dialogues(ServerPlayer player) {
+        return new DialoguesView(player);
     }
 
     public Triggers getTriggers() {
@@ -151,6 +159,39 @@ public class StoryboundBinding {
 
         public void track(@Nullable ResourceLocation quest) {
             Quests.track(player, quest);
+        }
+    }
+
+    /** The player's dialogue. Starting fails (returns false) while they are already talking. */
+    public static class DialoguesView {
+        private final ServerPlayer player;
+
+        DialoguesView(ServerPlayer player) {
+            this.player = player;
+        }
+
+        public boolean start(ResourceLocation dialogue) {
+            return Dialogues.start(player, dialogue, null);
+        }
+
+        /** {@code speaker} becomes the dialogue's {@code bound} participant. */
+        public boolean start(ResourceLocation dialogue, @Nullable Entity speaker) {
+            return Dialogues.start(player, dialogue, speaker);
+        }
+
+        /** Ends it as finished: {@code dialogue_ended} fires. */
+        public boolean end() {
+            return Dialogues.end(player);
+        }
+
+        /** Interrupts it: {@code on_abort} runs. */
+        public boolean stop() {
+            return Dialogues.interrupt(player, DialogueEvent.EndReason.STOPPED);
+        }
+
+        /** The dialogue the player is in (inside a call: the called one), or null. */
+        public @Nullable ResourceLocation current() {
+            return Dialogues.state(player).map(Dialogues.State::dialogue).orElse(null);
         }
     }
 }

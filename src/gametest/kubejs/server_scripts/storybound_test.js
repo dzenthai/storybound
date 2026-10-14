@@ -32,3 +32,22 @@ StoryboundEvents.customTrigger('gametest:kjs_complete', e => {
   quests.complete('gametest:kjs_quest')
   Storybound.flags(e.player).set('gametest:kjs_read_state', quests.state('gametest:kjs_quest'))
 })
+
+StoryboundEvents.dialogueStarted('gametest:kjs_talk', e => {
+  Storybound.flags(e.player).set('gametest:kjs_dialogue_started', true)
+})
+
+StoryboundEvents.dialogueEnded('gametest:kjs_talk', e => {
+  Storybound.flags(e.player).set('gametest:kjs_dialogue_end', e.reason + ':' + e.node)
+})
+
+StoryboundEvents.customTrigger('gametest:kjs_talk_start', e => {
+  let dialogues = Storybound.dialogues(e.player)
+  dialogues.start('gametest:kjs_talk')
+  Storybound.flags(e.player).set('gametest:kjs_dialogue_current', String(dialogues.current()))
+  dialogues.end()
+})
+
+StoryboundEvents.npcInteract('gametest:kjs_npc', e => {
+  Storybound.flags(e.player).set('gametest:kjs_npc_binding', String(e.binding))
+})

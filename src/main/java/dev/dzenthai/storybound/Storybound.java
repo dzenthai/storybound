@@ -9,6 +9,8 @@ import dev.dzenthai.storybound.core.logic.LogicEvents;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.core.state.StateEvents;
 import dev.dzenthai.storybound.core.state.StoryAttachments;
+import dev.dzenthai.storybound.module.dialogue.DialogueEvents;
+import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.document.DocumentEvents;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.journal.Journal;
@@ -37,6 +39,7 @@ public final class Storybound {
         DocumentRegistries.register(modBus);
         Journal.register(modBus);
         QuestRegistries.register(modBus);
+        DialogueRegistries.register(modBus);
 
         modBus.addListener(StoryboundNetwork::register);
         StoryboundDataEvents.register(NeoForge.EVENT_BUS);
@@ -44,6 +47,7 @@ public final class Storybound {
         LogicEvents.register(NeoForge.EVENT_BUS);
         DocumentEvents.register(NeoForge.EVENT_BUS);
         QuestEvents.register(NeoForge.EVENT_BUS);
+        DialogueEvents.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(StoryboundCommands::register);
     }
 

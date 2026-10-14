@@ -12,5 +12,23 @@
   "example.quest.wolf_hunt.log.report": "Волки мертвы. Старосте стоит об этом узнать.",
   "example.quest.wolf_hunt.objective.wolves": "Убейте волков",
   "example.quest.wolf_hunt.objective.oath": "Прочтите клятву охотника",
-  "example.quest.wolf_hunt.objective.report": "Вернитесь к старосте"
+  "example.quest.wolf_hunt.objective.report": "Вернитесь к старосте",
+
+  "example.npc.elder": "Староста Холлис",
+  "example.dialogue.elder.first_meeting": "Чужак в Светловодье? Не лучшее время ты выбрал, путник. Кто-то таскает наших овец.",
+  "example.dialogue.elder.introduce": "Я здесь проездом. Может, смогу помочь.",
+  "example.dialogue.elder.letter": "Тогда прочти вот это. Я записал всё, что мы знаем: где пропадали стада и когда.",
+  "example.dialogue.elder.welcome_back": "А, %s. Снова к нам?",
+  "example.dialogue.elder.ask_wolves": "Расскажи о волках.",
+  "example.dialogue.elder.wolves_pack": "Стая, голов пять-шесть. Спускаются с гребня после заката.",
+  "example.dialogue.elder.wolves_white": "Старый Тэм клянётся, что один из них белый как кость. Ещё старый Тэм клянётся, что его коза умеет считать.",
+  "example.dialogue.elder.report": "Волки мертвы.",
+  "example.dialogue.elder.reported": "Правда? Тогда Светловодье у тебя в долгу. Прими это с нашей благодарностью.",
+  "example.dialogue.elder.gift": "Я принёс хлеба для деревни.",
+  "example.dialogue.elder.gift_locked": "Нужно 3 хлеба",
+  "example.dialogue.elder.thanks": "Хлеб! Мельница стоит с тех пор, как пришли волки. Спасибо.",
+  "example.dialogue.elder.bye": "Прощай.",
+  "example.dialogue.elder.farewell": "Ступай осторожно. Ночью на гребне неспокойно.",
+  "example.dialogue.first_wolf.one_down": "Один есть. Остальная стая где-то рядом.",
+  "example.dialogue.first_wolf.tree_line": "Лучше держаться опушки."
 }

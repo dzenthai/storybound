@@ -27,6 +27,8 @@ document = validator("document.schema.json")
 style = validator("document_style.schema.json")
 quest = validator("quest.schema.json")
 theme = validator("menu_theme.schema.json")
+dialogue = validator("dialogue.schema.json")
+binding = validator("npc_binding.schema.json")
 failures = 0
 
 
@@ -90,6 +92,32 @@ expect(event, {"trigger": custom, "actions": [], "conditions": {"type": "quest",
 expect(event, {"trigger": custom, "actions": {"type": "set_quest_state", "quest": "a:b", "state": "done"}}, False, "event: bad quest state")
 expect(theme, {"ink": "#12345"}, False, "theme: bad colour")
 expect(theme, {"hud_background": "#80000000", "panel": "mypack:gui/panel"}, True, "theme: alpha colour and own sprite")
+
+for path in (root / "examples").rglob("storybound/dialogues/*.json"):
+    expect(dialogue, json.loads(path.read_text(encoding="utf-8")), True, f"example {path.name}")
+for path in (root / "examples").rglob("storybound/npc_bindings/*.json"):
+    expect(binding, json.loads(path.read_text(encoding="utf-8")), True, f"example binding {path.name}")
+
+line = {"type": "line", "speaker": "npc", "text": "t"}
+expect(dialogue, {"start": "a", "nodes": {"a": line}}, True, "dialogue: one line")
+expect(dialogue, {"nodes": {"a": line}}, False, "dialogue: missing start")
+expect(dialogue, {"start": "a", "nodes": {"a": {"type": "line", "text": "t"}}}, False, "dialogue: line without speaker")
+expect(dialogue, {"start": "a", "nodes": {"a": {"type": "choice", "options": []}}}, False, "dialogue: choice without options")
+expect(dialogue, {"start": "a", "nodes": {"a": {"type": "jump"}}}, False, "dialogue: jump without node or dialogue")
+expect(dialogue, {"start": "a", "nodes": {"a": {"type": "monologue"}}}, False, "dialogue: unknown node type")
+expect(dialogue, {"start": "a", "participants": {"player": {"type": "virtual"}}, "nodes": {"a": line}}, False, "dialogue: participant called player")
+expect(dialogue, {"start": "a", "presentation": "hud", "nodes": {"a": {"type": "choice", "timeout": {"seconds": 5, "next": "@end"},
+    "options": [{"text": "o", "locked": "show", "locked_text": "h", "once": True, "think": 1.5, "actions": {"type": "take_item", "item": "a:b"}}]}}}, True, "dialogue: full choice")
+expect(dialogue, {"start": "a", "nodes": {"a": {"type": "choice", "options": [{"text": "o", "locked": "grey"}]}}}, False, "dialogue: bad locked")
+expect(dialogue, {"start": "a", "nodes": {"a": {"type": "choice", "options": [{"text": "o", "think": -1}]}}}, False, "dialogue: negative think")
+expect(binding, {"entity": {"type": "minecraft:villager", "tag": "elder"}, "dialogues": [{"dialogue": "a:b", "priority": 2}],
+    "proximity": {"radius": 5, "once": True}}, True, "binding: full")
+expect(binding, {"dialogues": [{"dialogue": "a:b"}]}, False, "binding: missing entity")
+expect(binding, {"entity": {}}, False, "binding: empty selector")
+expect(binding, {"entity": {"uuid": "not-a-uuid"}}, False, "binding: bad uuid")
+expect(binding, {"entity": {"tag": "x"}, "proximity": {"radius": 0}}, False, "binding: zero radius")
+expect(event, {"trigger": {"type": "dialogue_ended", "dialogue": "a:b", "node": "bye"}, "actions": [{"type": "start_dialogue", "dialogue": "a:c"}, {"type": "end_dialogue"}]}, True, "event: dialogue trigger and actions")
+expect(event, {"trigger": custom, "actions": {"type": "start_dialogue"}}, False, "event: start_dialogue without dialogue")
 
 print("failures:", failures)
 sys.exit(1 if failures else 0)

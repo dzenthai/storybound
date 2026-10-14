@@ -72,6 +72,16 @@
   "commands.storybound.quest.entry": "%s: %s, stage %s",
   "commands.storybound.quest.entry_tracked": " (tracked)",
   "commands.storybound.quest.none": "%s has no quests",
+  "storybound.dialogue.title": "Dialogue",
+  "storybound.dialogue.unknown": "Unknown dialogue %s",
+  "storybound.dialogue.cannot_start": "Dialogue %s cannot start: unknown dialogue, the player is already talking, or the dialogue module is disabled",
+  "commands.storybound.dialogue.started": "Started dialogue %s for %s players",
+  "commands.storybound.dialogue.stopped": "Stopped the dialogues of %s players",
+  "commands.storybound.npc.bound": "%s now starts dialogue %s",
+  "commands.storybound.npc.unbound": "%s no longer has a binding of its own",
+  "commands.storybound.npc.not_bound": "%s has no binding of its own",
+  "commands.storybound.npc.none": "No binding applies to %s",
+  "commands.storybound.npc.info": "%s: binding %s, dialogues %s, modes %s",
 
   "storybound.party.default_name": "%s's party",
   "storybound.party.created": "Party %s created. Invite players with /storybound party invite <player>",
@@ -111,10 +121,15 @@
   "storybound.configuration.copyStateOnLeave": "Keep progress when leaving a party",
   "storybound.configuration.actions": "Actions",
   "storybound.configuration.commandPermissionLevel": "run_command permission level",
+  "storybound.configuration.dialogue": "Dialogues",
+  "storybound.configuration.maxDistance": "Distance that interrupts a dialogue",
+  "storybound.configuration.interruptOnDamage": "Damage interrupts dialogues",
   "storybound.configuration.section.storybound.client.toml": "Client settings",
   "storybound.configuration.section.storybound.client.toml.title": "Storybound: client settings",
   "storybound.configuration.hud": "HUD",
   "storybound.configuration.questTracker": "Show tracked quest",
   "storybound.configuration.questTrackerCorner": "Quest tracker corner",
-  "storybound.configuration.questTrackerOffsetY": "Quest tracker distance from edge"
+  "storybound.configuration.questTrackerOffsetY": "Quest tracker distance from edge",
+  "storybound.configuration.textSpeed": "Dialogue text speed (characters per second)",
+  "storybound.configuration.speechBubbles": "Speech bubbles of other players' dialogues"
 }

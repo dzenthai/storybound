@@ -1,6 +1,8 @@
 package dev.dzenthai.storybound.compat.kubejs;
 
 import dev.dzenthai.storybound.core.event.CustomTriggerEvent;
+import dev.dzenthai.storybound.core.event.DialogueEvent;
+import dev.dzenthai.storybound.core.event.NpcInteractEvent;
 import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.event.QuestChangedEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
@@ -17,6 +19,9 @@ final class StoryboundKubeBridge {
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onPartyJoined);
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onPartyLeft);
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onQuestChanged);
+        NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onDialogueStarted);
+        NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onDialogueEnded);
+        NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onNpcInteract);
     }
 
     private static void onValueChanged(StoryValueChangedEvent event) {
@@ -50,6 +55,24 @@ final class StoryboundKubeBridge {
         }
         if (event.stageChanged() && StoryboundJSEvents.QUEST_STAGE_CHANGED.hasListeners(event.getQuest())) {
             StoryboundJSEvents.QUEST_STAGE_CHANGED.post(new QuestChangedKubeEvent(event), event.getQuest());
+        }
+    }
+
+    private static void onDialogueStarted(DialogueEvent.Started event) {
+        if (StoryboundJSEvents.DIALOGUE_STARTED.hasListeners(event.getDialogue())) {
+            StoryboundJSEvents.DIALOGUE_STARTED.post(new DialogueKubeEvent(event), event.getDialogue());
+        }
+    }
+
+    private static void onDialogueEnded(DialogueEvent.Ended event) {
+        if (StoryboundJSEvents.DIALOGUE_ENDED.hasListeners(event.getDialogue())) {
+            StoryboundJSEvents.DIALOGUE_ENDED.post(new DialogueKubeEvent(event), event.getDialogue());
+        }
+    }
+
+    private static void onNpcInteract(NpcInteractEvent event) {
+        if (StoryboundJSEvents.NPC_INTERACT.hasListeners(event.getBinding())) {
+            StoryboundJSEvents.NPC_INTERACT.post(new NpcInteractKubeEvent(event), event.getBinding());
         }
     }
 }

@@ -5,6 +5,7 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.StoryException;
+import dev.dzenthai.storybound.core.event.NpcInteractEvent;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.Actions;
 import dev.dzenthai.storybound.core.logic.Condition;
@@ -16,6 +17,8 @@ import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
+import dev.dzenthai.storybound.module.dialogue.DialogueDefinition;
+import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.module.quest.Quests;
@@ -33,6 +36,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -97,6 +101,25 @@ public final class KubeJSGameTests {
         } finally {
             QuestRegistries.QUESTS.serverStore().replace(previous);
         }
+
+        ResourceLocation dialogue = key("kjs_talk");
+        Map<ResourceLocation, DialogueDefinition> previousDialogues = DialogueRegistries.DIALOGUES.serverStore().all();
+        Map<ResourceLocation, DialogueDefinition> dialogues = new LinkedHashMap<>(previousDialogues);
+        dialogues.put(dialogue, DialogueDefinition.CODEC.parse(ops(helper), JsonParser.parseString(
+                "{ \"participants\": {}, \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"player\", \"text\": \"gametest.a\" } } }"))
+                .getOrThrow(message -> new GameTestAssertException(message)));
+        DialogueRegistries.DIALOGUES.serverStore().replace(dialogues);
+        try {
+            TriggerDispatcher.fireCustom(player, key("kjs_talk_start"));
+            expect(helper, stored(player, "kjs_dialogue_started"), Optional.of(new StoryValue.Bool(true)), "dialogueStarted listener ran");
+            expect(helper, stored(player, "kjs_dialogue_current"), Optional.of(new StoryValue.Str("gametest:kjs_talk")), "binding reads the current dialogue");
+            expect(helper, stored(player, "kjs_dialogue_end"), Optional.of(new StoryValue.Str("finished:a")), "dialogueEnded with reason and node");
+        } finally {
+            DialogueRegistries.DIALOGUES.serverStore().replace(previousDialogues);
+        }
+
+        NeoForge.EVENT_BUS.post(new NpcInteractEvent(player, player, key("kjs_npc")));
+        expect(helper, stored(player, "kjs_npc_binding"), Optional.of(new StoryValue.Str("gametest:kjs_npc")), "npcInteract listener got the binding");
         helper.succeed();
     }
 

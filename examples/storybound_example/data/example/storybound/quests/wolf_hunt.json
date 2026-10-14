@@ -34,7 +34,7 @@
       "log": "example.quest.wolf_hunt.log.report",
       "objectives": [
         {
-          "trigger": { "type": "entity_interacted", "entity": "minecraft:villager" },
+          "trigger": { "type": "dialogue_ended", "dialogue": "example:elder", "node": "reported" },
           "text": "example.quest.wolf_hunt.objective.report"
         }
       ]

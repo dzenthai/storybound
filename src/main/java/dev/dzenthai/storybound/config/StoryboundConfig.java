@@ -28,6 +28,8 @@ public final class StoryboundConfig {
         public final ModConfigSpec.BooleanValue dialogues;
         public final ModConfigSpec.BooleanValue copyPartyStateOnLeave;
         public final ModConfigSpec.IntValue commandPermissionLevel;
+        public final ModConfigSpec.DoubleValue dialogueMaxDistance;
+        public final ModConfigSpec.BooleanValue dialogueInterruptOnDamage;
 
         Common(ModConfigSpec.Builder builder) {
             builder.comment("Storybound modules. A disabled module subscribes no triggers, refuses to change its state and hides its tab.")
@@ -54,6 +56,17 @@ public final class StoryboundConfig {
                     .comment("Permission level of commands run by the run_command action (0-4). 2 matches command blocks.")
                     .translation("storybound.configuration.commandPermissionLevel")
                     .defineInRange("commandPermissionLevel", 2, 0, 4);
+            builder.pop();
+
+            builder.translation("storybound.configuration.dialogue").push("dialogues");
+            dialogueMaxDistance = builder
+                    .comment("A dialogue is interrupted when the player is farther than this from the NPC, in blocks.")
+                    .translation("storybound.configuration.maxDistance")
+                    .defineInRange("maxDistance", 8.0, 2.0, 64.0);
+            dialogueInterruptOnDamage = builder
+                    .comment("Taking damage interrupts the player's dialogue.")
+                    .translation("storybound.configuration.interruptOnDamage")
+                    .define("interruptOnDamage", true);
             builder.pop();
         }
     }

@@ -2,6 +2,9 @@ package dev.dzenthai.storybound.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.dialogue.ClientDialogue;
+import dev.dzenthai.storybound.client.dialogue.DialogueHud;
+import dev.dzenthai.storybound.client.dialogue.SpeechBubbles;
 import dev.dzenthai.storybound.client.document.DocumentStyles;
 import dev.dzenthai.storybound.client.journal.JournalView;
 import dev.dzenthai.storybound.client.menu.AdventureMenu;
@@ -58,6 +61,7 @@ public final class StoryboundClient {
         modBus.addListener(StoryboundClient::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onClientTick);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
+        NeoForge.EVENT_BUS.addListener(SpeechBubbles::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(StoryboundClientCommands::register);
     }
 
@@ -90,12 +94,14 @@ public final class StoryboundClient {
     // Below chat and titles, above the vanilla HUD; hidden by F1 and F3 like the rest of it.
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, Storybound.id("quest_tracker"), QuestHud::render);
+        event.registerBelow(VanillaGuiLayers.CHAT, Storybound.id("dialogue_subtitles"), DialogueHud::render);
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
         openOnKey(OPEN_MENU, null);
         openOnKey(OPEN_QUESTS, AdventureMenu.QUESTS);
         openOnKey(OPEN_JOURNAL, AdventureMenu.JOURNAL);
+        ClientDialogue.tick();
     }
 
     private static void openOnKey(KeyMapping key, ResourceLocation tab) {
@@ -116,6 +122,8 @@ public final class StoryboundClient {
         ClientJournal.clear();
         ClientQuests.clear();
         ClientModules.clear();
+        ClientDialogue.clear();
+        SpeechBubbles.clear();
         SeenMarks.reset();
         AdventureMenu.reset();
     }

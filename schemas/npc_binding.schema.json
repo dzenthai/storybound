@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/npc_binding.schema.json",
+  "title": "Storybound NPC binding",
+  "description": "data/<namespace>/storybound/npc_bindings/<path>.json — which entities start which dialogue, and how. The first file by id whose selector matches applies; /storybound npc bind on an entity wins over files.",
+  "type": "object",
+  "required": ["entity"],
+  "additionalProperties": false,
+  "properties": {
+    "entity": {
+      "description": "Every part that is given must match; at least one is required.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "type": { "description": "An entity type, a #tag or a list.", "$ref": "logic.schema.json#/definitions/id_list" },
+        "tag": { "description": "A scoreboard tag (/tag @e add elder).", "type": "string" },
+        "name": { "description": "The exact custom name.", "type": "string" },
+        "uuid": { "description": "One entity, e.g. an Easy NPC.", "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }
+      }
+    },
+    "dialogues": {
+      "description": "Tried by priority, highest first; the first whose conditions pass is started. None passing: the click does what it normally does (trading).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dialogue"],
+        "additionalProperties": false,
+        "properties": {
+          "dialogue": { "$ref": "logic.schema.json#/definitions/id" },
+          "conditions": { "$ref": "logic.schema.json#/definitions/conditions" },
+          "priority": { "type": "integer", "default": 0 }
+        }
+      }
+    },
+    "interact": { "description": "Right-click starts the dialogue.", "type": "boolean", "default": true },
+    "proximity": {
+      "description": "Coming close starts the dialogue; again only after leaving and coming back.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "radius": { "type": "number", "minimum": 1, "maximum": 32, "default": 4 },
+        "cooldown": { "description": "Seconds before the same NPC may start it again for the player.", "type": "integer", "minimum": 0, "maximum": 86400, "default": 30 },
+        "once": { "description": "At most once per player, ever.", "type": "boolean", "default": false },
+        "line_of_sight": { "type": "boolean", "default": true }
+      }
+    },
+    "custom": { "description": "Right-click posts the KubeJS npcInteract event; the script decides.", "type": "boolean", "default": false }
+  }
+}

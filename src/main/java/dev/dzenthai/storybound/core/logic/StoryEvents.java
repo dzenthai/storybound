@@ -62,23 +62,21 @@ public final class StoryEvents {
     }
 
     /**
-     * Warns about flags nobody declared (usually a typo) and about {@code take_item} placed after
-     * other actions: if it aborts, the earlier actions have already happened.
+     * Warns about flags nobody declared (usually a typo; in every definition with logic) and about
+     * {@code take_item} placed after other actions in a story event: if it aborts, the earlier actions have already happened.
      */
     static void validate(Consumer<ValidationIssue> sink) {
-        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> {
-            Set<ResourceLocation> flags = new LinkedHashSet<>();
-            collectReferences(event, new References() {
-                @Override
-                public void flag(ResourceLocation key) {
-                    flags.add(key);
-                }
-            });
-            for (ResourceLocation key : flags) {
-                if (!CoreDefinitions.FLAGS.serverStore().contains(key)) {
-                    sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id, "Uses undeclared flag " + key));
+        LogicOwners.walkAll((type, id) -> new References() {
+            private final Set<ResourceLocation> reported = new LinkedHashSet<>();
+
+            @Override
+            public void flag(ResourceLocation key) {
+                if (!CoreDefinitions.FLAGS.serverStore().contains(key) && reported.add(key)) {
+                    sink.accept(ValidationIssue.warning(type.id(), id, "Uses undeclared flag " + key));
                 }
             }
+        });
+        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> {
             if (event.onFail() == OnFail.ABORT && hasTakeAfterOtherActions(event.actions())) {
                 sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id,
                         "take_item runs after other actions; if it fails, those actions have already happened. Put take_item first."));

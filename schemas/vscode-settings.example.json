@@ -17,6 +17,14 @@
       "url": "./schemas/quest.schema.json"
     },
     {
+      "fileMatch": ["**/data/*/storybound/dialogues/**/*.json"],
+      "url": "./schemas/dialogue.schema.json"
+    },
+    {
+      "fileMatch": ["**/data/*/storybound/npc_bindings/**/*.json"],
+      "url": "./schemas/npc_binding.schema.json"
+    },
+    {
       "fileMatch": ["**/assets/*/storybound/styles/**/*.json"],
       "url": "./schemas/document_style.schema.json"
     },

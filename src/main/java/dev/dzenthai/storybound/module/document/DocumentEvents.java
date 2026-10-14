@@ -1,12 +1,10 @@
 package dev.dzenthai.storybound.module.document;
 
-import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
-import dev.dzenthai.storybound.core.logic.Action;
+import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
-import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.module.journal.Journal;
 import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
@@ -20,6 +18,7 @@ public final class DocumentEvents {
     public static void register(IEventBus gameBus) {
         // LOW: the client needs the document definitions before the Journal that lists them.
         gameBus.addListener(EventPriority.LOW, DocumentEvents::onDatapackSync);
+        LogicOwners.register(DocumentRegistries.DOCUMENTS, (document, references) -> document.onRead().forEach(action -> action.collectReferences(references)));
         ValidationService.registerValidator(DocumentEvents::validate);
     }
 
@@ -27,16 +26,9 @@ public final class DocumentEvents {
         event.getRelevantPlayers().forEach(Journal::sync);
     }
 
-    /** Story events and documents' own {@code on_read} actions must refer to documents that exist. */
+    /** Every definition with logic must refer to documents that exist. */
     private static void validate(Consumer<ValidationIssue> sink) {
-        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) ->
-                StoryEvents.collectReferences(event, unknownDocuments(CoreDefinitions.EVENTS, id, sink)));
-        DocumentRegistries.DOCUMENTS.serverStore().all().forEach((id, document) -> {
-            References references = unknownDocuments(DocumentRegistries.DOCUMENTS, id, sink);
-            for (Action action : document.onRead()) {
-                action.collectReferences(references);
-            }
-        });
+        LogicOwners.walkAll((type, id) -> unknownDocuments(type, id, sink));
     }
 
     private static References unknownDocuments(DefinitionType<?> owner, ResourceLocation ownerId, Consumer<ValidationIssue> sink) {

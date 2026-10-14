@@ -12,5 +12,23 @@
   "example.quest.wolf_hunt.log.report": "The wolves are dead. The elder will want to hear of it.",
   "example.quest.wolf_hunt.objective.wolves": "Kill wolves",
   "example.quest.wolf_hunt.objective.oath": "Read the Hunter's Oath",
-  "example.quest.wolf_hunt.objective.report": "Return to the elder"
+  "example.quest.wolf_hunt.objective.report": "Return to the elder",
+
+  "example.npc.elder": "Elder Hollis",
+  "example.dialogue.elder.first_meeting": "A stranger in Brightwater? You picked a poor season to visit, traveler. Something has been taking our sheep.",
+  "example.dialogue.elder.introduce": "I'm only passing through. Maybe I can help.",
+  "example.dialogue.elder.letter": "Then read this. I wrote down everything we know: where the flocks were taken, and when.",
+  "example.dialogue.elder.welcome_back": "Ah, %s. Back again?",
+  "example.dialogue.elder.ask_wolves": "Tell me about the wolves.",
+  "example.dialogue.elder.wolves_pack": "A pack, five or six strong. They come down from the ridge after dark.",
+  "example.dialogue.elder.wolves_white": "Old Tam swears one of them is white as bone. Old Tam also swears his goat can count.",
+  "example.dialogue.elder.report": "The wolves are dead.",
+  "example.dialogue.elder.reported": "Truly? Then Brightwater owes you. Take this, with our thanks.",
+  "example.dialogue.elder.gift": "I brought bread for the village.",
+  "example.dialogue.elder.gift_locked": "You need 3 bread",
+  "example.dialogue.elder.thanks": "Bread! The mill has stood idle since the wolves came. Thank you.",
+  "example.dialogue.elder.bye": "Farewell.",
+  "example.dialogue.elder.farewell": "Walk carefully. The ridge is not kind at night.",
+  "example.dialogue.first_wolf.one_down": "One down. The rest of the pack won't be far.",
+  "example.dialogue.first_wolf.tree_line": "Better keep to the tree line."
 }

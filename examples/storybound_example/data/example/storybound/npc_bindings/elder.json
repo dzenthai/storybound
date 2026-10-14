@@ -1,0 +1,4 @@
+{
+  "entity": { "type": "minecraft:villager", "tag": "elder" },
+  "dialogues": [ { "dialogue": "example:elder" } ]
+}
