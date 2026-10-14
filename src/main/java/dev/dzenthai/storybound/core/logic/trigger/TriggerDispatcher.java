@@ -67,6 +67,25 @@ public final class TriggerDispatcher {
         }
     }
 
+    /** True if a subscription of this type would react to the event; lets costly detectors skip what nobody listens for. */
+    @SuppressWarnings("unchecked")
+    public static <E> boolean anyMatches(TriggerType<?, E> type, StoryContext context, E event) {
+        List<Subscription<?>> subscriptions = index.get(type);
+        if (subscriptions == null) {
+            return false;
+        }
+        for (Subscription<?> subscription : subscriptions) {
+            try {
+                if (((Subscription<E>) subscription).trigger().matches(context, event)) {
+                    return true;
+                }
+            } catch (RuntimeException e) {
+                Storybound.LOGGER.error("Storybound: {} failed", subscription.name(), e);
+            }
+        }
+        return false;
+    }
+
     /** The single entry point for {@code custom} triggers: notifies listeners of {@link CustomTriggerEvent}, then story logic. */
     public static void fireCustom(ServerPlayer player, ResourceLocation id) {
         NeoForge.EVENT_BUS.post(new CustomTriggerEvent(player, id));

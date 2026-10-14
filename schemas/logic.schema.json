@@ -51,6 +51,23 @@
         }
       ]
     },
+    "entity_selector": {
+      "description": "Picks particular entities. Every part that is given must match; at least one is required.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "type": { "description": "An entity type, a #tag or a list.", "$ref": "#/definitions/id_list" },
+        "tag": { "description": "A scoreboard tag (/tag @e add elder).", "type": "string" },
+        "name": { "description": "The exact custom name.", "type": "string" },
+        "uuid": { "description": "One entity, e.g. an Easy NPC.", "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }
+      }
+    },
+    "unlock_target": {
+      "description": "player: just this player. party: every online member of their party.",
+      "enum": ["player", "party"],
+      "default": "player"
+    },
     "area": {
       "type": "object",
       "required": ["center", "radius"],
@@ -170,6 +187,26 @@
           },
           "required": ["quest"],
           "anyOf": [ { "required": ["state"] }, { "required": ["stage"] } ],
+          "additionalProperties": false
+        },
+        {
+          "description": "A Codex entry (any section, or the given one) is open for the player.",
+          "properties": {
+            "type": { "enum": ["codex_unlocked", "storybound:codex_unlocked"] },
+            "entry": { "$ref": "#/definitions/id" },
+            "section": { "type": "string" }
+          },
+          "required": ["entry"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The player has at least count victories over the boss.",
+          "properties": {
+            "type": { "enum": ["boss_killed", "storybound:boss_killed"] },
+            "boss": { "$ref": "#/definitions/id" },
+            "count": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          "required": ["boss"],
           "additionalProperties": false
         },
         {
@@ -359,6 +396,28 @@
           "additionalProperties": false
         },
         {
+          "description": "Opens a Codex section, or the whole entry without section.",
+          "properties": {
+            "type": { "enum": ["unlock_codex", "storybound:unlock_codex"] },
+            "entry": { "$ref": "#/definitions/id" },
+            "section": { "type": "string" },
+            "target": { "$ref": "#/definitions/unlock_target" }
+          },
+          "required": ["entry"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Opens lore, tactics or rewards of a boss.",
+          "properties": {
+            "type": { "enum": ["unlock_boss_section", "storybound:unlock_boss_section"] },
+            "boss": { "$ref": "#/definitions/id" },
+            "section": { "enum": ["lore", "tactics", "rewards"] },
+            "target": { "$ref": "#/definitions/unlock_target" }
+          },
+          "required": ["boss", "section"],
+          "additionalProperties": false
+        },
+        {
           "description": "An action type added by another mod.",
           "properties": {
             "type": {
@@ -386,8 +445,17 @@
         },
         {
           "properties": {
-            "type": { "enum": ["entity_killed", "storybound:entity_killed", "entity_interacted", "storybound:entity_interacted"] },
+            "type": { "enum": ["entity_interacted", "storybound:entity_interacted", "entity_seen", "storybound:entity_seen"] },
             "entity": { "$ref": "#/definitions/id_list" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "The player dealt the killing blow; with shared, also a party member of the killer nearby.",
+          "properties": {
+            "type": { "enum": ["entity_killed", "storybound:entity_killed"] },
+            "entity": { "$ref": "#/definitions/id_list" },
+            "shared": { "type": "boolean", "default": false }
           },
           "additionalProperties": false
         },

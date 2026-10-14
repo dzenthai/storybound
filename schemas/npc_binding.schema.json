@@ -7,18 +7,7 @@
   "required": ["entity"],
   "additionalProperties": false,
   "properties": {
-    "entity": {
-      "description": "Every part that is given must match; at least one is required.",
-      "type": "object",
-      "additionalProperties": false,
-      "minProperties": 1,
-      "properties": {
-        "type": { "description": "An entity type, a #tag or a list.", "$ref": "logic.schema.json#/definitions/id_list" },
-        "tag": { "description": "A scoreboard tag (/tag @e add elder).", "type": "string" },
-        "name": { "description": "The exact custom name.", "type": "string" },
-        "uuid": { "description": "One entity, e.g. an Easy NPC.", "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }
-      }
-    },
+    "entity": { "$ref": "logic.schema.json#/definitions/entity_selector" },
     "dialogues": {
       "description": "Tried by priority, highest first; the first whose conditions pass is started. None passing: the click does what it normally does (trading).",
       "type": "array",

@@ -17,6 +17,8 @@ import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
+import dev.dzenthai.storybound.module.codex.CodexDefinition;
+import dev.dzenthai.storybound.module.codex.CodexRegistries;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition;
 import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
@@ -120,6 +122,22 @@ public final class KubeJSGameTests {
 
         NeoForge.EVENT_BUS.post(new NpcInteractEvent(player, player, key("kjs_npc")));
         expect(helper, stored(player, "kjs_npc_binding"), Optional.of(new StoryValue.Str("gametest:kjs_npc")), "npcInteract listener got the binding");
+
+        ResourceLocation entry = key("kjs_entry");
+        Map<ResourceLocation, CodexDefinition> previousCodex = CodexRegistries.CODEX.serverStore().all();
+        Map<ResourceLocation, CodexDefinition> codex = new LinkedHashMap<>(previousCodex);
+        codex.put(entry, CodexDefinition.CODEC.parse(ops(helper), JsonParser.parseString(
+                "{ \"title\": \"gametest.entry\", \"sections\": [ { \"id\": \"base\", \"unlock\": { \"on\": [\"manual\"] } } ] }"))
+                .getOrThrow(message -> new GameTestAssertException(message)));
+        CodexRegistries.CODEX.serverStore().replace(codex);
+        try {
+            TriggerDispatcher.fireCustom(player, key("kjs_codex"));
+            expect(helper, stored(player, "kjs_codex_section"), Optional.of(new StoryValue.Str("base")), "codexUnlocked listener got the section");
+            expect(helper, stored(player, "kjs_codex_open"), Optional.of(new StoryValue.Bool(true)), "binding unlocked and read the section");
+            expect(helper, stored(player, "kjs_boss_victories"), Optional.of(new StoryValue.Int(0)), "binding reads boss victories");
+        } finally {
+            CodexRegistries.CODEX.serverStore().replace(previousCodex);
+        }
         helper.succeed();
     }
 

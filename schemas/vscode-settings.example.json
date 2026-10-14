@@ -25,6 +25,14 @@
       "url": "./schemas/npc_binding.schema.json"
     },
     {
+      "fileMatch": ["**/data/*/storybound/codex/**/*.json"],
+      "url": "./schemas/codex.schema.json"
+    },
+    {
+      "fileMatch": ["**/data/*/storybound/bosses/**/*.json"],
+      "url": "./schemas/boss.schema.json"
+    },
+    {
       "fileMatch": ["**/assets/*/storybound/styles/**/*.json"],
       "url": "./schemas/document_style.schema.json"
     },

@@ -1,0 +1,15 @@
+{
+  "entity": { "type": "minecraft:wolf", "tag": "white_wolf" },
+  "title": "example.boss.white_wolf.title",
+  "lore": {},
+  "tactics": { "unlock": { "on": ["killed", "read:example:hunters_oath"] } },
+  "rewards": { "items": [ { "id": "minecraft:emerald", "count": 10 }, "minecraft:bone" ] },
+  "on_first_kill": [
+    { "type": "add_var", "key": "example:village_reputation", "amount": 20 },
+    { "type": "unlock_codex", "entry": "example:wolf", "target": "party" }
+  ],
+  "on_kill": [
+    { "type": "give_item", "item": "minecraft:emerald", "count": 10 },
+    { "type": "give_item", "item": "minecraft:bone" }
+  ]
+}

@@ -27,6 +27,8 @@ public final class StoryboundCommands {
                 .then(QuestCommands.quest())
                 .then(DialogueCommands.dialogue())
                 .then(NpcCommands.npc())
+                .then(CodexCommands.codex())
+                .then(CodexCommands.boss())
                 .then(PartyCommands.party()));
     }
 

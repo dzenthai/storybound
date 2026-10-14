@@ -2,11 +2,13 @@ package dev.dzenthai.storybound.core.logic.trigger;
 
 import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
+import dev.dzenthai.storybound.core.logic.KillCredit;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.state.StoryState;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
@@ -48,9 +50,15 @@ public final class TriggerEvents {
         }
     }
 
+    // The killer first, then party members nearby, whom only "shared" triggers count.
     private static void onLivingDeath(LivingDeathEvent event) {
-        if (event.getSource().getEntity() instanceof ServerPlayer killer) {
-            TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(killer, event.getEntity()), event.getEntity());
+        if (!(event.getSource().getEntity() instanceof ServerPlayer killer) || !TriggerDispatcher.hasSubscribers(BuiltinTriggers.ENTITY_KILLED.get())) {
+            return;
+        }
+        LivingEntity victim = event.getEntity();
+        TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(killer, victim), new CoreTriggers.Kill(victim, true));
+        for (ServerPlayer member : KillCredit.partyNear(killer, victim)) {
+            TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(member, victim), new CoreTriggers.Kill(victim, false));
         }
     }
 
@@ -58,6 +66,7 @@ public final class TriggerEvents {
         if (event.getServer().getTickCount() % AREA_CHECK_INTERVAL == 0) {
             TriggerDispatcher.tickAreas(event.getServer());
         }
+        SeenTracker.tick(event.getServer());
     }
 
     private static void onItemPickup(ItemEntityPickupEvent.Post event) {
@@ -98,9 +107,11 @@ public final class TriggerEvents {
 
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         TriggerDispatcher.forget(event.getEntity().getUUID());
+        SeenTracker.forget(event.getEntity().getUUID());
     }
 
     private static void onServerStopped(ServerStoppedEvent event) {
         TriggerDispatcher.reset();
+        SeenTracker.reset();
     }
 }

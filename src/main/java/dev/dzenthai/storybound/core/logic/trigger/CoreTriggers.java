@@ -58,18 +58,48 @@ public final class CoreTriggers {
         }
     }
 
-    /** The player dealt the killing blow. {@code entity} is an id, a #tag or a list; omitted means any. */
-    public record EntityKilled(Optional<HolderSet<EntityType<?>>> entity) implements Trigger<LivingEntity> {
-        public static final MapCodec<EntityKilled> CODEC = ENTITY_FILTER.xmap(EntityKilled::new, EntityKilled::entity);
+    /**
+     * The payload of {@code entity_killed}: fired for the killer ({@code killingBlow}) and then for every
+     * party member of theirs near the victim, whom only {@code shared} triggers count.
+     */
+    public record Kill(LivingEntity victim, boolean killingBlow) {}
+
+    /**
+     * The player dealt the killing blow; with {@code shared}, also a party member of the killer within 48 blocks.
+     * {@code entity} is an id, a #tag or a list; omitted means any.
+     */
+    public record EntityKilled(Optional<HolderSet<EntityType<?>>> entity, boolean shared) implements Trigger<Kill> {
+        public static final MapCodec<EntityKilled> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                ENTITY_FILTER.forGetter(EntityKilled::entity),
+                Codec.BOOL.optionalFieldOf("shared", false).forGetter(EntityKilled::shared)
+        ).apply(instance, EntityKilled::new));
 
         @Override
-        public TriggerType<?, LivingEntity> type() {
+        public TriggerType<?, Kill> type() {
             return BuiltinTriggers.ENTITY_KILLED.get();
         }
 
         @Override
-        public boolean matches(StoryContext context, LivingEntity victim) {
-            return entityMatches(entity, victim);
+        public boolean matches(StoryContext context, Kill kill) {
+            return (kill.killingBlow() || shared) && entityMatches(entity, kill.victim());
+        }
+    }
+
+    /**
+     * The player saw the entity: within range, in the field of view and in line of sight for long enough
+     * (see {@link SeenTracker}). Fires once per entity until it leaves the range.
+     */
+    public record EntitySeen(Optional<HolderSet<EntityType<?>>> entity) implements Trigger<Entity> {
+        public static final MapCodec<EntitySeen> CODEC = ENTITY_FILTER.xmap(EntitySeen::new, EntitySeen::entity);
+
+        @Override
+        public TriggerType<?, Entity> type() {
+            return BuiltinTriggers.ENTITY_SEEN.get();
+        }
+
+        @Override
+        public boolean matches(StoryContext context, Entity seen) {
+            return entityMatches(entity, seen);
         }
     }
 

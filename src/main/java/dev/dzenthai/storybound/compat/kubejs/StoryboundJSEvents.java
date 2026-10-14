@@ -38,6 +38,14 @@ public interface StoryboundJSEvents {
     TargetedEventHandler<ResourceLocation> NPC_INTERACT = GROUP.server("npcInteract", () -> NpcInteractKubeEvent.class)
             .supportsTarget(EventTargetType.ID);
 
+    /** {@code StoryboundEvents.codexUnlocked('mypack:drowner', e => e.section ...)}; once per opened section; the id is optional. */
+    TargetedEventHandler<ResourceLocation> CODEX_UNLOCKED = GROUP.server("codexUnlocked", () -> CodexKubeEvent.class)
+            .supportsTarget(EventTargetType.ID);
+
+    /** {@code StoryboundEvents.bossDefeated('mypack:drowned_king', e => e.first && ...)}; once per credited player; the id is optional. */
+    TargetedEventHandler<ResourceLocation> BOSS_DEFEATED = GROUP.server("bossDefeated", () -> BossKubeEvent.class)
+            .supportsTarget(EventTargetType.ID);
+
     EventHandler PARTY_JOINED = GROUP.server("partyJoined", () -> PartyKubeEvent.class);
     EventHandler PARTY_LEFT = GROUP.server("partyLeft", () -> PartyKubeEvent.class);
 

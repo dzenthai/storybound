@@ -8,7 +8,6 @@ import dev.dzenthai.storybound.core.logic.TriggerType;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Unit;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -18,8 +17,10 @@ public final class BuiltinTriggers {
 
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.FlagChanged, StoryValueChangedEvent>> FLAG_CHANGED =
             REGISTER.register("flag_changed", () -> new TriggerType<>(CoreTriggers.FlagChanged.CODEC));
-    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.EntityKilled, LivingEntity>> ENTITY_KILLED =
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.EntityKilled, CoreTriggers.Kill>> ENTITY_KILLED =
             REGISTER.register("entity_killed", () -> new TriggerType<>(CoreTriggers.EntityKilled.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.EntitySeen, Entity>> ENTITY_SEEN =
+            REGISTER.register("entity_seen", () -> new TriggerType<>(CoreTriggers.EntitySeen.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.AreaEntered, Unit>> AREA_ENTERED =
             REGISTER.register("area_entered", () -> new TriggerType<>(CoreTriggers.AreaEntered.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.ItemObtained, ItemStack>> ITEM_OBTAINED =

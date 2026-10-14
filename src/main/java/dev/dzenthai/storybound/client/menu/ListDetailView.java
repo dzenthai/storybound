@@ -113,7 +113,7 @@ public abstract class ListDetailView<E> extends MenuView {
             return;
         }
         renderList(graphics, theme, mouseX, mouseY);
-        renderDetail(graphics);
+        renderDetail(graphics, mouseX, mouseY, partialTick);
     }
 
     private void renderList(GuiGraphics graphics, MenuTheme theme, int mouseX, int mouseY) {
@@ -141,7 +141,7 @@ public abstract class ListDetailView<E> extends MenuView {
         graphics.disableScissor();
     }
 
-    private void renderDetail(GuiGraphics graphics) {
+    private void renderDetail(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         int x = detailX();
         int bottom = top + height - BUTTON_ROW;
         int contentHeight = detail.stream().mapToInt(Line::height).sum();
@@ -149,7 +149,9 @@ public abstract class ListDetailView<E> extends MenuView {
         graphics.enableScissor(x, top, x + detailWidth(), bottom);
         int y = top - detailScroll;
         for (Line line : detail) {
-            if (line.text() != null && y + line.height() > top && y < bottom) {
+            if (line.block() != null && y + line.height() > top && y < bottom) {
+                line.block().render(graphics, x, y, detailWidth(), mouseX, mouseY, partialTick);
+            } else if (line.text() != null && y + line.height() > top && y < bottom) {
                 if (line.prefix() != null) {
                     graphics.drawString(font, line.prefix(), x, y, line.color(), false);
                 }
@@ -215,7 +217,17 @@ public abstract class ListDetailView<E> extends MenuView {
         }
     }
 
-    private record Line(@Nullable String prefix, @Nullable FormattedCharSequence text, int indent, int color, int height) {}
+    private record Line(@Nullable String prefix, @Nullable FormattedCharSequence text, int indent, int color, int height, @Nullable Block block) {
+        Line(@Nullable String prefix, @Nullable FormattedCharSequence text, int indent, int color, int height) {
+            this(prefix, text, indent, color, height, null);
+        }
+    }
+
+    /** Something drawn in the detail pane besides text: a portrait, item icons, an image. */
+    @FunctionalInterface
+    public interface Block {
+        void render(GuiGraphics graphics, int x, int y, int width, int mouseX, int mouseY, float partialTick);
+    }
 
     /** Collects the wrapped lines of the detail pane. */
     public static final class Detail {
@@ -243,6 +255,25 @@ public abstract class ListDetailView<E> extends MenuView {
                 lines.add(new Line(i == 0 ? prefix : null, wrapped.get(i), indent, color, LINE_HEIGHT));
             }
             return this;
+        }
+
+        /** An already wrapped line, e.g. from {@code .sbt} layout. */
+        public Detail line(FormattedCharSequence text, int color, int height) {
+            lines.add(new Line(null, text, 0, color, height));
+            return this;
+        }
+
+        public Detail block(int height, Block block) {
+            lines.add(new Line(null, null, 0, 0, height, block));
+            return this;
+        }
+
+        public int width() {
+            return width;
+        }
+
+        public Font font() {
+            return font;
         }
 
         public Detail gap(int pixels) {

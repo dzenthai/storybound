@@ -7,6 +7,8 @@ import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
+import dev.dzenthai.storybound.module.boss.Bosses;
+import dev.dzenthai.storybound.module.codex.Codex;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.quest.QuestLogic;
 import dev.dzenthai.storybound.module.quest.Quests;
@@ -23,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
  * Storybound.triggers.fire('mypack:bell_rung', player)
  * Storybound.quests(player).state('mypack:wolf_hunt')
  * Storybound.dialogues(player).start('mypack:elder', npc)
+ * Storybound.codex(player).unlock('mypack:drowner', 'weakness')
  * </pre>
  */
 public class StoryboundBinding {
@@ -38,6 +41,14 @@ public class StoryboundBinding {
 
     public DialoguesView dialogues(ServerPlayer player) {
         return new DialoguesView(player);
+    }
+
+    public CodexView codex(ServerPlayer player) {
+        return new CodexView(player);
+    }
+
+    public BossesView bosses(ServerPlayer player) {
+        return new BossesView(player);
     }
 
     public Triggers getTriggers() {
@@ -192,6 +203,62 @@ public class StoryboundBinding {
         /** The dialogue the player is in (inside a call: the called one), or null. */
         public @Nullable ResourceLocation current() {
             return Dialogues.state(player).map(Dialogues.State::dialogue).orElse(null);
+        }
+    }
+
+    /** The player's Codex. Unlocking returns false for an unknown entry or section, or a disabled module. */
+    public static class CodexView {
+        private final ServerPlayer player;
+
+        CodexView(ServerPlayer player) {
+            this.player = player;
+        }
+
+        public boolean unlock(ResourceLocation entry) {
+            return Codex.unlock(player, entry, null);
+        }
+
+        public boolean unlock(ResourceLocation entry, String section) {
+            return Codex.unlock(player, entry, section);
+        }
+
+        public boolean lock(ResourceLocation entry) {
+            return Codex.lock(player, entry, null);
+        }
+
+        /** Any section of the entry is open. */
+        public boolean isUnlocked(ResourceLocation entry) {
+            return !Codex.data(player).sections(entry).isEmpty();
+        }
+
+        public boolean isUnlocked(ResourceLocation entry, String section) {
+            return Codex.data(player).isUnlocked(entry, section);
+        }
+    }
+
+    /** The player's Bosses records. */
+    public static class BossesView {
+        private final ServerPlayer player;
+
+        BossesView(ServerPlayer player) {
+            this.player = player;
+        }
+
+        public int victories(ResourceLocation boss) {
+            return Bosses.data(player).get(boss).victories();
+        }
+
+        public boolean isEncountered(ResourceLocation boss) {
+            return Bosses.data(player).get(boss).encountered();
+        }
+
+        /** {@code lore}, {@code tactics} or {@code rewards}. */
+        public boolean unlock(ResourceLocation boss, String section) {
+            return Bosses.unlock(player, boss, section);
+        }
+
+        public boolean reset(ResourceLocation boss) {
+            return Bosses.reset(player, boss);
         }
     }
 }

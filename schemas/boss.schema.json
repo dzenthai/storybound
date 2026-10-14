@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/boss.schema.json",
+  "title": "Storybound boss",
+  "description": "data/<namespace>/storybound/bosses/<path>.json — a boss and its entry in the Bosses tab: status, lore, tactics, rewards, statistics.",
+  "type": "object",
+  "required": ["entity", "title"],
+  "additionalProperties": false,
+  "properties": {
+    "entity": { "$ref": "logic.schema.json#/definitions/entity_selector" },
+    "title": { "$ref": "logic.schema.json#/definitions/story_text" },
+    "lore": { "description": "Opens on seen by default.", "$ref": "#/definitions/part" },
+    "tactics": { "description": "Opens on killed by default.", "$ref": "#/definitions/part" },
+    "rewards": {
+      "description": "For display; the actual rewards are on_kill actions. Opens on killed by default.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "logic.schema.json#/definitions/id" },
+              {
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                  "id": { "$ref": "logic.schema.json#/definitions/id" },
+                  "count": { "type": "integer", "minimum": 1 },
+                  "components": { "type": "object" }
+                }
+              }
+            ]
+          }
+        },
+        "text": { "$ref": "logic.schema.json#/definitions/id" },
+        "unlock": { "$ref": "codex.schema.json#/definitions/unlock" }
+      }
+    },
+    "on_first_kill": { "description": "For each credited player, on their first victory.", "$ref": "logic.schema.json#/definitions/actions" },
+    "on_kill": { "description": "For each credited player, on every victory (the first included).", "$ref": "logic.schema.json#/definitions/actions" },
+    "participation": {
+      "description": "Share of the boss's maximum health a player must deal to share the victory.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.05
+    },
+    "notify": { "description": "Toasts on the first encounter and on victory.", "type": "boolean", "default": true }
+  },
+  "definitions": {
+    "part": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "description": "A long text (.sbt). Default: <ns>:bosses/<boss path>/<section>.",
+          "$ref": "logic.schema.json#/definitions/id"
+        },
+        "unlock": { "$ref": "codex.schema.json#/definitions/unlock" }
+      }
+    }
+  }
+}

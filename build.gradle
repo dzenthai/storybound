@@ -67,6 +67,8 @@ neoForge {
         }
         server {
             server()
+            // Its own folder: otherwise it shares logs/latest.log, config and options with runClient.
+            gameDirectory = project.file('run/server')
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }

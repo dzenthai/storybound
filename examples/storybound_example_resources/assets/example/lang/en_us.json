@@ -30,5 +30,10 @@
   "example.dialogue.elder.bye": "Farewell.",
   "example.dialogue.elder.farewell": "Walk carefully. The ridge is not kind at night.",
   "example.dialogue.first_wolf.one_down": "One down. The rest of the pack won't be far.",
-  "example.dialogue.first_wolf.tree_line": "Better keep to the tree line."
+  "example.dialogue.first_wolf.tree_line": "Better keep to the tree line.",
+
+  "example.codex.wolf.title": "Grey Wolf",
+  "example.codex.wolf.habits": "Habits",
+  "example.codex.wolf.lore": "Old tales",
+  "example.boss.white_wolf.title": "Old White"
 }

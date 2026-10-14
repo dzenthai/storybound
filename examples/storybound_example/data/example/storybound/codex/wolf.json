@@ -1,0 +1,10 @@
+{
+  "category": "animals",
+  "entity": "minecraft:wolf",
+  "title": "example.codex.wolf.title",
+  "sections": [
+    { "id": "base", "unlock": { "on": ["seen"] } },
+    { "id": "habits", "title": "example.codex.wolf.habits", "unlock": { "on": ["killed"], "count": 3 } },
+    { "id": "lore", "title": "example.codex.wolf.lore", "unlock": { "on": ["read:example:hunters_oath"] } }
+  ]
+}

@@ -29,8 +29,8 @@ public final class StoryToast implements Toast {
             this.body = title;
         }
         this.headerColor = switch (kind) {
-            case QUEST_COMPLETED -> 0xFF7ED957;
-            case QUEST_FAILED -> 0xFFE05A47;
+            case QUEST_COMPLETED, BOSS_DEFEATED -> 0xFF7ED957;
+            case QUEST_FAILED, BOSS_ENCOUNTERED -> 0xFFE05A47;
             case INFO -> 0xFFFFFFFF;
             default -> 0xFFE8C66A;
         };

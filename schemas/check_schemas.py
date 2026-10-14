@@ -29,6 +29,8 @@ quest = validator("quest.schema.json")
 theme = validator("menu_theme.schema.json")
 dialogue = validator("dialogue.schema.json")
 binding = validator("npc_binding.schema.json")
+codex = validator("codex.schema.json")
+boss = validator("boss.schema.json")
 failures = 0
 
 
@@ -118,6 +120,26 @@ expect(binding, {"entity": {"uuid": "not-a-uuid"}}, False, "binding: bad uuid")
 expect(binding, {"entity": {"tag": "x"}, "proximity": {"radius": 0}}, False, "binding: zero radius")
 expect(event, {"trigger": {"type": "dialogue_ended", "dialogue": "a:b", "node": "bye"}, "actions": [{"type": "start_dialogue", "dialogue": "a:c"}, {"type": "end_dialogue"}]}, True, "event: dialogue trigger and actions")
 expect(event, {"trigger": custom, "actions": {"type": "start_dialogue"}}, False, "event: start_dialogue without dialogue")
+
+for path in (root / "examples").rglob("storybound/codex/*.json"):
+    expect(codex, json.loads(path.read_text(encoding="utf-8")), True, f"example codex {path.name}")
+for path in (root / "examples").rglob("storybound/bosses/*.json"):
+    expect(boss, json.loads(path.read_text(encoding="utf-8")), True, f"example boss {path.name}")
+
+expect(codex, {"title": "t", "entity": "#minecraft:raiders", "sections": [{"id": "a", "unlock": {"on": ["seen", "killed"], "count": 5, "conditions": {"type": "flag", "key": "a:b"}}}]}, True, "codex: tag entity, count, conditions")
+expect(codex, {"title": "t", "sections": []}, False, "codex: no sections")
+expect(codex, {"title": "t", "sections": [{"id": "a", "unlock": {"on": ["heard"]}}]}, False, "codex: unknown source")
+expect(codex, {"title": "t", "sections": [{"id": "a", "unlock": {"on": ["read:mypack:book"]}}]}, True, "codex: read source")
+expect(codex, {"title": "t", "sections": [{"id": "a"}]}, False, "codex: section without unlock")
+expect(boss, {"entity": {"name": "Old White"}, "title": "t", "lore": {}, "rewards": {"items": ["minecraft:bone", {"id": "minecraft:emerald", "count": 3}]}}, True, "boss: name selector, rewards")
+expect(boss, {"entity": {}, "title": "t"}, False, "boss: empty selector")
+expect(boss, {"entity": {"tag": "x"}, "title": "t", "participation": 2}, False, "boss: participation above 1")
+expect(boss, {"entity": {"tag": "x"}, "title": "t", "phases": []}, False, "boss: unknown field")
+expect(event, {"trigger": {"type": "entity_seen", "entity": "minecraft:wolf"}, "actions": {"type": "unlock_codex", "entry": "a:b", "target": "party"}}, True, "event: entity_seen and unlock_codex")
+expect(event, {"trigger": {"type": "entity_killed", "shared": True}, "actions": {"type": "unlock_boss_section", "boss": "a:b", "section": "tactics"}}, True, "event: shared kill and boss section")
+expect(event, {"trigger": custom, "actions": {"type": "unlock_boss_section", "boss": "a:b", "section": "phases"}}, False, "event: unknown boss section")
+expect(event, {"trigger": custom, "actions": [], "conditions": [{"type": "codex_unlocked", "entry": "a:b"}, {"type": "boss_killed", "boss": "a:c", "count": 2}]}, True, "event: codex and boss conditions")
+expect(event, {"trigger": {"type": "entity_seen", "shared": True}, "actions": []}, False, "event: shared only on entity_killed")
 
 print("failures:", failures)
 sys.exit(1 if failures else 0)

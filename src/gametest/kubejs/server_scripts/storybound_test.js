@@ -51,3 +51,14 @@ StoryboundEvents.customTrigger('gametest:kjs_talk_start', e => {
 StoryboundEvents.npcInteract('gametest:kjs_npc', e => {
   Storybound.flags(e.player).set('gametest:kjs_npc_binding', String(e.binding))
 })
+
+StoryboundEvents.codexUnlocked('gametest:kjs_entry', e => {
+  Storybound.flags(e.player).set('gametest:kjs_codex_section', e.section)
+})
+
+StoryboundEvents.customTrigger('gametest:kjs_codex', e => {
+  let codex = Storybound.codex(e.player)
+  codex.unlock('gametest:kjs_entry', 'base')
+  Storybound.flags(e.player).set('gametest:kjs_codex_open', codex.isUnlocked('gametest:kjs_entry', 'base'))
+  Storybound.flags(e.player).set('gametest:kjs_boss_victories', Storybound.bosses(e.player).victories('gametest:kjs_boss'))
+})

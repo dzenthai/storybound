@@ -1,5 +1,7 @@
 package dev.dzenthai.storybound.compat.kubejs;
 
+import dev.dzenthai.storybound.core.event.BossDefeatedEvent;
+import dev.dzenthai.storybound.core.event.CodexUnlockedEvent;
 import dev.dzenthai.storybound.core.event.CustomTriggerEvent;
 import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.event.NpcInteractEvent;
@@ -22,6 +24,8 @@ final class StoryboundKubeBridge {
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onDialogueStarted);
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onDialogueEnded);
         NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onNpcInteract);
+        NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onCodexUnlocked);
+        NeoForge.EVENT_BUS.addListener(StoryboundKubeBridge::onBossDefeated);
     }
 
     private static void onValueChanged(StoryValueChangedEvent event) {
@@ -73,6 +77,18 @@ final class StoryboundKubeBridge {
     private static void onNpcInteract(NpcInteractEvent event) {
         if (StoryboundJSEvents.NPC_INTERACT.hasListeners(event.getBinding())) {
             StoryboundJSEvents.NPC_INTERACT.post(new NpcInteractKubeEvent(event), event.getBinding());
+        }
+    }
+
+    private static void onCodexUnlocked(CodexUnlockedEvent event) {
+        if (StoryboundJSEvents.CODEX_UNLOCKED.hasListeners(event.getEntry())) {
+            StoryboundJSEvents.CODEX_UNLOCKED.post(new CodexKubeEvent(event), event.getEntry());
+        }
+    }
+
+    private static void onBossDefeated(BossDefeatedEvent event) {
+        if (StoryboundJSEvents.BOSS_DEFEATED.hasListeners(event.getBoss())) {
+            StoryboundJSEvents.BOSS_DEFEATED.post(new BossKubeEvent(event), event.getBoss());
         }
     }
 }

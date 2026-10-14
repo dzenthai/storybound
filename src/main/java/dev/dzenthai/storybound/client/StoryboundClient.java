@@ -2,6 +2,8 @@ package dev.dzenthai.storybound.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.codex.BossesView;
+import dev.dzenthai.storybound.client.codex.CodexView;
 import dev.dzenthai.storybound.client.dialogue.ClientDialogue;
 import dev.dzenthai.storybound.client.dialogue.DialogueHud;
 import dev.dzenthai.storybound.client.dialogue.SpeechBubbles;
@@ -50,6 +52,10 @@ public final class StoryboundClient {
             InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), KEY_CATEGORY);
     public static final KeyMapping OPEN_JOURNAL = new KeyMapping("key.storybound.journal",
             InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), KEY_CATEGORY);
+    public static final KeyMapping OPEN_CODEX = new KeyMapping("key.storybound.codex",
+            InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), KEY_CATEGORY);
+    public static final KeyMapping OPEN_BOSSES = new KeyMapping("key.storybound.bosses",
+            InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), KEY_CATEGORY);
 
     public StoryboundClient(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.CLIENT, StoryboundClientConfig.SPEC);
@@ -77,6 +83,10 @@ public final class StoryboundClient {
                     () -> ClientModules.isEnabled("quests"), QuestsView::hasUnseen, QuestsView::new));
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.JOURNAL, Component.translatable("storybound.journal.title"), 200,
                     () -> ClientModules.isEnabled("journal") && ClientJournal.isEnabled(), JournalView::hasUnseen, JournalView::new));
+            AdventureMenu.registerTab(new MenuTab(AdventureMenu.CODEX, Component.translatable("storybound.codex.title"), 300,
+                    () -> ClientModules.isEnabled("codex"), CodexView::hasUnseen, CodexView::new));
+            AdventureMenu.registerTab(new MenuTab(AdventureMenu.BOSSES, Component.translatable("storybound.bosses.title"), 400,
+                    () -> ClientModules.isEnabled("bosses"), BossesView::hasUnseen, BossesView::new));
         });
     }
 
@@ -84,6 +94,8 @@ public final class StoryboundClient {
         event.register(OPEN_MENU);
         event.register(OPEN_QUESTS);
         event.register(OPEN_JOURNAL);
+        event.register(OPEN_CODEX);
+        event.register(OPEN_BOSSES);
     }
 
     private static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
@@ -101,6 +113,8 @@ public final class StoryboundClient {
         openOnKey(OPEN_MENU, null);
         openOnKey(OPEN_QUESTS, AdventureMenu.QUESTS);
         openOnKey(OPEN_JOURNAL, AdventureMenu.JOURNAL);
+        openOnKey(OPEN_CODEX, AdventureMenu.CODEX);
+        openOnKey(OPEN_BOSSES, AdventureMenu.BOSSES);
         ClientDialogue.tick();
     }
 
@@ -121,6 +135,8 @@ public final class StoryboundClient {
         ClientStoryState.clear();
         ClientJournal.clear();
         ClientQuests.clear();
+        ClientCodex.clear();
+        ClientBosses.clear();
         ClientModules.clear();
         ClientDialogue.clear();
         SpeechBubbles.clear();

@@ -9,7 +9,11 @@ public enum NotifyKind implements StringRepresentable {
     QUEST_STARTED("quest_started"),
     QUEST_UPDATED("quest_updated"),
     QUEST_COMPLETED("quest_completed"),
-    QUEST_FAILED("quest_failed");
+    QUEST_FAILED("quest_failed"),
+    CODEX_NEW("codex_new"),
+    CODEX_UPDATED("codex_updated"),
+    BOSS_ENCOUNTERED("boss_encountered"),
+    BOSS_DEFEATED("boss_defeated");
 
     public static final Codec<NotifyKind> CODEC = StringRepresentable.fromEnum(NotifyKind::values);
 

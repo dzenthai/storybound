@@ -30,6 +30,10 @@ public final class StoryboundConfig {
         public final ModConfigSpec.IntValue commandPermissionLevel;
         public final ModConfigSpec.DoubleValue dialogueMaxDistance;
         public final ModConfigSpec.BooleanValue dialogueInterruptOnDamage;
+        public final ModConfigSpec.IntValue seenRadius;
+        public final ModConfigSpec.IntValue seenAngle;
+        public final ModConfigSpec.IntValue seenTicks;
+        public final ModConfigSpec.IntValue killCreditRadius;
 
         Common(ModConfigSpec.Builder builder) {
             builder.comment("Storybound modules. A disabled module subscribes no triggers, refuses to change its state and hides its tab.")
@@ -67,6 +71,23 @@ public final class StoryboundConfig {
                     .comment("Taking damage interrupts the player's dialogue.")
                     .translation("storybound.configuration.interruptOnDamage")
                     .define("interruptOnDamage", true);
+            builder.pop();
+
+            builder.comment("How the server decides that a player saw an entity (the entity_seen trigger, Codex and Bosses)",
+                            "and who else gets credit for a kill.")
+                    .translation("storybound.configuration.detection").push("detection");
+            seenRadius = builder.comment("Entities farther than this, in blocks, are never seen.")
+                    .translation("storybound.configuration.seenRadius")
+                    .defineInRange("seenRadius", 24, 4, 128);
+            seenAngle = builder.comment("Half the field of view, in degrees: the entity must be within this angle of where the player looks.")
+                    .translation("storybound.configuration.seenAngle")
+                    .defineInRange("seenAngle", 45, 5, 90);
+            seenTicks = builder.comment("How long, in ticks, the entity must be in view and line of sight (in total) to count as seen.")
+                    .translation("storybound.configuration.seenTicks")
+                    .defineInRange("seenTicks", 20, 10, 600);
+            killCreditRadius = builder.comment("Party members within this many blocks of a killed mob share the kill (shared entity_killed, Codex, Bosses).")
+                    .translation("storybound.configuration.killCreditRadius")
+                    .defineInRange("killCreditRadius", 48, 0, 256);
             builder.pop();
         }
     }
