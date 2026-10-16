@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/waypoint.schema.json",
+  "title": "Storybound waypoint",
+  "description": "data/<namespace>/storybound/waypoints/<path>.json — a waypoint every player may see: when its conditions pass and, if bound to a quest, while that quest is active (at stage, if given). Quest stages can also list waypoints.",
+  "type": "object",
+  "required": ["name", "target"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "$ref": "logic.schema.json#/definitions/story_text" },
+    "target": { "$ref": "#/definitions/target" },
+    "color": { "description": "#RRGGBB or #AARRGGBB.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+    "conditions": { "$ref": "logic.schema.json#/definitions/conditions" },
+    "quest": { "$ref": "logic.schema.json#/definitions/id" },
+    "stage": { "description": "Needs quest: shown only while the quest is at this stage.", "type": "string" },
+    "radius": { "description": "A search area of this radius instead of a point.", "type": "number", "minimum": 0, "maximum": 1024, "default": 0 },
+    "beam": { "description": "A thin light beam rises from the waypoint in the world.", "type": "boolean", "default": false }
+  },
+  "definitions": {
+    "target": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["pos"],
+          "additionalProperties": false,
+          "properties": {
+            "pos": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+            "dimension": { "$ref": "logic.schema.json#/definitions/id", "default": "minecraft:overworld" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["entity"],
+          "additionalProperties": false,
+          "properties": {
+            "entity": {
+              "description": "Follows this entity (an NPC); while it is not loaded, its last known position is used.",
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

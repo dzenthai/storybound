@@ -93,6 +93,7 @@
   "storybound.bosses.first_victory": "Первая победа: %s",
   "storybound.bosses.best_time": "Самый быстрый бой: %s",
   "storybound.boss.unknown": "Неизвестный босс %s",
+  "storybound.waypoint.disabled": "Модуль меток отключён",
   "storybound.boss.cannot_unlock": "Раздел %2$s босса %1$s не открыть: неизвестный босс или раздел, или модуль боссов отключён",
   "commands.storybound.quest.state_set": "Квест %s: состояние %s",
   "commands.storybound.quest.stage_set": "Квест %s переведён на этап %s",
@@ -121,6 +122,13 @@
   "commands.storybound.boss.unlocked": "Босс %s, раздел %s: открыт для игроков: %s",
   "commands.storybound.boss.reset": "Босс %s сброшен для игроков: %s",
   "commands.storybound.boss.info": "%s: встречен %s, побед %s, лучшее время %s, разделы %s",
+  "commands.storybound.waypoint.added": "Общая метка %s добавлена: %s",
+  "commands.storybound.waypoint.removed": "Общая метка %s удалена",
+  "commands.storybound.waypoint.beam_on": "У общей метки %s теперь есть столб",
+  "commands.storybound.waypoint.beam_off": "У общей метки %s больше нет столба",
+  "commands.storybound.waypoint.unknown": "Общей метки %s нет",
+  "commands.storybound.waypoint.none": "%s не видит ни одной метки",
+  "commands.storybound.waypoint.entry": "%s: %s %s %s %s",
 
   "storybound.party.default_name": "Отряд %s",
   "storybound.party.created": "Отряд «%s» создан. Пригласить игрока: /storybound party invite <игрок>",
@@ -175,5 +183,7 @@
   "storybound.configuration.questTrackerCorner": "Угол экрана для квеста",
   "storybound.configuration.questTrackerOffsetY": "Отступ квеста от края",
   "storybound.configuration.textSpeed": "Скорость текста в диалогах (символов в секунду)",
-  "storybound.configuration.speechBubbles": "Реплики из чужих диалогов над головой"
+  "storybound.configuration.speechBubbles": "Реплики из чужих диалогов над головой",
+  "storybound.configuration.waypointBeams": "Столбы у меток",
+  "storybound.configuration.untrackedQuestWaypoints": "Метки неотслеживаемых квестов"
 }

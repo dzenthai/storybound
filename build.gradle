@@ -29,6 +29,28 @@ repositories {
     exclusiveContent {
         forRepository {
             maven {
+                name = 'Modrinth'
+                url = 'https://api.modrinth.com/maven'
+            }
+        }
+        filter {
+            includeGroup 'maven.modrinth'
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'JourneyMap'
+                url = 'https://jm.gserv.me/repository/maven-public/'
+            }
+        }
+        filter {
+            includeGroup 'info.journeymap'
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
                 name = 'LatvianModder'
                 url = 'https://maven.latvian.dev/releases'
             }
@@ -40,6 +62,7 @@ repositories {
 }
 
 var withKubeJS = project.dev_with_kubejs.toBoolean()
+var withMaps = project.dev_with_maps.toBoolean()
 
 neoForge {
     version = project.neo_version
@@ -108,6 +131,15 @@ dependencies {
         localRuntime("dev.latvian.mods:rhino:${rhino_version}") { transitive = false }
     }
 
+    // Xaero has no public API artifact: we compile against the mod itself (via Modrinth), so the range in neoforge.mods.toml is pinned.
+    compileOnly("maven.modrinth:xaeros-minimap:${xaero_minimap_version}") { transitive = false }
+    compileOnly("info.journeymap:journeymap-api-neoforge:${journeymap_api_version}") { transitive = false }
+    if (withMaps) {
+        localRuntime("maven.modrinth:xaeros-minimap:${xaero_minimap_version}") { transitive = false }
+        localRuntime("maven.modrinth:xaeros-world-map:${xaero_worldmap_version}") { transitive = false }
+        localRuntime("maven.modrinth:journeymap:${journeymap_version}") { transitive = false }
+    }
+
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -126,6 +158,7 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             mod_version            : mod_version,
             mod_authors            : mod_authors,
             mod_description        : mod_description,
+            xaero_minimap_version_range: xaero_minimap_version_range,
             kubejs_version_range   : kubejs_version_range
     ]
     inputs.properties replaceProperties

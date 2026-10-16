@@ -31,6 +31,7 @@ dialogue = validator("dialogue.schema.json")
 binding = validator("npc_binding.schema.json")
 codex = validator("codex.schema.json")
 boss = validator("boss.schema.json")
+waypoint = validator("waypoint.schema.json")
 failures = 0
 
 
@@ -140,6 +141,19 @@ expect(event, {"trigger": {"type": "entity_killed", "shared": True}, "actions": 
 expect(event, {"trigger": custom, "actions": {"type": "unlock_boss_section", "boss": "a:b", "section": "phases"}}, False, "event: unknown boss section")
 expect(event, {"trigger": custom, "actions": [], "conditions": [{"type": "codex_unlocked", "entry": "a:b"}, {"type": "boss_killed", "boss": "a:c", "count": 2}]}, True, "event: codex and boss conditions")
 expect(event, {"trigger": {"type": "entity_seen", "shared": True}, "actions": []}, False, "event: shared only on entity_killed")
+
+for path in (root / "examples").rglob("storybound/waypoints/*.json"):
+    expect(waypoint, json.loads(path.read_text(encoding="utf-8")), True, f"example waypoint {path.name}")
+
+expect(waypoint, {"name": "w", "target": {"entity": "123e4567-e89b-12d3-a456-426614174000"}, "quest": "a:b", "stage": "s", "beam": True}, True, "waypoint: follow an entity, stage binding")
+expect(waypoint, {"name": "w", "target": {"pos": [1, 2]}}, False, "waypoint: two coordinates")
+expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3], "entity": "123e4567-e89b-12d3-a456-426614174000"}}, False, "waypoint: pos and entity together")
+expect(waypoint, {"target": {"pos": [1, 2, 3]}}, False, "waypoint: no name")
+expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "icon": "a:b"}, False, "waypoint: icon is gone")
+expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "color": "red"}, False, "waypoint: bad colour")
+expect(quest, {"title": "q", "stages": [{"id": "a", "waypoints": ["a:den"]}]}, True, "quest: stage waypoints")
+expect(event, {"trigger": custom, "actions": [{"type": "add_waypoint", "id": "a:b", "name": "n", "follow": True, "beam": True, "visibility": "party"}, {"type": "remove_waypoint", "id": "a:c", "visibility": "world"}]}, True, "event: waypoint actions")
+expect(event, {"trigger": custom, "actions": {"type": "add_waypoint", "id": "a:b"}}, False, "event: add_waypoint without name")
 
 print("failures:", failures)
 sys.exit(1 if failures else 0)

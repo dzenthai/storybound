@@ -93,6 +93,7 @@
   "storybound.bosses.first_victory": "First victory: %s",
   "storybound.bosses.best_time": "Fastest fight: %s",
   "storybound.boss.unknown": "Unknown boss %s",
+  "storybound.waypoint.disabled": "The waypoints module is disabled",
   "storybound.boss.cannot_unlock": "Boss %s section %s cannot be unlocked: unknown boss or section, or the Bosses module is disabled",
   "commands.storybound.quest.state_set": "Quest %s set to %s",
   "commands.storybound.quest.stage_set": "Quest %s moved to stage %s",
@@ -121,6 +122,13 @@
   "commands.storybound.boss.unlocked": "Boss %s, section %s: unlocked for %s players",
   "commands.storybound.boss.reset": "Boss %s reset for %s players",
   "commands.storybound.boss.info": "%s: encountered %s, victories %s, fastest %s, sections %s",
+  "commands.storybound.waypoint.added": "Shared waypoint %s added: %s",
+  "commands.storybound.waypoint.removed": "Shared waypoint %s removed",
+  "commands.storybound.waypoint.beam_on": "Shared waypoint %s now has a beam",
+  "commands.storybound.waypoint.beam_off": "Shared waypoint %s no longer has a beam",
+  "commands.storybound.waypoint.unknown": "There is no shared waypoint %s",
+  "commands.storybound.waypoint.none": "%s sees no waypoints",
+  "commands.storybound.waypoint.entry": "%s: %s %s %s %s",
 
   "storybound.party.default_name": "%s's party",
   "storybound.party.created": "Party %s created. Invite players with /storybound party invite <player>",
@@ -175,5 +183,7 @@
   "storybound.configuration.questTrackerCorner": "Quest tracker corner",
   "storybound.configuration.questTrackerOffsetY": "Quest tracker distance from edge",
   "storybound.configuration.textSpeed": "Dialogue text speed (characters per second)",
-  "storybound.configuration.speechBubbles": "Speech bubbles of other players' dialogues"
+  "storybound.configuration.speechBubbles": "Speech bubbles of other players' dialogues",
+  "storybound.configuration.waypointBeams": "Waypoint beams",
+  "storybound.configuration.untrackedQuestWaypoints": "Waypoints of untracked quests"
 }

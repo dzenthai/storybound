@@ -1,9 +1,9 @@
 package dev.dzenthai.storybound.client.menu;
 
 import com.mojang.serialization.Codec;
-import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.data.ColorCodec;
 import net.minecraft.resources.ResourceLocation;
 
 /**
@@ -19,7 +19,7 @@ public record MenuTheme(ResourceLocation panel, ResourceLocation tab, ResourceLo
             0x40000000, 0x20000000, 0xFF5A4630, 0x70000000, 0xFFE8C66A, 0xFFF0E6D2);
 
     /** {@code "#RRGGBB"} (opaque) or {@code "#AARRGGBB"}. */
-    public static final Codec<Integer> COLOR = Codec.STRING.comapFlatMap(MenuTheme::parseColor, value -> String.format("#%08X", value));
+    public static final Codec<Integer> COLOR = ColorCodec.CODEC;
 
     public static final Codec<MenuTheme> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.optionalFieldOf("panel", FALLBACK.panel).forGetter(MenuTheme::panel),
@@ -39,17 +39,4 @@ public record MenuTheme(ResourceLocation panel, ResourceLocation tab, ResourceLo
             COLOR.optionalFieldOf("hud_title", FALLBACK.hudTitle).forGetter(MenuTheme::hudTitle),
             COLOR.optionalFieldOf("hud_text", FALLBACK.hudText).forGetter(MenuTheme::hudText)
     ).apply(instance, MenuTheme::new));
-
-    private static DataResult<Integer> parseColor(String value) {
-        String hex = value.startsWith("#") ? value.substring(1) : value;
-        if (hex.length() != 6 && hex.length() != 8) {
-            return DataResult.error(() -> "Colour must be #RRGGBB or #AARRGGBB: " + value);
-        }
-        try {
-            long parsed = Long.parseLong(hex, 16);
-            return DataResult.success((int) (hex.length() == 6 ? parsed | 0xFF000000L : parsed));
-        } catch (NumberFormatException e) {
-            return DataResult.error(() -> "Not a hex colour: " + value);
-        }
-    }
 }

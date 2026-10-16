@@ -33,6 +33,10 @@
       "url": "./schemas/boss.schema.json"
     },
     {
+      "fileMatch": ["**/data/*/storybound/waypoints/**/*.json"],
+      "url": "./schemas/waypoint.schema.json"
+    },
+    {
       "fileMatch": ["**/assets/*/storybound/styles/**/*.json"],
       "url": "./schemas/document_style.schema.json"
     },

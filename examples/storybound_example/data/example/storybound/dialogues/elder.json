@@ -17,7 +17,8 @@
       "actions": [
         { "type": "set_flag", "key": "example:met_elder" },
         { "type": "give_document", "document": "example:elder_letter" },
-        { "type": "play_sound", "sound": "minecraft:entity.villager.yes" }
+        { "type": "play_sound", "sound": "minecraft:entity.villager.yes" },
+        { "type": "add_waypoint", "id": "example:elder", "name": "example.npc.elder", "follow": true, "visibility": "party", "color": "#E8C66A" }
       ],
       "next": "letter"
     },

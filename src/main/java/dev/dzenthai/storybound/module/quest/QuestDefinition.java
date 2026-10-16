@@ -98,15 +98,18 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
 
     /**
      * @param log  the stage's entry in the quest's story, shown from the moment the stage is reached (Witcher-style)
-     * @param next a stage id, {@code @complete} or {@code @fail}; omitted means the following stage
+     * @param next      a stage id, {@code @complete} or {@code @fail}; omitted means the following stage
+     * @param waypoints static waypoints shown while the quest is at this stage
      */
-    public record Stage(String id, Optional<StoryText> log, List<Objective> objectives, Optional<String> next, List<Action> onEnter) {
+    public record Stage(String id, Optional<StoryText> log, List<Objective> objectives, Optional<String> next, List<Action> onEnter,
+                        List<ResourceLocation> waypoints) {
         public static final Codec<Stage> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.fieldOf("id").forGetter(Stage::id),
                 StoryText.CODEC.optionalFieldOf("log").forGetter(Stage::log),
                 Objective.CODEC.listOf().optionalFieldOf("objectives", List.of()).forGetter(Stage::objectives),
                 Codec.STRING.optionalFieldOf("next").forGetter(Stage::next),
-                LogicCodecs.ACTIONS.optionalFieldOf("on_enter", List.of()).forGetter(Stage::onEnter)
+                LogicCodecs.ACTIONS.optionalFieldOf("on_enter", List.of()).forGetter(Stage::onEnter),
+                ResourceLocation.CODEC.listOf().optionalFieldOf("waypoints", List.of()).forGetter(Stage::waypoints)
         ).apply(instance, Stage::new));
 
         /** An objective's id, or its position when it has none. */
@@ -131,7 +134,7 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
         }
 
         Stage clientView() {
-            return new Stage(id, log, objectives.stream().map(Objective::clientView).toList(), next, List.of());
+            return new Stage(id, log, objectives.stream().map(Objective::clientView).toList(), next, List.of(), waypoints);
         }
     }
 

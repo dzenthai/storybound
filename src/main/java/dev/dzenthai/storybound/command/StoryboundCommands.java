@@ -29,6 +29,7 @@ public final class StoryboundCommands {
                 .then(NpcCommands.npc())
                 .then(CodexCommands.codex())
                 .then(CodexCommands.boss())
+                .then(WaypointCommands.waypoint())
                 .then(PartyCommands.party()));
     }
 

@@ -7,14 +7,19 @@ import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
+import dev.dzenthai.storybound.core.text.StoryText;
 import dev.dzenthai.storybound.module.boss.Bosses;
 import dev.dzenthai.storybound.module.codex.Codex;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.quest.QuestLogic;
 import dev.dzenthai.storybound.module.quest.Quests;
+import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
+import dev.dzenthai.storybound.module.waypoint.WaypointTarget;
+import dev.dzenthai.storybound.module.waypoint.Waypoints;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -49,6 +54,10 @@ public class StoryboundBinding {
 
     public BossesView bosses(ServerPlayer player) {
         return new BossesView(player);
+    }
+
+    public WaypointsView waypoints(ServerPlayer player) {
+        return new WaypointsView(player);
     }
 
     public Triggers getTriggers() {
@@ -259,6 +268,51 @@ public class StoryboundBinding {
 
         public boolean reset(ResourceLocation boss) {
             return Bosses.reset(player, boss);
+        }
+    }
+
+    /**
+     * Waypoints added for the player, their party or everyone ({@code visibility}: player, party, world; default player).
+     * The name is a translation key. {@code beam} turns the light beam at a waypoint on or off.
+     */
+    public static class WaypointsView {
+        private final ServerPlayer player;
+
+        WaypointsView(ServerPlayer player) {
+            this.player = player;
+        }
+
+        public boolean add(ResourceLocation id, String nameKey, double x, double y, double z) {
+            return add(id, nameKey, x, y, z, "player");
+        }
+
+        public boolean add(ResourceLocation id, String nameKey, double x, double y, double z, String visibility) {
+            return Waypoints.add(player, id, StoryText.key(nameKey), new WaypointTarget.Fixed(new Vec3(x, y, z), player.level().dimension()),
+                    WaypointDefinition.DEFAULT_COLOR, 0f, false, ScriptValues.scope(visibility));
+        }
+
+        /** A waypoint that follows the entity (an NPC). */
+        public boolean follow(ResourceLocation id, String nameKey, Entity entity, String visibility) {
+            return Waypoints.add(player, id, StoryText.key(nameKey), new WaypointTarget.Follow(entity.getUUID()),
+                    WaypointDefinition.DEFAULT_COLOR, 0f, false, ScriptValues.scope(visibility));
+        }
+
+        public boolean beam(ResourceLocation id, boolean on) {
+            return beam(id, on, "player");
+        }
+
+        public boolean beam(ResourceLocation id, boolean on, String visibility) {
+            StoryScope scope = ScriptValues.scope(visibility);
+            return Waypoints.setBeam(player.server, id, scope, StoryState.owner(player, scope), on);
+        }
+
+        public boolean remove(ResourceLocation id) {
+            return remove(id, "player");
+        }
+
+        public boolean remove(ResourceLocation id, String visibility) {
+            StoryScope scope = ScriptValues.scope(visibility);
+            return Waypoints.remove(player.server, id, scope, StoryState.owner(player, scope));
         }
     }
 }

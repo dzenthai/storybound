@@ -87,7 +87,12 @@
           "description": "A stage id, @complete or @fail. Omitted: the following stage, or completion after the last one.",
           "type": "string"
         },
-        "on_enter": { "$ref": "logic.schema.json#/definitions/actions" }
+        "on_enter": { "$ref": "logic.schema.json#/definitions/actions" },
+        "waypoints": {
+          "description": "Static waypoints shown while the quest is at this stage.",
+          "type": "array",
+          "items": { "$ref": "logic.schema.json#/definitions/id" }
+        }
       }
     },
     "objective": {

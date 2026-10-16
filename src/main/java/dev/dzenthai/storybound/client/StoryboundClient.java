@@ -14,6 +14,9 @@ import dev.dzenthai.storybound.client.menu.MenuTab;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
 import dev.dzenthai.storybound.client.quest.QuestHud;
 import dev.dzenthai.storybound.client.quest.QuestsView;
+import dev.dzenthai.storybound.client.waypoint.ClientWaypoints;
+import dev.dzenthai.storybound.client.waypoint.MapIntegrations;
+import dev.dzenthai.storybound.client.waypoint.WaypointBeams;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
@@ -68,6 +71,7 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onClientTick);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(SpeechBubbles::onRenderLevel);
+        NeoForge.EVENT_BUS.addListener(WaypointBeams::render);
         NeoForge.EVENT_BUS.addListener(StoryboundClientCommands::register);
     }
 
@@ -87,6 +91,7 @@ public final class StoryboundClient {
                     () -> ClientModules.isEnabled("codex"), CodexView::hasUnseen, CodexView::new));
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.BOSSES, Component.translatable("storybound.bosses.title"), 400,
                     () -> ClientModules.isEnabled("bosses"), BossesView::hasUnseen, BossesView::new));
+            MapIntegrations.register();
         });
     }
 
@@ -115,6 +120,7 @@ public final class StoryboundClient {
         openOnKey(OPEN_JOURNAL, AdventureMenu.JOURNAL);
         openOnKey(OPEN_CODEX, AdventureMenu.CODEX);
         openOnKey(OPEN_BOSSES, AdventureMenu.BOSSES);
+        ClientWaypoints.tick();
         ClientDialogue.tick();
     }
 
@@ -137,6 +143,7 @@ public final class StoryboundClient {
         ClientQuests.clear();
         ClientCodex.clear();
         ClientBosses.clear();
+        ClientWaypoints.clear();
         ClientModules.clear();
         ClientDialogue.clear();
         SpeechBubbles.clear();

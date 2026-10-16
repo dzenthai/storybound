@@ -27,7 +27,8 @@
           "optional": true
         }
       ],
-      "on_enter": { "type": "give_document", "document": "example:hunters_oath" }
+      "on_enter": { "type": "give_document", "document": "example:hunters_oath" },
+      "waypoints": ["example:wolf_den"]
     },
     {
       "id": "report",

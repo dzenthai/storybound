@@ -13,6 +13,8 @@ public final class StoryboundClientConfig {
     public final ModConfigSpec.IntValue questTrackerOffsetY;
     public final ModConfigSpec.IntValue textSpeed;
     public final ModConfigSpec.BooleanValue speechBubbles;
+    public final ModConfigSpec.BooleanValue waypointBeams;
+    public final ModConfigSpec.EnumValue<Untracked> untrackedQuestWaypoints;
 
     static {
         Pair<StoryboundClientConfig, ModConfigSpec> pair = new ModConfigSpec.Builder().configure(StoryboundClientConfig::new);
@@ -41,6 +43,21 @@ public final class StoryboundClientConfig {
                 .translation("storybound.configuration.speechBubbles")
                 .define("speechBubbles", true);
         builder.pop();
+
+        builder.translation("storybound.configuration.waypoints").push("waypoints");
+        waypointBeams = builder.comment("Draw the light beam over waypoints that have one.")
+                .translation("storybound.configuration.waypointBeams")
+                .define("beams", true);
+        untrackedQuestWaypoints = builder.comment("Waypoints of quests you do not track, in map mods and beams: SHOW them like the others, DIM them, or HIDE them.")
+                .translation("storybound.configuration.untrackedQuestWaypoints")
+                .defineEnum("untrackedQuestWaypoints", Untracked.DIM);
+        builder.pop();
+    }
+
+    public enum Untracked {
+        SHOW,
+        DIM,
+        HIDE
     }
 
     public enum Corner {

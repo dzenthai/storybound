@@ -29,3 +29,18 @@ type = "optional"
 versionRange = "${kubejs_version_range}"
 ordering = "NONE"
 side = "BOTH"
+
+# Only the client-side map renderers use these; the version range is pinned because we use Xaero's internals.
+[[dependencies.${mod_id}]]
+modId = "xaerominimap"
+type = "optional"
+versionRange = "${xaero_minimap_version_range}"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.${mod_id}]]
+modId = "journeymap"
+type = "optional"
+versionRange = "[0,)"
+ordering = "NONE"
+side = "CLIENT"
