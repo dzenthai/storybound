@@ -80,7 +80,7 @@ public final class Dialogues {
     public static Optional<State> state(ServerPlayer player) {
         DialogueSession session = SESSIONS.get(player.getUUID());
         return session == null ? Optional.empty()
-                : Optional.of(new State(session.id, session.step, session.dialogueId, session.node, session.waiting == Waiting.CHOICE, session.shown.size()));
+                : Optional.of(new State(session.id, session.step, session.dialogueId, session.node, session.waiting == Waiting.CHOICE, session.shown.size(), session.camera));
     }
 
     /**
@@ -372,8 +372,9 @@ public final class Dialogues {
         session.shown = List.of();
         session.deadline = line.duration().map(seconds -> player.server.getTickCount() + thinkTicks + Math.max(1, Math.round(seconds * 20))).orElse(-1L);
         DialogueLinePayload.Speaker speaker = new DialogueLinePayload.Speaker(name, entityName, entity != null ? entity.getId() : -1, portrait);
+        session.camera = cameraCue(session, line.shot(), line.transition());
         StoryboundNetwork.sendToPlayer(player, new DialogueLinePayload(session.id, session.step, session.dialogue.presentation(),
-                session.dialogue.closable(), speaker, text, line.duration().isPresent(), think));
+                session.dialogue.closable(), speaker, text, line.duration().isPresent(), think, session.camera));
         Entity source = entity;
         line.sound().ifPresent(sound -> playSound(session, source, sound));
         if (entity != null && entity != player) {
@@ -412,8 +413,19 @@ public final class Dialogues {
         session.step = nextStep++;
         session.shown = List.copyOf(shown);
         session.deadline = timeoutTicks > 0 ? player.server.getTickCount() + timeoutTicks : -1;
-        StoryboundNetwork.sendToPlayer(player, new DialogueChoicesPayload(session.id, session.step, session.dialogue.closable(), options, timeoutTicks));
+        session.camera = cameraCue(session, CameraCue.Shot.AUTO, CameraCue.Transition.CUT);
+        StoryboundNetwork.sendToPlayer(player, new DialogueChoicesPayload(session.id, session.step, session.dialogue.closable(), options, timeoutTicks, session.camera));
         return true;
+    }
+
+    /** The camera needs the server's permission, a dialogue that allows it, the dialogue screen and someone to talk to. */
+    private static CameraCue cameraCue(DialogueSession session, CameraCue.Shot shot, CameraCue.Transition transition) {
+        Entity partner = session.bound;
+        boolean enabled = StoryboundConfig.COMMON.cameraAllowed.get()
+                && session.dialogue.camera() == DialogueDefinition.Camera.AUTO
+                && session.dialogue.presentation() == DialogueDefinition.Presentation.SCREEN
+                && partner != null && partner != session.player;
+        return enabled ? new CameraCue(true, shot, transition, partner.getId()) : CameraCue.OFF;
     }
 
     private static void finish(DialogueSession session) {
@@ -557,6 +569,7 @@ public final class Dialogues {
     /**
      * @param waitingForChoice false while a line is shown
      * @param shownOptions     how many options the client got (valid indexes are below it)
+     * @param camera           what the client was told about the camera for what is on screen
      */
-    public record State(int session, int step, ResourceLocation dialogue, String node, boolean waitingForChoice, int shownOptions) {}
+    public record State(int session, int step, ResourceLocation dialogue, String node, boolean waitingForChoice, int shownOptions, CameraCue camera) {}
 }

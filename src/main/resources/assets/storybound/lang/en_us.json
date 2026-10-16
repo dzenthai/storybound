@@ -94,6 +94,9 @@
   "storybound.bosses.best_time": "Fastest fight: %s",
   "storybound.boss.unknown": "Unknown boss %s",
   "storybound.waypoint.disabled": "The waypoints module is disabled",
+  "storybound.waypoint.distance": "%s m",
+  "storybound.waypoint.distance_km": "%s km",
+  "storybound.waypoint.in_area": "Search the area",
   "storybound.boss.cannot_unlock": "Boss %s section %s cannot be unlocked: unknown boss or section, or the Bosses module is disabled",
   "commands.storybound.quest.state_set": "Quest %s set to %s",
   "commands.storybound.quest.stage_set": "Quest %s moved to stage %s",
@@ -124,8 +127,6 @@
   "commands.storybound.boss.info": "%s: encountered %s, victories %s, fastest %s, sections %s",
   "commands.storybound.waypoint.added": "Shared waypoint %s added: %s",
   "commands.storybound.waypoint.removed": "Shared waypoint %s removed",
-  "commands.storybound.waypoint.beam_on": "Shared waypoint %s now has a beam",
-  "commands.storybound.waypoint.beam_off": "Shared waypoint %s no longer has a beam",
   "commands.storybound.waypoint.unknown": "There is no shared waypoint %s",
   "commands.storybound.waypoint.none": "%s sees no waypoints",
   "commands.storybound.waypoint.entry": "%s: %s %s %s %s",
@@ -184,6 +185,12 @@
   "storybound.configuration.questTrackerOffsetY": "Quest tracker distance from edge",
   "storybound.configuration.textSpeed": "Dialogue text speed (characters per second)",
   "storybound.configuration.speechBubbles": "Speech bubbles of other players' dialogues",
-  "storybound.configuration.waypointBeams": "Waypoint beams",
-  "storybound.configuration.untrackedQuestWaypoints": "Waypoints of untracked quests"
+  "storybound.configuration.untrackedQuestWaypoints": "Waypoints of untracked quests",
+  "storybound.configuration.waypointMarkers": "Waypoint markers in the world",
+  "storybound.configuration.waypointMarkerScale": "Marker size",
+  "storybound.configuration.waypointMarkerOpacity": "Marker opacity",
+  "storybound.configuration.camera": "Dialogue camera",
+  "storybound.configuration.cameraAllowed": "Dialogues may move players' cameras",
+  "storybound.configuration.cameraEnabled": "Camera in dialogues",
+  "storybound.configuration.cameraDisableWith": "Turn off with these mods"
 }

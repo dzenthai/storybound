@@ -97,6 +97,7 @@ public final class ClientWaypoints {
         for (WaypointRenderer renderer : RENDERERS) {
             try {
                 renderer.refresh(shown);
+                Storybound.LOGGER.debug("Storybound: {} waypoints sent to {} (tracked quest: {})", shown.size(), renderer.name(), tracked.orElse(null));
             } catch (RuntimeException | LinkageError e) {
                 // A map mod changed its internals: drop that integration, keep the others.
                 Storybound.LOGGER.error("Storybound: waypoint renderer {} failed and is disabled", renderer.name(), e);

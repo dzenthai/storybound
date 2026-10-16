@@ -29,7 +29,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Shared waypoints everyone sees, for admins: {@code /storybound waypoint add <id> <pos> <name>}, {@code remove <id>},
- * {@code beam <id> on|off}, and {@code list <player>} (what that player sees).
+ * and {@code list <player>} (what that player sees).
  */
 final class WaypointCommands {
     private WaypointCommands() {}
@@ -43,9 +43,6 @@ final class WaypointCommands {
                 .then(Commands.literal("remove").then(Commands.argument("id", ResourceLocationArgument.id())
                         .suggests(WaypointCommands::suggestShared)
                         .executes(WaypointCommands::remove)))
-                .then(Commands.literal("beam").then(Commands.argument("id", ResourceLocationArgument.id()).suggests(WaypointCommands::suggestShared)
-                        .then(Commands.literal("on").executes(context -> beam(context, true)))
-                        .then(Commands.literal("off").executes(context -> beam(context, false)))))
                 .then(Commands.literal("list").then(Commands.argument("target", EntityArgument.player()).executes(WaypointCommands::list)));
     }
 
@@ -58,17 +55,8 @@ final class WaypointCommands {
         String name = StringArgumentType.getString(context, "name");
         // An admin's label, typed in chat: shown as written, not translated.
         Waypoints.addShared(context.getSource().getServer(), id, new StoryText.Literal(name),
-                new WaypointTarget.Fixed(pos, context.getSource().getLevel().dimension()), WaypointDefinition.DEFAULT_COLOR, false);
+                new WaypointTarget.Fixed(pos, context.getSource().getLevel().dimension()), WaypointDefinition.DEFAULT_COLOR);
         context.getSource().sendSuccess(() -> Component.translatable("commands.storybound.waypoint.added", id.toString(), name), true);
-        return 1;
-    }
-
-    private static int beam(CommandContext<CommandSourceStack> context, boolean beam) throws CommandSyntaxException {
-        ResourceLocation id = ResourceLocationArgument.getId(context, "id");
-        if (!Waypoints.setBeam(context.getSource().getServer(), id, StoryScope.WORLD, null, beam)) {
-            throw new SimpleCommandExceptionType(Component.translatable("commands.storybound.waypoint.unknown", id.toString())).create();
-        }
-        context.getSource().sendSuccess(() -> Component.translatable(beam ? "commands.storybound.waypoint.beam_on" : "commands.storybound.waypoint.beam_off", id.toString()), true);
         return 1;
     }
 

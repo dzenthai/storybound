@@ -63,6 +63,20 @@ repositories {
 
 var withKubeJS = project.dev_with_kubejs.toBoolean()
 var withMaps = project.dev_with_maps.toBoolean()
+var cameraModArtifacts = [
+        shouldersurfing  : ["maven.modrinth:shoulder-surfing-reloaded:${shoulder_surfing_version}"],
+        epicfight        : ["maven.modrinth:epic-fight:${epic_fight_version}"],
+        realcamera       : ["maven.modrinth:real-camera:${real_camera_version}"],
+        betterthirdperson: ["maven.modrinth:better-third-person:${better_third_person_version}"],
+        firstpersonmodel : ["maven.modrinth:first-person-model:${first_person_model_version}",
+                            "maven.modrinth:not-enough-animations:${not_enough_animations_version}"]
+]
+var devCameraMods = project.dev_camera_mods.split(',').collect { it.trim() }.findAll { !it.isEmpty() }
+devCameraMods.each {
+    if (!cameraModArtifacts.containsKey(it)) {
+        throw new GradleException("Unknown dev_camera_mods entry '${it}'; known: ${cameraModArtifacts.keySet().join(', ')}")
+    }
+}
 
 neoForge {
     version = project.neo_version
@@ -101,7 +115,9 @@ neoForge {
             gameDirectory = project.file('run/gametest')
             // KubeJS breaks GameTest mock players (it sends unguarded packets on login),
             // so with KubeJS installed only the integration tests run.
-            systemProperty 'neoforge.enabledGameTestNamespaces', withKubeJS ? "${mod_id}_kubejs" : project.mod_id
+            // With Easy NPC installed, its integration test runs alongside the rest.
+            systemProperty 'neoforge.enabledGameTestNamespaces', withKubeJS ? "${mod_id}_kubejs"
+                    : (project.dev_with_easynpc.toBoolean() ? "${mod_id},${mod_id}_easynpc" : project.mod_id)
         }
         configureEach {
             logLevel = org.slf4j.event.Level.DEBUG
@@ -138,6 +154,20 @@ dependencies {
         localRuntime("maven.modrinth:xaeros-minimap:${xaero_minimap_version}") { transitive = false }
         localRuntime("maven.modrinth:xaeros-world-map:${xaero_worldmap_version}") { transitive = false }
         localRuntime("maven.modrinth:journeymap:${journeymap_version}") { transitive = false }
+    }
+
+    // Camera mods: the dialogue camera pauses these through their APIs; compiled against, never shipped.
+    compileOnly(cameraModArtifacts.shouldersurfing[0]) { transitive = false }
+    compileOnly(cameraModArtifacts.epicfight[0]) { transitive = false }
+    devCameraMods.each { mod ->
+        cameraModArtifacts[mod].each { localRuntime(it) { transitive = false } }
+    }
+
+    // Easy NPC needs no compile-time integration: its NPCs are ordinary entities. Dev runs only.
+    if (project.dev_with_easynpc.toBoolean()) {
+        localRuntime("maven.modrinth:easy-npc:${easy_npc_version}") { transitive = false }
+        localRuntime("maven.modrinth:easy-npc-core:${easy_npc_core_version}") { transitive = false }
+        localRuntime("maven.modrinth:easy-npc-config-ui:${easy_npc_config_ui_version}") { transitive = false }
     }
 
     testImplementation platform('org.junit:junit-bom:5.11.4')

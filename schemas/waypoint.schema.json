@@ -14,7 +14,7 @@
     "quest": { "$ref": "logic.schema.json#/definitions/id" },
     "stage": { "description": "Needs quest: shown only while the quest is at this stage.", "type": "string" },
     "radius": { "description": "A search area of this radius instead of a point.", "type": "number", "minimum": 0, "maximum": 1024, "default": 0 },
-    "beam": { "description": "A thin light beam rises from the waypoint in the world.", "type": "boolean", "default": false }
+    "style": { "description": "Marker style: assets/<ns>/storybound/waypoint_styles/<path>.json in a resource pack.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:default" }
   },
   "definitions": {
     "target": {

@@ -58,10 +58,10 @@ public final class WaypointGameTests {
     public static void stageWaypointsComeAndGoWithTheStage(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         with(helper, WaypointRegistries.WAYPOINTS.serverStore(), WaypointDefinition.CODEC, Map.of(
-                CAMP, "{ \"name\": \"gametest.camp\", \"target\": { \"pos\": [10, 64, 10] }, \"radius\": 16, \"beam\": true }",
+                CAMP, "{ \"name\": \"gametest.camp\", \"target\": { \"pos\": [10, 64, 10] }, \"radius\": 16 }",
                 SHRINE, "{ \"name\": \"gametest.shrine\", \"target\": { \"pos\": [20, 64, 20], \"dimension\": \"minecraft:the_nether\" },"
                         + " \"quest\": \"gametest:waypoint_quest\", \"stage\": \"second\" }",
-                TOWER, "{ \"name\": \"gametest.tower\", \"target\": { \"pos\": [30, 70, 30] }, \"color\": \"#3366FF\","
+                TOWER, "{ \"name\": \"gametest.tower\", \"target\": { \"pos\": [30, 70, 30] }, \"color\": \"#3366FF\", \"style\": \"storybound:npc\","
                         + " \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:tower_known\" } }"
         ), () -> with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(QUEST, """
                 { "title": "gametest.waypoint_quest", "stages": [
@@ -77,7 +77,6 @@ public final class WaypointGameTests {
             helper.assertTrue(camp != null, "the first stage shows its waypoint");
             expect(helper, camp.quest(), Optional.of(QUEST), "it knows its quest, for highlighting");
             expect(helper, camp.radius(), 16f, "an area keeps its radius");
-            helper.assertTrue(camp.beam(), "the beam flag reaches the client");
 
             Quests.setStage(player, QUEST, "second");
             expect(helper, keys(player), List.of(SHRINE.toString()), "the next stage hides the camp and shows the shrine");
@@ -86,6 +85,8 @@ public final class WaypointGameTests {
             ok(() -> StoryState.set(player, StoryScope.PLAYER, key("tower_known"), new StoryValue.Bool(true)));
             helper.assertTrue(Waypoints.visible(player).containsKey(TOWER.toString()), "conditions decide an unbound waypoint");
             expect(helper, Waypoints.visible(player).get(TOWER.toString()).color(), 0xFF3366FF, "colour");
+            expect(helper, Waypoints.visible(player).get(TOWER.toString()).style(), ResourceLocation.fromNamespaceAndPath("storybound", "npc"), "marker style");
+            expect(helper, camp.style(), WaypointDefinition.DEFAULT_STYLE, "the default marker style");
 
             Quests.setStatus(player, QUEST, null);
             expect(helper, keys(player), List.of(TOWER.toString()), "a reset quest takes its waypoints away");
@@ -106,19 +107,16 @@ public final class WaypointGameTests {
         ok(() -> PartyManager.accept(member));
 
         run(helper, leader, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:mine\", \"name\": \"gametest.mine\", \"pos\": [1, 2, 3] }");
-        run(helper, leader, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:ours\", \"name\": \"gametest.ours\", \"pos\": [4, 5, 6], \"visibility\": \"party\" }");
+        run(helper, leader, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:ours\", \"name\": \"gametest.ours\", \"pos\": [4, 5, 6], \"visibility\": \"party\", \"style\": \"storybound:npc\" }");
         run(helper, leader, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:everyone\", \"name\": \"gametest.everyone\", \"pos\": [7, 8, 9], \"visibility\": \"world\" }");
 
         helper.assertTrue(Waypoints.visible(leader).keySet().containsAll(List.of("player/gametest:mine", "party/gametest:ours", "world/gametest:everyone")), "the author sees all three");
         helper.assertFalse(Waypoints.visible(member).containsKey("player/gametest:mine"), "a party member does not see a personal waypoint");
         helper.assertTrue(Waypoints.visible(member).containsKey("party/gametest:ours"), "a party member sees the party one");
+        expect(helper, Waypoints.visible(member).get("party/gametest:ours").style(), ResourceLocation.fromNamespaceAndPath("storybound", "npc"), "an added waypoint keeps its style");
         helper.assertFalse(Waypoints.visible(stranger).containsKey("party/gametest:ours"), "a stranger does not see the party one");
         helper.assertTrue(Waypoints.visible(stranger).containsKey("world/gametest:everyone"), "everyone sees a world waypoint");
 
-        helper.assertFalse(Waypoints.visible(stranger).get("world/gametest:everyone").beam(), "no beam unless asked");
-        helper.assertTrue(Waypoints.setBeam(leader.server, key("everyone"), StoryScope.WORLD, null, true), "the beam can be turned on");
-        helper.assertTrue(Waypoints.visible(stranger).get("world/gametest:everyone").beam(), "and everyone sees it");
-        helper.assertFalse(Waypoints.setBeam(leader.server, key("nobody"), StoryScope.WORLD, null, true), "an unknown waypoint has no beam to turn on");
         run(helper, member, "{ \"type\": \"remove_waypoint\", \"id\": \"gametest:ours\", \"visibility\": \"party\" }");
         helper.assertFalse(Waypoints.visible(leader).containsKey("party/gametest:ours"), "any party member can remove the party waypoint");
         run(helper, leader, "{ \"type\": \"remove_waypoint\", \"id\": \"gametest:mine\" }");

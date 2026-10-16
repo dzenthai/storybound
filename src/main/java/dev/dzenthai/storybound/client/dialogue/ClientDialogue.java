@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.client.dialogue;
 
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
+import dev.dzenthai.storybound.client.camera.DialogueCamera;
 import dev.dzenthai.storybound.core.text.ResolvedText;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition.Presentation;
 import dev.dzenthai.storybound.module.dialogue.ThinkTime;
@@ -72,6 +73,7 @@ public final class ClientDialogue {
         }
         line = new Line(payload.step(), speaker, name, payload.text().toComponent(), payload.timed(), startAt);
         choices = null;
+        DialogueCamera.onLine(payload.camera(), speaker.entityId());
         Minecraft minecraft = Minecraft.getInstance();
         if (presentation == Presentation.SCREEN) {
             openScreen();
@@ -95,6 +97,7 @@ public final class ClientDialogue {
         if (line != null) {
             line.revealAll();
         }
+        DialogueCamera.onChoices(payload.camera());
         openScreen();
     }
 
@@ -154,6 +157,7 @@ public final class ClientDialogue {
         answered = -1;
         presentation = Presentation.SCREEN;
         choseAt = 0;
+        DialogueCamera.stop();
     }
 
     private static void openScreen() {

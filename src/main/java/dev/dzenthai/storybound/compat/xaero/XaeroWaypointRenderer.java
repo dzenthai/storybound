@@ -4,7 +4,10 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.waypoint.ClientWaypoints;
 import dev.dzenthai.storybound.client.waypoint.WaypointRenderer;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.WeakHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
@@ -18,12 +21,20 @@ import xaero.hud.minimap.world.MinimapWorld;
 
 /**
  * Puts Storybound waypoints into Xaero's Minimap as "third-party waypoints" of origin {@code storybound:waypoints}:
- * they show on the minimap, in the world and in Xaero's waypoint menu, and are never saved to Xaero's files.
- * Only the current dimension's waypoints; the list is rebuilt on every change and on a dimension change.
- * Xaero has no stable public API, so its version range is pinned.
+ * they show on the minimap, the world map and in Xaero's waypoint menu, and are never saved to Xaero's files.
+ * Xaero draws them in the world too, which {@code XaeroWaypointWorldRendererMixin} skips: Storybound has its own
+ * markers there. Only the current dimension's waypoints; the list is rebuilt on every change and on a dimension
+ * change. Xaero has no stable public API, so its version range is pinned.
  */
-final class XaeroWaypointRenderer implements WaypointRenderer {
+public final class XaeroWaypointRenderer implements WaypointRenderer {
     private static final ResourceLocation ORIGIN = Storybound.id("waypoints");
+    /** The Xaero waypoints we made, by identity; weak, so Xaero dropping them is enough. */
+    private static final Set<Waypoint> OURS = Collections.newSetFromMap(new WeakHashMap<>());
+
+    /** A waypoint Storybound put into Xaero, which Xaero must not draw in the world. */
+    public static boolean isOurs(Waypoint waypoint) {
+        return OURS.contains(waypoint);
+    }
 
     /** The list filled last time; cleared when the player moves to another world container. */
     private @Nullable ThirdPartyWaypoints last;
@@ -48,6 +59,7 @@ final class XaeroWaypointRenderer implements WaypointRenderer {
             return;
         }
         ours.clear();
+        OURS.clear();
         ResourceLocation dimension = minecraft.level.dimension().location();
         for (ClientWaypoint waypoint : waypoints) {
             if (!waypoint.dimension().equals(dimension)) {
@@ -55,8 +67,16 @@ final class XaeroWaypointRenderer implements WaypointRenderer {
             }
             String name = waypoint.name().toComponent().getString();
             boolean tracked = ClientWaypoints.display(waypoint) == ClientWaypoints.Display.TRACKED;
-            ours.add(waypoint.key(), new Waypoint((int) Math.floor(waypoint.pos().x), (int) Math.floor(waypoint.pos().y), (int) Math.floor(waypoint.pos().z),
-                    tracked ? "» " + name : name, initials(name), nearest(waypoint.color()), WaypointPurpose.NORMAL));
+            Waypoint xaero = new Waypoint((int) Math.floor(waypoint.pos().x), (int) Math.floor(waypoint.pos().y), (int) Math.floor(waypoint.pos().z),
+                    tracked ? "» " + name : name, initials(name), nearest(waypoint.color()), WaypointPurpose.NORMAL);
+            OURS.add(xaero);
+            ours.add(waypoint.key(), xaero);
+            // Deleting a third-party waypoint in Xaero's menu is remembered per id, in the world's config, for
+            // good. A story waypoint comes back with the next change instead (tracking a quest, a new stage), as
+            // in JourneyMap, where we recreate them every time.
+            if (xaero.isThirdPartyDeleted()) {
+                xaero.setThirdPartyDeleted(false);
+            }
         }
     }
 

@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.network;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.dialogue.ClientDialogue;
 import dev.dzenthai.storybound.core.text.ResolvedText;
+import dev.dzenthai.storybound.module.dialogue.CameraCue;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -16,8 +17,10 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * Hidden options are never sent. Always shown on the dialogue screen, even in HUD dialogues.
  *
  * @param timeoutTicks 0 when the choice has no timer
+ * @param camera       a choice is framed on the player, over the partner's shoulder
  */
-public record DialogueChoicesPayload(int session, int step, boolean closable, List<Shown> options, int timeoutTicks) implements CustomPacketPayload {
+public record DialogueChoicesPayload(int session, int step, boolean closable, List<Shown> options, int timeoutTicks,
+                                     CameraCue camera) implements CustomPacketPayload {
     public static final Type<DialogueChoicesPayload> TYPE = new Type<>(Storybound.id("dialogue_choices"));
     public static final StreamCodec<RegistryFriendlyByteBuf, DialogueChoicesPayload> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.VAR_INT, DialogueChoicesPayload::session,
@@ -25,6 +28,7 @@ public record DialogueChoicesPayload(int session, int step, boolean closable, Li
             ByteBufCodecs.BOOL, DialogueChoicesPayload::closable,
             Shown.STREAM_CODEC.apply(ByteBufCodecs.list()), DialogueChoicesPayload::options,
             ByteBufCodecs.VAR_INT, DialogueChoicesPayload::timeoutTicks,
+            CameraCue.STREAM_CODEC, DialogueChoicesPayload::camera,
             DialogueChoicesPayload::new);
 
     @Override

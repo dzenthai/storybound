@@ -273,7 +273,7 @@ public class StoryboundBinding {
 
     /**
      * Waypoints added for the player, their party or everyone ({@code visibility}: player, party, world; default player).
-     * The name is a translation key. {@code beam} turns the light beam at a waypoint on or off.
+     * The name is a translation key.
      */
     public static class WaypointsView {
         private final ServerPlayer player;
@@ -288,22 +288,13 @@ public class StoryboundBinding {
 
         public boolean add(ResourceLocation id, String nameKey, double x, double y, double z, String visibility) {
             return Waypoints.add(player, id, StoryText.key(nameKey), new WaypointTarget.Fixed(new Vec3(x, y, z), player.level().dimension()),
-                    WaypointDefinition.DEFAULT_COLOR, 0f, false, ScriptValues.scope(visibility));
+                    WaypointDefinition.DEFAULT_COLOR, 0f, ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
         }
 
         /** A waypoint that follows the entity (an NPC). */
         public boolean follow(ResourceLocation id, String nameKey, Entity entity, String visibility) {
             return Waypoints.add(player, id, StoryText.key(nameKey), new WaypointTarget.Follow(entity.getUUID()),
-                    WaypointDefinition.DEFAULT_COLOR, 0f, false, ScriptValues.scope(visibility));
-        }
-
-        public boolean beam(ResourceLocation id, boolean on) {
-            return beam(id, on, "player");
-        }
-
-        public boolean beam(ResourceLocation id, boolean on, String visibility) {
-            StoryScope scope = ScriptValues.scope(visibility);
-            return Waypoints.setBeam(player.server, id, scope, StoryState.owner(player, scope), on);
+                    WaypointDefinition.DEFAULT_COLOR, 0f, ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
         }
 
         public boolean remove(ResourceLocation id) {

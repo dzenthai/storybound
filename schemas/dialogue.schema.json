@@ -28,6 +28,11 @@
     "on_abort": {
       "description": "Run when the dialogue is interrupted: ESC, walking away, damage, the NPC gone, logging out.",
       "$ref": "logic.schema.json#/definitions/actions"
+    },
+    "camera": {
+      "description": "auto: shot-reverse-shot on the dialogue screen, when the server config and the player allow it. off: the player's own view.",
+      "enum": ["auto", "off"],
+      "default": "auto"
     }
   },
   "definitions": {
@@ -88,7 +93,17 @@
             "text": { "$ref": "logic.schema.json#/definitions/story_text" },
             "next": { "$ref": "#/definitions/target", "default": "@end" },
             "sound": { "description": "Played with the line, e.g. a voice clip from a resource pack.", "$ref": "logic.schema.json#/definitions/id" },
-            "duration": { "type": "number", "minimum": 0.1, "maximum": 600 }
+            "duration": { "type": "number", "minimum": 0.1, "maximum": 600 },
+            "shot": {
+              "description": "The camera for this line. auto: over the listener's shoulder at the speaker. two_shot: both from the side. close_up: the speaker's face. first_person: no camera movement.",
+              "enum": ["auto", "two_shot", "close_up", "first_person"],
+              "default": "auto"
+            },
+            "transition": {
+              "description": "From the previous shot: cut, or ease (a short glide).",
+              "enum": ["cut", "ease"],
+              "default": "cut"
+            }
           },
           "required": ["speaker", "text"],
           "additionalProperties": false

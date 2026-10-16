@@ -2,6 +2,8 @@ package dev.dzenthai.storybound.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.camera.CameraIntegrations;
+import dev.dzenthai.storybound.client.camera.DialogueCamera;
 import dev.dzenthai.storybound.client.codex.BossesView;
 import dev.dzenthai.storybound.client.codex.CodexView;
 import dev.dzenthai.storybound.client.dialogue.ClientDialogue;
@@ -16,7 +18,8 @@ import dev.dzenthai.storybound.client.quest.QuestHud;
 import dev.dzenthai.storybound.client.quest.QuestsView;
 import dev.dzenthai.storybound.client.waypoint.ClientWaypoints;
 import dev.dzenthai.storybound.client.waypoint.MapIntegrations;
-import dev.dzenthai.storybound.client.waypoint.WaypointBeams;
+import dev.dzenthai.storybound.client.waypoint.WaypointMarkers;
+import dev.dzenthai.storybound.client.waypoint.WaypointStyles;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
@@ -71,7 +74,11 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onClientTick);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(SpeechBubbles::onRenderLevel);
-        NeoForge.EVENT_BUS.addListener(WaypointBeams::render);
+        NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
+        NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
+        NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHand);
+        NeoForge.EVENT_BUS.addListener(DialogueCamera::onComputeFov);
+        NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHighlight);
         NeoForge.EVENT_BUS.addListener(StoryboundClientCommands::register);
     }
 
@@ -92,6 +99,7 @@ public final class StoryboundClient {
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.BOSSES, Component.translatable("storybound.bosses.title"), 400,
                     () -> ClientModules.isEnabled("bosses"), BossesView::hasUnseen, BossesView::new));
             MapIntegrations.register();
+            CameraIntegrations.register();
         });
     }
 
@@ -106,10 +114,13 @@ public final class StoryboundClient {
     private static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(DocumentStyles.INSTANCE);
         event.registerReloadListener(MenuThemes.INSTANCE);
+        event.registerReloadListener(WaypointStyles.INSTANCE);
     }
 
     // Below chat and titles, above the vanilla HUD; hidden by F1 and F3 like the rest of it.
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {
+        // Under the crosshair and the rest of the HUD: markers belong to the world.
+        event.registerBelow(VanillaGuiLayers.CROSSHAIR, Storybound.id("waypoint_markers"), WaypointMarkers::render);
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, Storybound.id("quest_tracker"), QuestHud::render);
         event.registerBelow(VanillaGuiLayers.CHAT, Storybound.id("dialogue_subtitles"), DialogueHud::render);
     }
@@ -122,6 +133,7 @@ public final class StoryboundClient {
         openOnKey(OPEN_BOSSES, AdventureMenu.BOSSES);
         ClientWaypoints.tick();
         ClientDialogue.tick();
+        DialogueCamera.tick();
     }
 
     private static void openOnKey(KeyMapping key, ResourceLocation tab) {

@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/waypoint_style.schema.json",
+  "title": "Storybound waypoint marker style",
+  "description": "assets/<namespace>/storybound/waypoint_styles/<path>.json in a resource pack. A waypoint picks one with its style field (default storybound:default). Sprites are GUI sprites (assets/<ns>/textures/gui/sprites/<path>.png), white on transparent, tinted in game. Missing fields take the built-in defaults.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "icon": { "description": "The marker of a point.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/marker" },
+    "area_icon": { "description": "The marker of a search area (radius > 0).", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/area" },
+    "arrow": { "description": "The arrow at the screen edge, pointing up; turned in game.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/arrow" },
+    "size": { "description": "Icon size in GUI pixels, before the player's scale setting.", "type": "integer", "minimum": 4, "maximum": 64, "default": 11 },
+    "tracked_color": { "description": "Tint of the tracked quest's markers; others take the waypoint's colour.", "$ref": "#/definitions/color", "default": "#E8C66A" },
+    "text_color": { "$ref": "#/definitions/color", "default": "#F0E6D2" },
+    "distance_color": { "$ref": "#/definitions/color", "default": "#C9B48A" },
+    "name": {
+      "description": "When the name shows above the icon. tracked: always for the tracked quest, near the crosshair for the rest.",
+      "enum": ["always", "near_crosshair", "tracked", "never"],
+      "default": "tracked"
+    },
+    "distance": { "description": "Show the distance under the icon.", "type": "boolean", "default": true },
+    "fade_start": { "description": "Blocks; farther markers start fading.", "type": "number", "minimum": 0, "default": 96 },
+    "max_distance": { "description": "Blocks; farther markers are hidden unless their quest is tracked. 0 for no limit.", "type": "number", "minimum": 0, "default": 768 },
+    "hide_within": { "description": "Blocks; closer markers fade out (arrived).", "type": "number", "minimum": 0, "maximum": 64, "default": 4 },
+    "edge": {
+      "description": "Which off-screen waypoints get an arrow at the screen edge.",
+      "enum": ["tracked", "all", "never"],
+      "default": "tracked"
+    }
+  },
+  "definitions": {
+    "color": {
+      "description": "#RRGGBB (opaque) or #AARRGGBB.",
+      "type": "string",
+      "pattern": "^#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
+    }
+  }
+}

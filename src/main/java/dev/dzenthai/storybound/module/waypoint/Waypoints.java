@@ -91,7 +91,7 @@ public final class Waypoints {
             if (place != null) {
                 String key = id.toString();
                 result.put(key, new ClientWaypoint(key, definition.name().resolve(player), place.dimension(), place.pos(), definition.radius(),
-                        definition.color(), definition.beam(), quest));
+                        definition.color(), quest, definition.style()));
             }
         });
         for (WaypointData.Added added : WaypointData.get(player.server).all()) {
@@ -101,7 +101,7 @@ public final class Waypoints {
             Place place = locate(player.server, added.target());
             if (place != null) {
                 result.put(added.key(), new ClientWaypoint(added.key(), added.name().resolve(player), place.dimension(), place.pos(), added.radius(),
-                        added.color(), added.beam(), Optional.empty()));
+                        added.color(), Optional.empty(), added.style()));
             }
         }
         return result;
@@ -139,29 +139,21 @@ public final class Waypoints {
 
     /** Adds (or replaces) a waypoint seen by the player, their party or everyone, and updates whoever sees it. */
     public static boolean add(ServerPlayer player, ResourceLocation id, StoryText name, WaypointTarget target,
-                              int color, float radius, boolean beam, StoryScope scope) {
+                              int color, float radius, StoryScope scope, ResourceLocation style) {
         if (!isEnabled()) {
             return false;
         }
         UUID owner = StoryState.owner(player, scope);
-        WaypointData.get(player.server).put(new WaypointData.Added(id, name, target, color, radius, beam, scope, Optional.ofNullable(owner)));
+        WaypointData.get(player.server).put(new WaypointData.Added(id, name, target, color, radius, scope, Optional.ofNullable(owner), style));
         refreshScope(player.server, scope, owner);
         return true;
     }
 
     /** A world waypoint from a command, without a player behind it. */
-    public static void addShared(MinecraftServer server, ResourceLocation id, StoryText name, WaypointTarget target, int color, boolean beam) {
-        WaypointData.get(server).put(new WaypointData.Added(id, name, target, color, 0f, beam, StoryScope.WORLD, Optional.empty()));
+    public static void addShared(MinecraftServer server, ResourceLocation id, StoryText name, WaypointTarget target, int color) {
+        WaypointData.get(server).put(new WaypointData.Added(id, name, target, color, 0f, StoryScope.WORLD, Optional.empty(),
+                WaypointDefinition.DEFAULT_STYLE));
         refreshAll(server);
-    }
-
-    /** Turns the beam of an added waypoint on or off. @return false when there is no such waypoint */
-    public static boolean setBeam(MinecraftServer server, ResourceLocation id, StoryScope scope, @Nullable UUID owner, boolean beam) {
-        boolean changed = WaypointData.get(server).setBeam(id, scope, owner, beam);
-        if (changed) {
-            refreshScope(server, scope, owner);
-        }
-        return changed;
     }
 
     public static boolean remove(MinecraftServer server, ResourceLocation id, StoryScope scope, @Nullable UUID owner) {

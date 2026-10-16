@@ -49,18 +49,6 @@ public final class WaypointData extends SavedData {
         setDirty();
     }
 
-    /** @return false when there is no such waypoint */
-    boolean setBeam(ResourceLocation id, StoryScope scope, @Nullable UUID owner, boolean beam) {
-        for (int i = 0; i < waypoints.size(); i++) {
-            if (waypoints.get(i).sameSlot(id, scope, owner)) {
-                waypoints.set(i, waypoints.get(i).withBeam(beam));
-                setDirty();
-                return true;
-            }
-        }
-        return false;
-    }
-
     boolean remove(ResourceLocation id, StoryScope scope, @Nullable UUID owner) {
         boolean removed = waypoints.removeIf(existing -> existing.sameSlot(id, scope, owner));
         if (removed) {
@@ -89,23 +77,20 @@ public final class WaypointData extends SavedData {
     /**
      * @param scope who sees it: the player, their party, or everyone
      * @param owner the player or party it belongs to; empty for {@code world}
+     * @param style the client marker style
      */
-    public record Added(ResourceLocation id, StoryText name, WaypointTarget target, int color, float radius, boolean beam,
-                        StoryScope scope, Optional<UUID> owner) {
+    public record Added(ResourceLocation id, StoryText name, WaypointTarget target, int color, float radius,
+                        StoryScope scope, Optional<UUID> owner, ResourceLocation style) {
         public static final Codec<Added> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 ResourceLocation.CODEC.fieldOf("id").forGetter(Added::id),
                 StoryText.CODEC.fieldOf("name").forGetter(Added::name),
                 WaypointTarget.CODEC.fieldOf("target").forGetter(Added::target),
                 ColorCodec.CODEC.optionalFieldOf("color", WaypointDefinition.DEFAULT_COLOR).forGetter(Added::color),
                 Codec.FLOAT.optionalFieldOf("radius", 0f).forGetter(Added::radius),
-                Codec.BOOL.optionalFieldOf("beam", false).forGetter(Added::beam),
                 StoryScope.CODEC.fieldOf("scope").forGetter(Added::scope),
-                UUIDUtil.STRING_CODEC.optionalFieldOf("owner").forGetter(Added::owner)
+                UUIDUtil.STRING_CODEC.optionalFieldOf("owner").forGetter(Added::owner),
+                ResourceLocation.CODEC.optionalFieldOf("style", WaypointDefinition.DEFAULT_STYLE).forGetter(Added::style)
         ).apply(instance, Added::new));
-
-        Added withBeam(boolean beam) {
-            return new Added(id, name, target, color, radius, beam, scope, owner);
-        }
 
         boolean sameSlot(ResourceLocation id, StoryScope scope, @Nullable UUID owner) {
             return this.id.equals(id) && this.scope == scope && Objects.equals(this.owner.orElse(null), owner);

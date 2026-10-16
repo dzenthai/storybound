@@ -24,6 +24,9 @@ import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.module.quest.Quests;
+import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
+import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
+import dev.dzenthai.storybound.module.waypoint.Waypoints;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +40,7 @@ import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -138,6 +142,17 @@ public final class KubeJSGameTests {
         } finally {
             CodexRegistries.CODEX.serverStore().replace(previousCodex);
         }
+
+        String camp = "player/gametest:kjs_camp";
+        TriggerDispatcher.fireCustom(player, key("kjs_waypoint"));
+        expect(helper, stored(player, "kjs_waypoint_added"), Optional.of(new StoryValue.Bool(true)), "binding added a waypoint");
+        ClientWaypoint added = Waypoints.visible(player).get(camp);
+        helper.assertTrue(added != null, "the player sees the script's waypoint");
+        expect(helper, added.pos(), new Vec3(1, 64, 3), "at the script's position");
+        expect(helper, added.style(), WaypointDefinition.DEFAULT_STYLE, "with the default marker style");
+        TriggerDispatcher.fireCustom(player, key("kjs_waypoint_remove"));
+        expect(helper, stored(player, "kjs_waypoint_removed"), Optional.of(new StoryValue.Bool(true)), "binding removed it");
+        helper.assertFalse(Waypoints.visible(player).containsKey(camp), "and it is gone");
         helper.succeed();
     }
 

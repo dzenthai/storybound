@@ -18,11 +18,11 @@
         { "type": "set_flag", "key": "example:met_elder" },
         { "type": "give_document", "document": "example:elder_letter" },
         { "type": "play_sound", "sound": "minecraft:entity.villager.yes" },
-        { "type": "add_waypoint", "id": "example:elder", "name": "example.npc.elder", "follow": true, "visibility": "party", "color": "#E8C66A" }
+        { "type": "add_waypoint", "id": "example:elder", "name": "example.npc.elder", "follow": true, "visibility": "party", "color": "#E8C66A", "style": "storybound:npc" }
       ],
       "next": "letter"
     },
-    "letter": { "type": "line", "speaker": "elder", "text": "example.dialogue.elder.letter", "next": "topics" },
+    "letter": { "type": "line", "speaker": "elder", "text": "example.dialogue.elder.letter", "shot": "two_shot", "transition": "ease", "next": "topics" },
     "welcome_back": {
       "type": "line",
       "speaker": "elder",
@@ -62,7 +62,7 @@
     },
     "wolves": { "type": "random", "options": [ { "next": "wolves_pack" }, { "next": "wolves_white" } ] },
     "wolves_pack": { "type": "line", "speaker": "elder", "text": "example.dialogue.elder.wolves_pack", "next": "topics" },
-    "wolves_white": { "type": "line", "speaker": "elder", "text": "example.dialogue.elder.wolves_white", "next": "topics" },
+    "wolves_white": { "type": "line", "speaker": "elder", "text": "example.dialogue.elder.wolves_white", "shot": "close_up", "next": "topics" },
     "reported": { "type": "line", "speaker": "elder", "text": "example.dialogue.elder.reported", "next": "@end" },
     "thanks": { "type": "line", "speaker": "elder", "text": "example.dialogue.elder.thanks", "next": "topics" },
     "farewell": { "type": "line", "speaker": "elder", "text": "example.dialogue.elder.farewell", "duration": 3, "next": "@end" }

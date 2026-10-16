@@ -62,3 +62,11 @@ StoryboundEvents.customTrigger('gametest:kjs_codex', e => {
   Storybound.flags(e.player).set('gametest:kjs_codex_open', codex.isUnlocked('gametest:kjs_entry', 'base'))
   Storybound.flags(e.player).set('gametest:kjs_boss_victories', Storybound.bosses(e.player).victories('gametest:kjs_boss'))
 })
+
+StoryboundEvents.customTrigger('gametest:kjs_waypoint', e => {
+  Storybound.flags(e.player).set('gametest:kjs_waypoint_added', Storybound.waypoints(e.player).add('gametest:kjs_camp', 'gametest.camp', 1, 64, 3))
+})
+
+StoryboundEvents.customTrigger('gametest:kjs_waypoint_remove', e => {
+  Storybound.flags(e.player).set('gametest:kjs_waypoint_removed', Storybound.waypoints(e.player).remove('gametest:kjs_camp'))
+})

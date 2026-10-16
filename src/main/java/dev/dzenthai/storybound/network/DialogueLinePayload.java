@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.network;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.dialogue.ClientDialogue;
 import dev.dzenthai.storybound.core.text.ResolvedText;
+import dev.dzenthai.storybound.module.dialogue.CameraCue;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition;
 import dev.dzenthai.storybound.module.dialogue.ThinkTime;
 import io.netty.buffer.ByteBuf;
@@ -24,7 +25,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * @param think a {@link ThinkTime} code: the pause before showing a line that answers the option the player just chose
  */
 public record DialogueLinePayload(int session, int step, DialogueDefinition.Presentation presentation, boolean closable,
-                                  Speaker speaker, ResolvedText text, boolean timed, int think) implements CustomPacketPayload {
+                                  Speaker speaker, ResolvedText text, boolean timed, int think, CameraCue camera) implements CustomPacketPayload {
     public static final Type<DialogueLinePayload> TYPE = new Type<>(Storybound.id("dialogue_line"));
     public static final StreamCodec<ByteBuf, DialogueDefinition.Presentation> PRESENTATION_CODEC =
             ByteBufCodecs.idMapper(index -> DialogueDefinition.Presentation.values()[index], DialogueDefinition.Presentation::ordinal);
@@ -34,7 +35,8 @@ public record DialogueLinePayload(int session, int step, DialogueDefinition.Pres
 
     private static DialogueLinePayload read(RegistryFriendlyByteBuf buf) {
         return new DialogueLinePayload(ByteBufCodecs.VAR_INT.decode(buf), ByteBufCodecs.VAR_INT.decode(buf), PRESENTATION_CODEC.decode(buf),
-                ByteBufCodecs.BOOL.decode(buf), Speaker.STREAM_CODEC.decode(buf), ResolvedText.STREAM_CODEC.decode(buf), ByteBufCodecs.BOOL.decode(buf), ByteBufCodecs.VAR_INT.decode(buf));
+                ByteBufCodecs.BOOL.decode(buf), Speaker.STREAM_CODEC.decode(buf), ResolvedText.STREAM_CODEC.decode(buf), ByteBufCodecs.BOOL.decode(buf), ByteBufCodecs.VAR_INT.decode(buf),
+                CameraCue.STREAM_CODEC.decode(buf));
     }
 
     private void write(RegistryFriendlyByteBuf buf) {
@@ -46,6 +48,7 @@ public record DialogueLinePayload(int session, int step, DialogueDefinition.Pres
         ResolvedText.STREAM_CODEC.encode(buf, text);
         ByteBufCodecs.BOOL.encode(buf, timed);
         ByteBufCodecs.VAR_INT.encode(buf, think);
+        CameraCue.STREAM_CODEC.encode(buf, camera);
     }
 
     @Override

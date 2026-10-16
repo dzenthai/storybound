@@ -1,0 +1,8 @@
+{
+  "size": 8,
+  "name": "near_crosshair",
+  "fade_start": 24,
+  "max_distance": 96,
+  "hide_within": 3,
+  "edge": "never"
+}

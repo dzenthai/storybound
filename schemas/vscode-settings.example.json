@@ -43,6 +43,10 @@
     {
       "fileMatch": ["**/assets/*/storybound/menu/theme.json"],
       "url": "./schemas/menu_theme.schema.json"
+    },
+    {
+      "fileMatch": ["**/assets/*/storybound/waypoint_styles/**/*.json"],
+      "url": "./schemas/waypoint_style.schema.json"
     }
   ]
 }

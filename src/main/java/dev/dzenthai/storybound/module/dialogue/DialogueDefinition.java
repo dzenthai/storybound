@@ -25,9 +25,10 @@ import net.minecraft.util.StringRepresentable;
  * @param participants who may speak besides {@code player}; by default one {@code npc}, the entity the dialogue was started with
  * @param broadcast    nearby players see the lines as speech bubbles
  * @param onAbort      run when the dialogue is interrupted (walked away, ESC, damage, the NPC died)
+ * @param camera       {@code off} keeps the player's own view for the whole dialogue
  */
 public record DialogueDefinition(Map<String, Participant> participants, String start, Map<String, Node> nodes,
-                                 Presentation presentation, boolean closable, boolean broadcast, List<Action> onAbort) {
+                                 Presentation presentation, boolean closable, boolean broadcast, List<Action> onAbort, Camera camera) {
     /** Ends the current dialogue; inside a {@code call} it returns to the caller. */
     public static final String END = "@end";
     /** Ends the whole conversation, even inside a {@code call}. */
@@ -44,11 +45,31 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
             Presentation.CODEC.optionalFieldOf("presentation", Presentation.SCREEN).forGetter(DialogueDefinition::presentation),
             Codec.BOOL.optionalFieldOf("closable", true).forGetter(DialogueDefinition::closable),
             Codec.BOOL.optionalFieldOf("broadcast", true).forGetter(DialogueDefinition::broadcast),
-            LogicCodecs.ACTIONS.optionalFieldOf("on_abort", List.of()).forGetter(DialogueDefinition::onAbort)
+            LogicCodecs.ACTIONS.optionalFieldOf("on_abort", List.of()).forGetter(DialogueDefinition::onAbort),
+            Camera.CODEC.optionalFieldOf("camera", Camera.AUTO).forGetter(DialogueDefinition::camera)
     ).apply(instance, DialogueDefinition::new));
 
     public static boolean isSentinel(String target) {
         return target.equals(END) || target.equals(EXIT);
+    }
+
+    public enum Camera implements StringRepresentable {
+        /** Shot-reverse-shot on the dialogue screen, when the server and the player allow it. */
+        AUTO("auto"),
+        OFF("off");
+
+        public static final Codec<Camera> CODEC = StringRepresentable.fromEnum(Camera::values);
+
+        private final String name;
+
+        Camera(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getSerializedName() {
+            return name;
+        }
     }
 
     public enum Presentation implements StringRepresentable {
@@ -153,14 +174,18 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
      *
      * @param speaker {@code player} or a participant id
      * @param sound   played when the line is shown, e.g. a voice clip from a resource pack
+     * @param shot    the camera shot for this line; {@code auto} is shot-reverse-shot
      */
-    public record Line(String speaker, StoryText text, String next, Optional<ResourceLocation> sound, Optional<Float> duration) implements Node {
+    public record Line(String speaker, StoryText text, String next, Optional<ResourceLocation> sound, Optional<Float> duration,
+                       CameraCue.Shot shot, CameraCue.Transition transition) implements Node {
         public static final MapCodec<Line> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Codec.STRING.fieldOf("speaker").forGetter(Line::speaker),
                 StoryText.CODEC.fieldOf("text").forGetter(Line::text),
                 Codec.STRING.optionalFieldOf("next", END).forGetter(Line::next),
                 ResourceLocation.CODEC.optionalFieldOf("sound").forGetter(Line::sound),
-                Codec.floatRange(0.1f, 600f).optionalFieldOf("duration").forGetter(Line::duration)
+                Codec.floatRange(0.1f, 600f).optionalFieldOf("duration").forGetter(Line::duration),
+                CameraCue.Shot.CODEC.optionalFieldOf("shot", CameraCue.Shot.AUTO).forGetter(Line::shot),
+                CameraCue.Transition.CODEC.optionalFieldOf("transition", CameraCue.Transition.CUT).forGetter(Line::transition)
         ).apply(instance, Line::new));
 
         @Override

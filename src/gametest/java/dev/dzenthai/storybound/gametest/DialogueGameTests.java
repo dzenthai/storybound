@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.data.DefinitionStore;
@@ -17,6 +18,7 @@ import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.WorldStoryData;
+import dev.dzenthai.storybound.module.dialogue.CameraCue;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition;
 import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
@@ -192,6 +194,54 @@ public final class DialogueGameTests {
             DialogueRegistries.DIALOGUES.serverStore().replace(previous);
             remove(helper, player);
         });
+    }
+
+    @GameTest(template = "empty")
+    public static void cameraCuesFollowTheDialogue(GameTestHelper helper) {
+        Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 0, 2, 0);
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 0.5, 2, 0.5);
+        ResourceLocation scene = key("camera_scene");
+        ResourceLocation off = key("camera_off");
+        ResourceLocation hud = key("camera_hud");
+        with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(
+                scene, """
+                        { "start": "a", "nodes": {
+                            "a": { "type": "line", "speaker": "npc", "text": "gametest.a", "shot": "close_up", "transition": "ease", "next": "b" },
+                            "b": { "type": "line", "speaker": "player", "text": "gametest.b", "next": "c" },
+                            "c": { "type": "choice", "options": [ { "text": "gametest.c" } ] } } }
+                        """,
+                off, "{ \"camera\": \"off\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }",
+                hud, "{ \"presentation\": \"hud\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }"
+        ), () -> {
+            Dialogues.start(player, scene, npc);
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.CLOSE_UP, CameraCue.Transition.EASE, npc.getId()), "the line's own shot");
+            advance(player);
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, npc.getId()), "defaults");
+            advance(player);
+            helper.assertTrue(state(player).waitingForChoice() && state(player).camera().enabled(), "a choice is framed too");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+
+            Dialogues.start(player, scene, null);
+            expect(helper, state(player).camera(), CameraCue.OFF, "nobody to frame without an NPC");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            Dialogues.start(player, off, npc);
+            expect(helper, state(player).camera(), CameraCue.OFF, "\"camera\": \"off\"");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            Dialogues.start(player, hud, npc);
+            expect(helper, state(player).camera(), CameraCue.OFF, "HUD subtitles keep the player's view");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+
+            StoryboundConfig.COMMON.cameraAllowed.set(false);
+            try {
+                Dialogues.start(player, scene, npc);
+                expect(helper, state(player).camera(), CameraCue.OFF, "the server config forbids it");
+                Dialogues.interrupt(player, EndReason.STOPPED);
+            } finally {
+                StoryboundConfig.COMMON.cameraAllowed.set(true);
+            }
+        });
+        remove(helper, player);
+        helper.succeed();
     }
 
     @GameTest(template = "empty")

@@ -31,6 +31,8 @@ final class DialogueSession {
     long deadline = -1;
     /** A {@link ThinkTime} code for the next line, set when an option is chosen: the NPC pauses before answering. */
     int replyThink = ThinkTime.NONE;
+    /** The camera cue sent with what is on screen. */
+    CameraCue camera = CameraCue.OFF;
     boolean closed;
 
     DialogueSession(int id, ServerPlayer player, @Nullable Entity bound, ResourceLocation dialogueId, DialogueDefinition dialogue, long startedTick) {

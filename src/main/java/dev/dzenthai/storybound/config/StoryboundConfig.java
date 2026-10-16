@@ -30,6 +30,7 @@ public final class StoryboundConfig {
         public final ModConfigSpec.IntValue commandPermissionLevel;
         public final ModConfigSpec.DoubleValue dialogueMaxDistance;
         public final ModConfigSpec.BooleanValue dialogueInterruptOnDamage;
+        public final ModConfigSpec.BooleanValue cameraAllowed;
         public final ModConfigSpec.IntValue seenRadius;
         public final ModConfigSpec.IntValue seenAngle;
         public final ModConfigSpec.IntValue seenTicks;
@@ -71,6 +72,14 @@ public final class StoryboundConfig {
                     .comment("Taking damage interrupts the player's dialogue.")
                     .translation("storybound.configuration.interruptOnDamage")
                     .define("interruptOnDamage", true);
+            builder.pop();
+
+            builder.translation("storybound.configuration.camera").push("camera");
+            cameraAllowed = builder
+                    .comment("Dialogues on the dialogue screen may move players' cameras (shot-reverse-shot).",
+                            "Each player can still turn it off in their client config; a dialogue can turn it off with \"camera\": \"off\".")
+                    .translation("storybound.configuration.cameraAllowed")
+                    .define("allowed", true);
             builder.pop();
 
             builder.comment("How the server decides that a player saw an entity (the entity_seen trigger, Codex and Bosses)",

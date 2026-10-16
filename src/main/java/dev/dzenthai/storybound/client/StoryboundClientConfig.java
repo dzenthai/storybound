@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client;
 
+import java.util.List;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -13,8 +14,12 @@ public final class StoryboundClientConfig {
     public final ModConfigSpec.IntValue questTrackerOffsetY;
     public final ModConfigSpec.IntValue textSpeed;
     public final ModConfigSpec.BooleanValue speechBubbles;
-    public final ModConfigSpec.BooleanValue waypointBeams;
     public final ModConfigSpec.EnumValue<Untracked> untrackedQuestWaypoints;
+    public final ModConfigSpec.BooleanValue waypointMarkers;
+    public final ModConfigSpec.DoubleValue waypointMarkerScale;
+    public final ModConfigSpec.DoubleValue waypointMarkerOpacity;
+    public final ModConfigSpec.BooleanValue cameraEnabled;
+    public final ModConfigSpec.ConfigValue<List<? extends String>> cameraDisableWith;
 
     static {
         Pair<StoryboundClientConfig, ModConfigSpec> pair = new ModConfigSpec.Builder().configure(StoryboundClientConfig::new);
@@ -45,12 +50,28 @@ public final class StoryboundClientConfig {
         builder.pop();
 
         builder.translation("storybound.configuration.waypoints").push("waypoints");
-        waypointBeams = builder.comment("Draw the light beam over waypoints that have one.")
-                .translation("storybound.configuration.waypointBeams")
-                .define("beams", true);
-        untrackedQuestWaypoints = builder.comment("Waypoints of quests you do not track, in map mods and beams: SHOW them like the others, DIM them, or HIDE them.")
+        untrackedQuestWaypoints = builder.comment("Waypoints of quests you do not track (markers and map mods): HIDE them (only the tracked quest is shown), DIM them, or SHOW them like the others.",
+                        "Waypoints that belong to no quest are always shown.")
                 .translation("storybound.configuration.untrackedQuestWaypoints")
-                .defineEnum("untrackedQuestWaypoints", Untracked.DIM);
+                .defineEnum("untrackedQuestWaypoints", Untracked.HIDE);
+        waypointMarkers = builder.comment("Draw waypoint markers in the world (icon, distance, name); map mods show waypoints on their own.")
+                .translation("storybound.configuration.waypointMarkers")
+                .define("markers", true);
+        waypointMarkerScale = builder.comment("Size of waypoint markers.")
+                .translation("storybound.configuration.waypointMarkerScale")
+                .defineInRange("markerScale", 1.0, 0.5, 2.5);
+        waypointMarkerOpacity = builder.comment("Opacity of waypoint markers.")
+                .translation("storybound.configuration.waypointMarkerOpacity")
+                .defineInRange("markerOpacity", 1.0, 0.1, 1.0);
+        builder.pop();
+
+        builder.translation("storybound.configuration.camera").push("camera");
+        cameraEnabled = builder.comment("Move the camera in dialogues (over the shoulder of whoever listens), when the server and the dialogue allow it.")
+                .translation("storybound.configuration.cameraEnabled")
+                .define("enabled", true);
+        cameraDisableWith = builder.comment("Mod ids: the dialogue camera stays off when any of these is installed, e.g. a camera mod that conflicts with it.")
+                .translation("storybound.configuration.cameraDisableWith")
+                .defineListAllowEmpty("disableWith", List.of(), () -> "", value -> value instanceof String);
         builder.pop();
     }
 

@@ -35,8 +35,9 @@ final class JourneyMapWaypointRenderer implements WaypointRenderer {
                     display == ClientWaypoints.Display.TRACKED ? "» " + name : name,
                     ResourceKey.create(Registries.DIMENSION, waypoint.dimension()), false);
             journeymap.setColor(waypoint.color() & 0xFFFFFF);
-            // Our own thin beam is the only one, switched by the waypoint's "beam".
+            // On the minimap and the full map only: in the world, Storybound draws its own markers.
             journeymap.setShowBeacon(false);
+            journeymap.setShowInWorld(false);
             if (display == ClientWaypoints.Display.DIMMED) {
                 journeymap.setIconOpacity(0.5f);
             }

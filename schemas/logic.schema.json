@@ -418,7 +418,7 @@
           "additionalProperties": false
         },
         {
-          "description": "Adds a waypoint for the player, their party or everyone. It points at pos, follows the context entity (follow), or marks where the context entity, else the player, stands now. beam raises a thin light beam at it. The same id and visibility replaces it.",
+          "description": "Adds a waypoint for the player, their party or everyone. It points at pos, follows the context entity (follow), or marks where the context entity, else the player, stands now. The same id and visibility replaces it.",
           "properties": {
             "type": { "enum": ["add_waypoint", "storybound:add_waypoint"] },
             "id": { "$ref": "#/definitions/id" },
@@ -428,8 +428,8 @@
             "follow": { "type": "boolean", "default": false },
             "color": { "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
             "radius": { "type": "number", "minimum": 0, "maximum": 1024 },
-            "beam": { "type": "boolean", "default": false },
-            "visibility": { "$ref": "#/definitions/scope", "default": "player" }
+            "visibility": { "$ref": "#/definitions/scope", "default": "player" },
+            "style": { "description": "Marker style: assets/<ns>/storybound/waypoint_styles/<path>.json in a resource pack.", "$ref": "#/definitions/id", "default": "storybound:default" }
           },
           "required": ["id", "name"],
           "additionalProperties": false

@@ -32,6 +32,7 @@ binding = validator("npc_binding.schema.json")
 codex = validator("codex.schema.json")
 boss = validator("boss.schema.json")
 waypoint = validator("waypoint.schema.json")
+marker_style = validator("waypoint_style.schema.json")
 failures = 0
 
 
@@ -113,6 +114,10 @@ expect(dialogue, {"start": "a", "presentation": "hud", "nodes": {"a": {"type": "
     "options": [{"text": "o", "locked": "show", "locked_text": "h", "once": True, "think": 1.5, "actions": {"type": "take_item", "item": "a:b"}}]}}}, True, "dialogue: full choice")
 expect(dialogue, {"start": "a", "nodes": {"a": {"type": "choice", "options": [{"text": "o", "locked": "grey"}]}}}, False, "dialogue: bad locked")
 expect(dialogue, {"start": "a", "nodes": {"a": {"type": "choice", "options": [{"text": "o", "think": -1}]}}}, False, "dialogue: negative think")
+expect(dialogue, {"start": "a", "camera": "off", "nodes": {"a": dict(line, shot="close_up", transition="ease")}}, True, "dialogue: camera fields")
+expect(dialogue, {"start": "a", "camera": "cinematic", "nodes": {"a": line}}, False, "dialogue: bad camera")
+expect(dialogue, {"start": "a", "nodes": {"a": dict(line, shot="over_shoulder")}}, False, "dialogue: bad shot")
+expect(dialogue, {"start": "a", "nodes": {"a": dict(line, transition="fade")}}, False, "dialogue: bad transition")
 expect(binding, {"entity": {"type": "minecraft:villager", "tag": "elder"}, "dialogues": [{"dialogue": "a:b", "priority": 2}],
     "proximity": {"radius": 5, "once": True}}, True, "binding: full")
 expect(binding, {"dialogues": [{"dialogue": "a:b"}]}, False, "binding: missing entity")
@@ -145,14 +150,22 @@ expect(event, {"trigger": {"type": "entity_seen", "shared": True}, "actions": []
 for path in (root / "examples").rglob("storybound/waypoints/*.json"):
     expect(waypoint, json.loads(path.read_text(encoding="utf-8")), True, f"example waypoint {path.name}")
 
-expect(waypoint, {"name": "w", "target": {"entity": "123e4567-e89b-12d3-a456-426614174000"}, "quest": "a:b", "stage": "s", "beam": True}, True, "waypoint: follow an entity, stage binding")
+expect(waypoint, {"name": "w", "target": {"entity": "123e4567-e89b-12d3-a456-426614174000"}, "quest": "a:b", "stage": "s"}, True, "waypoint: follow an entity, stage binding")
+expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "beam": True}, False, "waypoint: beams are gone")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2]}}, False, "waypoint: two coordinates")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3], "entity": "123e4567-e89b-12d3-a456-426614174000"}}, False, "waypoint: pos and entity together")
 expect(waypoint, {"target": {"pos": [1, 2, 3]}}, False, "waypoint: no name")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "icon": "a:b"}, False, "waypoint: icon is gone")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "color": "red"}, False, "waypoint: bad colour")
+expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "style": "storybound:npc"}, True, "waypoint: style")
+for path in (root / "src/main/resources/assets").rglob("storybound/waypoint_styles/*.json"):
+    expect(marker_style, json.loads(path.read_text(encoding="utf-8")), True, f"marker style {path.name}")
+expect(marker_style, {"name": "hover"}, False, "marker style: bad name mode")
+expect(marker_style, {"edge": "everywhere"}, False, "marker style: bad edge mode")
+expect(marker_style, {"size": 2}, False, "marker style: too small")
+expect(marker_style, {"tracked_color": "gold"}, False, "marker style: bad colour")
 expect(quest, {"title": "q", "stages": [{"id": "a", "waypoints": ["a:den"]}]}, True, "quest: stage waypoints")
-expect(event, {"trigger": custom, "actions": [{"type": "add_waypoint", "id": "a:b", "name": "n", "follow": True, "beam": True, "visibility": "party"}, {"type": "remove_waypoint", "id": "a:c", "visibility": "world"}]}, True, "event: waypoint actions")
+expect(event, {"trigger": custom, "actions": [{"type": "add_waypoint", "id": "a:b", "name": "n", "follow": True, "visibility": "party", "style": "storybound:npc"}, {"type": "remove_waypoint", "id": "a:c", "visibility": "world"}]}, True, "event: waypoint actions")
 expect(event, {"trigger": custom, "actions": {"type": "add_waypoint", "id": "a:b"}}, False, "event: add_waypoint without name")
 
 print("failures:", failures)
