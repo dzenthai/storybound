@@ -1,0 +1,27 @@
+{
+  "category": "side",
+  "title": "example.quest.restless_dead.title",
+  "text": {
+    "active": "example.quest.restless_dead.active",
+    "completed": "example.quest.restless_dead.completed"
+  },
+  "start": {
+    "trigger": { "type": "entity_seen", "entity": "minecraft:zombie" }
+  },
+  "stages": [
+    {
+      "id": "hunt",
+      "log": "example.quest.restless_dead.log.hunt",
+      "objectives": [
+        {
+          "id": "zombies",
+          "trigger": { "type": "entity_killed", "entity": "minecraft:zombie" },
+          "count": 3,
+          "text": "example.quest.restless_dead.objective.zombies"
+        }
+      ],
+      "waypoints": ["example:nearest_zombie"]
+    }
+  ],
+  "rewards": { "type": "give_item", "item": "minecraft:iron_ingot", "count": 3 }
+}

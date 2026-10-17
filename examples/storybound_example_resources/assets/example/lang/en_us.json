@@ -13,6 +13,16 @@
   "example.quest.wolf_hunt.objective.wolves": "Kill wolves",
   "example.quest.wolf_hunt.objective.oath": "Read the Hunter's Oath",
   "example.quest.wolf_hunt.objective.report": "Return to the elder",
+  "example.quest.restless_dead.title": "The Restless Dead",
+  "example.quest.restless_dead.active": "The dead do not stay in their graves around here. Before they find the way to someone's door, it would be wise to put a few of them back to rest.",
+  "example.quest.restless_dead.completed": "Three fewer shamblers in the dark. It will not last, but it is a start.",
+  "example.quest.restless_dead.log.hunt": "A corpse walked out of the gloom on its own two feet. Where there is one, there are more. The marker points to the nearest of them.",
+  "example.quest.restless_dead.objective.zombies": "Kill zombies",
+  "example.quest.roof_overhead.title": "A Roof Overhead",
+  "example.quest.roof_overhead.active": "Nights in the open are dangerous. A village would mean walls, a bed and people to trade with.",
+  "example.quest.roof_overhead.completed": "Smoke from the chimneys, the bell of the smith. Safe, for now.",
+  "example.quest.roof_overhead.log.travel": "After a night like that, a village sounds like the right place to be. The marker shows the nearest one and follows the road.",
+  "example.quest.roof_overhead.objective.village": "Reach a village",
 
   "example.npc.elder": "Elder Hollis",
   "example.dialogue.elder.first_meeting": "A stranger in Brightwater? You picked a poor season to visit, traveler. Something has been taking our sheep.",
@@ -36,5 +46,7 @@
   "example.codex.wolf.habits": "Habits",
   "example.codex.wolf.lore": "Old tales",
   "example.boss.white_wolf.title": "Old White",
-  "example.waypoint.wolf_den": "Wolf den"
+  "example.waypoint.wolf_den": "Wolf den",
+  "example.waypoint.nearest_zombie": "Zombie",
+  "example.waypoint.village": "Village"
 }

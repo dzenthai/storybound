@@ -1,0 +1,29 @@
+{
+  "category": "side",
+  "title": "example.quest.roof_overhead.title",
+  "text": {
+    "active": "example.quest.roof_overhead.active",
+    "completed": "example.quest.roof_overhead.completed"
+  },
+  "start": {
+    "trigger": { "type": "quest_state_changed", "quest": "example:restless_dead", "state": "completed" }
+  },
+  "stages": [
+    {
+      "id": "travel",
+      "log": "example.quest.roof_overhead.log.travel",
+      "objectives": [
+        {
+          "id": "village",
+          "trigger": { "type": "structure_entered", "structure": "#minecraft:village" },
+          "text": "example.quest.roof_overhead.objective.village"
+        }
+      ],
+      "waypoints": ["example:village"]
+    }
+  ],
+  "rewards": [
+    { "type": "give_item", "item": "minecraft:bread", "count": 6 },
+    { "type": "play_sound", "sound": "minecraft:entity.player.levelup" }
+  ]
+}

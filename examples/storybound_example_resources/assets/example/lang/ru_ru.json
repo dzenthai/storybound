@@ -13,6 +13,16 @@
   "example.quest.wolf_hunt.objective.wolves": "Убейте волков",
   "example.quest.wolf_hunt.objective.oath": "Прочтите клятву охотника",
   "example.quest.wolf_hunt.objective.report": "Вернитесь к старосте",
+  "example.quest.restless_dead.title": "Беспокойные мертвецы",
+  "example.quest.restless_dead.active": "Мёртвые здесь не лежат в могилах. Пока они не нашли дорогу к чьей-нибудь двери, стоит упокоить нескольких.",
+  "example.quest.restless_dead.completed": "Во тьме на трёх ходячих меньше. Ненадолго, но это начало.",
+  "example.quest.restless_dead.log.hunt": "Из мрака на своих ногах вышел мертвец. Где один, там и другие. Метка указывает на ближайшего.",
+  "example.quest.restless_dead.objective.zombies": "Убейте зомби",
+  "example.quest.roof_overhead.title": "Крыша над головой",
+  "example.quest.roof_overhead.active": "Ночи под открытым небом опасны. Деревня — это стены, кровать и люди, с которыми можно торговать.",
+  "example.quest.roof_overhead.completed": "Дым из труб, звон кузнечного молота. Здесь безопасно — пока.",
+  "example.quest.roof_overhead.log.travel": "После такой ночи хочется оказаться в деревне. Метка показывает ближайшую и меняется в пути.",
+  "example.quest.roof_overhead.objective.village": "Доберитесь до деревни",
 
   "example.npc.elder": "Староста Холлис",
   "example.dialogue.elder.first_meeting": "Чужак в Светловодье? Не лучшее время ты выбрал, путник. Кто-то таскает наших овец.",
@@ -36,5 +46,7 @@
   "example.codex.wolf.habits": "Повадки",
   "example.codex.wolf.lore": "Старые предания",
   "example.boss.white_wolf.title": "Старый Белый",
-  "example.waypoint.wolf_den": "Волчье логово"
+  "example.waypoint.wolf_den": "Волчье логово",
+  "example.waypoint.nearest_zombie": "Зомби",
+  "example.waypoint.village": "Деревня"
 }
