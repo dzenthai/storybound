@@ -34,8 +34,9 @@ public record DocumentStyle(ResourceLocation texture, int width, int height, Opt
     ).apply(instance, DocumentStyle::new));
 
     /** Used when a document names a style no resource pack provides. */
-    public static final DocumentStyle FALLBACK = new DocumentStyle(Storybound.id("textures/gui/document/parchment.png"), 192, 240,
-            Optional.empty(), Optional.empty(), Padding.DEFAULT, ResourceLocation.withDefaultNamespace("default"), 0x3B2A1A, 10, true,
+    /** The letter's sheet, as in {@code styles/parchment.json}, for a document whose style cannot be found. */
+    public static final DocumentStyle FALLBACK = new DocumentStyle(Storybound.id("textures/gui/document/parchment.png"), 200, 240,
+            Optional.empty(), Optional.empty(), new Padding(26, 24, 26, 52), ResourceLocation.withDefaultNamespace("default"), 0x2A1E14, 10, true,
             Optional.empty(), Optional.empty());
 
     public int textureWidthOrSize() {

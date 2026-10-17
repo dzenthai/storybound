@@ -1,0 +1,97 @@
+package dev.dzenthai.storybound.core.data;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.stream.Stream;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.loading.FMLPaths;
+
+/**
+ * The story folder, {@code config/storybound/}: story data that needs no datapack. Each definition type has a folder
+ * named like its datapack directory without the {@code storybound/} prefix ({@code quests}, {@code documents}, ...).
+ * Inside it, the first folder is the namespace: {@code quests/mypack/wolf_hunt.json} is {@code mypack:wolf_hunt};
+ * a file right in the type folder gets {@link #DEFAULT_NAMESPACE}: {@code quests/wolf_hunt.json} is
+ * {@code storybound:wolf_hunt}. Read on every data load, after the datapacks, so a file here replaces a datapack
+ * entry with the same id.
+ */
+public final class ConfigStorySource {
+    public static final String DEFAULT_NAMESPACE = "storybound";
+    private static final String DATAPACK_PREFIX = "storybound/";
+    private static final String JSON = ".json";
+
+    private ConfigStorySource() {}
+
+    public static Path root() {
+        return FMLPaths.CONFIGDIR.get().resolve("storybound");
+    }
+
+    /** The type's folder name inside the story folder, e.g. {@code quests}. */
+    public static String folder(DefinitionType<?> type) {
+        String directory = type.directory();
+        return directory.startsWith(DATAPACK_PREFIX) ? directory.substring(DATAPACK_PREFIX.length()) : directory;
+    }
+
+    /**
+     * The id of a file from its path inside a type (or text) folder, with {@code /} separators and without the
+     * extension: {@code wolf_hunt} is {@code storybound:wolf_hunt}, {@code mypack/wolf_hunt} is {@code mypack:wolf_hunt},
+     * {@code mypack/act1/wolf_hunt} is {@code mypack:act1/wolf_hunt}. Empty when it is not a valid id (capitals,
+     * spaces). Public for tests.
+     */
+    public static Optional<ResourceLocation> idOf(String relativeWithoutExtension) {
+        int slash = relativeWithoutExtension.indexOf('/');
+        String namespace = slash < 0 ? DEFAULT_NAMESPACE : relativeWithoutExtension.substring(0, slash);
+        String path = slash < 0 ? relativeWithoutExtension : relativeWithoutExtension.substring(slash + 1);
+        return Optional.ofNullable(ResourceLocation.tryBuild(namespace, path));
+    }
+
+    /**
+     * Reads the type's JSON files under {@code root} into {@code files} (replacing what the datapacks gave for the
+     * same id) and reports broken ones to {@code issues}, with the file's path. Public for tests.
+     */
+    public static void scan(Path root, DefinitionType<?> type, Map<ResourceLocation, JsonElement> files, List<ValidationIssue> issues) {
+        Path folder = root.resolve(folder(type));
+        list(folder, JSON).forEach((relative, file) -> {
+            String shown = "config/storybound/" + folder(type) + "/" + relative + JSON;
+            Optional<ResourceLocation> id = idOf(relative);
+            if (id.isEmpty()) {
+                issues.add(ValidationIssue.error(type.id(), null, shown + ": the file name is not a valid id (use lowercase letters, digits, _ - . and /)"));
+                return;
+            }
+            try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                files.put(id.get(), JsonParser.parseReader(reader));
+            } catch (IOException | JsonParseException e) {
+                issues.add(ValidationIssue.error(type.id(), id.get(), "Malformed JSON in " + shown + ": " + e.getMessage()));
+            }
+        });
+    }
+
+    /** Files with the extension under {@code folder}, by their path inside it without the extension, sorted. */
+    static Map<String, Path> list(Path folder, String extension) {
+        Map<String, Path> found = new TreeMap<>();
+        if (!Files.isDirectory(folder)) {
+            return found;
+        }
+        try (Stream<Path> walk = Files.walk(folder)) {
+            walk.filter(Files::isRegularFile)
+                    .filter(file -> file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(extension))
+                    .forEach(file -> {
+                        String relative = folder.relativize(file).toString().replace('\\', '/');
+                        found.put(relative.substring(0, relative.length() - extension.length()), file);
+                    });
+        } catch (IOException e) {
+            // An unreadable folder reads as empty; the rest of the story still loads.
+        }
+        return found;
+    }
+}

@@ -22,8 +22,9 @@ import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 
 /**
- * Loads one definition type from datapacks. A broken file does not abort loading:
- * the file is skipped and the problem goes to the validation report with its path and cause.
+ * Loads one definition type from datapacks and then from the story folder ({@link ConfigStorySource}), whose files
+ * replace datapack entries with the same id. A broken file does not abort loading: the file is skipped and the
+ * problem goes to the validation report with its path and cause.
  */
 public final class DefinitionLoader<T> extends SimplePreparableReloadListener<DefinitionLoader.Scan> {
     private final DefinitionType<T> type;
@@ -47,6 +48,8 @@ public final class DefinitionLoader<T> extends SimplePreparableReloadListener<De
                 issues.add(ValidationIssue.error(type.id(), id, "Malformed JSON: " + e.getMessage()));
             }
         }
+        // The story folder last: its files replace datapack entries with the same id.
+        ConfigStorySource.scan(ConfigStorySource.root(), type, files, issues);
         return new Scan(files, issues);
     }
 

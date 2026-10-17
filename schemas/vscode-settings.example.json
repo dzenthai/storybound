@@ -1,39 +1,39 @@
 {
   "json.schemas": [
     {
-      "fileMatch": ["**/data/*/storybound/flags/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/flags/**/*.json", "**/config/storybound/flags/**/*.json"],
       "url": "./schemas/flag.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/events/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/events/**/*.json", "**/config/storybound/events/**/*.json"],
       "url": "./schemas/story_event.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/documents/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/documents/**/*.json", "**/config/storybound/documents/**/*.json"],
       "url": "./schemas/document.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/quests/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/quests/**/*.json", "**/config/storybound/quests/**/*.json"],
       "url": "./schemas/quest.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/dialogues/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/dialogues/**/*.json", "**/config/storybound/dialogues/**/*.json"],
       "url": "./schemas/dialogue.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/npc_bindings/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/npc_bindings/**/*.json", "**/config/storybound/npc_bindings/**/*.json"],
       "url": "./schemas/npc_binding.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/codex/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/codex/**/*.json", "**/config/storybound/codex/**/*.json"],
       "url": "./schemas/codex.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/bosses/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/bosses/**/*.json", "**/config/storybound/bosses/**/*.json"],
       "url": "./schemas/boss.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/waypoints/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/waypoints/**/*.json", "**/config/storybound/waypoints/**/*.json"],
       "url": "./schemas/waypoint.schema.json"
     },
     {

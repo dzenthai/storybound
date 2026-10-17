@@ -17,6 +17,7 @@ import net.neoforged.fml.loading.FMLPaths;
 public final class ValidationService {
     private static final ResourceLocation VALIDATOR_SOURCE = Storybound.id("validator");
     private static final Map<ResourceLocation, List<ValidationIssue>> LOAD_ISSUES = new ConcurrentHashMap<>();
+    private static final Map<ResourceLocation, List<ValidationIssue>> OTHER_LOAD_ISSUES = new ConcurrentHashMap<>();
     private static final List<Validator> VALIDATORS = new CopyOnWriteArrayList<>();
     private static volatile ValidationReport current = ValidationReport.EMPTY;
 
@@ -30,6 +31,11 @@ public final class ValidationService {
         LOAD_ISSUES.put(type.id(), List.copyOf(issues));
     }
 
+    /** Load problems of something that is not a definition type, e.g. the story folder's texts; replaced on every load. */
+    public static void recordLoad(ResourceLocation source, List<ValidationIssue> issues) {
+        OTHER_LOAD_ISSUES.put(source, List.copyOf(issues));
+    }
+
     public static ValidationReport current() {
         return current;
     }
@@ -39,6 +45,7 @@ public final class ValidationService {
         for (DefinitionType<?> type : DefinitionTypes.all()) {
             issues.addAll(LOAD_ISSUES.getOrDefault(type.id(), List.of()));
         }
+        OTHER_LOAD_ISSUES.values().forEach(issues::addAll);
         for (Validator validator : VALIDATORS) {
             try {
                 validator.validate(issues::add);

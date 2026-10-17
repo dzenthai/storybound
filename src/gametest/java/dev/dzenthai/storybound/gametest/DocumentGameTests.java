@@ -8,6 +8,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.data.DefinitionStore;
+import dev.dzenthai.storybound.core.data.StoryFolder;
 import dev.dzenthai.storybound.core.logic.Actions;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
@@ -18,12 +19,16 @@ import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
+import dev.dzenthai.storybound.core.text.ConfigTexts;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import dev.dzenthai.storybound.module.document.DocumentRef;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.document.Documents;
 import dev.dzenthai.storybound.module.journal.Journal;
 import dev.dzenthai.storybound.module.journal.JournalNote;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +53,42 @@ public final class DocumentGameTests {
     private static final ResourceLocation LETTER = key("letter");
 
     private DocumentGameTests() {}
+
+    /** The story folder is created when the mod starts, so its blank documents are there with no datapack at all. */
+    @GameTest(template = "empty")
+    public static void storyFolderBlankDocumentsLoadWithTheirTexts(GameTestHelper helper) {
+        for (String kind : new String[] {"book", "scroll", "note", "letter"}) {
+            ResourceLocation id = ResourceLocation.fromNamespaceAndPath("storybound", kind);
+            DocumentDefinition definition = DocumentRegistries.DOCUMENTS.serverStore().getOrNull(id);
+            helper.assertTrue(definition != null, "the blank " + kind + " is loaded from config/storybound/documents");
+            expect(helper, definition.kind().getSerializedName(), kind, "of its kind");
+            ConfigTexts.Texts texts = ConfigTexts.current();
+            helper.assertTrue(texts.documents().getOrDefault("en_us", Map.of()).containsKey(id) && texts.documents().getOrDefault("ru_ru", Map.of()).containsKey(id),
+                    "its text in English and Russian comes from config/storybound/texts");
+            helper.assertTrue(texts.translations().getOrDefault("en_us", Map.of()).containsKey("starter.document." + kind + ".title"),
+                    "its title from config/storybound/lang");
+        }
+        helper.succeed();
+    }
+
+    /** Into a folder of its own: the installed example must not reach the data the other tests run with. */
+    @GameTest(template = "empty")
+    public static void exampleInstallsInTheStoryFolderLayout(GameTestHelper helper) {
+        try {
+            Path root = Files.createTempDirectory("storybound-example");
+            int written = StoryFolder.installExample(root);
+            helper.assertTrue(written > 20, "the example's files are written, got " + written);
+            helper.assertTrue(Files.isRegularFile(root.resolve("quests/example/wolf_hunt.json")), "a quest under quests/<namespace>/");
+            helper.assertTrue(Files.isRegularFile(root.resolve("texts/en_us/example/elder_letter.sbt")), "texts under texts/<language>/<namespace>/");
+            helper.assertTrue(Files.readString(root.resolve("lang/ru_ru.json")).contains("example.quest.wolf_hunt.title"), "translations merged into lang/");
+            helper.assertFalse(Files.exists(root.resolve("pack.mcmeta")), "no pack files");
+            StoryFolder.installExample(root);
+            helper.assertTrue(Files.readString(root.resolve("lang/en_us.json")).contains("example.quest.wolf_hunt.title"), "installing again keeps a valid lang file");
+        } catch (IOException e) {
+            throw new GameTestAssertException("Install failed: " + e);
+        }
+        helper.succeed();
+    }
 
     @GameTest(template = "empty")
     public static void readingRecordsArchivesAndRunsOnReadOnce(GameTestHelper helper) {

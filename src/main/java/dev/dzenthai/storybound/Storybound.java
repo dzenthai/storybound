@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import dev.dzenthai.storybound.command.StoryboundCommands;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.CoreDefinitions;
+import dev.dzenthai.storybound.core.data.StoryFolder;
 import dev.dzenthai.storybound.core.data.StoryboundDataEvents;
 import dev.dzenthai.storybound.core.logic.LogicEvents;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
@@ -49,6 +50,8 @@ public final class Storybound {
         CodexRegistries.register(modBus);
         BossRegistries.register(modBus);
         WaypointRegistries.register(modBus);
+        // After every definition type is known: the story folder gets a folder for each.
+        StoryFolder.createIfMissing();
 
         modBus.addListener(StoryboundNetwork::register);
         StoryboundDataEvents.register(NeoForge.EVENT_BUS);

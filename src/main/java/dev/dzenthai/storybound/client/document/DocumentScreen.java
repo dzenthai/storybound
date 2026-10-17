@@ -32,6 +32,8 @@ public class DocumentScreen extends Screen {
     private static final int ARROW_WIDTH = 23;
     private static final int ARROW_HEIGHT = 13;
     private static final int SCROLL_LINES = 3;
+    /** Between the last line of a page and its page number and arrows. */
+    private static final int FOOTER_GAP = 2;
 
     private final ResourceLocation documentId;
     private final @Nullable Screen parent;
@@ -83,13 +85,42 @@ public class DocumentScreen extends Screen {
         }
         blocks.addAll(SbtParser.parse(source, key -> Language.getInstance().getOrDefault(key)));
         Style base = Style.EMPTY.withFont(style.font());
-        int pageWidth = (book ? style.width() / 2 : style.width()) - style.padding().left() - style.padding().right();
         int pageHeight = book ? textHeight() : Integer.MAX_VALUE;
-        pages = SbtLayout.paginate(blocks, base, pageWidth, pageHeight, style.lineHeight(), font::split);
+        pages = SbtLayout.paginate(blocks, base, pageWidth(), pageHeight, style.lineHeight(), font::split);
+    }
+
+    /** The text column's width: one page of a book, the whole sheet otherwise. */
+    private int pageWidth() {
+        return (book ? style.width() / 2 : style.width()) - style.padding().left() - style.padding().right();
     }
 
     private int textHeight() {
         return style.height() - style.padding().top() - style.padding().bottom();
+    }
+
+    /**
+     * A book's margins are mirrored, like a printed book's: {@code left} is the outer margin and {@code right} the
+     * one at the spine, so the right page starts {@code right} after the middle and ends {@code left} before the edge.
+     */
+    private int leftPageX() {
+        return style.padding().left();
+    }
+
+    private int rightPageX() {
+        return style.width() / 2 + style.padding().right();
+    }
+
+    /** The page numbers and arrows sit right under the text, inside the paper, not on the sheet's frame. */
+    private int footerY() {
+        return style.height() - style.padding().bottom() + FOOTER_GAP;
+    }
+
+    private int backwardX() {
+        return leftPageX();
+    }
+
+    private int forwardX() {
+        return rightPageX() + pageWidth() - ARROW_WIDTH;
     }
 
     @Override
@@ -109,18 +140,17 @@ public class DocumentScreen extends Screen {
         graphics.pose().translate(left, top, 0);
         graphics.pose().scale(scale, scale, 1);
         drawSheet(graphics);
-        int half = style.width() / 2;
-        drawPage(graphics, spread * 2, style.padding().left(), style.padding().top());
-        drawPage(graphics, spread * 2 + 1, half + style.padding().left(), style.padding().top());
-        drawPageNumber(graphics, spread * 2, half / 2);
-        drawPageNumber(graphics, spread * 2 + 1, half + half / 2);
+        drawPage(graphics, spread * 2, leftPageX(), style.padding().top());
+        drawPage(graphics, spread * 2 + 1, rightPageX(), style.padding().top());
+        drawPageNumber(graphics, spread * 2, leftPageX() + pageWidth() / 2);
+        drawPageNumber(graphics, spread * 2 + 1, rightPageX() + pageWidth() / 2);
         if (spread > 0) {
             boolean hover = overBackward(sheetX, sheetY);
-            graphics.blitSprite(hover ? PAGE_BACKWARD_HIGHLIGHTED : PAGE_BACKWARD, arrowMargin(), arrowY(), ARROW_WIDTH, ARROW_HEIGHT);
+            graphics.blitSprite(hover ? PAGE_BACKWARD_HIGHLIGHTED : PAGE_BACKWARD, backwardX(), footerY(), ARROW_WIDTH, ARROW_HEIGHT);
         }
         if (hasNextSpread()) {
             boolean hover = overForward(sheetX, sheetY);
-            graphics.blitSprite(hover ? PAGE_FORWARD_HIGHLIGHTED : PAGE_FORWARD, style.width() - arrowMargin() - ARROW_WIDTH, arrowY(), ARROW_WIDTH, ARROW_HEIGHT);
+            graphics.blitSprite(hover ? PAGE_FORWARD_HIGHLIGHTED : PAGE_FORWARD, forwardX(), footerY(), ARROW_WIDTH, ARROW_HEIGHT);
         }
         graphics.pose().popPose();
     }
@@ -149,7 +179,8 @@ public class DocumentScreen extends Screen {
             int trackHeight = textHeight();
             int thumbHeight = Math.max(8, trackHeight * trackHeight / page.height());
             int thumbY = padding.top() + (trackHeight - thumbHeight) * scroll / maxScroll(page);
-            int x = style.width() - Math.max(4, padding.right() / 2);
+            // Just right of the text column: the sheet's edge may be a frame, a roller or a ribbon.
+            int x = style.width() - padding.right() + 3;
             graphics.pose().pushPose();
             graphics.pose().translate(left, top, 0);
             graphics.pose().scale(scale, scale, 1);
@@ -185,7 +216,7 @@ public class DocumentScreen extends Screen {
             return;
         }
         Component number = Component.translatable("storybound.document.page", index + 1, pages.size());
-        graphics.drawString(font, number, centerX - font.width(number) / 2, arrowY() + 3, style.color(), false);
+        graphics.drawString(font, number, centerX - font.width(number) / 2, footerY() + 3, style.color(), false);
     }
 
     private int maxScroll(SbtLayout.Page page) {
@@ -196,21 +227,12 @@ public class DocumentScreen extends Screen {
         return spread * 2 + 2 < pages.size();
     }
 
-    private int arrowY() {
-        return style.height() - ARROW_HEIGHT - Math.max(2, (style.padding().bottom() - ARROW_HEIGHT) / 2);
-    }
-
-    private int arrowMargin() {
-        return Math.max(4, style.padding().left() / 2);
-    }
-
     private boolean overBackward(float x, float y) {
-        return x >= arrowMargin() && x < arrowMargin() + ARROW_WIDTH && y >= arrowY() && y < arrowY() + ARROW_HEIGHT;
+        return x >= backwardX() && x < backwardX() + ARROW_WIDTH && y >= footerY() && y < footerY() + ARROW_HEIGHT;
     }
 
     private boolean overForward(float x, float y) {
-        int arrowX = style.width() - arrowMargin() - ARROW_WIDTH;
-        return x >= arrowX && x < arrowX + ARROW_WIDTH && y >= arrowY() && y < arrowY() + ARROW_HEIGHT;
+        return x >= forwardX() && x < forwardX() + ARROW_WIDTH && y >= footerY() && y < footerY() + ARROW_HEIGHT;
     }
 
     private void turn(int delta) {

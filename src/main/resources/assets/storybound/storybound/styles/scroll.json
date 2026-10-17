@@ -1,10 +1,10 @@
 {
   "texture": "storybound:textures/gui/document/scroll.png",
-  "width": 200,
-  "height": 260,
-  "padding": { "left": 18, "top": 22, "right": 18, "bottom": 22 },
+  "width": 234,
+  "height": 240,
+  "padding": { "left": 42, "top": 50, "right": 42, "bottom": 36 },
   "font": "storybound:document",
-  "color": "#3b2a1a",
+  "color": "#2A1E14",
   "line_height": 10,
   "show_title": true,
   "open_sound": "minecraft:item.book.page_turn"

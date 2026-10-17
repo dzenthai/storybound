@@ -1,9 +1,11 @@
 package dev.dzenthai.storybound.core.data;
 
+import dev.dzenthai.storybound.core.text.ConfigTexts;
 import dev.dzenthai.storybound.network.DefinitionSync;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
@@ -25,6 +27,8 @@ public final class StoryboundDataEvents {
         for (DefinitionType<?> type : DefinitionTypes.all()) {
             event.addListener(loader(type, event.getRegistryAccess()));
         }
+        // The story folder's translations and long texts, read again on every data load.
+        event.addListener((ResourceManagerReloadListener) resourceManager -> ConfigTexts.reload());
     }
 
     private static <T> DefinitionLoader<T> loader(DefinitionType<T> type, HolderLookup.Provider registries) {

@@ -1,10 +1,10 @@
 {
   "texture": "storybound:textures/gui/document/note_torn.png",
-  "width": 160,
-  "height": 200,
-  "padding": { "left": 14, "top": 14, "right": 14, "bottom": 18 },
+  "width": 180,
+  "height": 210,
+  "padding": { "left": 26, "top": 24, "right": 26, "bottom": 58 },
   "font": "storybound:document",
-  "color": "#2f2a24",
+  "color": "#2A1E14",
   "line_height": 10,
   "show_title": false,
   "open_sound": "minecraft:item.book.page_turn"

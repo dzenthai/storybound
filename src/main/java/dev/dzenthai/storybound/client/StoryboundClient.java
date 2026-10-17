@@ -17,6 +17,7 @@ import dev.dzenthai.storybound.client.menu.MenuTab;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
 import dev.dzenthai.storybound.client.quest.QuestHud;
 import dev.dzenthai.storybound.client.quest.QuestsView;
+import dev.dzenthai.storybound.client.text.ClientConfigTexts;
 import dev.dzenthai.storybound.client.waypoint.ClientWaypoints;
 import dev.dzenthai.storybound.client.waypoint.MapIntegrations;
 import dev.dzenthai.storybound.client.waypoint.WaypointMarkers;
@@ -145,6 +146,7 @@ public final class StoryboundClient {
         ClientWaypoints.tick();
         ClientDialogue.tick();
         DialogueCamera.tick();
+        ClientConfigTexts.install();
     }
 
     /** The entity a right-click would reach: under the crosshair and within interaction range. The server checks again. */
@@ -184,5 +186,6 @@ public final class StoryboundClient {
         SpeechBubbles.clear();
         SeenMarks.reset();
         AdventureMenu.reset();
+        ClientConfigTexts.clear();
     }
 }

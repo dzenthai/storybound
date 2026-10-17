@@ -1,4 +1,6 @@
 {
+  "commands.storybound.example.installed": "Example story installed in config/storybound/ (%s files); reloading.",
+  "commands.storybound.example.failed": "Could not install the example: %s",
   "commands.storybound.validate.summary": "Storybound: %s definitions, %s errors, %s warnings",
   "commands.storybound.validate.more": "...and %s more, see logs/storybound-validation.txt",
   "commands.storybound.value.get": "%s [%s] for %s = %s",

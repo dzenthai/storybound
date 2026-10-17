@@ -1,4 +1,6 @@
 {
+  "commands.storybound.example.installed": "Пример сюжета установлен в config/storybound/ (файлов: %s), данные перезагружаются.",
+  "commands.storybound.example.failed": "Не удалось установить пример: %s",
   "commands.storybound.validate.summary": "Storybound: определений — %s, ошибок — %s, предупреждений — %s",
   "commands.storybound.validate.more": "...и ещё %s, полный список в logs/storybound-validation.txt",
   "commands.storybound.value.get": "%s [%s] у %s = %s",

@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.network;
 
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
+import dev.dzenthai.storybound.core.text.ConfigTexts;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class DefinitionSync {
@@ -13,5 +14,6 @@ public final class DefinitionSync {
                 StoryboundNetwork.sendToPlayer(player, SyncDefinitionsPayload.of(type));
             }
         }
+        StoryboundNetwork.sendToPlayer(player, new ConfigTextsPayload(ConfigTexts.current()));
     }
 }
