@@ -138,7 +138,7 @@ public final class ClientDialogue {
     /** HUD subtitles move on by themselves once read; timed lines are moved on by the server. */
     public static void tick() {
         Line current = line;
-        if (current == null || choices != null || presentation != Presentation.HUD || current.timed()) {
+        if (current == null || choices != null || (presentation != Presentation.HUD && presentation != Presentation.BUBBLE) || current.timed()) {
             return;
         }
         long revealedAt = current.revealedAt();

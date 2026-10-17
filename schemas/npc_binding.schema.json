@@ -34,6 +34,7 @@
         "line_of_sight": { "type": "boolean", "default": true }
       }
     },
-    "custom": { "description": "Right-click posts the KubeJS npcInteract event; the script decides.", "type": "boolean", "default": false }
+    "custom": { "description": "Right-click posts the KubeJS npcInteract event; the script decides.", "type": "boolean", "default": false },
+    "override_interact": { "description": "Right-click starts the dialogue and cancels the entity's vanilla interaction (e.g. villager trade menu).", "type": "boolean", "default": false }
   }
 }

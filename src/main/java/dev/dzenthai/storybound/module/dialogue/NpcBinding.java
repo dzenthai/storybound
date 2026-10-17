@@ -21,14 +21,20 @@ import net.minecraft.world.entity.Entity;
  * @param proximity coming close starts it
  * @param custom    right-click posts {@code npcInteract} to scripts, which decide what happens
  */
-public record NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity, boolean custom) {
+public record NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity,
+                         boolean custom, boolean overrideInteract) {
     public static final Codec<NpcBinding> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             EntitySelector.CODEC.fieldOf("entity").forGetter(NpcBinding::entity),
             Entry.CODEC.listOf().optionalFieldOf("dialogues", List.of()).forGetter(NpcBinding::dialogues),
             Codec.BOOL.optionalFieldOf("interact", true).forGetter(NpcBinding::interact),
             Proximity.CODEC.optionalFieldOf("proximity").forGetter(NpcBinding::proximity),
-            Codec.BOOL.optionalFieldOf("custom", false).forGetter(NpcBinding::custom)
+            Codec.BOOL.optionalFieldOf("custom", false).forGetter(NpcBinding::custom),
+            Codec.BOOL.optionalFieldOf("override_interact", false).forGetter(NpcBinding::overrideInteract)
     ).apply(instance, NpcBinding::new));
+
+    public NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity, boolean custom) {
+        this(entity, dialogues, interact, proximity, custom, false);
+    }
 
     /** The dialogue to start for this player, if any entry's conditions pass. */
     public Optional<ResourceLocation> pick(StoryContext context) {

@@ -116,6 +116,10 @@
           "description": "Counted and shown, but not needed to finish the stage.",
           "type": "boolean",
           "default": false
+        },
+        "hint": {
+          "description": "Optional hint associated with this objective.",
+          "$ref": "logic.schema.json#/definitions/story_text"
         }
       }
     }

@@ -1,10 +1,12 @@
 package dev.dzenthai.storybound.client.menu;
 
 import dev.dzenthai.storybound.client.StoryboundClient;
+import dev.dzenthai.storybound.client.dev.DevModeScreen;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
@@ -48,6 +50,11 @@ public class AdventureMenuScreen extends Screen {
             AdventureMenu.remember(current.id());
             view(current).init(this, panelX + PANEL_PADDING, panelY + PANEL_PADDING,
                     panelWidth - 2 * PANEL_PADDING, panelHeight - 2 * PANEL_PADDING);
+        }
+        if (minecraft != null && minecraft.player != null && minecraft.player.hasPermissions(2)) {
+            addRenderableWidget(Button.builder(Component.literal("⚙ Dev Mode"), b -> minecraft.setScreen(new DevModeScreen(this)))
+                    .bounds(width - 88, height - 24, 80, 18)
+                    .build());
         }
     }
 

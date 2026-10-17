@@ -76,6 +76,30 @@ public final class ConfigStorySource {
         });
     }
 
+    public static Path fileFor(Path root, DefinitionType<?> type, ResourceLocation id) {
+        Path folder = root.resolve(folder(type));
+        if (id.getNamespace().equals(DEFAULT_NAMESPACE)) {
+            Path namespaced = folder.resolve(DEFAULT_NAMESPACE).resolve(id.getPath() + JSON);
+            if (Files.exists(namespaced)) {
+                return namespaced;
+            }
+            return folder.resolve(id.getPath() + JSON);
+        }
+        return folder.resolve(id.getNamespace()).resolve(id.getPath() + JSON);
+    }
+
+    public static Path sbtFileFor(Path root, String language, ResourceLocation id) {
+        Path folder = root.resolve("texts").resolve(language);
+        if (id.getNamespace().equals(DEFAULT_NAMESPACE)) {
+            Path namespaced = folder.resolve(DEFAULT_NAMESPACE).resolve(id.getPath() + ".sbt");
+            if (Files.exists(namespaced)) {
+                return namespaced;
+            }
+            return folder.resolve(id.getPath() + ".sbt");
+        }
+        return folder.resolve(id.getNamespace()).resolve(id.getPath() + ".sbt");
+    }
+
     /** Files with the extension under {@code folder}, by their path inside it without the extension, sorted. */
     static Map<String, Path> list(Path folder, String extension) {
         Map<String, Path> found = new TreeMap<>();

@@ -100,6 +100,8 @@ public final class TriggerDispatcher {
     public static void tickAreas(MinecraftServer server) {
         List<Subscription<?>> subscriptions = new ArrayList<>(index.getOrDefault(BuiltinTriggers.AREA_ENTERED.get(), List.of()));
         subscriptions.addAll(index.getOrDefault(BuiltinTriggers.STRUCTURE_ENTERED.get(), List.of()));
+        subscriptions.addAll(index.getOrDefault(BuiltinTriggers.BIOME_ENTERED.get(), List.of()));
+        subscriptions.addAll(index.getOrDefault(BuiltinTriggers.POI_ENTERED.get(), List.of()));
         if (subscriptions.isEmpty()) {
             return;
         }

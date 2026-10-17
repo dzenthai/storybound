@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.module.dialogue;
 
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.NpcInteractEvent;
 import dev.dzenthai.storybound.core.logic.StoryContext;
@@ -128,6 +129,31 @@ public final class NpcBindings {
         if (found.binding().interact() && Dialogues.state(player).isEmpty()) {
             found.binding().pick(new StoryContext(player, target)).ifPresent(dialogue -> Dialogues.start(player, dialogue, target));
         }
+    }
+
+    public static boolean rightClick(ServerPlayer player, Entity target) {
+        if (!Dialogues.isEnabled() || Dialogues.state(player).isPresent()) {
+            return false;
+        }
+        Found found = find(target).orElse(null);
+        if (found == null) {
+            return false;
+        }
+        if (!StoryboundConfig.COMMON.dialogueRightClickTalks.get() && !found.binding().overrideInteract()) {
+            return false;
+        }
+        boolean handled = false;
+        if (found.binding().custom() && found.id() != null) {
+            NeoForge.EVENT_BUS.post(new NpcInteractEvent(player, target, found.id()));
+            handled = true;
+        }
+        if (found.binding().interact() && Dialogues.state(player).isEmpty()) {
+            Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, target));
+            if (dialogue.isPresent() && Dialogues.start(player, dialogue.get(), target)) {
+                handled = true;
+            }
+        }
+        return handled && found.binding().overrideInteract();
     }
 
     /** Proximity starts; every 10 ticks. Public for tests. */

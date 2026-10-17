@@ -23,7 +23,10 @@ import net.minecraft.util.Unit;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
+import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.biome.Biome;
 
 /** Triggers backed by core systems and vanilla events. Module triggers live with their modules. */
 public final class CoreTriggers {
@@ -149,6 +152,44 @@ public final class CoreTriggers {
         @Override
         public boolean matches(StoryContext context, Unit event) {
             return structure.contains(context.player().serverLevel(), context.player().blockPosition());
+        }
+    }
+
+    public record BiomeEntered(HolderSet<Biome> biome, boolean fireOnLogin) implements Entered {
+        public static final MapCodec<BiomeEntered> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                RegistryCodecs.homogeneousList(Registries.BIOME).fieldOf("biome").forGetter(BiomeEntered::biome),
+                Codec.BOOL.optionalFieldOf("fire_on_login", false).forGetter(BiomeEntered::fireOnLogin)
+        ).apply(instance, BiomeEntered::new));
+
+        @Override
+        public TriggerType<?, Unit> type() {
+            return BuiltinTriggers.BIOME_ENTERED.get();
+        }
+
+        @Override
+        public boolean matches(StoryContext context, Unit event) {
+            return biome.contains(context.player().level().getBiome(context.player().blockPosition()));
+        }
+    }
+
+    public record PoiEntered(HolderSet<PoiType> poi, int radius, boolean fireOnLogin) implements Entered {
+        public static final MapCodec<PoiEntered> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                RegistryCodecs.homogeneousList(Registries.POINT_OF_INTEREST_TYPE).fieldOf("poi").forGetter(PoiEntered::poi),
+                Codec.intRange(1, 128).optionalFieldOf("radius", 12).forGetter(PoiEntered::radius),
+                Codec.BOOL.optionalFieldOf("fire_on_login", false).forGetter(PoiEntered::fireOnLogin)
+        ).apply(instance, PoiEntered::new));
+
+        @Override
+        public TriggerType<?, Unit> type() {
+            return BuiltinTriggers.POI_ENTERED.get();
+        }
+
+        @Override
+        public boolean matches(StoryContext context, Unit event) {
+            return context.player().serverLevel().getPoiManager()
+                    .getInRange(poi::contains, context.player().blockPosition(), radius, PoiManager.Occupancy.ANY)
+                    .findAny()
+                    .isPresent();
         }
     }
 

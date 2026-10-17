@@ -88,6 +88,7 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onComputeFov);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHighlight);
         NeoForge.EVENT_BUS.addListener(StoryboundClientCommands::register);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevWorldPicker::onInteractionTriggered);
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
@@ -133,9 +134,11 @@ public final class StoryboundClient {
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("talk_hint"), TalkHint::render);
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, Storybound.id("quest_tracker"), QuestHud::render);
         event.registerBelow(VanillaGuiLayers.CHAT, Storybound.id("dialogue_subtitles"), DialogueHud::render);
+        event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("dev_world_picker"), dev.dzenthai.storybound.client.dev.DevWorldPicker::renderHud);
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
+        dev.dzenthai.storybound.client.dev.DevWorldPicker.tick();
         openOnKey(OPEN_MENU, null);
         openOnKey(OPEN_QUESTS, AdventureMenu.QUESTS);
         openOnKey(OPEN_JOURNAL, AdventureMenu.JOURNAL);

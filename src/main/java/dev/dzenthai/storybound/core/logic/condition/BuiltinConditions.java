@@ -31,6 +31,10 @@ public final class BuiltinConditions {
             REGISTER.register("location", () -> new ConditionType<>(WorldConditions.Location.CODEC));
     public static final DeferredHolder<ConditionType<?>, ConditionType<WorldConditions.InParty>> IN_PARTY =
             REGISTER.register("in_party", () -> new ConditionType<>(WorldConditions.InParty.CODEC));
+    public static final DeferredHolder<ConditionType<?>, ConditionType<WorldConditions.Time>> TIME =
+            REGISTER.register("time", () -> new ConditionType<>(WorldConditions.Time.CODEC));
+    public static final DeferredHolder<ConditionType<?>, ConditionType<WorldConditions.Weather>> WEATHER =
+            REGISTER.register("weather", () -> new ConditionType<>(WorldConditions.Weather.CODEC));
 
     private BuiltinConditions() {}
 }

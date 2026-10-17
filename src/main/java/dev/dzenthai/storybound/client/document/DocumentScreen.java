@@ -84,6 +84,17 @@ public class DocumentScreen extends Screen {
             blocks.add(new SbtBlock.Paragraph(List.of()));
         }
         blocks.addAll(SbtParser.parse(source, key -> Language.getInstance().getOrDefault(key)));
+        definition.contract().ifPresent(contract -> {
+            if (contract.conditions().isPresent() || contract.reward().isPresent() || contract.hint().isPresent()) {
+                blocks.add(new SbtBlock.Paragraph(List.of()));
+                contract.conditions().ifPresent(text -> blocks.add(new SbtBlock.Paragraph(List.of(
+                        new SbtBlock.Span(text.asComponent().getString(), Style.EMPTY.withBold(true))))));
+                contract.reward().ifPresent(text -> blocks.add(new SbtBlock.Paragraph(List.of(
+                        new SbtBlock.Span(text.asComponent().getString(), Style.EMPTY)))));
+                contract.hint().ifPresent(text -> blocks.add(new SbtBlock.Paragraph(List.of(
+                        new SbtBlock.Span(text.asComponent().getString(), Style.EMPTY.withItalic(true))))));
+            }
+        });
         Style base = Style.EMPTY.withFont(style.font());
         int pageHeight = book ? textHeight() : Integer.MAX_VALUE;
         pages = SbtLayout.paginate(blocks, base, pageWidth(), pageHeight, style.lineHeight(), font::split);

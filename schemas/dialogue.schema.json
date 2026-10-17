@@ -19,8 +19,8 @@
       "additionalProperties": { "$ref": "#/definitions/node" }
     },
     "presentation": {
-      "description": "screen: a blocking dialogue screen. hud: subtitles, the player keeps moving (a choice still opens the screen).",
-      "enum": ["screen", "hud"],
+      "description": "screen: a blocking dialogue screen. hud: subtitles, the player keeps moving (a choice still opens the screen). bubble: speech bubble above the speaker's head.",
+      "enum": ["screen", "hud", "bubble"],
       "default": "screen"
     },
     "closable": { "description": "ESC leaves the dialogue (on_abort runs).", "type": "boolean", "default": true },

@@ -16,7 +16,8 @@ import net.minecraft.resources.ResourceLocation;
  * without touching the data or re-issuing items.
  */
 public record DocumentDefinition(DocumentKind kind, StoryText title, Optional<ResourceLocation> content, Optional<ResourceLocation> style,
-                                 JournalSettings journal, List<Action> onRead, Optional<Integer> customModelData) {
+                                 JournalSettings journal, List<Action> onRead, Optional<Integer> customModelData,
+                                 Optional<Contract> contract) {
     public static final Codec<DocumentDefinition> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             DocumentKind.CODEC.fieldOf("kind").forGetter(DocumentDefinition::kind),
             StoryText.CODEC.fieldOf("title").forGetter(DocumentDefinition::title),
@@ -24,8 +25,14 @@ public record DocumentDefinition(DocumentKind kind, StoryText title, Optional<Re
             StoryIds.CODEC.optionalFieldOf("style").forGetter(DocumentDefinition::style),
             JournalSettings.CODEC.optionalFieldOf("journal", JournalSettings.DEFAULT).forGetter(DocumentDefinition::journal),
             LogicCodecs.ACTIONS.optionalFieldOf("on_read", List.of()).forGetter(DocumentDefinition::onRead),
-            Codec.INT.optionalFieldOf("custom_model_data").forGetter(DocumentDefinition::customModelData)
+            Codec.INT.optionalFieldOf("custom_model_data").forGetter(DocumentDefinition::customModelData),
+            Contract.CODEC.optionalFieldOf("contract").forGetter(DocumentDefinition::contract)
     ).apply(instance, DocumentDefinition::new));
+
+    public DocumentDefinition(DocumentKind kind, StoryText title, Optional<ResourceLocation> content, Optional<ResourceLocation> style,
+                              JournalSettings journal, List<Action> onRead, Optional<Integer> customModelData) {
+        this(kind, title, content, style, journal, onRead, customModelData, Optional.empty());
+    }
 
     /** The text file id; defaults to the document id. */
     public ResourceLocation contentId(ResourceLocation documentId) {
@@ -42,7 +49,7 @@ public record DocumentDefinition(DocumentKind kind, StoryText title, Optional<Re
 
     /** What clients receive: everything except the server-side {@code on_read} actions. */
     DocumentDefinition clientView() {
-        return new DocumentDefinition(kind, title, content, style, journal, List.of(), customModelData);
+        return new DocumentDefinition(kind, title, content, style, journal, List.of(), customModelData, contract);
     }
 
     /**
@@ -55,5 +62,14 @@ public record DocumentDefinition(DocumentKind kind, StoryText title, Optional<Re
                 StoryIds.CODEC.optionalFieldOf("category").forGetter(JournalSettings::category),
                 Codec.BOOL.optionalFieldOf("add_on_read", true).forGetter(JournalSettings::addOnRead)
         ).apply(instance, JournalSettings::new));
+    }
+
+    public record Contract(Optional<ResourceLocation> quest, Optional<StoryText> conditions, Optional<StoryText> reward, Optional<StoryText> hint) {
+        public static final Codec<Contract> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                ResourceLocation.CODEC.optionalFieldOf("quest").forGetter(Contract::quest),
+                StoryText.CODEC.optionalFieldOf("conditions").forGetter(Contract::conditions),
+                StoryText.CODEC.optionalFieldOf("reward").forGetter(Contract::reward),
+                StoryText.CODEC.optionalFieldOf("hint").forGetter(Contract::hint)
+        ).apply(instance, Contract::new));
     }
 }

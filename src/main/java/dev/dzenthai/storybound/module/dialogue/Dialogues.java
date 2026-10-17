@@ -380,8 +380,11 @@ public final class Dialogues {
         if (entity != null && entity != player) {
             ADDRESSED.put(entity.getUUID(), player.getUUID());
         }
-        if (entity != null && session.dialogue.broadcast()) {
-            bubble(entity, player, text, think == ThinkTime.NONE ? -1 : player.getId(), think);
+        if (entity != null) {
+            boolean selfBubble = session.dialogue.presentation() == DialogueDefinition.Presentation.BUBBLE;
+            if (selfBubble || session.dialogue.broadcast()) {
+                bubble(entity, player, text, think == ThinkTime.NONE ? -1 : player.getId(), think, selfBubble, session.dialogue.broadcast());
+            }
         }
     }
 
@@ -504,9 +507,19 @@ public final class Dialogues {
     }
 
     private static void bubble(Entity speaker, ServerPlayer participant, ResolvedText text, int replyTo, int think) {
+        bubble(speaker, participant, text, replyTo, think, false, true);
+    }
+
+    private static void bubble(Entity speaker, ServerPlayer participant, ResolvedText text, int replyTo, int think,
+                               boolean includeParticipant, boolean includeOthers) {
         SpeechBubblePayload payload = new SpeechBubblePayload(speaker.getId(), text, replyTo, think);
-        for (ServerPlayer viewer : bubbleViewers(speaker, participant)) {
-            StoryboundNetwork.sendToPlayer(viewer, payload);
+        if (includeParticipant) {
+            StoryboundNetwork.sendToPlayer(participant, payload);
+        }
+        if (includeOthers) {
+            for (ServerPlayer viewer : bubbleViewers(speaker, participant)) {
+                StoryboundNetwork.sendToPlayer(viewer, payload);
+            }
         }
     }
 

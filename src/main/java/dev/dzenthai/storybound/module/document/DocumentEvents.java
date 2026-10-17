@@ -18,7 +18,10 @@ public final class DocumentEvents {
     public static void register(IEventBus gameBus) {
         // LOW: the client needs the document definitions before the Journal that lists them.
         gameBus.addListener(EventPriority.LOW, DocumentEvents::onDatapackSync);
-        LogicOwners.register(DocumentRegistries.DOCUMENTS, (document, references) -> document.onRead().forEach(action -> action.collectReferences(references)));
+        LogicOwners.register(DocumentRegistries.DOCUMENTS, (document, references) -> {
+            document.onRead().forEach(action -> action.collectReferences(references));
+            document.contract().flatMap(DocumentDefinition.Contract::quest).ifPresent(quest -> references.quest(quest, null));
+        });
         ValidationService.registerValidator(DocumentEvents::validate);
     }
 

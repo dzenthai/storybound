@@ -5,6 +5,7 @@ import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.module.journal.Journal;
+import dev.dzenthai.storybound.module.quest.Quests;
 import dev.dzenthai.storybound.network.OpenDocumentPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import net.minecraft.ChatFormatting;
@@ -38,8 +39,11 @@ public final class Documents {
         }
         boolean first = Journal.markRead(player, id, definition.journal().addOnRead());
         StoryContext context = StoryContext.of(player);
-        if (first && !definition.onRead().isEmpty()) {
-            Actions.runAll(definition.onRead(), context, "document " + id + " on_read", OnFail.ABORT);
+        if (first) {
+            definition.contract().flatMap(DocumentDefinition.Contract::quest).ifPresent(quest -> Quests.start(player, quest));
+            if (!definition.onRead().isEmpty()) {
+                Actions.runAll(definition.onRead(), context, "document " + id + " on_read", OnFail.ABORT);
+            }
         }
         TriggerDispatcher.fire(DocumentLogic.DOCUMENT_READ.get(), context, new DocumentLogic.DocumentRead(id, first));
         return true;

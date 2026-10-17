@@ -143,7 +143,7 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
      * @param text    the line shown in the quest view and on the HUD
      */
     public record Objective(Optional<String> id, Optional<Trigger<?>> trigger, Condition conditions, int count,
-                            Optional<StoryText> text, boolean hidden, boolean optional) {
+                            Optional<StoryText> text, boolean hidden, boolean optional, Optional<StoryText> hint) {
         public static final Codec<Objective> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.optionalFieldOf("id").forGetter(Objective::id),
                 LogicCodecs.TRIGGER.optionalFieldOf("trigger").forGetter(Objective::trigger),
@@ -151,11 +151,17 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
                 Codec.intRange(1, 100_000).optionalFieldOf("count", 1).forGetter(Objective::count),
                 StoryText.CODEC.optionalFieldOf("text").forGetter(Objective::text),
                 Codec.BOOL.optionalFieldOf("hidden", false).forGetter(Objective::hidden),
-                Codec.BOOL.optionalFieldOf("optional", false).forGetter(Objective::optional)
+                Codec.BOOL.optionalFieldOf("optional", false).forGetter(Objective::optional),
+                StoryText.CODEC.optionalFieldOf("hint").forGetter(Objective::hint)
         ).apply(instance, Objective::new));
 
+        public Objective(Optional<String> id, Optional<Trigger<?>> trigger, Condition conditions, int count,
+                         Optional<StoryText> text, boolean hidden, boolean optional) {
+            this(id, trigger, conditions, count, text, hidden, optional, Optional.empty());
+        }
+
         Objective clientView() {
-            return new Objective(id, Optional.empty(), LogicConditions.ALWAYS, count, text, hidden, optional);
+            return new Objective(id, Optional.empty(), LogicConditions.ALWAYS, count, text, hidden, optional, hint);
         }
     }
 }

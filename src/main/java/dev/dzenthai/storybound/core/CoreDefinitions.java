@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.core;
 
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.data.ChapterDefinition;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.core.logic.StoryEvent;
@@ -14,6 +15,9 @@ public final class CoreDefinitions {
     /** Story events stay on the server: their conditions and actions would spoil the story. */
     public static final DefinitionType<StoryEvent> EVENTS = DefinitionTypes.register(
             DefinitionType.serverOnly(Storybound.id("event"), "storybound/events", StoryEvent.CODEC));
+
+    public static final DefinitionType<ChapterDefinition> CHAPTERS = DefinitionTypes.register(
+            DefinitionType.serverOnly(Storybound.id("chapter"), "storybound/chapters", ChapterDefinition.CODEC));
 
     private CoreDefinitions() {}
 

@@ -216,6 +216,26 @@
           "additionalProperties": false
         },
         {
+          "description": "Checks the time of day in the player's level.",
+          "properties": {
+            "type": { "enum": ["time", "storybound:time"] },
+            "period": { "enum": ["day", "sunset", "night", "sunrise"] },
+            "min": { "type": "integer", "minimum": 0, "maximum": 24000 },
+            "max": { "type": "integer", "minimum": 0, "maximum": 24000 }
+          },
+          "anyOf": [ { "required": ["period"] }, { "required": ["min"] }, { "required": ["max"] } ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Checks the weather in the player's level.",
+          "properties": {
+            "type": { "enum": ["weather", "storybound:weather"] },
+            "weather": { "enum": ["clear", "rain", "thunder"] }
+          },
+          "required": ["weather"],
+          "additionalProperties": false
+        },
+        {
           "description": "A condition type added by another mod.",
           "properties": {
             "type": {
@@ -402,6 +422,13 @@
           "additionalProperties": false
         },
         {
+          "description": "Ends the active dialogue and opens the merchant's trading screen.",
+          "properties": {
+            "type": { "enum": ["open_trade", "storybound:open_trade"] }
+          },
+          "additionalProperties": false
+        },
+        {
           "description": "Opens a Codex section, or the whole entry without section.",
           "properties": {
             "type": { "enum": ["unlock_codex", "storybound:unlock_codex"] },
@@ -569,6 +596,15 @@
             "type": { "enum": ["dialogue_ended", "storybound:dialogue_ended"] },
             "dialogue": { "$ref": "#/definitions/id" },
             "node": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "A boss was defeated; first_time limits it to the player's first victory.",
+          "properties": {
+            "type": { "enum": ["boss_killed", "storybound:boss_killed"] },
+            "boss": { "$ref": "#/definitions/id" },
+            "first_time": { "type": "boolean", "default": false }
           },
           "additionalProperties": false
         },

@@ -7,6 +7,7 @@ import dev.dzenthai.storybound.core.logic.Actions;
 import dev.dzenthai.storybound.core.logic.KillCredit;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.notify.Notifications;
 import dev.dzenthai.storybound.core.notify.NotifyKind;
 import dev.dzenthai.storybound.module.codex.Unlock;
@@ -184,6 +185,7 @@ public final class Bosses {
         }
         run(definition.onKill(), context, "boss " + boss + " on_kill");
         NeoForge.EVENT_BUS.post(new BossDefeatedEvent(player, boss, entity, first, ticks));
+        TriggerDispatcher.fire(BossLogic.BOSS_KILLED_TRIGGER.get(), context, new BossLogic.Defeated(boss, first));
     }
 
     /** @return true if a section opened */

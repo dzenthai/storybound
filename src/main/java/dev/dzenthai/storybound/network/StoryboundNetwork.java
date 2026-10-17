@@ -8,7 +8,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class StoryboundNetwork {
     /** Bumped on any incompatible packet change; a client with another version cannot connect. */
-    public static final String PROTOCOL_VERSION = "2";
+    public static final String PROTOCOL_VERSION = "3";
 
     private StoryboundNetwork() {}
 
@@ -34,6 +34,11 @@ public final class StoryboundNetwork {
         registrar.playToServer(TalkQueryPayload.TYPE, TalkQueryPayload.STREAM_CODEC, TalkQueryPayload::handleOnServer);
         registrar.playToClient(TalkHintPayload.TYPE, TalkHintPayload.STREAM_CODEC, TalkHintPayload::handleOnClient);
         registrar.playToClient(ConfigTextsPayload.TYPE, ConfigTextsPayload.STREAM_CODEC, ConfigTextsPayload::handleOnClient);
+        registrar.playToServer(DevModePayloads.RequestSnapshot.TYPE, DevModePayloads.RequestSnapshot.STREAM_CODEC, DevModePayloads.RequestSnapshot::handleOnServer);
+        registrar.playToClient(DevModePayloads.Snapshot.TYPE, DevModePayloads.Snapshot.STREAM_CODEC, DevModePayloads.Snapshot::handleOnClient);
+        registrar.playToServer(DevModePayloads.SaveDefinition.TYPE, DevModePayloads.SaveDefinition.STREAM_CODEC, DevModePayloads.SaveDefinition::handleOnServer);
+        registrar.playToServer(DevModePayloads.DeleteDefinition.TYPE, DevModePayloads.DeleteDefinition.STREAM_CODEC, DevModePayloads.DeleteDefinition::handleOnServer);
+        registrar.playToServer(DevModePayloads.QuickAction.TYPE, DevModePayloads.QuickAction.STREAM_CODEC, DevModePayloads.QuickAction::handleOnServer);
     }
 
     /**

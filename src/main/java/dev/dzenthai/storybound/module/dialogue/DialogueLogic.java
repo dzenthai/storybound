@@ -15,6 +15,10 @@ import dev.dzenthai.storybound.core.logic.TriggerType;
 import java.util.Optional;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.item.trading.Merchant;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
@@ -27,6 +31,8 @@ public final class DialogueLogic {
             REGISTER_ACTIONS.register("start_dialogue", () -> new ActionType<>(StartDialogue.CODEC));
     public static final DeferredHolder<ActionType<?>, ActionType<EndDialogue>> END_DIALOGUE =
             REGISTER_ACTIONS.register("end_dialogue", () -> new ActionType<>(EndDialogue.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<OpenTrade>> OPEN_TRADE =
+            REGISTER_ACTIONS.register("open_trade", () -> new ActionType<>(OpenTrade.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<DialogueEnded, Ended>> DIALOGUE_ENDED =
             REGISTER_TRIGGERS.register("dialogue_ended", () -> new TriggerType<>(DialogueEnded.CODEC));
 
@@ -73,6 +79,37 @@ public final class DialogueLogic {
         @Override
         public void run(StoryContext context) {
             Dialogues.end(context.player());
+        }
+    }
+
+    public record OpenTrade() implements Action {
+        public static final MapCodec<OpenTrade> CODEC = MapCodec.unit(new OpenTrade());
+
+        @Override
+        public ActionType<?> type() {
+            return OPEN_TRADE.get();
+        }
+
+        @Override
+        public void run(StoryContext context) throws StoryException {
+            ServerPlayer player = context.player();
+            Entity entity = context.entity();
+            Dialogues.end(player);
+            if (!(entity instanceof Merchant merchant)) {
+                throw new StoryException(Component.translatableWithFallback("storybound.dialogue.not_merchant",
+                        "Cannot open trade: context entity is not a merchant"));
+            }
+            if (merchant.getTradingPlayer() != null && merchant.getTradingPlayer() != player) {
+                throw new StoryException(Component.translatableWithFallback("storybound.dialogue.merchant_busy",
+                        "Cannot open trade: merchant is already trading with another player"));
+            }
+            if (merchant.getOffers().isEmpty()) {
+                throw new StoryException(Component.translatableWithFallback("storybound.dialogue.no_offers",
+                        "Cannot open trade: merchant has no offers"));
+            }
+            int level = entity instanceof Villager villager ? villager.getVillagerData().getLevel() : 1;
+            merchant.setTradingPlayer(player);
+            merchant.openTradingScreen(player, entity.getDisplayName(), level);
         }
     }
 

@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.core.data;
 
+import dev.dzenthai.storybound.core.dev.DevModeServer;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
 import dev.dzenthai.storybound.network.DefinitionSync;
 import net.minecraft.core.HolderLookup;
@@ -44,7 +45,12 @@ public final class StoryboundDataEvents {
 
     // On login only to that player, after /reload to everyone.
     private static void onDatapackSync(OnDatapackSyncEvent event) {
-        event.getRelevantPlayers().forEach(DefinitionSync::sendTo);
+        event.getRelevantPlayers().forEach(player -> {
+            DefinitionSync.sendTo(player);
+            if (player.hasPermissions(2)) {
+                DevModeServer.sendSnapshot(player);
+            }
+        });
     }
 
     private static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {

@@ -76,7 +76,8 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
         /** A blocking screen: portrait, name, text, options. */
         SCREEN("screen"),
         /** Subtitles at the bottom of the screen; the player keeps moving. A choice still opens the screen. */
-        HUD("hud");
+        HUD("hud"),
+        BUBBLE("bubble");
 
         public static final Codec<Presentation> CODEC = StringRepresentable.fromEnum(Presentation::values);
 

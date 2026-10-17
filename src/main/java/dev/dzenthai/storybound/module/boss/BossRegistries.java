@@ -25,5 +25,6 @@ public final class BossRegistries {
         ATTACHMENT_TYPES.register(modBus);
         BossLogic.REGISTER_CONDITIONS.register(modBus);
         BossLogic.REGISTER_ACTIONS.register(modBus);
+        BossLogic.REGISTER_TRIGGERS.register(modBus);
     }
 }

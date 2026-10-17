@@ -192,6 +192,41 @@ public final class Waypoints {
         return removed;
     }
 
+    public static boolean teleportTo(ServerPlayer player, ResourceLocation id) {
+        WaypointDefinition waypoint = WaypointRegistries.WAYPOINTS.serverStore().getOrNull(id);
+        if (waypoint == null) {
+            return false;
+        }
+        Place place = locate(player, id.toString(), waypoint.target());
+        if (place == null && waypoint.target() instanceof WaypointTarget.Structure structure) {
+            ServerLevel level = player.server.getLevel(structure.dimension());
+            if (level != null) {
+                BlockPos origin = structure.origin().orElseGet(() -> structureSearchOrigin(player, structure.dimension()));
+                Optional<BlockPos> found = structure.structure().locate(level, origin, structure.searchRadius());
+                if (found.isPresent()) {
+                    BlockPos at = found.get();
+                    place = new Place(level.dimension().location(), new Vec3(at.getX() + 0.5, StructureRef.groundY(level, at), at.getZ() + 0.5), ClientWaypoint.NO_ENTITY);
+                }
+            }
+        }
+        if (place == null) {
+            return false;
+        }
+        ServerLevel level = player.server.getLevel(ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, place.dimension()));
+        if (level == null) {
+            return false;
+        }
+        Vec3 pos = place.pos();
+        double y = pos.y;
+        if (waypoint.target() instanceof WaypointTarget.Structure) {
+            BlockPos bp = BlockPos.containing(pos.x, pos.y, pos.z);
+            level.getChunk(bp);
+            y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bp.getX(), bp.getZ());
+        }
+        player.teleportTo(level, pos.x, y, pos.z, java.util.Set.of(), player.getYRot(), player.getXRot());
+        return true;
+    }
+
     static void refreshScope(MinecraftServer server, StoryScope scope, @Nullable UUID owner) {
         for (ServerPlayer member : StoryState.onlinePlayersOf(server, scope, owner)) {
             refresh(member);

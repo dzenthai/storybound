@@ -25,6 +25,10 @@ public final class BuiltinTriggers {
             REGISTER.register("area_entered", () -> new TriggerType<>(CoreTriggers.AreaEntered.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.StructureEntered, Unit>> STRUCTURE_ENTERED =
             REGISTER.register("structure_entered", () -> new TriggerType<>(CoreTriggers.StructureEntered.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.BiomeEntered, Unit>> BIOME_ENTERED =
+            REGISTER.register("biome_entered", () -> new TriggerType<>(CoreTriggers.BiomeEntered.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.PoiEntered, Unit>> POI_ENTERED =
+            REGISTER.register("poi_entered", () -> new TriggerType<>(CoreTriggers.PoiEntered.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.ItemObtained, ItemStack>> ITEM_OBTAINED =
             REGISTER.register("item_obtained", () -> new TriggerType<>(CoreTriggers.ItemObtained.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.EntityInteracted, Entity>> ENTITY_INTERACTED =
