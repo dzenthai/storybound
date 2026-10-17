@@ -90,9 +90,11 @@ public final class DialogueEvents {
         }
     }
 
+    // Talking is on its own key, so right-click keeps trading and mods' own screens; a server may also allow right-click.
     private static void onBoundInteract(PlayerInteractEvent.EntityInteract event) {
-        if (event.getHand() == InteractionHand.MAIN_HAND && event.getEntity() instanceof ServerPlayer player) {
-            NpcBindings.interacted(player, event.getTarget());
+        if (event.getHand() == InteractionHand.MAIN_HAND && event.getEntity() instanceof ServerPlayer player
+                && StoryboundConfig.COMMON.dialogueRightClickTalks.get()) {
+            NpcBindings.talk(player, event.getTarget());
         }
     }
 

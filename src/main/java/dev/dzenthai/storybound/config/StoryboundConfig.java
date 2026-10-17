@@ -30,6 +30,7 @@ public final class StoryboundConfig {
         public final ModConfigSpec.IntValue commandPermissionLevel;
         public final ModConfigSpec.DoubleValue dialogueMaxDistance;
         public final ModConfigSpec.BooleanValue dialogueInterruptOnDamage;
+        public final ModConfigSpec.BooleanValue dialogueRightClickTalks;
         public final ModConfigSpec.BooleanValue cameraAllowed;
         public final ModConfigSpec.IntValue seenRadius;
         public final ModConfigSpec.IntValue seenAngle;
@@ -72,6 +73,11 @@ public final class StoryboundConfig {
                     .comment("Taking damage interrupts the player's dialogue.")
                     .translation("storybound.configuration.interruptOnDamage")
                     .define("interruptOnDamage", true);
+            dialogueRightClickTalks = builder
+                    .comment("Right-clicking an NPC with a binding also starts its dialogue, as well as the talk key (H by default).",
+                            "Off by default: right-click keeps trading and other mods' NPC screens.")
+                    .translation("storybound.configuration.rightClickTalks")
+                    .define("rightClickTalks", false);
             builder.pop();
 
             builder.translation("storybound.configuration.camera").push("camera");

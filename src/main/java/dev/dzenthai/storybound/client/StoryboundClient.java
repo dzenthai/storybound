@@ -9,6 +9,7 @@ import dev.dzenthai.storybound.client.codex.CodexView;
 import dev.dzenthai.storybound.client.dialogue.ClientDialogue;
 import dev.dzenthai.storybound.client.dialogue.DialogueHud;
 import dev.dzenthai.storybound.client.dialogue.SpeechBubbles;
+import dev.dzenthai.storybound.client.dialogue.TalkHint;
 import dev.dzenthai.storybound.client.document.DocumentStyles;
 import dev.dzenthai.storybound.client.journal.JournalView;
 import dev.dzenthai.storybound.client.menu.AdventureMenu;
@@ -25,11 +26,13 @@ import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import dev.dzenthai.storybound.module.document.DocumentRef;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
+import dev.dzenthai.storybound.network.TalkPayload;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.EntityHitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -45,6 +48,7 @@ import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 @Mod(value = Storybound.MOD_ID, dist = Dist.CLIENT)
@@ -62,6 +66,9 @@ public final class StoryboundClient {
             InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), KEY_CATEGORY);
     public static final KeyMapping OPEN_BOSSES = new KeyMapping("key.storybound.bosses",
             InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), KEY_CATEGORY);
+    /** Talk to the NPC under the crosshair; its own key so right-click keeps trading and other mods' screens. */
+    public static final KeyMapping TALK = new KeyMapping("key.storybound.talk",
+            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, KEY_CATEGORY);
 
     public StoryboundClient(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.CLIENT, StoryboundClientConfig.SPEC);
@@ -109,6 +116,7 @@ public final class StoryboundClient {
         event.register(OPEN_JOURNAL);
         event.register(OPEN_CODEX);
         event.register(OPEN_BOSSES);
+        event.register(TALK);
     }
 
     private static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
@@ -121,6 +129,7 @@ public final class StoryboundClient {
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {
         // Under the crosshair and the rest of the HUD: markers belong to the world.
         event.registerBelow(VanillaGuiLayers.CROSSHAIR, Storybound.id("waypoint_markers"), WaypointMarkers::render);
+        event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("talk_hint"), TalkHint::render);
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, Storybound.id("quest_tracker"), QuestHud::render);
         event.registerBelow(VanillaGuiLayers.CHAT, Storybound.id("dialogue_subtitles"), DialogueHud::render);
     }
@@ -131,9 +140,22 @@ public final class StoryboundClient {
         openOnKey(OPEN_JOURNAL, AdventureMenu.JOURNAL);
         openOnKey(OPEN_CODEX, AdventureMenu.CODEX);
         openOnKey(OPEN_BOSSES, AdventureMenu.BOSSES);
+        talkOnKey();
+        TalkHint.tick();
         ClientWaypoints.tick();
         ClientDialogue.tick();
         DialogueCamera.tick();
+    }
+
+    /** The entity a right-click would reach: under the crosshair and within interaction range. The server checks again. */
+    private static void talkOnKey() {
+        Minecraft minecraft = Minecraft.getInstance();
+        while (TALK.consumeClick()) {
+            if (minecraft.screen == null && minecraft.player != null && !minecraft.player.isSpectator()
+                    && minecraft.hitResult instanceof EntityHitResult hit) {
+                PacketDistributor.sendToServer(new TalkPayload(hit.getEntity().getId()));
+            }
+        }
     }
 
     private static void openOnKey(KeyMapping key, ResourceLocation tab) {
@@ -158,6 +180,7 @@ public final class StoryboundClient {
         ClientWaypoints.clear();
         ClientModules.clear();
         ClientDialogue.clear();
+        TalkHint.clear();
         SpeechBubbles.clear();
         SeenMarks.reset();
         AdventureMenu.reset();

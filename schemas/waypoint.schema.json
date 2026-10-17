@@ -39,6 +39,35 @@
               "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             }
           }
+        },
+        {
+          "type": "object",
+          "required": ["structure"],
+          "additionalProperties": false,
+          "properties": {
+            "structure": {
+              "description": "Marks the nearest such structure, or any of a #tag, searched in the background (like /locate) near each player; shown once found, never if none is within search_radius. It follows the player: when they travel into another 256-block area, a search from there runs in the background and the waypoint moves if that structure is at least 16 blocks nearer.",
+              "$ref": "logic.schema.json#/definitions/structure"
+            },
+            "dimension": { "$ref": "logic.schema.json#/definitions/id", "default": "minecraft:overworld" },
+            "search_radius": { "description": "In chunks, as /locate: the search costs more the larger it is, mostly when nothing is found.", "type": "integer", "minimum": 1, "maximum": 512, "default": 100 },
+            "origin": { "description": "Searched from here, once for everyone, instead of near each player and again as they travel.", "type": "array", "items": { "type": "integer" }, "minItems": 3, "maxItems": 3 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["nearest"],
+          "additionalProperties": false,
+          "properties": {
+            "nearest": {
+              "description": "Points at the nearest living entity that matches, near each player who sees the waypoint: an entity type, a #tag or a list, or a selector ({ \"type\": \"minecraft:wolf\", \"tag\": \"alpha\" }). Only loaded entities count, players never; nothing shows while none is in range. A picked entity is kept while it lives and stays within 1.25 times the range, so the marker does not hop between two mobs.",
+              "oneOf": [
+                { "$ref": "logic.schema.json#/definitions/id_list" },
+                { "$ref": "logic.schema.json#/definitions/entity_selector" }
+              ]
+            },
+            "range": { "description": "In blocks, around the player.", "type": "integer", "minimum": 1, "maximum": 256, "default": 64 }
+          }
         }
       ]
     }

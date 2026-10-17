@@ -9,6 +9,7 @@ import dev.dzenthai.storybound.core.logic.Area;
 import dev.dzenthai.storybound.core.logic.ItemMatcher;
 import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.TriggerType;
 import dev.dzenthai.storybound.core.state.StoryValue;
@@ -103,11 +104,17 @@ public final class CoreTriggers {
         }
     }
 
+    /** A place the player walks into: checked for every player every 10 ticks, fired on crossing in. */
+    public interface Entered extends Trigger<Unit> {
+        /** Also fires when the player logs in already inside. */
+        boolean fireOnLogin();
+    }
+
     /**
      * Fires when a player crosses into the area; checked every 10 ticks. A player who logs in
      * already inside fires it only with {@code fire_on_login}; a data reload never fires it.
      */
-    public record AreaEntered(Area area, boolean fireOnLogin) implements Trigger<Unit> {
+    public record AreaEntered(Area area, boolean fireOnLogin) implements Entered {
         public static final MapCodec<AreaEntered> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Area.CODEC.fieldOf("area").forGetter(AreaEntered::area),
                 Codec.BOOL.optionalFieldOf("fire_on_login", false).forGetter(AreaEntered::fireOnLogin)
@@ -121,6 +128,27 @@ public final class CoreTriggers {
         @Override
         public boolean matches(StoryContext context, Unit event) {
             return area.contains(context.player());
+        }
+    }
+
+    /**
+     * Fires when a player comes within a structure: {@code { "type": "structure_entered", "structure": "#minecraft:village" }},
+     * an id or a #tag, inside the box around all its pieces. Checked with the areas, under the same login and reload rules.
+     */
+    public record StructureEntered(StructureRef structure, boolean fireOnLogin) implements Entered {
+        public static final MapCodec<StructureEntered> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                StructureRef.CODEC.fieldOf("structure").forGetter(StructureEntered::structure),
+                Codec.BOOL.optionalFieldOf("fire_on_login", false).forGetter(StructureEntered::fireOnLogin)
+        ).apply(instance, StructureEntered::new));
+
+        @Override
+        public TriggerType<?, Unit> type() {
+            return BuiltinTriggers.STRUCTURE_ENTERED.get();
+        }
+
+        @Override
+        public boolean matches(StoryContext context, Unit event) {
+            return structure.contains(context.player().serverLevel(), context.player().blockPosition());
         }
     }
 

@@ -13,6 +13,7 @@ import dev.dzenthai.storybound.core.logic.Actions;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.PartyManager;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
@@ -22,14 +23,17 @@ import dev.dzenthai.storybound.module.quest.QuestEvents;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.module.quest.Quests;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
+import dev.dzenthai.storybound.module.waypoint.StructureLocator;
 import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
 import dev.dzenthai.storybound.module.waypoint.WaypointRegistries;
+import dev.dzenthai.storybound.module.waypoint.WaypointTarget;
 import dev.dzenthai.storybound.module.waypoint.Waypoints;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -38,6 +42,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -77,6 +82,7 @@ public final class WaypointGameTests {
             helper.assertTrue(camp != null, "the first stage shows its waypoint");
             expect(helper, camp.quest(), Optional.of(QUEST), "it knows its quest, for highlighting");
             expect(helper, camp.radius(), 16f, "an area keeps its radius");
+            expect(helper, camp.entity(), ClientWaypoint.NO_ENTITY, "a fixed waypoint is above no entity");
 
             Quests.setStage(player, QUEST, "second");
             expect(helper, keys(player), List.of(SHRINE.toString()), "the next stage hides the camp and shows the shrine");
@@ -139,6 +145,7 @@ public final class WaypointGameTests {
                 .getOrThrow(GameTestAssertException::new), new StoryContext(player, guide), "gametest", OnFail.ABORT);
         Vec3 before = Waypoints.visible(player).get("player/gametest:guide").pos();
         helper.assertTrue(before.distanceTo(guide.position()) < 3, "the waypoint is at the entity");
+        expect(helper, Waypoints.visible(player).get("player/gametest:guide").entity(), guide.getId(), "with the entity's id for the client");
         guide.moveTo(helper.absoluteVec(new Vec3(9.5, 1, 2.5)));
         Vec3 after = Waypoints.visible(player).get("player/gametest:guide").pos();
         helper.assertTrue(after.x - before.x > 4, "and moves with it, got " + before + " -> " + after);
@@ -146,6 +153,168 @@ public final class WaypointGameTests {
         guide.discard();
         remove(helper, player);
         helper.succeed();
+    }
+
+    /** Pigs with a tag no other test uses, so pigs and players of tests running alongside never count. */
+    @GameTest(template = "open")
+    public static void nearestWaypointPicksAnEntityAndKeepsIt(GameTestHelper helper) {
+        WaypointDefinition shorthand = parse(helper, "{ \"name\": \"gametest.z\", \"target\": { \"nearest\": \"minecraft:zombie\" } }");
+        helper.assertTrue(shorthand.target() instanceof WaypointTarget.Nearest nearest && nearest.entity().type().isPresent()
+                && nearest.range() == WaypointTarget.Nearest.DEFAULT_RANGE, "an entity type alone is a selector by type, range 64");
+
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setPos(helper.absoluteVec(new Vec3(1.5, 1, 1.5)));
+        ok(() -> StoryState.set(player, StoryScope.PLAYER, key("quarry_hunter"), new StoryValue.Bool(true)));
+        LivingEntity near = helper.spawnWithNoFreeWill(EntityType.PIG, 3, 1, 1);
+        LivingEntity far = helper.spawnWithNoFreeWill(EntityType.PIG, 6, 1, 1);
+        LivingEntity untagged = helper.spawnWithNoFreeWill(EntityType.PIG, 2, 1, 2);
+        near.addTag("gametest_quarry");
+        far.addTag("gametest_quarry");
+        ResourceLocation quarry = key("quarry");
+        DefinitionStore<WaypointDefinition> store = WaypointRegistries.WAYPOINTS.serverStore();
+        Map<ResourceLocation, WaypointDefinition> previous = store.all();
+        Map<ResourceLocation, WaypointDefinition> installed = new LinkedHashMap<>(previous);
+        installed.put(quarry, parse(helper, "{ \"name\": \"gametest.quarry\","
+                + " \"target\": { \"nearest\": { \"type\": \"minecraft:pig\", \"tag\": \"gametest_quarry\" }, \"range\": 8 },"
+                + " \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:quarry_hunter\" } }"));
+        store.replace(installed);
+        Waypoints.rebuild();
+        try {
+            assertAt(helper, player, quarry, near, "the nearest tagged pig, not the closer untagged one");
+            far.moveTo(helper.absoluteVec(new Vec3(2.5, 1, 1.5)));
+            assertAt(helper, player, quarry, near, "kept while it lives and stays in range, though another came closer");
+            near.discard();
+            assertAt(helper, player, quarry, far, "then the next nearest");
+            far.moveTo(helper.absoluteVec(new Vec3(11.5, 1, 11.5)));
+            helper.assertFalse(Waypoints.visible(player).containsKey(quarry.toString()), "nothing when none is in range");
+        } finally {
+            store.replace(previous);
+            Waypoints.rebuild();
+            List.of(near, far, untagged).forEach(LivingEntity::discard);
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    private static void assertAt(GameTestHelper helper, ServerPlayer player, ResourceLocation id, LivingEntity entity, String what) {
+        ClientWaypoint waypoint = Waypoints.visible(player).get(id.toString());
+        helper.assertTrue(waypoint != null, what + ": no waypoint");
+        double dx = waypoint.pos().x - entity.getX();
+        double dz = waypoint.pos().z - entity.getZ();
+        helper.assertTrue(dx * dx + dz * dz < 1, what + ": at " + waypoint.pos() + ", the entity at " + entity.position());
+        expect(helper, waypoint.entity(), entity.getId(), what + ": the client is told which entity to draw it at");
+    }
+
+    /**
+     * The GameTest world generates no structures (vanilla creates it with {@code generate_structures} off), so every
+     * search here ends with nothing found: this checks the search runs in the background and ends without freezing the
+     * server or marking anything. Strongholds, because their ring positions are known in advance: the search still
+     * loads chunks (from the search thread, through the server thread) but stays quick.
+     */
+    @GameTest(template = "empty", timeoutTicks = 600)
+    public static void structureWaypointsAreSearchedInTheBackground(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        // Other tests run alongside and list every gametest waypoint they see: these show only for this player.
+        ok(() -> StoryState.set(player, StoryScope.PLAYER, key("structure_seeker"), new StoryValue.Bool(true)));
+        ResourceLocation stronghold = key("stronghold");
+        ResourceLocation nowhere = key("nowhere_structure");
+        String seeker = ", \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:structure_seeker\" } }";
+        DefinitionStore<WaypointDefinition> store = WaypointRegistries.WAYPOINTS.serverStore();
+        Map<ResourceLocation, WaypointDefinition> previous = store.all();
+        Map<ResourceLocation, WaypointDefinition> installed = new LinkedHashMap<>(previous);
+        installed.put(stronghold, parse(helper, "{ \"name\": \"gametest.stronghold\", \"target\": { \"structure\": \"minecraft:stronghold\", \"search_radius\": 256 }" + seeker));
+        installed.put(nowhere, parse(helper, "{ \"name\": \"gametest.nowhere\", \"target\": { \"structure\": \"gametest:no_such_structure\" }" + seeker));
+        store.replace(installed);
+        Waypoints.rebuild();
+
+        helper.assertFalse(Waypoints.visible(player).containsKey(stronghold.toString()), "nothing while the background search runs");
+        boolean done = Actions.runAll(LogicCodecs.ACTIONS.parse(ops(helper), JsonParser.parseString(
+                "{ \"type\": \"add_waypoint\", \"id\": \"gametest:lost\", \"name\": \"gametest.l\", \"structure\": \"gametest:no_such_structure\" }"))
+                .getOrThrow(GameTestAssertException::new), StoryContext.of(player), "gametest", OnFail.ABORT);
+        helper.assertFalse(done, "add_waypoint fails at once for an unknown structure");
+        StructureLocator.Search search = new StructureLocator.Search(StructureRef.of("minecraft:stronghold").orElseThrow(), Level.OVERWORLD,
+                Waypoints.structureSearchOrigin(player, Level.OVERWORLD), 256);
+        run(helper, player, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:to_stronghold\", \"name\": \"gametest.s\","
+                + " \"structure\": \"minecraft:stronghold\", \"search_radius\": 256 }");
+        helper.assertTrue(StructureLocator.result(player.server, search) == null, "the action's search runs in the background");
+
+        helper.succeedWhen(() -> {
+            Optional<BlockPos> answer = StructureLocator.result(player.server, search);
+            helper.assertTrue(answer != null, "the search ends");
+            helper.assertTrue(answer.isEmpty(), "with nothing found, in a world without structures");
+            Map<String, ClientWaypoint> now = Waypoints.visible(player);
+            helper.assertFalse(now.containsKey(stronghold.toString()), "a structure not found marks nothing");
+            helper.assertFalse(now.containsKey("player/gametest:to_stronghold"), "neither does the action's waypoint");
+            helper.assertFalse(now.containsKey(nowhere.toString()), "an unknown structure marks nothing and breaks nothing");
+            store.replace(previous);
+            Waypoints.rebuild();
+            Waypoints.remove(player.server, key("to_stronghold"), StoryScope.PLAYER, player.getUUID());
+            remove(helper, player);
+        });
+    }
+
+    /**
+     * A structure waypoint follows the player from cell to cell. The world has no structures, so the answers are
+     * planted; everything runs within this tick, so no other test's data reload can drop them meanwhile. The search
+     * radius is 1 chunk, so the one real search this starts (and finds nothing) ends at once.
+     */
+    @GameTest(template = "empty")
+    public static void structureWaypointMovesToANearerStructure(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ok(() -> StoryState.set(player, StoryScope.PLAYER, key("village_seeker"), new StoryValue.Bool(true)));
+        ResourceLocation village = key("nearest_village");
+        DefinitionStore<WaypointDefinition> store = WaypointRegistries.WAYPOINTS.serverStore();
+        Map<ResourceLocation, WaypointDefinition> previous = store.all();
+        Map<ResourceLocation, WaypointDefinition> installed = new LinkedHashMap<>(previous);
+        installed.put(village, parse(helper, "{ \"name\": \"gametest.village\", \"target\": { \"structure\": \"minecraft:village_plains\", \"search_radius\": 1 },"
+                + " \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:village_seeker\" } }"));
+        store.replace(installed);
+        Waypoints.rebuild();
+        StructureRef plains = StructureRef.of("minecraft:village_plains").orElseThrow();
+        Vec3 start = player.position();
+        try {
+            BlockPos first = plant(player, plains, 100);
+            assertStructureAt(helper, player, village, first, "the village found near where the player is");
+
+            player.setPos(start.add(1000, 0, 0));
+            BlockPos second = plant(player, plains, -40);
+            assertStructureAt(helper, player, village, second, "moved to a nearer village once the player is in another cell");
+
+            player.setPos(start.add(1300, 0, 0));
+            plant(player, plains, 3000);
+            assertStructureAt(helper, player, village, second, "not to one farther away than the current");
+
+            player.setPos(start.add(1600, 0, 0));
+            BlockPos searching = Waypoints.structureSearchOrigin(player, Level.OVERWORLD);
+            assertStructureAt(helper, player, village, second, "kept while the search from the new cell runs");
+            helper.assertTrue(StructureLocator.result(player.server, new StructureLocator.Search(plains, Level.OVERWORLD, searching, 1)) == null,
+                    "that search runs in the background");
+        } finally {
+            player.setPos(start);
+            store.replace(previous);
+            Waypoints.rebuild();
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    /** Plants a search answer for the player's cell: a structure {@code dx} blocks east of the cell's middle. */
+    private static BlockPos plant(ServerPlayer player, StructureRef structure, int dx) {
+        BlockPos cell = Waypoints.structureSearchOrigin(player, Level.OVERWORLD);
+        BlockPos at = cell.offset(dx, 0, 0);
+        StructureLocator.remember(new StructureLocator.Search(structure, Level.OVERWORLD, cell, 1), Optional.of(at));
+        return at;
+    }
+
+    private static void assertStructureAt(GameTestHelper helper, ServerPlayer player, ResourceLocation id, BlockPos at, String what) {
+        ClientWaypoint waypoint = Waypoints.visible(player).get(id.toString());
+        helper.assertTrue(waypoint != null, what + ": no waypoint");
+        helper.assertTrue(Math.abs(waypoint.pos().x - (at.getX() + 0.5)) < 0.01 && Math.abs(waypoint.pos().z - (at.getZ() + 0.5)) < 0.01,
+                what + ": at " + waypoint.pos() + ", expected " + at);
+    }
+
+    private static WaypointDefinition parse(GameTestHelper helper, String json) {
+        return WaypointDefinition.CODEC.parse(ops(helper), JsonParser.parseString(json)).getOrThrow(GameTestAssertException::new);
     }
 
     @GameTest(template = "empty")

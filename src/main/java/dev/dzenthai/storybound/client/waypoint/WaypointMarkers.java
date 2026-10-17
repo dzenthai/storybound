@@ -18,6 +18,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
@@ -37,8 +38,10 @@ public final class WaypointMarkers {
     /** Names show when the icon is this close to the crosshair, in GUI pixels; they fade over the outer half. */
     private static final float NAME_RADIUS = 60f;
     private static final float EDGE_INSET = 16f;
-    /** A followed entity moving farther than this between frames (a teleport) is not glided to. */
+    /** A waypoint moving farther than this between server updates (a teleport) is not glided to. */
     private static final double SNAP_DISTANCE = 8;
+    /** A waypoint switching to another entity (a {@code nearest} one picking the next mob) glides over this long. */
+    private static final long SWITCH_MILLIS = 350;
     private static final float DIMMED_ALPHA = 0.55f;
     private static final float DIMMED_SIZE = 0.85f;
     private static final float TRACKED_SIZE = 1.15f;
@@ -50,6 +53,10 @@ public final class WaypointMarkers {
     private static @Nullable Matrix4f projection;
     private static Vec3 cameraPos = Vec3.ZERO;
     private static final Map<String, Vec3> SMOOTHED = new HashMap<>();
+    /** Waypoint key → the entity its marker is drawn at, while the client has that entity. */
+    private static final Map<String, Integer> FOLLOWED = new HashMap<>();
+    /** Waypoint key → a glide from where the marker was to a newly followed entity. */
+    private static final Map<String, Glide> GLIDES = new HashMap<>();
     private static long lastFrame;
 
     private WaypointMarkers() {}
@@ -74,7 +81,8 @@ public final class WaypointMarkers {
         float frameSeconds = Math.min(0.25f, (now - lastFrame) / 1000f);
         lastFrame = now;
         ResourceLocation dimension = minecraft.level.dimension().location();
-        Vec3 eyes = minecraft.player.getEyePosition(deltaTracker.getGameTimeDeltaPartialTick(false));
+        float partialTick = deltaTracker.getGameTimeDeltaPartialTick(false);
+        Vec3 eyes = minecraft.player.getEyePosition(partialTick);
 
         List<Marker> markers = new ArrayList<>();
         Map<String, Vec3> seen = new HashMap<>();
@@ -82,7 +90,7 @@ public final class WaypointMarkers {
             if (!waypoint.dimension().equals(dimension)) {
                 continue;
             }
-            Vec3 pos = smooth(waypoint, frameSeconds);
+            Vec3 pos = position(minecraft, waypoint, frameSeconds, partialTick, now);
             seen.put(waypoint.key(), pos);
             Marker marker = marker(waypoint, pos, eyes, graphics, config);
             if (marker != null) {
@@ -90,6 +98,8 @@ public final class WaypointMarkers {
             }
         }
         SMOOTHED.keySet().retainAll(seen.keySet());
+        FOLLOWED.keySet().retainAll(seen.keySet());
+        GLIDES.keySet().retainAll(seen.keySet());
 
         // Far ones first, the tracked quest's on top.
         markers.sort(Comparator.comparing(Marker::tracked).thenComparing(Comparator.comparingDouble(Marker::distance).reversed()));
@@ -233,13 +243,39 @@ public final class WaypointMarkers {
         return Component.translatable("storybound.waypoint.distance", (int) Math.round(blocks));
     }
 
-    /** Glides a followed entity's waypoint between the server's half-block steps. */
-    private static Vec3 smooth(ClientWaypoint waypoint, float frameSeconds) {
-        Vec3 target = waypoint.pos();
-        Vec3 current = SMOOTHED.get(waypoint.key());
-        Vec3 next = current == null || current.distanceTo(target) > SNAP_DISTANCE
-                ? target : current.lerp(target, 1 - Math.exp(-frameSeconds * 6));
-        SMOOTHED.put(waypoint.key(), next);
+    /**
+     * Where the marker is this frame. Above an entity the client has, it is drawn at the entity's interpolated
+     * position, as smooth as the entity itself; otherwise it glides between the server's updates (once a second,
+     * to half a block).
+     */
+    private static Vec3 position(Minecraft minecraft, ClientWaypoint waypoint, float frameSeconds, float partialTick, long now) {
+        String key = waypoint.key();
+        Vec3 previous = SMOOTHED.get(key);
+        Entity entity = waypoint.entity() == ClientWaypoint.NO_ENTITY || minecraft.level == null ? null : minecraft.level.getEntity(waypoint.entity());
+        Vec3 next;
+        if (entity != null && !entity.isRemoved()) {
+            next = entity.getPosition(partialTick).add(0, entity.getBbHeight(), 0);
+            Integer followed = FOLLOWED.put(key, waypoint.entity());
+            if (previous != null && (followed == null || followed != waypoint.entity())) {
+                GLIDES.put(key, new Glide(previous, now));
+            }
+            Glide glide = GLIDES.get(key);
+            if (glide != null) {
+                float t = (now - glide.start()) / (float) SWITCH_MILLIS;
+                if (t >= 1) {
+                    GLIDES.remove(key);
+                } else {
+                    next = glide.from().lerp(next, t * t * (3 - 2 * t));
+                }
+            }
+        } else {
+            FOLLOWED.remove(key);
+            GLIDES.remove(key);
+            Vec3 target = waypoint.pos();
+            next = previous == null || previous.distanceTo(target) > SNAP_DISTANCE
+                    ? target : previous.lerp(target, 1 - Math.exp(-frameSeconds * 6));
+        }
+        SMOOTHED.put(key, next);
         return next;
     }
 
@@ -274,6 +310,8 @@ public final class WaypointMarkers {
 
     /** @param dirX right and {@code dirY} up from the screen centre towards the point (for the edge arrow) */
     record Screen(float x, float y, boolean onScreen, float dirX, float dirY) {}
+
+    private record Glide(Vec3 from, long start) {}
 
     private record Marker(ClientWaypoint waypoint, WaypointStyle style, Screen screen, boolean tracked, boolean area, double distance,
                           float alpha, float size, int tint, @Nullable Component label) {}

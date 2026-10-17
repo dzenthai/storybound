@@ -93,36 +93,40 @@ public final class TriggerDispatcher {
     }
 
     /**
-     * Fires {@code area_entered} for players who crossed into an area since the previous check;
-     * called every 10 ticks. Public for tests.
+     * Fires {@code area_entered} and {@code structure_entered} for players who crossed into an area or a structure
+     * since the previous check; called every 10 ticks. Public for tests.
      */
     @SuppressWarnings("unchecked")
     public static void tickAreas(MinecraftServer server) {
-        TriggerType<?, Unit> type = BuiltinTriggers.AREA_ENTERED.get();
-        List<Subscription<?>> subscriptions = index.get(type);
-        if (subscriptions == null) {
+        List<Subscription<?>> subscriptions = new ArrayList<>(index.getOrDefault(BuiltinTriggers.AREA_ENTERED.get(), List.of()));
+        subscriptions.addAll(index.getOrDefault(BuiltinTriggers.STRUCTURE_ENTERED.get(), List.of()));
+        if (subscriptions.isEmpty()) {
             return;
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             Set<Subscription<?>> inside = Collections.newSetFromMap(new IdentityHashMap<>());
             StoryContext context = StoryContext.of(player);
             for (Subscription<?> subscription : subscriptions) {
-                if (((Subscription<Unit>) subscription).trigger().matches(context, Unit.INSTANCE)) {
-                    inside.add(subscription);
+                try {
+                    if (((Subscription<Unit>) subscription).trigger().matches(context, Unit.INSTANCE)) {
+                        inside.add(subscription);
+                    }
+                } catch (RuntimeException e) {
+                    Storybound.LOGGER.error("Storybound: {} failed", subscription.name(), e);
                 }
             }
             Set<Subscription<?>> previous = INSIDE_AREAS.put(player.getUUID(), inside);
             boolean freshLogin = FRESH_LOGINS.remove(player.getUUID());
             // The first look after a reload only records where the player is; after a login,
-            // areas with fire_on_login fire as if the player had just walked in.
-            if ((previous == null && !freshLogin) || !enter(type)) {
+            // places with fire_on_login fire as if the player had just walked in.
+            if ((previous == null && !freshLogin) || !enter(BuiltinTriggers.AREA_ENTERED.get())) {
                 continue;
             }
             try {
                 for (Subscription<?> subscription : inside) {
                     boolean entered = previous != null
                             ? !previous.contains(subscription)
-                            : ((CoreTriggers.AreaEntered) subscription.trigger()).fireOnLogin();
+                            : ((CoreTriggers.Entered) subscription.trigger()).fireOnLogin();
                     if (entered) {
                         runListener(subscription, context);
                     }

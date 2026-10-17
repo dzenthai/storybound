@@ -8,6 +8,7 @@ import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.ConditionType;
 import dev.dzenthai.storybound.core.logic.ItemMatcher;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.PartyData;
 import java.util.Optional;
 import net.minecraft.core.HolderSet;
@@ -53,12 +54,17 @@ public final class WorldConditions {
         }
     }
 
-    /** Every given part must match: {@code dimension}, {@code biome} (id, #tag or list) and {@code area}. */
-    public record Location(Optional<ResourceKey<Level>> dimension, Optional<HolderSet<Biome>> biome, Optional<Area> area) implements Condition {
+    /**
+     * Every given part must match: {@code dimension}, {@code biome} (id, #tag or list), {@code area} and {@code structure}
+     * (id or #tag: the player is within such a structure).
+     */
+    public record Location(Optional<ResourceKey<Level>> dimension, Optional<HolderSet<Biome>> biome, Optional<Area> area,
+                           Optional<StructureRef> structure) implements Condition {
         public static final MapCodec<Location> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Level.RESOURCE_KEY_CODEC.optionalFieldOf("dimension").forGetter(Location::dimension),
                 RegistryCodecs.homogeneousList(Registries.BIOME).optionalFieldOf("biome").forGetter(Location::biome),
-                Area.CODEC.optionalFieldOf("area").forGetter(Location::area)
+                Area.CODEC.optionalFieldOf("area").forGetter(Location::area),
+                StructureRef.CODEC.optionalFieldOf("structure").forGetter(Location::structure)
         ).apply(instance, Location::new));
 
         @Override
@@ -71,7 +77,8 @@ public final class WorldConditions {
             ServerPlayer player = context.player();
             return dimension.map(player.level().dimension()::equals).orElse(true)
                     && biome.map(set -> set.contains(player.level().getBiome(player.blockPosition()))).orElse(true)
-                    && area.map(sphere -> sphere.contains(player)).orElse(true);
+                    && area.map(sphere -> sphere.contains(player)).orElse(true)
+                    && structure.map(ref -> ref.contains(player.serverLevel(), player.blockPosition())).orElse(true);
         }
     }
 

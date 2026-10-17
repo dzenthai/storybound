@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.compat.kubejs;
 
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.DialogueEvent;
+import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
@@ -16,6 +17,7 @@ import dev.dzenthai.storybound.module.quest.Quests;
 import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
 import dev.dzenthai.storybound.module.waypoint.WaypointTarget;
 import dev.dzenthai.storybound.module.waypoint.Waypoints;
+import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -295,6 +297,24 @@ public class StoryboundBinding {
         public boolean follow(ResourceLocation id, String nameKey, Entity entity, String visibility) {
             return Waypoints.add(player, id, StoryText.key(nameKey), new WaypointTarget.Follow(entity.getUUID()),
                     WaypointDefinition.DEFAULT_COLOR, 0f, ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
+        }
+
+        public boolean structure(ResourceLocation id, String nameKey, String structure) {
+            return structure(id, nameKey, structure, "player");
+        }
+
+        /**
+         * A waypoint at the nearest structure ({@code "minecraft:village_plains"} or a tag, {@code "#minecraft:village"}),
+         * searched in the background near the player within 100 chunks, and again as they travel; it shows once found.
+         * Throws for an unknown structure.
+         */
+        public boolean structure(ResourceLocation id, String nameKey, String structure, String visibility) {
+            StructureRef ref = StructureRef.of(structure).filter(parsed -> parsed.exists(player.serverLevel()))
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown structure or #tag: " + structure));
+            WaypointTarget target = new WaypointTarget.Structure(ref, player.serverLevel().dimension(), StructureRef.DEFAULT_SEARCH_RADIUS,
+                    Optional.empty());
+            return Waypoints.add(player, id, StoryText.key(nameKey), target, WaypointDefinition.DEFAULT_COLOR, 0f,
+                    ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
         }
 
         public boolean remove(ResourceLocation id) {

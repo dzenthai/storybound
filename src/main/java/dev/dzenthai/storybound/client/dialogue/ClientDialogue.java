@@ -158,6 +158,8 @@ public final class ClientDialogue {
         presentation = Presentation.SCREEN;
         choseAt = 0;
         DialogueCamera.stop();
+        // The NPC may have nothing more to say, or something new: ask again.
+        TalkHint.clear();
     }
 
     private static void openScreen() {

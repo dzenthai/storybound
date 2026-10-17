@@ -26,12 +26,15 @@ import net.neoforged.neoforge.common.NeoForge;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Starts dialogues from NPCs: on right-click and when a player comes close. An entity's own binding
- * (from {@code /storybound npc bind}) wins; otherwise the first binding file, by id, whose selector matches.
+ * Starts dialogues from NPCs: with the talk key (and right-click, if the server config allows it) and when a player
+ * comes close. An entity's own binding (from {@code /storybound npc bind}) wins; otherwise the first binding file,
+ * by id, whose selector matches.
  */
 public final class NpcBindings {
     private static final int PROXIMITY_INTERVAL = 10;
     private static final String ONCE_PREFIX = "npc_once/";
+    /** Blocks beyond the player's interaction range still accepted for the talk key, like vanilla's leeway for clicks. */
+    private static final double TALK_REACH_SLACK = 1.0;
 
     private static List<Map.Entry<ResourceLocation, NpcBinding>> files = List.of();
     private static double searchRadius = NpcBinding.Proximity.DEFAULT.radius();
@@ -67,8 +70,51 @@ public final class NpcBindings {
         return Optional.empty();
     }
 
-    /** A right-click on an entity. A dialogue started here also cancels the vanilla interaction (trading). */
-    static void interacted(ServerPlayer player, Entity target) {
+    /**
+     * The talk key, from a client: the entity must be in the player's level, alive and within reach, as for a
+     * right-click; a spectator cannot talk. Anything else is dropped.
+     */
+    public static void talkRequested(ServerPlayer player, int entityId) {
+        Entity target = reachable(player, entityId);
+        if (target == null) {
+            Storybound.LOGGER.debug("Storybound: dropped a talk request from {} for entity {}", player.getGameProfile().getName(), entityId);
+            return;
+        }
+        talk(player, target);
+    }
+
+    /**
+     * For the client's "[H] Talk" hint: whether the talk key on this entity would do anything now, a dialogue whose
+     * conditions pass or a {@code custom} binding for scripts. False for anything out of reach, so the answer tells a
+     * client nothing about entities it could not talk to anyway.
+     */
+    public static boolean canTalk(ServerPlayer player, int entityId) {
+        Entity target = reachable(player, entityId);
+        if (target == null || !Dialogues.isEnabled() || Dialogues.state(player).isPresent()) {
+            return false;
+        }
+        Found found = find(target).orElse(null);
+        if (found == null) {
+            return false;
+        }
+        return (found.binding().custom() && found.id() != null)
+                || (found.binding().interact() && found.binding().pick(new StoryContext(player, target)).isPresent());
+    }
+
+    private static @Nullable Entity reachable(ServerPlayer player, int entityId) {
+        Entity target = player.serverLevel().getEntity(entityId);
+        if (target == null || !target.isAlive() || target == player || player.isSpectator()
+                || !player.canInteractWithEntity(target, TALK_REACH_SLACK)) {
+            return null;
+        }
+        return target;
+    }
+
+    /**
+     * The player addresses an entity (talk key, or right-click with {@code dialogues.rightClickTalks}): a binding with
+     * {@code interact} starts its dialogue, one with {@code custom} posts {@link NpcInteractEvent}. Public for tests.
+     */
+    public static void talk(ServerPlayer player, Entity target) {
         if (!Dialogues.isEnabled() || Dialogues.state(player).isPresent()) {
             return;
         }

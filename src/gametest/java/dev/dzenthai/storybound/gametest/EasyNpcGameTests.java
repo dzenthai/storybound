@@ -15,6 +15,7 @@ import dev.dzenthai.storybound.module.dialogue.NpcBindings;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -65,13 +66,15 @@ public final class EasyNpcGameTests {
         with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(TALK,
                 "{ \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }"), () -> {
             bindings(helper, "{ \"entity\": { \"type\": \"easy_npc:humanoid\" }, \"dialogues\": [ { \"dialogue\": \"gametest:enpc_talk\" } ] }", () -> {
-                helper.assertTrue(interact(player, npc), "the click is taken by the dialogue, not Easy NPC's own screen");
-                expect(helper, state(player).dialogue(), TALK, "a binding by Easy NPC's entity type starts the dialogue");
+                interact(player, npc);
+                expect(helper, Dialogues.state(player), Optional.empty(), "right-click is left to Easy NPC's own screen");
+                NpcBindings.talkRequested(player, npc.getId());
+                expect(helper, state(player).dialogue(), TALK, "the talk key on a binding by Easy NPC's entity type starts the dialogue");
                 expect(helper, state(player).camera().partner(), npc.getId(), "the Easy NPC is the one the player talks to");
                 Dialogues.interrupt(player, EndReason.STOPPED);
             });
             bindings(helper, "{ \"entity\": { \"uuid\": \"" + npc.getUUID() + "\" }, \"dialogues\": [ { \"dialogue\": \"gametest:enpc_talk\" } ] }", () -> {
-                interact(player, npc);
+                NpcBindings.talkRequested(player, npc.getId());
                 expect(helper, state(player).dialogue(), TALK, "a binding by uuid selects that one Easy NPC");
                 Dialogues.interrupt(player, EndReason.STOPPED);
             });

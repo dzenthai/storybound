@@ -294,21 +294,42 @@ public final class DialogueGameTests {
                   "proximity": { "radius": 3, "cooldown": 0, "line_of_sight": false } }
                 """), () -> {
             NpcBindings.rebuild();
-            helper.assertTrue(interact(player, tagged), "the click that starts a dialogue does not also open trades");
-            expect(helper, state(player).dialogue(), TALK, "the binding started its dialogue with the NPC");
+            helper.assertTrue(NpcBindings.canTalk(player, tagged.getId()), "the talk hint shows for a bound NPC within reach");
+            helper.assertFalse(NpcBindings.canTalk(player, plain.getId()), "but not for an unbound villager");
+            helper.assertFalse(NpcBindings.canTalk(walker, tagged.getId()), "nor out of reach");
+            helper.assertFalse(interact(player, tagged), "right-click keeps trading: talking has its own key");
+            expect(helper, Dialogues.state(player), Optional.empty(), "no dialogue from a right-click by default");
+            NpcBindings.talkRequested(player, tagged.getId());
+            expect(helper, state(player).dialogue(), TALK, "the talk key started the binding's dialogue with the NPC");
+            helper.assertFalse(NpcBindings.canTalk(player, tagged.getId()), "no talk hint while already talking");
             Dialogues.interrupt(player, EndReason.STOPPED);
 
             ok(() -> StoryState.set(player, StoryScope.PLAYER, key("bindings_aside"), new StoryValue.Bool(true)));
-            interact(player, tagged);
+            NpcBindings.talkRequested(player, tagged.getId());
             expect(helper, state(player).dialogue(), ASIDE, "a higher priority entry whose conditions pass wins");
             Dialogues.interrupt(player, EndReason.STOPPED);
 
-            helper.assertFalse(interact(player, plain), "an unbound villager trades as usual");
+            NpcBindings.talkRequested(walker, tagged.getId());
+            expect(helper, Dialogues.state(walker), Optional.empty(), "the talk key does nothing out of reach");
+            NpcBindings.talkRequested(player, player.getId());
+            NpcBindings.talkRequested(player, -1);
+            expect(helper, Dialogues.state(player), Optional.empty(), "nor for oneself or an unknown entity");
+
+            NpcBindings.talkRequested(player, plain.getId());
             expect(helper, Dialogues.state(player), Optional.empty(), "no dialogue from an unbound villager");
             plain.setData(DialogueRegistries.NPC_BINDING, new NpcBinding.Attached(ASIDE, true, false));
-            interact(player, plain);
+            NpcBindings.talkRequested(player, plain.getId());
             expect(helper, state(player).dialogue(), ASIDE, "a binding stored on the entity works");
             Dialogues.interrupt(player, EndReason.STOPPED);
+
+            StoryboundConfig.COMMON.dialogueRightClickTalks.set(true);
+            try {
+                helper.assertTrue(interact(player, tagged), "with rightClickTalks, the click that starts a dialogue does not also open trades");
+                expect(helper, state(player).dialogue(), ASIDE, "and right-click starts it");
+                Dialogues.interrupt(player, EndReason.STOPPED);
+            } finally {
+                StoryboundConfig.COMMON.dialogueRightClickTalks.set(false);
+            }
 
             long now = helper.getLevel().getServer().getTickCount();
             NpcBindings.checkProximity(walker, now);

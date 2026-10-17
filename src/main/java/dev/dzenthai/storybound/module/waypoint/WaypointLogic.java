@@ -10,12 +10,14 @@ import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.ActionType;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.Optional;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
@@ -37,10 +39,12 @@ public final class WaypointLogic {
     /**
      * Adds a waypoint for the player, their party or everyone ({@code visibility}). It points at {@code pos}
      * (in {@code dimension}, by default the player's), or follows the context entity with {@code "follow": true},
-     * or marks where the context entity (else the player) stands now. The same id and visibility replaces it.
-     * {@code style} picks the client marker style.
+     * or marks the nearest {@code structure} (searched in the background near each player who sees it, within
+     * {@code search_radius} chunks, and again as they travel), or marks where the context entity (else the player) stands now. The same id and
+     * visibility replaces it. {@code style} picks the client marker style.
      */
     public record AddWaypoint(ResourceLocation id, StoryText name, Optional<Vec3> pos, Optional<ResourceKey<Level>> dimension, boolean follow,
+                              Optional<StructureRef> structure, int searchRadius,
                               int color, float radius, StoryScope visibility, ResourceLocation style) implements Action {
         public static final MapCodec<AddWaypoint> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 ResourceLocation.CODEC.fieldOf("id").forGetter(AddWaypoint::id),
@@ -48,6 +52,8 @@ public final class WaypointLogic {
                 Vec3.CODEC.optionalFieldOf("pos").forGetter(AddWaypoint::pos),
                 Level.RESOURCE_KEY_CODEC.optionalFieldOf("dimension").forGetter(AddWaypoint::dimension),
                 Codec.BOOL.optionalFieldOf("follow", false).forGetter(AddWaypoint::follow),
+                StructureRef.CODEC.optionalFieldOf("structure").forGetter(AddWaypoint::structure),
+                Codec.intRange(1, 512).optionalFieldOf("search_radius", StructureRef.DEFAULT_SEARCH_RADIUS).forGetter(AddWaypoint::searchRadius),
                 ColorCodec.CODEC.optionalFieldOf("color", WaypointDefinition.DEFAULT_COLOR).forGetter(AddWaypoint::color),
                 Codec.floatRange(0f, 1024f).optionalFieldOf("radius", 0f).forGetter(AddWaypoint::radius),
                 StoryScope.CODEC.optionalFieldOf("visibility", StoryScope.PLAYER).forGetter(AddWaypoint::visibility),
@@ -65,6 +71,17 @@ public final class WaypointLogic {
             WaypointTarget target;
             if (pos.isPresent()) {
                 target = new WaypointTarget.Fixed(pos.get(), dimension.orElse(context.player().level().dimension()));
+            } else if (structure.isPresent()) {
+                ServerLevel level = dimension.map(context.server()::getLevel).orElse((ServerLevel) anchor.level());
+                if (level == null) {
+                    throw new StoryException(Component.translatableWithFallback("storybound.waypoint.no_dimension", "No dimension %s", dimension.get().location()));
+                }
+                if (!structure.get().exists(level)) {
+                    throw new StoryException(Component.translatableWithFallback("storybound.waypoint.unknown_structure", "Unknown structure %s",
+                            structure.get().toString()));
+                }
+                // Searched in the background near each player who sees it; it shows once found (never, if none is in range).
+                target = new WaypointTarget.Structure(structure.get(), level.dimension(), searchRadius, Optional.empty());
             } else if (follow && context.entity() != null) {
                 target = new WaypointTarget.Follow(context.entity().getUUID());
             } else {

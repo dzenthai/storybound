@@ -63,6 +63,11 @@
         "uuid": { "description": "One entity, e.g. an Easy NPC.", "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }
       }
     },
+    "structure": {
+      "description": "A structure (minecraft:village_plains) or a structure #tag (#minecraft:village). Looked up when used: an unknown one never matches and is logged once.",
+      "type": "string",
+      "pattern": "^#?([a-z0-9_.-]+:)?[a-z0-9_./-]+$"
+    },
     "unlock_target": {
       "description": "player: just this player. party: every online member of their party.",
       "enum": ["player", "party"],
@@ -126,7 +131,8 @@
             "type": { "enum": ["location", "storybound:location"] },
             "dimension": { "$ref": "#/definitions/id" },
             "biome": { "$ref": "#/definitions/id_list" },
-            "area": { "$ref": "#/definitions/area" }
+            "area": { "$ref": "#/definitions/area" },
+            "structure": { "description": "The player is within such a structure (inside the box around its pieces).", "$ref": "#/definitions/structure" }
           },
           "additionalProperties": false
         },
@@ -418,7 +424,7 @@
           "additionalProperties": false
         },
         {
-          "description": "Adds a waypoint for the player, their party or everyone. It points at pos, follows the context entity (follow), or marks where the context entity, else the player, stands now. The same id and visibility replaces it.",
+          "description": "Adds a waypoint for the player, their party or everyone. It points at pos, follows the context entity (follow), marks the nearest structure (searched in the background from the context entity, else the player), or marks where the context entity, else the player, stands now. The same id and visibility replaces it.",
           "properties": {
             "type": { "enum": ["add_waypoint", "storybound:add_waypoint"] },
             "id": { "$ref": "#/definitions/id" },
@@ -426,6 +432,8 @@
             "pos": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
             "dimension": { "$ref": "#/definitions/id" },
             "follow": { "type": "boolean", "default": false },
+            "structure": { "description": "Searched near each player who sees it, and again as they travel (as a structure target without origin). The action fails at once if the server does not know the structure. Shown once found, never if none is within search_radius.", "$ref": "#/definitions/structure" },
+            "search_radius": { "description": "In chunks, as /locate.", "type": "integer", "minimum": 1, "maximum": 512, "default": 100 },
             "color": { "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
             "radius": { "type": "number", "minimum": 0, "maximum": 1024 },
             "visibility": { "$ref": "#/definitions/scope", "default": "player" },
@@ -493,6 +501,16 @@
             "fire_on_login": { "type": "boolean", "default": false }
           },
           "required": ["area"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The player comes within a structure (inside the box around its pieces); checked every 10 ticks, with the same login and reload rules as area_entered.",
+          "properties": {
+            "type": { "enum": ["structure_entered", "storybound:structure_entered"] },
+            "structure": { "$ref": "#/definitions/structure" },
+            "fire_on_login": { "type": "boolean", "default": false }
+          },
+          "required": ["structure"],
           "additionalProperties": false
         },
         {
