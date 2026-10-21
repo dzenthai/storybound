@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/dialogue_layout.schema.json",
+  "title": "Storybound dialogue layout",
+  "description": "config/storybound/dialogue_layouts/<path>.json, named like the dialogue it belongs to — where the dev mode draws the dialogue's nodes. Only the editor reads it; it changes nothing in game. Deleting the dialogue in the dev mode deletes it too.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nodes": {
+      "description": "Node id → its place on the dialogue's canvas. Nodes without a place are arranged automatically.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["x", "y"],
+        "additionalProperties": false,
+        "properties": {
+          "x": { "type": "integer" },
+          "y": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

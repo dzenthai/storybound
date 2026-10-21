@@ -1,0 +1,1041 @@
+package dev.dzenthai.storybound.client.dev;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
+import com.mojang.serialization.JsonOps;
+import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.dev.Catalog.Entry;
+import dev.dzenthai.storybound.client.dev.Schemas.Kind;
+import dev.dzenthai.storybound.client.dev.Schemas.Logic;
+import dev.dzenthai.storybound.client.dev.Schemas.Node;
+import dev.dzenthai.storybound.core.logic.LogicRegistries;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.core.Registry;
+import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.locale.Language;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.RegistryOps;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import org.jetbrains.annotations.Nullable;
+
+/**
+ * A form for a JSON object, built from its schema ({@link Schemas}): a row per field, one level at a time. Nested
+ * objects, lists and the logic ("when / if / then": triggers, conditions, actions) open in place, with breadcrumbs
+ * back. Fields get a picker by what they name: an item, a mob, a structure, a biome, a point of interest, a quest, a
+ * dialogue, a document, a boss, a Codex entry, a waypoint, a flag, a dialogue's node or speaker; positions get
+ * "here". Text boxes change the JSON as typed ({@link Host#edited}); buttons change it and save ({@link Host#changed}).
+ */
+final class FormView {
+    private static final int LABEL_H = 10;
+    private static final int CONTROL_H = 18;
+    private static final int ROW_GAP = 4;
+
+    /** What the form edits and how its changes are kept. */
+    interface Host {
+        /** The object edited now; read again on every build, as saving replaces it. */
+        JsonObject root();
+
+        /** The translation key of a text field at that path ({@code stages.hunt.}) of the object. */
+        String textKey(String path, String field);
+
+        /** A text box changed the JSON: saved later (Enter, another selection, closing). */
+        void edited();
+
+        /** A button changed the JSON: saved now. */
+        void changed();
+
+        /** Values for a field that names something inside the definition (a dialogue's nodes, its speakers); usually none. */
+        default List<String> choices(String field) {
+            return List.of();
+        }
+    }
+
+    /**
+     * A page of the form: a nested object, list or logic element.
+     *
+     * @param removable an optional field: the page offers to remove it
+     */
+    private record Frame(List<Object> path, Node schema, String label, boolean removable) {}
+
+    /** A line of text on the form: a label (cut to the width) or a line of wrapped help. */
+    private record Label(@Nullable Component text, @Nullable FormattedCharSequence line, int x, int y, int color) {
+        Label(Component text, int x, int y, int color) {
+            this(text, null, x, y, color);
+        }
+    }
+
+    private final Host host;
+    private @Nullable Node rootSchema;
+    private Set<String> hidden = Set.of();
+    private String rootLabel = "";
+    private final Deque<Frame> frames = new ArrayDeque<>();
+    private final List<Label> labels = new ArrayList<>();
+    private int scroll;
+    private int contentHeight;
+
+    // While building: where the next row goes and what is visible.
+    private DevModeScreen screen;
+    private int x;
+    private int w;
+    private int y;
+    private int top;
+    private int bottom;
+
+    FormView(Host host) {
+        this.host = host;
+    }
+
+    /** Shows another object: back to its first page. */
+    void reset(@Nullable Node schema, String label, Set<String> hiddenFields) {
+        rootSchema = schema;
+        rootLabel = label;
+        hidden = hiddenFields;
+        frames.clear();
+        scroll = 0;
+    }
+
+    void scroll(double amount) {
+        scroll = Math.max(0, scroll - (int) Math.round(amount * 24));
+    }
+
+    // --- JSON access by path, so pages survive the object being replaced by a fresh copy after saving
+
+    private @Nullable JsonElement get(List<Object> path) {
+        JsonElement current = host.root();
+        for (Object step : path) {
+            if (step instanceof String key) {
+                current = current.isJsonObject() ? current.getAsJsonObject().get(key) : null;
+            } else {
+                int index = (Integer) step;
+                current = current.isJsonArray() && index < current.getAsJsonArray().size() ? current.getAsJsonArray().get(index) : null;
+            }
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
+    }
+
+    private @Nullable JsonObject objectAt(List<Object> path) {
+        JsonElement element = get(path);
+        return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
+    }
+
+    /**
+     * The object at the path, made (with the containers above it) when missing. A step into a list keeps the list;
+     * a single object where a list is expected (one action written alone) becomes its first element.
+     */
+    JsonObject ensureObject(List<Object> path) {
+        JsonElement current = host.root();
+        for (int i = 0; i < path.size(); i++) {
+            JsonElement next = child(current, path, i);
+            boolean list = i + 1 < path.size() && path.get(i + 1) instanceof Integer;
+            if (list && next != null && next.isJsonObject()) {
+                JsonArray wrapped = new JsonArray();
+                wrapped.add(next);
+                next = wrapped;
+                put(current, path, i, next);
+            } else if (next == null || (list ? !next.isJsonArray() : !next.isJsonObject())) {
+                next = list ? new JsonArray() : new JsonObject();
+                put(current, path, i, next);
+            }
+            current = next;
+        }
+        return current.getAsJsonObject();
+    }
+
+    /** The array at the path, made when missing; a single object (one action written alone) becomes its element. */
+    private JsonArray ensureArray(List<Object> path) {
+        JsonObject parent = ensureObject(path.subList(0, path.size() - 1));
+        JsonElement value = child(parent, path, path.size() - 1);
+        if (value != null && value.isJsonArray()) {
+            return value.getAsJsonArray();
+        }
+        JsonArray array = new JsonArray();
+        if (value != null && value.isJsonObject()) {
+            array.add(value);
+        }
+        put(parent, path, path.size() - 1, array);
+        return array;
+    }
+
+    /**
+     * What holds the element at the path: the list it is an element of, or the object it is a field of, made when
+     * missing. Never the object in place of a list, so replacing one action of a list keeps the others.
+     */
+    JsonElement ensureParent(List<Object> path) {
+        List<Object> parent = path.subList(0, path.size() - 1);
+        if (parent.isEmpty()) {
+            return host.root();
+        }
+        return path.getLast() instanceof Integer ? ensureArray(parent) : ensureObject(parent);
+    }
+
+    private static @Nullable JsonElement child(JsonElement parent, List<Object> path, int i) {
+        Object step = path.get(i);
+        if (step instanceof String key) {
+            return parent.isJsonObject() ? parent.getAsJsonObject().get(key) : null;
+        }
+        int index = (Integer) step;
+        return parent.isJsonArray() && index < parent.getAsJsonArray().size() ? parent.getAsJsonArray().get(index) : null;
+    }
+
+    private static void put(JsonElement parent, List<Object> path, int i, JsonElement value) {
+        Object step = path.get(i);
+        if (step instanceof String key) {
+            parent.getAsJsonObject().add(key, value);
+        } else if ((Integer) step < parent.getAsJsonArray().size()) {
+            parent.getAsJsonArray().set((Integer) step, value);
+        } else {
+            parent.getAsJsonArray().add(value);
+        }
+    }
+
+    private static List<Object> with(List<Object> path, Object step) {
+        List<Object> longer = new ArrayList<>(path);
+        longer.add(step);
+        return List.copyOf(longer);
+    }
+
+    /** {@code stages.hunt.objectives.wolves.}: list elements by their id when they have one, for stable text keys. */
+    private String keyPath(List<Object> path) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < path.size(); i++) {
+            Object step = path.get(i);
+            if (step instanceof Integer index) {
+                JsonObject element = objectAt(path.subList(0, i + 1));
+                out.append(element != null && element.has("id") && element.get("id").isJsonPrimitive() ? element.get("id").getAsString() : index);
+            } else {
+                out.append(step);
+            }
+            out.append('.');
+        }
+        return out.toString();
+    }
+
+    /** Pages whose list element was removed meanwhile close. */
+    private void dropUnreachable() {
+        while (!frames.isEmpty()) {
+            List<Object> path = frames.peek().path();
+            boolean reachable = true;
+            for (int i = 0; i < path.size() && reachable; i++) {
+                if (path.get(i) instanceof Integer) {
+                    reachable = get(path.subList(0, i + 1)) != null;
+                }
+            }
+            if (reachable) {
+                return;
+            }
+            frames.pop();
+        }
+    }
+
+    // --- building
+
+    void addWidgets(DevModeScreen screen, int x, int top, int width, int bottom) {
+        this.screen = screen;
+        this.x = x;
+        this.w = width;
+        labels.clear();
+        if (rootSchema == null) {
+            return;
+        }
+        dropUnreachable();
+        int y0 = top;
+        if (!frames.isEmpty()) {
+            Frame frame = frames.peek();
+            screen.add(Button.builder(Component.literal("◂"), b -> {
+                frames.pop();
+                scroll = 0;
+                screen.rebuild();
+            }).tooltip(Tooltip.create(DevUi.text("form.back"))).bounds(x, y0, 16, 14).build());
+            if (frame.removable()) {
+                screen.add(Button.builder(Component.literal("✕"), b -> remove(frame))
+                        .tooltip(Tooltip.create(DevUi.text("form.remove_field"))).bounds(x + width - 16, y0, 16, 14).build());
+            }
+            labels.add(new Label(Component.literal(crumbs(screen.font(), width - 40)), x + 20, y0 + 3, DevUi.MUTED));
+            y0 += 18;
+        }
+        this.top = y0;
+        this.bottom = bottom;
+        scroll = Math.max(0, Math.min(scroll, contentHeight - (bottom - y0)));
+        this.y = y0 - scroll;
+        if (frames.isEmpty()) {
+            objectPage(List.of(), rootSchema, hidden, null);
+        } else {
+            Frame frame = frames.peek();
+            page(frame.path(), frame.schema());
+        }
+        contentHeight = y + scroll - y0;
+        if (contentHeight > bottom - y0) {
+            labels.add(new Label(Component.literal(scroll > 0 ? "▲" : " ").append(contentHeight - scroll > bottom - y0 ? " ▼" : ""),
+                    x + width - 18, bottom - 9, DevUi.MUTED));
+        }
+    }
+
+    private String crumbs(Font font, int width) {
+        StringBuilder out = new StringBuilder(rootLabel);
+        List<Frame> list = new ArrayList<>(frames);
+        for (int i = list.size() - 1; i >= 0; i--) {
+            out.append(" › ").append(list.get(i).label());
+        }
+        String text = out.toString();
+        // The deepest part matters most: cut from the left.
+        while (font.width(text) > width && text.length() > 4) {
+            text = "…" + text.substring(2);
+        }
+        return text;
+    }
+
+    private void push(List<Object> path, Node schema, String label, boolean removable) {
+        frames.push(new Frame(path, schema, label, removable));
+        scroll = 0;
+        screen.rebuild();
+    }
+
+    private void remove(Frame frame) {
+        List<Object> path = frame.path();
+        JsonElement parent = get(path.subList(0, path.size() - 1));
+        if (parent != null && parent.isJsonObject() && path.getLast() instanceof String key) {
+            parent.getAsJsonObject().remove(key);
+        }
+        frames.pop();
+        scroll = 0;
+        host.changed();
+    }
+
+    private void page(List<Object> path, Node schema) {
+        switch (Schemas.kind(schema)) {
+            case CONDITIONS -> listPage(path, Schemas.logic("condition"));
+            case ACTIONS -> listPage(path, Schemas.logic("action"));
+            case LIST -> listPage(path, Schemas.items(schema));
+            case MAP -> mapPage(path, Schemas.values(schema));
+            case TRIGGER -> logicPage(path, Logic.TRIGGER);
+            case CONDITION -> logicPage(path, Logic.CONDITION);
+            case ACTION -> logicPage(path, Logic.ACTION);
+            case VARIANTS -> variantsPage(path, schema);
+            default -> objectPage(path, schema, Set.of(), null);
+        }
+    }
+
+    /** Is the next row of that height inside the visible part? Moves past it either way. */
+    private boolean row(int height) {
+        boolean visible = y >= top && y + height <= bottom;
+        y += height + ROW_GAP;
+        return visible;
+    }
+
+    private int rowY(int height) {
+        return y - height - ROW_GAP;
+    }
+
+    private void text(Component text, int color) {
+        for (FormattedCharSequence line : screen.font().split(text, w)) {
+            if (y >= top && y + LABEL_H <= bottom) {
+                labels.add(new Label(null, line, x, y, color));
+            }
+            y += LABEL_H;
+        }
+        y += 2;
+    }
+
+    private void objectPage(List<Object> path, Node schema, Set<String> skip, @Nullable String typeField) {
+        Set<String> required = Schemas.required(schema);
+        for (Map.Entry<String, Node> property : Schemas.properties(schema).entrySet()) {
+            String name = property.getKey();
+            if (skip.contains(name) || name.equals(typeField)) {
+                continue;
+            }
+            field(path, name, property.getValue(), required.contains(name), schema);
+        }
+    }
+
+    private void field(List<Object> path, String name, Node node, boolean required, Node owner) {
+        Kind kind = Schemas.kind(node);
+        JsonObject object = objectAt(path);
+        JsonElement value = object != null ? object.get(name) : null;
+        Component label = fieldLabel(name, required);
+        Tooltip tooltip = node.description().isEmpty() && Schemas.resolve(node).description().isEmpty() ? null
+                : Tooltip.create(Component.literal(!node.description().isEmpty() ? node.description() : Schemas.resolve(node).description()));
+        switch (kind) {
+            case TEXT -> textField(path, name, label, tooltip);
+            case ENUM -> enumField(path, name, node, required, value, label, tooltip);
+            case BOOLEAN -> booleanField(path, name, node, value, label, tooltip);
+            case ID, ID_LIST, STRING, INTEGER, NUMBER, LITERAL, POSITION, RAW -> inputField(path, name, node, kind, value, label, tooltip, owner);
+            default -> {
+                if (row(CONTROL_H)) {
+                    Component summary = Component.empty().append(label).append(": ").append(summary(kind, node, value)).append(" ▸");
+                    Button button = Button.builder(summary, b -> push(with(path, name), node, fieldLabel(name, false).getString(), !required))
+                            .bounds(x, rowY(CONTROL_H), w, CONTROL_H).build();
+                    if (tooltip != null) {
+                        button.setTooltip(tooltip);
+                    }
+                    screen.add(button);
+                }
+            }
+        }
+    }
+
+    private void labelRow(Component label) {
+        labels.add(new Label(label, x, rowY(LABEL_H + CONTROL_H), DevUi.LABEL));
+    }
+
+    private void textField(List<Object> path, String name, Component label, @Nullable Tooltip tooltip) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        JsonObject object = objectAt(path);
+        EditBox box = new EditBox(screen.font(), x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H - 2, label);
+        box.setMaxLength(1024);
+        box.setValue(object != null ? ClientDevStore.readStoryText(object, name, "", ClientDevStore.activeLanguage()) : "");
+        if (!ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage()) && object != null) {
+            box.setHint(Component.literal(ClientDevStore.readStoryText(object, name, "", ClientDevStore.sourceLanguage())));
+        }
+        String key = host.textKey(keyPath(path), name);
+        box.setResponder(value -> {
+            JsonObject owner = ensureObject(path);
+            if (value.isEmpty() && !owner.has(name)) {
+                return;
+            }
+            String existing = ClientDevStore.getKey(owner, name);
+            ClientDevStore.writeStoryText(owner, name, value, existing != null && !existing.isBlank() ? existing : key);
+            host.edited();
+        });
+        if (tooltip != null) {
+            box.setTooltip(tooltip);
+        }
+        screen.add(box);
+    }
+
+    private void enumField(List<Object> path, String name, Node node, boolean required, @Nullable JsonElement value, Component label, @Nullable Tooltip tooltip) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        List<String> values = new ArrayList<>(Schemas.enumValues(node));
+        if (!required) {
+            values.addFirst("");
+        }
+        String current = value != null && value.isJsonPrimitive() ? value.getAsString() : "";
+        JsonElement fallback = node.defaultValue() != null ? node.defaultValue() : Schemas.resolve(node).defaultValue();
+        Component shown = current.isEmpty()
+                ? DevUi.text("form.unset", fallback != null ? valueLabel(fallback.getAsString()) : DevUi.text("none"))
+                : valueLabel(current);
+        String byDefault = fallback != null && fallback.isJsonPrimitive() ? fallback.getAsString() : null;
+        Button button = Button.builder(shown, b -> {
+            String next = nextChoice(values, current, byDefault);
+            JsonObject owner = ensureObject(path);
+            if (next.isEmpty()) {
+                owner.remove(name);
+            } else {
+                owner.addProperty(name, next);
+            }
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        if (tooltip != null) {
+            button.setTooltip(tooltip);
+        }
+        screen.add(button);
+    }
+
+    /**
+     * The choice after the current one. Unset counts as its default: the server saves definitions in canonical form,
+     * which leaves a default value out, so writing the default would come back unset and the button would never get
+     * past it (a dialogue's presentation stuck on "screen").
+     *
+     * @param values  the choices, "" (unset) first when the field is optional
+     * @param current the value written, "" when unset
+     */
+    static String nextChoice(List<String> values, String current, @Nullable String byDefault) {
+        String effective = current.isEmpty() && byDefault != null && values.contains(byDefault) ? byDefault : current;
+        return values.get((values.indexOf(effective) + 1) % values.size());
+    }
+
+    private void booleanField(List<Object> path, String name, Node node, @Nullable JsonElement value, Component label, @Nullable Tooltip tooltip) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        JsonElement fallback = node.defaultValue();
+        boolean byDefault = fallback != null && fallback.isJsonPrimitive() && fallback.getAsBoolean();
+        boolean current = value != null && value.isJsonPrimitive() ? value.getAsBoolean() : byDefault;
+        Component shown = value == null ? DevUi.text("form.unset", DevUi.yesNo(byDefault)) : Component.literal(DevUi.yesNo(current));
+        Button button = Button.builder(shown, b -> {
+            ensureObject(path).addProperty(name, !current);
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        if (tooltip != null) {
+            button.setTooltip(tooltip);
+        }
+        screen.add(button);
+    }
+
+    private void inputField(List<Object> path, String name, Node node, Kind kind, @Nullable JsonElement value, Component label,
+                            @Nullable Tooltip tooltip, Node owner) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        int rowY = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        Picker picker = kind == Kind.ID || kind == Kind.ID_LIST || kind == Kind.STRING ? picker(name, owner) : null;
+        boolean here = kind == Kind.POSITION;
+        int boxW = w - (picker != null || here ? 20 : 0);
+        EditBox box = new EditBox(screen.font(), x, rowY, boxW, CONTROL_H - 2, label);
+        box.setMaxLength(4096);
+        box.setValue(display(kind, value));
+        JsonElement fallback = node.defaultValue() != null ? node.defaultValue() : Schemas.resolve(node).defaultValue();
+        if (fallback != null) {
+            box.setHint(Component.literal(display(kind, fallback)).withStyle(style -> style.withColor(0xFF6B7380)));
+        }
+        box.setResponder(text -> {
+            JsonObject target = ensureObject(path);
+            if (text.isBlank()) {
+                target.remove(name);
+                box.setTextColor(0xFFE0E0E0);
+                host.edited();
+                return;
+            }
+            JsonElement parsed = parse(kind, text);
+            box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
+            if (parsed != null) {
+                target.add(name, parsed);
+                host.edited();
+            }
+        });
+        if (tooltip != null) {
+            box.setTooltip(tooltip);
+        }
+        screen.add(box);
+        if (picker != null) {
+            screen.add(Button.builder(Component.literal("…"), b -> pick(picker, entry -> {
+                JsonObject target = ensureObject(path);
+                if (kind == Kind.ID_LIST && target.has(name) && !display(kind, target.get(name)).isBlank()) {
+                    target.add(name, parse(Kind.ID_LIST, display(kind, target.get(name)) + ", " + entry.id()));
+                } else {
+                    target.addProperty(name, entry.id());
+                }
+                if (entry.held()) {
+                    held(target, owner, entry.icon());
+                }
+                host.changed();
+            })).tooltip(Tooltip.create(DevUi.text("form.pick"))).bounds(x + w - 18, rowY - 1, 18, CONTROL_H).build());
+        } else if (here) {
+            screen.add(Button.builder(Component.literal("📍"), b -> {
+                Player player = Minecraft.getInstance().player;
+                if (player != null) {
+                    Node items = Schemas.items(node);
+                    boolean whole = items != null && "integer".equals(Schemas.resolve(items).json().has("type") ? Schemas.resolve(items).json().get("type").getAsString() : "");
+                    JsonArray pos = new JsonArray();
+                    for (double coordinate : new double[]{player.getX(), player.getY(), player.getZ()}) {
+                        pos.add(whole ? (Number) Math.round(coordinate) : (Number) (Math.round(coordinate * 10) / 10.0));
+                    }
+                    ensureObject(path).add(name, pos);
+                    host.changed();
+                }
+            }).tooltip(Tooltip.create(DevUi.text("form.here"))).bounds(x + w - 18, rowY - 1, 18, CONTROL_H).build());
+        }
+    }
+
+    /** The held stack's count and components go to the fields next to the item, when the object has them. */
+    private static void held(JsonObject target, Node owner, ItemStack stack) {
+        Map<String, Node> properties = Schemas.properties(owner);
+        if (properties.containsKey("count")) {
+            target.addProperty("count", stack.getCount());
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        DataComponentPatch patch = stack.getComponentsPatch();
+        if (properties.containsKey("components") && !patch.isEmpty() && minecraft.level != null) {
+            DataComponentPatch.CODEC.encodeStart(RegistryOps.create(JsonOps.INSTANCE, minecraft.level.registryAccess()), patch).result()
+                    .filter(element -> element.isJsonObject() && !element.getAsJsonObject().isEmpty())
+                    .ifPresent(element -> target.add("components", element));
+        }
+    }
+
+    private static String display(Kind kind, @Nullable JsonElement value) {
+        if (value == null || value.isJsonNull()) {
+            return "";
+        }
+        if (value.isJsonArray() && (kind == Kind.ID_LIST || kind == Kind.POSITION)) {
+            List<String> parts = new ArrayList<>();
+            value.getAsJsonArray().forEach(element -> parts.add(element.isJsonPrimitive() ? element.getAsString() : element.toString()));
+            return String.join(kind == Kind.POSITION ? " " : ", ", parts);
+        }
+        return value.isJsonPrimitive() ? value.getAsString() : value.toString();
+    }
+
+    /** @return the value, or null when the text is not one (the box turns red) */
+    static @Nullable JsonElement parse(Kind kind, String text) {
+        String trimmed = text.trim();
+        try {
+            return switch (kind) {
+                case INTEGER -> new JsonPrimitive(Long.parseLong(trimmed));
+                case NUMBER -> new JsonPrimitive(Double.parseDouble(trimmed));
+                case LITERAL -> trimmed.equals("true") || trimmed.equals("false") ? new JsonPrimitive(Boolean.parseBoolean(trimmed))
+                        : trimmed.matches("-?\\d+") ? new JsonPrimitive(Long.parseLong(trimmed)) : new JsonPrimitive(text);
+                case ID_LIST -> {
+                    List<String> ids = new ArrayList<>();
+                    for (String part : trimmed.split(",")) {
+                        if (!part.isBlank()) {
+                            ids.add(part.trim());
+                        }
+                    }
+                    if (ids.size() == 1) {
+                        yield new JsonPrimitive(ids.getFirst());
+                    }
+                    JsonArray array = new JsonArray();
+                    ids.forEach(array::add);
+                    yield array;
+                }
+                case POSITION -> {
+                    String[] parts = trimmed.split("[\\s,]+");
+                    if (parts.length != 3) {
+                        yield null;
+                    }
+                    JsonArray array = new JsonArray();
+                    for (String part : parts) {
+                        double number = Double.parseDouble(part);
+                        array.add(number == Math.rint(number) ? (Number) (long) number : (Number) number);
+                    }
+                    yield array;
+                }
+                // Anything that is not JSON is taken as text, so "minecraft:wolf" needs no quotes.
+                case RAW -> {
+                    try {
+                        yield JsonParser.parseString(trimmed);
+                    } catch (JsonParseException e) {
+                        yield new JsonPrimitive(text);
+                    }
+                }
+                default -> new JsonPrimitive(text);
+            };
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    // --- nested pages
+
+    private void listPage(List<Object> path, @Nullable Node items) {
+        if (items == null) {
+            return;
+        }
+        JsonElement value = get(path);
+        JsonArray array = value != null && value.isJsonArray() ? value.getAsJsonArray() : new JsonArray();
+        if (value != null && value.isJsonObject()) {
+            array.add(value);
+        }
+        Kind itemKind = Schemas.kind(items);
+        // Values, not objects: edited in the row itself (RAW: an id or an object, as JSON or plain text).
+        boolean primitive = switch (itemKind) {
+            case ID, STRING, ID_LIST, INTEGER, NUMBER, LITERAL, RAW -> true;
+            default -> false;
+        };
+        String field = path.getLast() instanceof String name ? name : "";
+        Picker picker = primitive ? picker(field.equals("waypoints") ? "waypoint" : field, items) : null;
+        for (int i = 0; i < array.size(); i++) {
+            int index = i;
+            if (!row(CONTROL_H)) {
+                continue;
+            }
+            int rowY = rowY(CONTROL_H);
+            int buttonsW = (i > 0 ? 18 : 0) + 18;
+            if (primitive) {
+                EditBox box = new EditBox(screen.font(), x, rowY + 1, w - buttonsW - 2, CONTROL_H - 2, Component.empty());
+                box.setMaxLength(512);
+                box.setValue(display(itemKind, array.get(i)));
+                box.setResponder(text -> {
+                    JsonArray list = ensureArray(path);
+                    JsonElement parsed = parse(itemKind, text);
+                    box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
+                    if (index < list.size() && parsed != null) {
+                        list.set(index, parsed);
+                        host.edited();
+                    }
+                });
+                screen.add(box);
+            } else {
+                Component summary = Component.literal(itemSummary(array.get(i), items, i) + " ▸");
+                screen.add(Button.builder(summary, b -> push(with(path, index), items, itemSummary(array.get(index), items, index), false))
+                        .bounds(x, rowY, w - buttonsW - 2, CONTROL_H).build());
+            }
+            if (i > 0) {
+                screen.add(Button.builder(Component.literal("↑"), b -> {
+                    JsonArray list = ensureArray(path);
+                    JsonElement moved = list.get(index);
+                    list.set(index, list.get(index - 1));
+                    list.set(index - 1, moved);
+                    host.changed();
+                }).tooltip(Tooltip.create(DevUi.text("form.move_up"))).bounds(x + w - 36, rowY, 18, CONTROL_H).build());
+            }
+            screen.add(Button.builder(Component.literal("✕"), b -> {
+                ensureArray(path).remove(index);
+                host.changed();
+            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowY, 18, CONTROL_H).build());
+        }
+        if (array.isEmpty() && row(LABEL_H)) {
+            labels.add(new Label(DevUi.text("form.empty"), x, rowY(LABEL_H), 0xFF78909C));
+        }
+        if (!row(CONTROL_H)) {
+            return;
+        }
+        Logic logic = switch (itemKind) {
+            case CONDITION -> Logic.CONDITION;
+            case ACTION -> Logic.ACTION;
+            case TRIGGER -> Logic.TRIGGER;
+            default -> null;
+        };
+        screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> {
+            if (logic != null) {
+                pickType(logic, type -> {
+                    JsonObject element = new JsonObject();
+                    element.addProperty("type", type);
+                    ensureArray(path).add(element);
+                    frames.push(new Frame(with(path, ensureArray(path).size() - 1), items, typeName(logic, type), false));
+                    scroll = 0;
+                    host.changed();
+                });
+            } else if (picker != null) {
+                pick(picker, entry -> {
+                    ensureArray(path).add(entry.id());
+                    host.changed();
+                });
+            } else if (primitive) {
+                ensureArray(path).add("");
+                host.changed();
+            } else {
+                JsonArray list = ensureArray(path);
+                JsonObject element = itemKind == Kind.OBJECT ? Schemas.skeleton(items) : new JsonObject();
+                if (Schemas.required(items).contains("id") && !element.has("id")) {
+                    element.addProperty("id", freeId(list, field));
+                }
+                list.add(element);
+                frames.push(new Frame(with(path, list.size() - 1), items, itemSummary(element, items, list.size() - 1), false));
+                scroll = 0;
+                host.changed();
+            }
+        }).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build());
+    }
+
+    /** {@code stage_2} for the second stage, never one the list already has. */
+    private static String freeId(JsonArray list, String field) {
+        String base = field.endsWith("s") ? field.substring(0, field.length() - 1) : field.isEmpty() ? "item" : field;
+        Set<String> taken = new java.util.HashSet<>();
+        list.forEach(element -> {
+            if (element.isJsonObject() && element.getAsJsonObject().has("id")) {
+                taken.add(element.getAsJsonObject().get("id").getAsString());
+            }
+        });
+        int number = list.size() + 1;
+        while (taken.contains(base + "_" + number)) {
+            number++;
+        }
+        return base + "_" + number;
+    }
+
+    private void mapPage(List<Object> path, @Nullable Node values) {
+        if (values == null) {
+            return;
+        }
+        JsonObject map = objectAt(path);
+        if (map != null) {
+            for (String key : List.copyOf(map.keySet())) {
+                if (!row(CONTROL_H)) {
+                    continue;
+                }
+                int rowY = rowY(CONTROL_H);
+                screen.add(Button.builder(Component.literal(key + " ▸"), b -> push(with(path, key), values, key, false))
+                        .bounds(x, rowY, w - 20, CONTROL_H).build());
+                screen.add(Button.builder(Component.literal("✕"), b -> {
+                    ensureObject(path).remove(key);
+                    host.changed();
+                }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowY, 18, CONTROL_H).build());
+            }
+        }
+        if (!row(CONTROL_H)) {
+            return;
+        }
+        int rowY = rowY(CONTROL_H);
+        EditBox name = new EditBox(screen.font(), x, rowY + 1, w - 20, CONTROL_H - 2, DevUi.text("form.new_name"));
+        name.setHint(DevUi.text("form.new_name"));
+        name.setMaxLength(64);
+        screen.add(name);
+        screen.add(Button.builder(Component.literal("+"), b -> {
+            String key = name.getValue().trim();
+            if (!key.isEmpty() && (map == null || !map.has(key))) {
+                ensureObject(path).add(key, Schemas.kind(values) == Kind.OBJECT ? Schemas.skeleton(values) : new JsonObject());
+                frames.push(new Frame(with(path, key), values, key, false));
+                scroll = 0;
+                host.changed();
+            }
+        }).tooltip(Tooltip.create(DevUi.text("form.add"))).bounds(x + w - 18, rowY, 18, CONTROL_H).build());
+    }
+
+    /** A trigger, condition or action: its type (picked from a list), what the type does, then its fields. */
+    private void logicPage(List<Object> path, Logic logic) {
+        Node node = Schemas.logic(logic.name);
+        JsonObject object = objectAt(path);
+        String type = object != null && object.has("type") && object.get("type").isJsonPrimitive() ? object.get("type").getAsString() : null;
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("form.type"));
+            screen.add(Button.builder(type != null ? Component.literal(typeName(logic, type)) : DevUi.text("form.pick_type"), b -> pickType(logic, picked -> {
+                JsonObject element = new JsonObject();
+                element.addProperty("type", picked);
+                put(ensureParent(path), path, path.size() - 1, element);
+                host.changed();
+            })).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
+        }
+        if (type == null || node == null) {
+            return;
+        }
+        Node variant = Schemas.typed(node, type);
+        if (variant == null) {
+            // Another mod's type: no schema, so its fields are edited as JSON.
+            text(DevUi.text("form.no_schema"), DevUi.MUTED);
+            JsonObject rest = object.deepCopy();
+            rest.remove("type");
+            if (row(CONTROL_H)) {
+                EditBox box = new EditBox(screen.font(), x, rowY(CONTROL_H), w, CONTROL_H - 2, Component.empty());
+                box.setMaxLength(8192);
+                box.setValue(rest.toString());
+                box.setResponder(text -> {
+                    try {
+                        JsonObject fields = JsonParser.parseString(text).getAsJsonObject();
+                        JsonObject element = new JsonObject();
+                        element.addProperty("type", type);
+                        fields.entrySet().forEach(entry -> element.add(entry.getKey(), entry.getValue()));
+                        put(ensureParent(path), path, path.size() - 1, element);
+                        box.setTextColor(0xFFE0E0E0);
+                        host.edited();
+                    } catch (RuntimeException e) {
+                        box.setTextColor(DevUi.ERROR);
+                    }
+                });
+                screen.add(box);
+            }
+            return;
+        }
+        String help = typeHelp(logic, type, variant);
+        if (!help.isEmpty()) {
+            text(Component.literal(help), DevUi.MUTED);
+        }
+        objectPage(path, variant, Set.of(), "type");
+    }
+
+    /** One of several shapes (a waypoint's target: a point, an entity, a structure, the nearest mob). */
+    private void variantsPage(List<Object> path, Node schema) {
+        List<Node> variants = Schemas.variants(schema);
+        if (variants.isEmpty()) {
+            return;
+        }
+        int current = Schemas.variantOf(schema, get(path));
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("form.variant"));
+            screen.add(Button.builder(variantLabel(variants.get(current)), b -> {
+                Node next = variants.get((current + 1) % variants.size());
+                put(ensureParent(path), path, path.size() - 1, Schemas.skeleton(next));
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
+        }
+        objectPage(path, variants.get(current), Set.of(), null);
+    }
+
+    private static Component variantLabel(Node variant) {
+        Set<String> required = Schemas.required(variant);
+        return required.isEmpty() ? Component.literal("?") : fieldLabel(required.iterator().next(), false);
+    }
+
+    // --- type and value names
+
+    private void pickType(Logic logic, Consumer<String> picked) {
+        List<Entry> entries = new ArrayList<>();
+        for (String type : Schemas.logicTypes(logic)) {
+            entries.add(new Entry(type, typeName(logic, type), new ItemStack(icon(logic))));
+        }
+        Registry<?> registry = switch (logic) {
+            case CONDITION -> LogicRegistries.CONDITION_TYPES;
+            case ACTION -> LogicRegistries.ACTION_TYPES;
+            case TRIGGER -> LogicRegistries.TRIGGER_TYPES;
+        };
+        // Types other mods and addons registered; they have no schema here, so their fields are JSON.
+        registry.keySet().stream().filter(id -> !id.getNamespace().equals(Storybound.MOD_ID)).sorted().forEach(id ->
+                entries.add(new Entry(id.toString(), typeName(logic, id.toString()), new ItemStack(Items.COMMAND_BLOCK))));
+        screen.catalog().openList(DevUi.text("form.pick_type." + logic.name), entries, (kind, entry) -> picked.accept(entry.id()));
+        screen.rebuild();
+    }
+
+    private static net.minecraft.world.item.Item icon(Logic logic) {
+        return switch (logic) {
+            case CONDITION -> Items.COMPARATOR;
+            case ACTION -> Items.REDSTONE_TORCH;
+            case TRIGGER -> Items.TRIPWIRE_HOOK;
+        };
+    }
+
+    static String typeName(Logic logic, String type) {
+        String shortType = DevUi.shortId(type);
+        String key = "storybound.dev.type." + logic.name + "." + shortType;
+        if (Language.getInstance().has(key)) {
+            return Component.translatable(key).getString();
+        }
+        ResourceLocation id = ResourceLocation.tryParse(type);
+        return id != null && !id.getNamespace().equals(Storybound.MOD_ID) && type.contains(":")
+                ? DevUi.humanize(id.getPath()) + " (" + id.getNamespace() + ")" : DevUi.humanize(shortType);
+    }
+
+    private static String typeHelp(Logic logic, String type, Node variant) {
+        String key = "storybound.dev.help." + logic.name + "." + DevUi.shortId(type);
+        return Language.getInstance().has(key) ? Component.translatable(key).getString() : variant.description();
+    }
+
+    static Component fieldLabel(String name, boolean required) {
+        String key = "storybound.dev.field." + name;
+        Component label = Language.getInstance().has(key) ? Component.translatable(key) : Component.literal(DevUi.humanize(name));
+        return required ? Component.empty().append(label).append(" *") : label;
+    }
+
+    private static Component valueLabel(String value) {
+        String key = "storybound.dev.value." + value;
+        return Language.getInstance().has(key) ? Component.translatable(key) : Component.literal(value);
+    }
+
+    private Component summary(Kind kind, Node node, @Nullable JsonElement value) {
+        int count = value == null ? 0 : value.isJsonArray() ? value.getAsJsonArray().size() : value.isJsonObject() ? 1 : 0;
+        return switch (kind) {
+            case CONDITIONS, ACTIONS, LIST -> count == 0 ? Component.literal("—") : Component.literal(String.valueOf(count));
+            case MAP -> Component.literal(value != null && value.isJsonObject() ? String.valueOf(value.getAsJsonObject().size()) : "—");
+            case TRIGGER, CONDITION, ACTION -> {
+                Logic logic = kind == Kind.TRIGGER ? Logic.TRIGGER : kind == Kind.CONDITION ? Logic.CONDITION : Logic.ACTION;
+                yield value != null && value.isJsonObject() && value.getAsJsonObject().has("type")
+                        ? Component.literal(typeName(logic, value.getAsJsonObject().get("type").getAsString())) : Component.literal("—");
+            }
+            case VARIANTS -> value != null ? variantLabel(Schemas.variants(node).get(Schemas.variantOf(node, value))) : Component.literal("—");
+            default -> value != null && value.isJsonObject() && !value.getAsJsonObject().isEmpty()
+                    ? Component.literal(String.valueOf(value.getAsJsonObject().size())) : Component.literal("—");
+        };
+    }
+
+    /** A list element in one line: a logic element by its type and main value, an object by its id or text. */
+    private static String itemSummary(JsonElement element, Node items, int index) {
+        Kind kind = Schemas.kind(items);
+        if (element.isJsonPrimitive()) {
+            return element.getAsString();
+        }
+        if (!element.isJsonObject()) {
+            return "#" + (index + 1);
+        }
+        JsonObject object = element.getAsJsonObject();
+        if ((kind == Kind.CONDITION || kind == Kind.ACTION || kind == Kind.TRIGGER) && object.has("type")) {
+            Logic logic = kind == Kind.CONDITION ? Logic.CONDITION : kind == Kind.ACTION ? Logic.ACTION : Logic.TRIGGER;
+            String main = mainValue(object);
+            return typeName(logic, object.get("type").getAsString()) + (main.isEmpty() ? "" : ": " + main);
+        }
+        if (object.has("id") && object.get("id").isJsonPrimitive()) {
+            return object.get("id").getAsString();
+        }
+        if (object.has("text")) {
+            String text = ClientDevStore.readStoryText(object, "text", "");
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        String main = mainValue(object);
+        return main.isEmpty() ? "#" + (index + 1) : main;
+    }
+
+    private static String mainValue(JsonObject object) {
+        for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+            if (!entry.getKey().equals("type") && entry.getValue().isJsonPrimitive()) {
+                return entry.getValue().getAsString();
+            }
+        }
+        return "";
+    }
+
+    // --- pickers
+
+    /** What a field can be picked from. */
+    private record Picker(@Nullable Catalog.Kind kind, @Nullable ResourceLocation storyType, List<String> choices, Component title) {}
+
+    private @Nullable Picker picker(String field, Node owner) {
+        Catalog.Kind kind = switch (field) {
+            case "item" -> Catalog.Kind.ITEM;
+            case "entity" -> Catalog.Kind.MOB;
+            case "biome" -> Catalog.Kind.BIOME;
+            case "structure" -> Catalog.Kind.STRUCTURE;
+            case "poi" -> Catalog.Kind.POI;
+            case "type" -> "entity_selector".equals(Schemas.resolve(owner).ref()) ? Catalog.Kind.MOB : null;
+            default -> null;
+        };
+        if (kind != null) {
+            return new Picker(kind, null, List.of(), DevUi.text("form.pick_title." + kind.name().toLowerCase(java.util.Locale.ROOT)));
+        }
+        ResourceLocation story = switch (field) {
+            case "quest" -> ClientDevStore.TYPE_QUEST;
+            case "dialogue" -> ClientDevStore.TYPE_DIALOGUE;
+            case "document" -> ClientDevStore.TYPE_DOCUMENT;
+            case "boss" -> ClientDevStore.TYPE_BOSS;
+            case "entry" -> ClientDevStore.TYPE_CODEX;
+            case "waypoint" -> ClientDevStore.TYPE_WAYPOINT;
+            case "key" -> ClientDevStore.TYPE_FLAG;
+            default -> null;
+        };
+        if (story != null) {
+            return new Picker(null, story, List.of(), DevUi.text("form.pick_title.story", fieldLabel(field.equals("key") ? "flag" : field, false)));
+        }
+        List<String> choices = host.choices(field);
+        return choices.isEmpty() ? null : new Picker(null, null, choices, fieldLabel(field, false));
+    }
+
+    private void pick(Picker picker, Consumer<Entry> picked) {
+        if (picker.kind() != null) {
+            screen.catalog().open(picker.title(), picker.kind(), (kind, entry) -> picked.accept(entry));
+        } else {
+            List<Entry> entries = new ArrayList<>();
+            if (picker.storyType() != null) {
+                ClientDevStore.byType(picker.storyType()).forEach((id, raw) -> {
+                    JsonObject json = ClientDevStore.parseObject(raw);
+                    String title = json.has("title") ? ClientDevStore.readStoryText(json, "title", id.getPath())
+                            : json.has("name") ? ClientDevStore.readStoryText(json, "name", id.getPath()) : id.getPath();
+                    entries.add(new Entry(id.toString(), title, new ItemStack(Items.WRITABLE_BOOK)));
+                });
+            } else {
+                picker.choices().forEach(choice -> entries.add(new Entry(choice, choice, new ItemStack(Items.PAPER))));
+            }
+            screen.catalog().openList(picker.title(), entries, (kind, entry) -> picked.accept(entry));
+        }
+        screen.rebuild();
+    }
+
+    // --- drawing
+
+    void render(GuiGraphics graphics, Font font) {
+        for (Label label : labels) {
+            if (label.line() != null) {
+                graphics.drawString(font, label.line(), label.x(), label.y(), label.color(), false);
+            } else if (label.text() != null) {
+                graphics.drawString(font, font.plainSubstrByWidth(label.text().getString(), w), label.x(), label.y(), label.color(), false);
+            }
+        }
+    }
+}

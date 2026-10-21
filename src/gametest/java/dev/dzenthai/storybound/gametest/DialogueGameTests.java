@@ -12,6 +12,7 @@ import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
+import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryEvent;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.state.StoryScope;
@@ -20,6 +21,7 @@ import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.WorldStoryData;
 import dev.dzenthai.storybound.module.dialogue.CameraCue;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition;
+import dev.dzenthai.storybound.module.dialogue.DialogueLogic;
 import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.dialogue.NpcBinding;
@@ -32,12 +34,17 @@ import java.util.Optional;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.entity.npc.WanderingTrader;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
@@ -349,6 +356,76 @@ public final class DialogueGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void overrideInteractTalksOnRightClick(GameTestHelper helper) {
+        Villager smith = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
+        smith.addTag("gametest_smith");
+        Villager closed = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 1);
+        closed.addTag("gametest_closed");
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 2, 2, 2);
+        withDialogues(helper, "override", true, () -> with(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(
+                key("smith"), """
+                        { "entity": { "type": "minecraft:villager", "tag": "gametest_smith" },
+                          "dialogues": [ { "dialogue": "gametest:talk" } ], "override_interact": true }
+                        """,
+                key("closed"), """
+                        { "entity": { "type": "minecraft:villager", "tag": "gametest_closed" },
+                          "dialogues": [ { "dialogue": "gametest:talk", "conditions": { "type": "flag", "key": "gametest:shop_open" } } ],
+                          "override_interact": true }
+                        """), () -> {
+            NpcBindings.rebuild();
+            helper.assertTrue(interact(player, smith), "override_interact consumes the right-click even with rightClickTalks off");
+            expect(helper, state(player).dialogue(), TALK, "and starts the binding's dialogue instead of trading");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+
+            helper.assertFalse(interact(player, closed), "when no dialogue passes its conditions, the click trades as usual");
+            expect(helper, Dialogues.state(player), Optional.empty(), "and nothing starts");
+        }));
+        NpcBindings.rebuild();
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void openTradeOpensTheMerchantScreen(GameTestHelper helper) {
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 2, 2, 2);
+        ServerPlayer other = near(helper, helper.makeMockServerPlayerInLevel(), 2, 2, 3);
+        WanderingTrader trader = helper.spawnWithNoFreeWill(EntityType.WANDERING_TRADER, 1, 2, 1);
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 1);
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        Villager jobless = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 3);
+        Villager child = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 3);
+        child.setVillagerData(child.getVillagerData().setProfession(VillagerProfession.FARMER));
+        child.setAge(-24000);
+        Pig pig = helper.spawnWithNoFreeWill(EntityType.PIG, 2, 2, 1);
+        DialogueLogic.OpenTrade openTrade = new DialogueLogic.OpenTrade();
+        try {
+            ok(() -> openTrade.run(new StoryContext(player, trader)));
+            helper.assertTrue(player.containerMenu instanceof MerchantMenu, "the wandering trader's screen is open");
+            expect(helper, trader.getTradingPlayer(), player, "the trader trades with the player");
+            fails(helper, () -> openTrade.run(new StoryContext(other, trader)), "merchant_busy", "a merchant busy with someone else");
+            player.closeContainer();
+            expect(helper, trader.getTradingPlayer(), null, "closing the screen frees the trader");
+
+            ok(() -> openTrade.run(new StoryContext(player, farmer)));
+            helper.assertTrue(player.containerMenu instanceof MerchantMenu, "a villager with a job opens its trades the vanilla way");
+            expect(helper, farmer.getTradingPlayer(), player, "the farmer trades with the player");
+            player.closeContainer();
+
+            fails(helper, () -> openTrade.run(new StoryContext(player, jobless)), "no_offers", "a villager without a job");
+            fails(helper, () -> openTrade.run(new StoryContext(player, child)), "trade_refused", "a baby villager");
+            fails(helper, () -> openTrade.run(new StoryContext(player, pig)), "not_merchant", "a pig");
+            fails(helper, () -> openTrade.run(StoryContext.of(player)), "not_merchant", "no entity at all");
+            helper.assertFalse(player.containerMenu instanceof MerchantMenu, "failed trades open nothing");
+        } finally {
+            player.closeContainer();
+            other.closeContainer();
+        }
+        remove(helper, player);
+        remove(helper, other);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void storyEventStartsDialogueOnInteraction(GameTestHelper helper) {
         ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 2, 2, 2);
         var trader = helper.spawnWithNoFreeWill(EntityType.WANDERING_TRADER, 1, 2, 1);
@@ -402,6 +479,18 @@ public final class DialogueGameTests {
     /** Fires a main-hand right-click as the game would; returns whether something consumed it. */
     private static boolean interact(ServerPlayer player, net.minecraft.world.entity.Entity target) {
         return NeoForge.EVENT_BUS.post(new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, target)).isCanceled();
+    }
+
+    /** The action must fail with a message whose translation key ends with {@code key}. */
+    private static void fails(GameTestHelper helper, ThrowingRunnable action, String key, String what) {
+        try {
+            action.run();
+        } catch (StoryException e) {
+            String message = e.component().getContents() instanceof TranslatableContents translatable ? translatable.getKey() : e.getMessage();
+            helper.assertTrue(message.endsWith(key), what + ": expected " + key + ", got " + message);
+            return;
+        }
+        throw new GameTestAssertException(what + ": expected the action to fail with " + key);
     }
 
     private static Dialogues.State state(ServerPlayer player) {

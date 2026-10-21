@@ -12,15 +12,18 @@ import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.TriggerType;
+import java.lang.reflect.Method;
 import java.util.Optional;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.trading.Merchant;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import org.jetbrains.annotations.Nullable;
 
 /** The dialogue module's additions to the logic language. */
 public final class DialogueLogic {
@@ -82,6 +85,12 @@ public final class DialogueLogic {
         }
     }
 
+    /**
+     * {@code { "type": "open_trade" }}: ends the dialogue and opens the context entity's trading screen ("Show me your
+     * wares"). Villagers and wandering traders open it the vanilla way, so reputation discounts and Hero of the Village
+     * apply; any other merchant (a modded NPC) opens it directly. Fails when the entity is not a merchant, has no
+     * offers or trades with someone else.
+     */
     public record OpenTrade() implements Action {
         public static final MapCodec<OpenTrade> CODEC = MapCodec.unit(new OpenTrade());
 
@@ -107,9 +116,40 @@ public final class DialogueLogic {
                 throw new StoryException(Component.translatableWithFallback("storybound.dialogue.no_offers",
                         "Cannot open trade: merchant has no offers"));
             }
-            int level = entity instanceof Villager villager ? villager.getVillagerData().getLevel() : 1;
+            if (entity instanceof Villager villager) {
+                if (villager.isBaby() || villager.isSleeping()) {
+                    throw new StoryException(Component.translatableWithFallback("storybound.dialogue.trade_refused",
+                            "Cannot open trade: the villager does not trade right now"));
+                }
+                if (START_TRADING != null) {
+                    // The vanilla path: reputation discounts and Hero of the Village apply.
+                    try {
+                        START_TRADING.invoke(villager, player);
+                        return;
+                    } catch (ReflectiveOperationException | RuntimeException e) {
+                        Storybound.LOGGER.warn("Storybound: Villager.startTrading failed, opening the trade directly", e);
+                    }
+                }
+                merchant.setTradingPlayer(player);
+                merchant.openTradingScreen(player, entity.getDisplayName(), villager.getVillagerData().getLevel());
+                return;
+            }
             merchant.setTradingPlayer(player);
-            merchant.openTradingScreen(player, entity.getDisplayName(), level);
+            merchant.openTradingScreen(player, entity.getDisplayName(), 1);
+        }
+
+        /** {@code Villager#startTrading}: private; the same name at runtime, as NeoForge runs with Mojang's names. */
+        private static final @Nullable Method START_TRADING = findStartTrading();
+
+        private static @Nullable Method findStartTrading() {
+            try {
+                Method method = Villager.class.getDeclaredMethod("startTrading", Player.class);
+                method.setAccessible(true);
+                return method;
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                Storybound.LOGGER.warn("Storybound: Villager.startTrading not found; villagers open trades without discounts", e);
+                return null;
+            }
         }
     }
 

@@ -1,6 +1,18 @@
 {
   "json.schemas": [
     {
+      "fileMatch": ["**/data/*/storybound/chapters/**/*.json", "**/config/storybound/chapters/**/*.json"],
+      "url": "./schemas/chapter.schema.json"
+    },
+    {
+      "fileMatch": ["**/data/*/storybound/dialogue_layouts/**/*.json", "**/config/storybound/dialogue_layouts/**/*.json"],
+      "url": "./schemas/dialogue_layout.schema.json"
+    },
+    {
+      "fileMatch": ["**/data/*/storybound/scripts/**/*.json", "**/config/storybound/scripts/**/*.json"],
+      "url": "./schemas/script.schema.json"
+    },
+    {
       "fileMatch": ["**/data/*/storybound/flags/**/*.json", "**/config/storybound/flags/**/*.json"],
       "url": "./schemas/flag.schema.json"
     },

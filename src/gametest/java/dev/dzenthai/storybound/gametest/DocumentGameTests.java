@@ -16,16 +16,22 @@ import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryEvent;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
+import dev.dzenthai.storybound.core.state.QuestProgress;
+import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
+import dev.dzenthai.storybound.module.document.DocumentKind;
 import dev.dzenthai.storybound.module.document.DocumentRef;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.document.Documents;
 import dev.dzenthai.storybound.module.journal.Journal;
 import dev.dzenthai.storybound.module.journal.JournalNote;
+import dev.dzenthai.storybound.module.quest.QuestDefinition;
+import dev.dzenthai.storybound.module.quest.QuestRegistries;
+import dev.dzenthai.storybound.module.quest.Quests;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -115,6 +121,33 @@ public final class DocumentGameTests {
                     "document_read condition");
         }));
         StoryEvents.rebuild();
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void contractStartsItsQuestOnTheFirstRead(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation contract = key("wolf_contract");
+        ResourceLocation hunt = key("contract_hunt");
+        with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(hunt, "{ \"title\": \"gametest.contract_hunt\" }"),
+                () -> with(helper, DocumentRegistries.DOCUMENTS.serverStore(), DocumentDefinition.CODEC, Map.of(contract, """
+                        { "kind": "contract", "title": "gametest.wolf_contract",
+                          "contract": { "quest": "gametest:contract_hunt", "reward": { "literal": "50 crowns" },
+                                        "hint": { "literal": "Wolves fear fire" } } }
+                        """), () -> {
+                    DocumentDefinition definition = DocumentRegistries.DOCUMENTS.serverStore().getOrNull(contract);
+                    expect(helper, definition.kind(), DocumentKind.CONTRACT, "the contract kind");
+                    expect(helper, definition.contract().flatMap(DocumentDefinition.Contract::quest), Optional.of(hunt), "the contract names its quest");
+                    expect(helper, Quests.progress(player, hunt), Optional.empty(), "the quest is unknown before reading");
+
+                    helper.assertTrue(Documents.read(player, contract, false), "known document");
+                    expect(helper, Quests.progress(player, hunt).map(QuestProgress::status), Optional.of(QuestStatus.ACTIVE), "the first read takes the contract");
+
+                    Quests.setStatus(player, hunt, null);
+                    helper.assertTrue(Documents.read(player, contract, false), "read again");
+                    expect(helper, Quests.progress(player, hunt), Optional.empty(), "reading it again does not take it again");
+                }));
         remove(helper, player);
         helper.succeed();
     }

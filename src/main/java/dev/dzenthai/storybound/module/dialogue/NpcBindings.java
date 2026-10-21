@@ -116,32 +116,31 @@ public final class NpcBindings {
      * {@code interact} starts its dialogue, one with {@code custom} posts {@link NpcInteractEvent}. Public for tests.
      */
     public static void talk(ServerPlayer player, Entity target) {
-        if (!Dialogues.isEnabled() || Dialogues.state(player).isPresent()) {
-            return;
-        }
-        Found found = find(target).orElse(null);
-        if (found == null) {
-            return;
-        }
-        if (found.binding().custom() && found.id() != null) {
-            NeoForge.EVENT_BUS.post(new NpcInteractEvent(player, target, found.id()));
-        }
-        if (found.binding().interact() && Dialogues.state(player).isEmpty()) {
-            found.binding().pick(new StoryContext(player, target)).ifPresent(dialogue -> Dialogues.start(player, dialogue, target));
+        if (Dialogues.isEnabled() && Dialogues.state(player).isEmpty()) {
+            find(target).ifPresent(found -> talk(player, target, found));
         }
     }
 
+    /**
+     * A right-click talks like {@link #talk} when {@code dialogues.rightClickTalks} is on or the binding has
+     * {@code override_interact}. Public for tests.
+     *
+     * @return true when the click must not do its usual thing (trading): the binding has {@code override_interact}
+     *         and started a dialogue or posted {@link NpcInteractEvent}
+     */
     public static boolean rightClick(ServerPlayer player, Entity target) {
         if (!Dialogues.isEnabled() || Dialogues.state(player).isPresent()) {
             return false;
         }
         Found found = find(target).orElse(null);
-        if (found == null) {
+        if (found == null || !StoryboundConfig.COMMON.dialogueRightClickTalks.get() && !found.binding().overrideInteract()) {
             return false;
         }
-        if (!StoryboundConfig.COMMON.dialogueRightClickTalks.get() && !found.binding().overrideInteract()) {
-            return false;
-        }
+        return talk(player, target, found) && found.binding().overrideInteract();
+    }
+
+    /** @return whether the binding handled the talk: posted {@link NpcInteractEvent} or started a dialogue */
+    private static boolean talk(ServerPlayer player, Entity target, Found found) {
         boolean handled = false;
         if (found.binding().custom() && found.id() != null) {
             NeoForge.EVENT_BUS.post(new NpcInteractEvent(player, target, found.id()));
@@ -149,11 +148,9 @@ public final class NpcBindings {
         }
         if (found.binding().interact() && Dialogues.state(player).isEmpty()) {
             Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, target));
-            if (dialogue.isPresent() && Dialogues.start(player, dialogue.get(), target)) {
-                handled = true;
-            }
+            handled |= dialogue.isPresent() && Dialogues.start(player, dialogue.get(), target);
         }
-        return handled && found.binding().overrideInteract();
+        return handled;
     }
 
     /** Proximity starts; every 10 ticks. Public for tests. */

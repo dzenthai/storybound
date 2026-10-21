@@ -118,7 +118,7 @@
           "default": false
         },
         "hint": {
-          "description": "Optional hint associated with this objective.",
+          "description": "Shown under the objective in the Quests tab until the objective is done.",
           "$ref": "logic.schema.json#/definitions/story_text"
         }
       }

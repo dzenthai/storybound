@@ -8,6 +8,14 @@ Folders (one per kind of definition; the JSON is the same as in a datapack, see 
 
   quests/  dialogues/  npc_bindings/  documents/  waypoints/  codex/  bosses/  events/  flags/
 
+The dev mode (the Adventure Menu's Dev Mode button, for operators) writes here too. Its own files only lay out
+the editor and are never read by the game:
+
+  chapters/  dialogue_layouts/  scripts/  project.json (the story's languages)
+
+scripts/ are the blocks that show where KubeJS code (kubejs/server_scripts/) enters the story; the code itself
+stays in KubeJS.
+
 Ids come from file paths. Inside a folder, the first subfolder is the namespace:
   quests/mypack/wolf_hunt.json   ->  mypack:wolf_hunt
   quests/wolf_hunt.json          ->  storybound:wolf_hunt   (a file right in the folder)

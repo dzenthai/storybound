@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/chapter.schema.json",
+  "title": "Storybound chapter",
+  "description": "config/storybound/chapters/<path>.json (or data/<namespace>/storybound/chapters/) — a chapter of the dev mode story canvas: a title, its place in the list and where its nodes sit. Only the editor reads it; it changes nothing in game.",
+  "type": "object",
+  "required": ["title"],
+  "additionalProperties": false,
+  "properties": {
+    "title": { "$ref": "logic.schema.json#/definitions/story_text" },
+    "order": { "description": "Chapters are listed by it, smallest first.", "type": "integer", "default": 0 },
+    "icon": { "description": "An item id shown next to the title.", "$ref": "logic.schema.json#/definitions/id" },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "id", "x", "y"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "description": "The definition type of the node, e.g. storybound:quest (the namespace may be left out).", "$ref": "logic.schema.json#/definitions/id" },
+          "id": { "description": "The definition's id.", "$ref": "logic.schema.json#/definitions/id" },
+          "x": { "type": "integer" },
+          "y": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

@@ -210,6 +210,11 @@ processResources {
         into 'storybound_example'
         exclude 'pack.mcmeta'
     }
+    // The dev mode builds its forms from the same JSON schemas authors use in VS Code.
+    from('schemas') {
+        into 'storybound_schemas'
+        include '*.schema.json'
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {

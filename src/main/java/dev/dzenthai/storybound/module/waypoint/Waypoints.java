@@ -192,29 +192,37 @@ public final class Waypoints {
         return removed;
     }
 
-    public static boolean teleportTo(ServerPlayer player, ResourceLocation id) {
+    /** What {@link #teleportTo} did. */
+    public enum Teleport {
+        DONE,
+        /** A structure waypoint whose background search has not answered yet; asking again later teleports. */
+        SEARCHING,
+        NOT_FOUND
+    }
+
+    /**
+     * Dev mode: teleports the player to a static waypoint as they would see it. A structure is never searched for on
+     * the server thread here either (a search can take minutes): it is asked of the background search, like the
+     * waypoint itself.
+     */
+    public static Teleport teleportTo(ServerPlayer player, ResourceLocation id) {
         WaypointDefinition waypoint = WaypointRegistries.WAYPOINTS.serverStore().getOrNull(id);
         if (waypoint == null) {
-            return false;
+            return Teleport.NOT_FOUND;
         }
         Place place = locate(player, id.toString(), waypoint.target());
-        if (place == null && waypoint.target() instanceof WaypointTarget.Structure structure) {
-            ServerLevel level = player.server.getLevel(structure.dimension());
-            if (level != null) {
+        if (place == null) {
+            if (waypoint.target() instanceof WaypointTarget.Structure structure) {
                 BlockPos origin = structure.origin().orElseGet(() -> structureSearchOrigin(player, structure.dimension()));
-                Optional<BlockPos> found = structure.structure().locate(level, origin, structure.searchRadius());
-                if (found.isPresent()) {
-                    BlockPos at = found.get();
-                    place = new Place(level.dimension().location(), new Vec3(at.getX() + 0.5, StructureRef.groundY(level, at), at.getZ() + 0.5), ClientWaypoint.NO_ENTITY);
+                if (StructureLocator.result(player.server, structure.searchFrom(origin)) == null) {
+                    return Teleport.SEARCHING;
                 }
             }
-        }
-        if (place == null) {
-            return false;
+            return Teleport.NOT_FOUND;
         }
         ServerLevel level = player.server.getLevel(ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, place.dimension()));
         if (level == null) {
-            return false;
+            return Teleport.NOT_FOUND;
         }
         Vec3 pos = place.pos();
         double y = pos.y;
@@ -224,7 +232,7 @@ public final class Waypoints {
             y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bp.getX(), bp.getZ());
         }
         player.teleportTo(level, pos.x, y, pos.z, java.util.Set.of(), player.getYRot(), player.getXRot());
-        return true;
+        return Teleport.DONE;
     }
 
     static void refreshScope(MinecraftServer server, StoryScope scope, @Nullable UUID owner) {

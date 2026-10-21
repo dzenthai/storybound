@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/script.schema.json",
+  "title": "Storybound script block",
+  "description": "config/storybound/scripts/<path>.json — a script block of the dev mode's story canvas: a KubeJS handler the story calls (the action or condition \"Script\" with its id), the file it is written in and what it leads to. The code stays in KubeJS; the game never reads script blocks.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "title": { "$ref": "logic.schema.json#/definitions/story_text" },
+    "description": { "description": "A note for the pack's authors: what the script does.", "type": "string" },
+    "file": { "description": "The script, under kubejs/server_scripts/ on the server, e.g. storybound/mypack/burn_village.js.", "type": "string" },
+    "hook": { "description": "The handler's id, as registered with StoryboundEvents.registerActions / registerConditions. The block's own id when absent.", "$ref": "logic.schema.json#/definitions/id" },
+    "leads_to": {
+      "description": "What the script goes on to (a quest it starts, a dialogue it opens), for what reading its file does not show.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "id"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "enum": ["quest", "dialogue", "document", "waypoint", "boss", "codex", "event", "npc_binding", "script"] },
+          "id": { "$ref": "logic.schema.json#/definitions/id" }
+        }
+      }
+    }
+  }
+}

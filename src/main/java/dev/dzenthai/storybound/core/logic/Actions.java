@@ -9,7 +9,7 @@ public final class Actions {
 
     /**
      * Runs actions in order. A failure ({@link StoryException} or a crashed script) is logged;
-     * with {@link OnFail#ABORT} the remaining actions are skipped.
+     * with {@link OnFail#ABORT} the remaining actions are skipped. Each action goes to the trace (see {@link StoryTrace}).
      *
      * @return true if every action ran successfully
      */
@@ -19,17 +19,21 @@ public final class Actions {
             Action action = actions.get(i);
             try {
                 action.run(context);
+                StoryTrace.action(context, origin, i + 1, action, "ok", null);
                 continue;
             } catch (StoryException e) {
                 Storybound.LOGGER.warn("Storybound: {} action #{} ({}) failed for {}: {}",
                         origin, i + 1, LogicRegistries.ACTION_TYPES.getKey(action.type()), context.player().getGameProfile().getName(), e.getMessage());
+                StoryTrace.action(context, origin, i + 1, action, "failed", e.getMessage());
             } catch (RuntimeException e) {
                 Storybound.LOGGER.error("Storybound: {} action #{} ({}) crashed", origin, i + 1, LogicRegistries.ACTION_TYPES.getKey(action.type()), e);
+                StoryTrace.action(context, origin, i + 1, action, "crashed", String.valueOf(e));
             }
             success = false;
             if (onFail == OnFail.ABORT) {
                 if (i + 1 < actions.size()) {
                     Storybound.LOGGER.warn("Storybound: {} aborted, {} remaining actions skipped", origin, actions.size() - i - 1);
+                    StoryTrace.note(context.player(), origin, "aborted: " + (actions.size() - i - 1) + " remaining actions skipped (on_fail: abort)");
                 }
                 return false;
             }

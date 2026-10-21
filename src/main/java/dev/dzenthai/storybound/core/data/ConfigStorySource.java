@@ -76,28 +76,45 @@ public final class ConfigStorySource {
         });
     }
 
+    /**
+     * The file a definition is saved to: the reverse of {@link #idOf}, so it loads back under the same id.
+     * Throws {@link IllegalArgumentException} for an id that would leave the story folder ({@code ..} in its path).
+     */
     public static Path fileFor(Path root, DefinitionType<?> type, ResourceLocation id) {
-        Path folder = root.resolve(folder(type));
-        if (id.getNamespace().equals(DEFAULT_NAMESPACE)) {
-            Path namespaced = folder.resolve(DEFAULT_NAMESPACE).resolve(id.getPath() + JSON);
-            if (Files.exists(namespaced)) {
-                return namespaced;
-            }
-            return folder.resolve(id.getPath() + JSON);
-        }
-        return folder.resolve(id.getNamespace()).resolve(id.getPath() + JSON);
+        return inside(root, root.resolve(folder(type)), id, JSON);
     }
 
+    /** The {@code .sbt} file of a long text in a language; throws like {@link #fileFor}, also for a bad language code. */
     public static Path sbtFileFor(Path root, String language, ResourceLocation id) {
-        Path folder = root.resolve("texts").resolve(language);
-        if (id.getNamespace().equals(DEFAULT_NAMESPACE)) {
-            Path namespaced = folder.resolve(DEFAULT_NAMESPACE).resolve(id.getPath() + ".sbt");
-            if (Files.exists(namespaced)) {
-                return namespaced;
-            }
-            return folder.resolve(id.getPath() + ".sbt");
+        if (!isLanguageCode(language)) {
+            throw new IllegalArgumentException("Not a language code: " + language);
         }
-        return folder.resolve(id.getNamespace()).resolve(id.getPath() + ".sbt");
+        return inside(root, root.resolve("texts").resolve(language), id, ".sbt");
+    }
+
+    /** A Minecraft language code like {@code en_us}, {@code ru_ru} or {@code zh_cn}; anything else never becomes a file name. */
+    public static boolean isLanguageCode(String language) {
+        return language.matches("[a-z]{2,4}_[a-z0-9]{2,4}");
+    }
+
+    /**
+     * {@code folder/<path>.ext} for the default namespace when the path has no folder (so {@link #idOf} reads it back),
+     * else {@code folder/<namespace>/<path>.ext}; an existing {@code folder/storybound/<path>.ext} is kept where it is.
+     */
+    private static Path inside(Path root, Path folder, ResourceLocation id, String extension) {
+        for (String segment : id.getPath().split("/", -1)) {
+            if (segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
+                throw new IllegalArgumentException("Not a file path inside the story folder: " + id);
+            }
+        }
+        Path namespaced = folder.resolve(id.getNamespace()).resolve(id.getPath() + extension);
+        Path file = id.getNamespace().equals(DEFAULT_NAMESPACE) && !id.getPath().contains("/") && !Files.exists(namespaced)
+                ? folder.resolve(id.getPath() + extension)
+                : namespaced;
+        if (!file.toAbsolutePath().normalize().startsWith(root.toAbsolutePath().normalize())) {
+            throw new IllegalArgumentException("Not a file path inside the story folder: " + id);
+        }
+        return file;
     }
 
     /** Files with the extension under {@code folder}, by their path inside it without the extension, sorted. */

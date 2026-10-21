@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -58,8 +59,13 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(Storybound.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class StructureGameTests {
-    /** The planted village: a box this many blocks wide around the given position. */
+    /** The planted village: a piece this many blocks wide around the given position. */
     private static final int VILLAGE_SIZE = 5;
+    /**
+     * How far "outside" is, in x and z. A village blends into the terrain, and the game keeps its box 12 blocks wider
+     * than its pieces on every side (as for every structure with terrain adaptation): so 2 + 12 is still inside.
+     */
+    private static final int OUTSIDE = VILLAGE_SIZE / 2 + 12 + 4;
 
     private StructureGameTests() {}
 
@@ -68,7 +74,8 @@ public final class StructureGameTests {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         Vec3 inside = helper.absoluteVec(new Vec3(2.5, 1, 2.5));
         player.setPos(inside);
-        withVillage(helper, BlockPos.containing(inside), () -> {
+        Vec3 outside = inside.add(OUTSIDE, 0, OUTSIDE);
+        withVillage(helper, BlockPos.containing(inside), BlockPos.containing(outside), () -> {
             StoryContext context = StoryContext.of(player);
             expect(helper, condition(helper, "{ \"type\": \"location\", \"structure\": \"minecraft:village_plains\" }").test(context), true, "inside the village");
             expect(helper, condition(helper, "{ \"type\": \"location\", \"structure\": \"#minecraft:village\" }").test(context), true, "by its tag");
@@ -77,9 +84,9 @@ public final class StructureGameTests {
                     "an unknown structure is never matched");
             expect(helper, condition(helper, "{ \"type\": \"location\", \"structure\": \"#minecraft:village\", \"dimension\": \"minecraft:the_nether\" }")
                     .test(context), false, "every part must match");
-            player.setPos(inside.add(VILLAGE_SIZE + 4, 0, VILLAGE_SIZE + 4));
+            player.setPos(outside);
             expect(helper, condition(helper, "{ \"type\": \"location\", \"structure\": \"#minecraft:village\" }").test(StoryContext.of(player)), false,
-                    "outside its bounds");
+                    "outside its bounds " + structuresAt(helper, player.blockPosition()) + ", planted at " + structuresAt(helper, BlockPos.containing(inside)));
         });
         helper.getLevel().getServer().getPlayerList().remove(player);
         helper.succeed();
@@ -89,9 +96,9 @@ public final class StructureGameTests {
     public static void structureEnteredFiresOnWalkingIn(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         Vec3 inside = helper.absoluteVec(new Vec3(2.5, 1, 2.5));
-        Vec3 outside = inside.add(VILLAGE_SIZE + 4, 0, VILLAGE_SIZE + 4);
+        Vec3 outside = inside.add(OUTSIDE, 0, OUTSIDE);
         player.setPos(inside);
-        withVillage(helper, BlockPos.containing(inside), () -> withEvents(helper, Map.of(
+        withVillage(helper, BlockPos.containing(inside), BlockPos.containing(outside), () -> withEvents(helper, Map.of(
                 key("village_login"), "{ \"trigger\": { \"type\": \"structure_entered\", \"structure\": \"#minecraft:village\", \"fire_on_login\": true },"
                         + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:village_login_count\", \"amount\": 1 } }",
                 key("village_walk"), "{ \"trigger\": { \"type\": \"structure_entered\", \"structure\": \"minecraft:village_plains\" },"
@@ -106,10 +113,12 @@ public final class StructureGameTests {
             TriggerDispatcher.tickAreas(helper.getLevel().getServer());
             expect(helper, stored(player, "village_walk_count"), Optional.empty(), "standing inside fires nothing");
             player.setPos(outside);
+            String atOutside = structuresAt(helper, player.blockPosition());
             TriggerDispatcher.tickAreas(helper.getLevel().getServer());
             player.setPos(inside);
             TriggerDispatcher.tickAreas(helper.getLevel().getServer());
-            expect(helper, stored(player, "village_walk_count"), Optional.of(new StoryValue.Int(1)), "walking in fires");
+            expect(helper, stored(player, "village_walk_count"), Optional.of(new StoryValue.Int(1)),
+                    "walking in fires (outside " + atOutside + ", inside " + structuresAt(helper, player.blockPosition()) + ")");
             expect(helper, stored(player, "village_login_count"), Optional.of(new StoryValue.Int(2)), "and so does the login one");
             expect(helper, stored(player, "stronghold_count"), Optional.empty(), "another structure never fires");
         }));
@@ -117,13 +126,29 @@ public final class StructureGameTests {
         helper.succeed();
     }
 
-    /** Plants a plains village start around {@code center} in its chunk for the duration of {@code body}. */
-    private static void withVillage(GameTestHelper helper, BlockPos center, Runnable body) {
+    /** For failure messages: the position, its chunk and every structure referenced there, with its bounds. */
+    private static String structuresAt(GameTestHelper helper, BlockPos pos) {
+        StructureManager manager = helper.getLevel().structureManager();
+        StringBuilder text = new StringBuilder(pos.toShortString() + " in chunk " + new ChunkPos(pos) + " loaded=" + helper.getLevel().isLoaded(pos) + ":");
+        manager.getAllStructuresAt(pos).forEach((structure, references) -> {
+            text.append(' ').append(helper.getLevel().registryAccess().registryOrThrow(Registries.STRUCTURE).getKey(structure)).append(" refs ").append(references);
+            manager.startsForStructure(SectionPos.of(pos), structure).forEach(start -> text.append(" box ").append(start.getBoundingBox()));
+        });
+        return text.toString();
+    }
+
+    /**
+     * Plants a plains village start around {@code center} in its chunk for the duration of {@code body}, and a
+     * reference to it in {@code alsoReferencedAt}'s chunk too, as world generation does for every chunk a structure
+     * reaches: so a check there really looks at the village's box instead of finding no village in the chunk.
+     */
+    private static void withVillage(GameTestHelper helper, BlockPos center, BlockPos alsoReferencedAt, Runnable body) {
         Structure village = helper.getLevel().registryAccess().registryOrThrow(Registries.STRUCTURE).getOrThrow(BuiltinStructures.VILLAGE_PLAINS);
         ChunkAccess chunk = helper.getLevel().getChunk(center);
+        ChunkAccess other = helper.getLevel().getChunk(alsoReferencedAt);
         Map<Structure, StructureStart> starts = new HashMap<>(chunk.getAllStarts());
-        Map<Structure, LongSet> references = new HashMap<>();
-        chunk.getAllReferences().forEach((structure, set) -> references.put(structure, new LongOpenHashSet(set)));
+        Map<Structure, LongSet> references = copy(chunk.getAllReferences());
+        Map<Structure, LongSet> otherReferences = copy(other.getAllReferences());
         int half = VILLAGE_SIZE / 2;
         BoundingBox box = new BoundingBox(center.getX() - half, center.getY() - 1, center.getZ() - half,
                 center.getX() + half, center.getY() + 3, center.getZ() + half);
@@ -137,12 +162,21 @@ public final class StructureGameTests {
         };
         chunk.setStartForStructure(village, new StructureStart(village, chunk.getPos(), 0, new PiecesContainer(List.of(piece))));
         chunk.addReferenceForStructure(village, chunk.getPos().toLong());
+        other.addReferenceForStructure(village, chunk.getPos().toLong());
         try {
             body.run();
         } finally {
             chunk.setAllStarts(starts);
+            // The other chunk first: it may be the same chunk, and then the planted chunk's copy must win.
+            other.setAllReferences(otherReferences);
             chunk.setAllReferences(references);
         }
+    }
+
+    private static Map<Structure, LongSet> copy(Map<Structure, LongSet> references) {
+        Map<Structure, LongSet> copy = new HashMap<>();
+        references.forEach((structure, set) -> copy.put(structure, new LongOpenHashSet(set)));
+        return copy;
     }
 
     private static void withEvents(GameTestHelper helper, Map<ResourceLocation, String> events, Runnable body) {

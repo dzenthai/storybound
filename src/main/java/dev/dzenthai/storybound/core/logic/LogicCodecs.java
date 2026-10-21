@@ -16,6 +16,9 @@ public final class LogicCodecs {
             LogicRegistries.typeCodec(LogicRegistries.ACTION_TYPES, "action")
                     .<Action>dispatch("type", Action::type, ActionType::codec));
 
+    /** One action object. */
+    public static final Codec<Action> ACTION = SINGLE_ACTION;
+
     /** A condition object, or an array of conditions that must all pass. */
     public static final Codec<Condition> CONDITION = Codec.either(SINGLE_CONDITION, SINGLE_CONDITION.listOf())
             .xmap(either -> either.map(Function.identity(), LogicConditions.All::new), condition -> Either.left(condition));

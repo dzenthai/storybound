@@ -21,6 +21,8 @@ public final class DevModePayloads {
     private static final StreamCodec<ByteBuf, String> LONG_STRING = ByteBufCodecs.stringUtf8(MAX_JSON);
     private static final StreamCodec<ByteBuf, Map<ResourceLocation, String>> DEFINITION_MAP =
             ByteBufCodecs.map(HashMap::new, ResourceLocation.STREAM_CODEC, LONG_STRING);
+    private static final StreamCodec<ByteBuf, Map<String, String>> TRANSLATIONS_MAP =
+            ByteBufCodecs.map(HashMap::new, ByteBufCodecs.STRING_UTF8, LONG_STRING);
 
     private DevModePayloads() {}
 
@@ -40,11 +42,13 @@ public final class DevModePayloads {
         }
     }
 
-    public record Snapshot(Map<ResourceLocation, Map<ResourceLocation, String>> definitions, List<String> issues) implements CustomPacketPayload {
+    public record Snapshot(Map<ResourceLocation, Map<ResourceLocation, String>> definitions, List<String> issues, String sourceLanguage, List<String> languages) implements CustomPacketPayload {
         public static final Type<Snapshot> TYPE = new Type<>(Storybound.id("dev_snapshot"));
         public static final StreamCodec<ByteBuf, Snapshot> STREAM_CODEC = StreamCodec.composite(
                 ByteBufCodecs.map(HashMap::new, ResourceLocation.STREAM_CODEC, DEFINITION_MAP), Snapshot::definitions,
                 ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), Snapshot::issues,
+                ByteBufCodecs.STRING_UTF8, Snapshot::sourceLanguage,
+                ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), Snapshot::languages,
                 Snapshot::new);
 
         @Override
@@ -53,17 +57,19 @@ public final class DevModePayloads {
         }
 
         public static void handleOnClient(Snapshot payload, IPayloadContext context) {
-            ClientDevStore.setSnapshot(payload.definitions(), payload.issues());
+            ClientDevStore.setSnapshot(payload.definitions(), payload.issues(), payload.sourceLanguage(), payload.languages());
         }
     }
 
-    public record SaveDefinition(ResourceLocation typeId, ResourceLocation id, String json, Optional<String> sbtText) implements CustomPacketPayload {
+    public record SaveDefinition(ResourceLocation typeId, ResourceLocation id, String json, Optional<String> sbtText, String language, Map<String, String> translations) implements CustomPacketPayload {
         public static final Type<SaveDefinition> TYPE = new Type<>(Storybound.id("dev_save_definition"));
         public static final StreamCodec<ByteBuf, SaveDefinition> STREAM_CODEC = StreamCodec.composite(
                 ResourceLocation.STREAM_CODEC, SaveDefinition::typeId,
                 ResourceLocation.STREAM_CODEC, SaveDefinition::id,
                 LONG_STRING, SaveDefinition::json,
                 ByteBufCodecs.optional(LONG_STRING), SaveDefinition::sbtText,
+                ByteBufCodecs.STRING_UTF8, SaveDefinition::language,
+                TRANSLATIONS_MAP, SaveDefinition::translations,
                 SaveDefinition::new);
 
         @Override
@@ -73,7 +79,45 @@ public final class DevModePayloads {
 
         public static void handleOnServer(SaveDefinition payload, IPayloadContext context) {
             if (context.player() instanceof ServerPlayer player) {
-                DevModeServer.saveDefinition(player, payload.typeId(), payload.id(), payload.json(), payload.sbtText());
+                DevModeServer.saveDefinition(player, payload.typeId(), payload.id(), payload.json(), payload.sbtText(), payload.language(), payload.translations());
+            }
+        }
+    }
+
+    public record SaveProjectSettings(String sourceLanguage, List<String> languages) implements CustomPacketPayload {
+        public static final Type<SaveProjectSettings> TYPE = new Type<>(Storybound.id("dev_save_project_settings"));
+        public static final StreamCodec<ByteBuf, SaveProjectSettings> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, SaveProjectSettings::sourceLanguage,
+                ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), SaveProjectSettings::languages,
+                SaveProjectSettings::new);
+
+        @Override
+        public Type<SaveProjectSettings> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(SaveProjectSettings payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.saveProjectSettings(player, payload.sourceLanguage(), payload.languages());
+            }
+        }
+    }
+
+    public record SaveTranslations(String language, Map<String, String> translations) implements CustomPacketPayload {
+        public static final Type<SaveTranslations> TYPE = new Type<>(Storybound.id("dev_save_translations"));
+        public static final StreamCodec<ByteBuf, SaveTranslations> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, SaveTranslations::language,
+                TRANSLATIONS_MAP, SaveTranslations::translations,
+                SaveTranslations::new);
+
+        @Override
+        public Type<SaveTranslations> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(SaveTranslations payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.saveTranslations(player, payload.language(), payload.translations());
             }
         }
     }
@@ -115,5 +159,56 @@ public final class DevModePayloads {
             }
         }
     }
-}
 
+    /** The editor asks for the server's KubeJS scripts (see {@link Scripts}). */
+    public record RequestScripts() implements CustomPacketPayload {
+        public static final Type<RequestScripts> TYPE = new Type<>(Storybound.id("dev_request_scripts"));
+        public static final StreamCodec<ByteBuf, RequestScripts> STREAM_CODEC = StreamCodec.unit(new RequestScripts());
+
+        @Override
+        public Type<RequestScripts> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(RequestScripts payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.sendScripts(player);
+            }
+        }
+    }
+
+    /** The server's scripts, their handlers and what they mention, as JSON ({@code DevScripts.describe}). */
+    public record Scripts(String json) implements CustomPacketPayload {
+        public static final Type<Scripts> TYPE = new Type<>(Storybound.id("dev_scripts"));
+        public static final StreamCodec<ByteBuf, Scripts> STREAM_CODEC = LONG_STRING.map(Scripts::new, Scripts::json);
+
+        @Override
+        public Type<Scripts> type() {
+            return TYPE;
+        }
+
+        public static void handleOnClient(Scripts payload, IPayloadContext context) {
+            ClientDevStore.setScripts(payload.json());
+        }
+    }
+
+    /** A new script file registering the handler, made from a template; {@code condition} or else an action. */
+    public record CreateScript(ResourceLocation hook, boolean condition) implements CustomPacketPayload {
+        public static final Type<CreateScript> TYPE = new Type<>(Storybound.id("dev_create_script"));
+        public static final StreamCodec<ByteBuf, CreateScript> STREAM_CODEC = StreamCodec.composite(
+                ResourceLocation.STREAM_CODEC, CreateScript::hook,
+                ByteBufCodecs.BOOL, CreateScript::condition,
+                CreateScript::new);
+
+        @Override
+        public Type<CreateScript> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(CreateScript payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.createScript(player, payload.hook(), payload.condition());
+            }
+        }
+    }
+}

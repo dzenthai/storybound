@@ -2,7 +2,6 @@ package dev.dzenthai.storybound.client.dialogue;
 
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
-import dev.dzenthai.storybound.module.dialogue.DialogueDefinition.Presentation;
 import dev.dzenthai.storybound.module.dialogue.ThinkTime;
 import java.util.List;
 import net.minecraft.Util;
@@ -12,7 +11,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.util.FormattedCharSequence;
 
-/** Subtitles of {@code presentation: hud} dialogues, above the hotbar; the player keeps moving. */
+/** Subtitles of {@code presentation: hud} dialogues (and of bubble lines with no bubble to show), above the hotbar; the player keeps moving. */
 public final class DialogueHud {
     private static final int MAX_WIDTH = 300;
     private static final int PADDING = 5;
@@ -25,7 +24,7 @@ public final class DialogueHud {
     public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
         Minecraft minecraft = Minecraft.getInstance();
         ClientDialogue.Line line = ClientDialogue.line();
-        if (line == null || ClientDialogue.presentation() != Presentation.HUD || minecraft.options.hideGui
+        if (line == null || !subtitled(line, minecraft) || minecraft.options.hideGui
                 || minecraft.screen instanceof DialogueScreen) {
             return;
         }
@@ -52,5 +51,15 @@ public final class DialogueHud {
         } else {
             DialogueText.draw(graphics, font, lines, x, textY, LINE_HEIGHT, theme.hudText(), true, line.visibleChars());
         }
+    }
+
+    /** Every line of a {@code hud} dialogue; in a {@code bubble} one, the lines without a bubble the player can see. */
+    private static boolean subtitled(ClientDialogue.Line line, Minecraft minecraft) {
+        return switch (ClientDialogue.presentation()) {
+            case HUD -> true;
+            // A narrator has no head to speak over, and the player's own head is out of sight in first person.
+            case BUBBLE -> line.speaker().entityId() == -1 || minecraft.player != null && line.speaker().entityId() == minecraft.player.getId();
+            case SCREEN -> false;
+        };
     }
 }

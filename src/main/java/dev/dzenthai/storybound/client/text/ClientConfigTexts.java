@@ -1,9 +1,11 @@
 package dev.dzenthai.storybound.client.text;
 
 import dev.dzenthai.storybound.core.text.ConfigTexts;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
@@ -20,6 +22,7 @@ import org.jetbrains.annotations.Nullable;
 public final class ClientConfigTexts {
     private static final String FALLBACK_LANGUAGE = "en_us";
     private static ConfigTexts.Texts texts = ConfigTexts.Texts.EMPTY;
+    private static @Nullable String previewLanguage = null;
 
     private ClientConfigTexts() {}
 
@@ -28,23 +31,83 @@ public final class ClientConfigTexts {
         install();
     }
 
-    /** On logout: the next server brings its own. */
     public static void clear() {
         texts = ConfigTexts.Texts.EMPTY;
+        previewLanguage = null;
     }
 
-    /** The {@code .sbt} source for this id in this language, if the story folder has one. */
+    public static void setPreviewLanguage(@Nullable String language) {
+        previewLanguage = language;
+    }
+
+    public static @Nullable String previewLanguage() {
+        return previewLanguage;
+    }
+
+    public static ConfigTexts.Texts texts() {
+        return texts;
+    }
+
+    public static String sourceLanguage() {
+        return texts.sourceLanguage();
+    }
+
+    public static @Nullable String rawTranslation(String language, String key) {
+        return texts.translations().getOrDefault(language, Map.of()).get(key);
+    }
+
+    public static Set<String> availableLanguages() {
+        Set<String> set = new LinkedHashSet<>();
+        set.addAll(texts.translations().keySet());
+        set.addAll(texts.documents().keySet());
+        return set;
+    }
+
     public static Optional<String> document(ResourceLocation id, String language) {
         return Optional.ofNullable(texts.documents().getOrDefault(language, Map.of()).get(id));
     }
 
-    static @Nullable String translation(String key) {
+    public static @Nullable String translation(String key) {
         if (texts.translations().isEmpty()) {
             return null;
         }
-        String language = Minecraft.getInstance().getLanguageManager().getSelected();
-        String text = texts.translations().getOrDefault(language, Map.of()).get(key);
-        return text != null ? text : texts.translations().getOrDefault(FALLBACK_LANGUAGE, Map.of()).get(key);
+        String language = previewLanguage != null ? previewLanguage : Minecraft.getInstance().getLanguageManager().getSelected();
+        return translation(key, language);
+    }
+
+    public static @Nullable String translation(String key, String selectedLanguage) {
+        if (texts.translations().isEmpty()) {
+            return null;
+        }
+        Map<String, String> langMap = texts.translations().get(selectedLanguage);
+        if (langMap != null && langMap.containsKey(key)) {
+            return langMap.get(key);
+        }
+        if (selectedLanguage.contains("_")) {
+            String prefix = selectedLanguage.substring(0, selectedLanguage.indexOf('_')) + "_";
+            for (Map.Entry<String, Map<String, String>> entry : texts.translations().entrySet()) {
+                if (!entry.getKey().equalsIgnoreCase(selectedLanguage) && entry.getKey().startsWith(prefix)) {
+                    String sibling = entry.getValue().get(key);
+                    if (sibling != null) {
+                        return sibling;
+                    }
+                }
+            }
+        }
+        String source = texts.sourceLanguage();
+        if (source != null && !source.equalsIgnoreCase(selectedLanguage)) {
+            Map<String, String> srcMap = texts.translations().get(source);
+            if (srcMap != null && srcMap.containsKey(key)) {
+                return srcMap.get(key);
+            }
+        }
+        if (!FALLBACK_LANGUAGE.equalsIgnoreCase(selectedLanguage)) {
+            Map<String, String> fallbackMap = texts.translations().get(FALLBACK_LANGUAGE);
+            if (fallbackMap != null && fallbackMap.containsKey(key)) {
+                return fallbackMap.get(key);
+            }
+        }
+        return null;
     }
 
     /**

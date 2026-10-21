@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.event.CustomTriggerEvent;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.TriggerType;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +47,11 @@ public final class TriggerDispatcher {
                 next.computeIfAbsent(subscription.trigger().type(), type -> new ArrayList<>()).add(subscription)));
         index = next;
         INSIDE_AREAS.clear();
+    }
+
+    /** How deep the running chain of triggers is: 0 outside a trigger, 1 in the first one. */
+    public static int depth() {
+        return depth;
     }
 
     public static boolean hasSubscribers(TriggerType<?, ?> type) {
@@ -170,6 +176,7 @@ public final class TriggerDispatcher {
     private static <E> void notify(Subscription<E> subscription, StoryContext context, E event) {
         try {
             if (subscription.trigger().matches(context, event)) {
+                StoryTrace.trigger(context, subscription.name(), subscription.trigger().type());
                 subscription.listener().onTriggered(context);
             }
         } catch (RuntimeException e) {
@@ -179,6 +186,7 @@ public final class TriggerDispatcher {
 
     private static void runListener(Subscription<?> subscription, StoryContext context) {
         try {
+            StoryTrace.trigger(context, subscription.name(), subscription.trigger().type());
             subscription.listener().onTriggered(context);
         } catch (RuntimeException e) {
             Storybound.LOGGER.error("Storybound: {} failed", subscription.name(), e);

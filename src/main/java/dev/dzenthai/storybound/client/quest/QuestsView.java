@@ -169,8 +169,14 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
                 detail.gap(2).text(Component.translatable("storybound.quests.objectives").withStyle(ChatFormatting.BOLD), theme.accent());
                 header = true;
             }
-            detail.item(objectiveMark(objective, progress.count(stage.objectiveId(i))), objectiveText(objective, progress.count(stage.objectiveId(i))),
-                    progress.count(stage.objectiveId(i)) >= objective.count() ? theme.muted() : theme.ink());
+            int count = progress.count(stage.objectiveId(i));
+            String mark = objectiveMark(objective, count);
+            boolean done = count >= objective.count();
+            detail.item(mark, objectiveText(objective, count), done ? theme.muted() : theme.ink());
+            // A hint helps with what is left to do; a finished objective needs none.
+            if (!done) {
+                objective.hint().ifPresent(hint -> detail.note(mark, hint.asComponent().copy().withStyle(ChatFormatting.ITALIC), theme.muted()));
+            }
         }
     }
 

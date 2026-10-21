@@ -52,7 +52,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-/** Codex and Bosses on a real server: "seen" detection, sections by seen/killed/read, shared kills, boss fight credit, logic, validation. */
+/** Codex and Bosses on a real server: "seen" detection, sections by seen/killed/read, shared kills, boss fight credit, logic, the boss_killed trigger, validation. */
 @SuppressWarnings("removal")
 @GameTestHolder(Storybound.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -206,6 +206,37 @@ public final class CodexGameTests {
         });
         ok(() -> PartyManager.disband(leader));
         List.of(leader, ally, stranger, scratcher, distant).forEach(player -> remove(helper, player));
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void bossKilledTriggerFiresOnEveryVictory(GameTestHelper helper) {
+        ServerPlayer winner = at(helper, helper.makeMockServerPlayerInLevel(), 1.5, 2, 3);
+        withBoss(helper, () -> with(helper, CoreDefinitions.EVENTS.serverStore(), StoryEvent.CODEC, Map.of(
+                key("brute_down"), "{ \"trigger\": { \"type\": \"boss_killed\", \"boss\": \"gametest:brute\" },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:brute_events\", \"amount\": 1 } }",
+                key("first_blood"), "{ \"trigger\": { \"type\": \"boss_killed\", \"first_time\": true },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:first_events\", \"amount\": 1 } }",
+                key("other_boss"), "{ \"trigger\": { \"type\": \"boss_killed\", \"boss\": \"gametest:someone_else\" },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:other_events\", \"amount\": 1 } }"
+        ), () -> {
+            StoryEvents.rebuild();
+            try {
+                for (int i = 0; i < 2; i++) {
+                    Zombie brute = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 1 + i, 2, 1);
+                    brute.addTag("gametest_brute");
+                    hit(brute, winner, 100f);
+                }
+                expect(helper, Bosses.data(winner).get(BOSS).victories(), 2, "two victories");
+                expect(helper, playerVar(winner, "brute_events"), 2, "boss_killed fires on every victory");
+                expect(helper, playerVar(winner, "first_events"), 1, "first_time fires on the first victory only");
+                expect(helper, playerVar(winner, "other_events"), 0, "another boss does not match");
+            } finally {
+                Bosses.reset(winner, BOSS);
+            }
+        }));
+        StoryEvents.rebuild();
+        remove(helper, winner);
         helper.succeed();
     }
 

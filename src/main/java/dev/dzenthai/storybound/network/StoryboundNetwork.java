@@ -8,7 +8,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class StoryboundNetwork {
     /** Bumped on any incompatible packet change; a client with another version cannot connect. */
-    public static final String PROTOCOL_VERSION = "3";
+    public static final String PROTOCOL_VERSION = "5";
 
     private StoryboundNetwork() {}
 
@@ -37,8 +37,13 @@ public final class StoryboundNetwork {
         registrar.playToServer(DevModePayloads.RequestSnapshot.TYPE, DevModePayloads.RequestSnapshot.STREAM_CODEC, DevModePayloads.RequestSnapshot::handleOnServer);
         registrar.playToClient(DevModePayloads.Snapshot.TYPE, DevModePayloads.Snapshot.STREAM_CODEC, DevModePayloads.Snapshot::handleOnClient);
         registrar.playToServer(DevModePayloads.SaveDefinition.TYPE, DevModePayloads.SaveDefinition.STREAM_CODEC, DevModePayloads.SaveDefinition::handleOnServer);
+        registrar.playToServer(DevModePayloads.SaveProjectSettings.TYPE, DevModePayloads.SaveProjectSettings.STREAM_CODEC, DevModePayloads.SaveProjectSettings::handleOnServer);
+        registrar.playToServer(DevModePayloads.SaveTranslations.TYPE, DevModePayloads.SaveTranslations.STREAM_CODEC, DevModePayloads.SaveTranslations::handleOnServer);
         registrar.playToServer(DevModePayloads.DeleteDefinition.TYPE, DevModePayloads.DeleteDefinition.STREAM_CODEC, DevModePayloads.DeleteDefinition::handleOnServer);
         registrar.playToServer(DevModePayloads.QuickAction.TYPE, DevModePayloads.QuickAction.STREAM_CODEC, DevModePayloads.QuickAction::handleOnServer);
+        registrar.playToServer(DevModePayloads.RequestScripts.TYPE, DevModePayloads.RequestScripts.STREAM_CODEC, DevModePayloads.RequestScripts::handleOnServer);
+        registrar.playToClient(DevModePayloads.Scripts.TYPE, DevModePayloads.Scripts.STREAM_CODEC, DevModePayloads.Scripts::handleOnClient);
+        registrar.playToServer(DevModePayloads.CreateScript.TYPE, DevModePayloads.CreateScript.STREAM_CODEC, DevModePayloads.CreateScript::handleOnServer);
     }
 
     /**

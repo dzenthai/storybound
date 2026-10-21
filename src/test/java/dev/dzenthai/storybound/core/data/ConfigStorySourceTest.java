@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.core.data;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonElement;
@@ -60,6 +61,29 @@ class ConfigStorySourceTest {
         assertEquals(2, issues.size(), "the broken file and the bad name: " + issues);
         assertTrue(issues.stream().allMatch(ValidationIssue::isError));
         assertTrue(issues.stream().anyMatch(issue -> issue.message().contains("config/storybound/flags/mypack/broken.json")), "issues name the file");
+    }
+
+    /** Whatever the editor saves loads back under the same id, including default-namespace ids with folders. */
+    @Test
+    void savedFilesLoadBackUnderTheSameId() {
+        for (String text : new String[] {"storybound:wolf_hunt", "storybound:act1/wolf_hunt", "mypack:wolf_hunt", "mypack:act1/wolf_hunt"}) {
+            ResourceLocation id = ResourceLocation.parse(text);
+            Path file = ConfigStorySource.fileFor(root, FLAGS, id);
+            String relative = root.resolve("flags").relativize(file).toString().replace('\\', '/');
+            assertEquals(Optional.of(id), ConfigStorySource.idOf(relative.substring(0, relative.length() - ".json".length())), text);
+        }
+    }
+
+    @Test
+    void nothingIsWrittenOutsideTheStoryFolder() {
+        for (String text : new String[] {"storybound:../../mods/evil", "mypack:a/../../../x", "mypack:a//b", "mypack:./a"}) {
+            ResourceLocation id = ResourceLocation.parse(text);
+            assertThrows(IllegalArgumentException.class, () -> ConfigStorySource.fileFor(root, FLAGS, id), text);
+            assertThrows(IllegalArgumentException.class, () -> ConfigStorySource.sbtFileFor(root, "en_us", id), text);
+        }
+        assertThrows(IllegalArgumentException.class, () -> ConfigStorySource.sbtFileFor(root, "../../x", ResourceLocation.parse("mypack:a")));
+        assertTrue(ConfigStorySource.isLanguageCode("ru_ru") && ConfigStorySource.isLanguageCode("zh_cn") && ConfigStorySource.isLanguageCode("lol_us"));
+        assertFalse(ConfigStorySource.isLanguageCode("en") || ConfigStorySource.isLanguageCode("../en_us") || ConfigStorySource.isLanguageCode("EN_US"));
     }
 
     @Test

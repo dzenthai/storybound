@@ -33,6 +33,7 @@ class ConfigTextsTest {
 
         ConfigTexts.Texts texts = ConfigTexts.load(root, issues);
 
+        assertEquals("en_us", texts.sourceLanguage());
         assertEquals("The Letter", texts.translations().get("en_us").get("mypack.title"));
         assertEquals("Письмо", texts.translations().get("ru_ru").get("mypack.title"));
         assertEquals("**Hello**", texts.documents().get("en_us").get(ResourceLocation.fromNamespaceAndPath("mypack", "letter")));

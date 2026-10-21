@@ -23,22 +23,31 @@ import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
+import net.minecraft.world.entity.ai.village.poi.PoiType;
+import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-/** The logic language end to end: JSON parsing, story events, trigger chains and actions. */
+/** The logic language end to end: JSON parsing, story events, trigger chains, actions and the world conditions and place triggers. */
 @SuppressWarnings("removal")
 @GameTestHolder(Storybound.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -237,6 +246,104 @@ public final class LogicGameTests {
             TriggerDispatcher.tickAreas(helper.getLevel().getServer());
             expect(helper, stored(player, "cursed_count"), Optional.of(new StoryValue.Int(2)), "walking back in fires again");
             expect(helper, stored(player, "plain_count"), Optional.of(new StoryValue.Int(1)), "default area fires on walking in");
+        });
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void timeAndWeatherConditions(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        StoryContext context = StoryContext.of(player);
+        ServerLevel level = helper.getLevel();
+        long dayTime = level.getDayTime();
+        float rain = level.getRainLevel(1f);
+        float thunder = level.getThunderLevel(1f) / Math.max(rain, 1e-6f);
+        Condition day = condition(helper, "{ \"type\": \"time\", \"period\": \"day\" }");
+        Condition night = condition(helper, "{ \"type\": \"time\", \"period\": \"night\" }");
+        Condition aroundMidnight = condition(helper, "{ \"type\": \"time\", \"min\": 23000, \"max\": 1000 }");
+        Condition clear = condition(helper, "{ \"type\": \"weather\", \"weather\": \"clear\" }");
+        Condition raining = condition(helper, "{ \"type\": \"weather\", \"weather\": \"rain\" }");
+        Condition thundering = condition(helper, "{ \"type\": \"weather\", \"weather\": \"thunder\" }");
+        try {
+            level.setDayTime(24000L * 3 + 6000);
+            expect(helper, List.of(day.test(context), night.test(context), aroundMidnight.test(context)), List.of(true, false, false), "noon on day 4");
+            level.setDayTime(18000);
+            expect(helper, List.of(day.test(context), night.test(context), aroundMidnight.test(context)), List.of(false, true, false), "midnight");
+            level.setDayTime(500);
+            expect(helper, aroundMidnight.test(context), true, "a range over the day's end wraps");
+
+            level.setRainLevel(0f);
+            level.setThunderLevel(0f);
+            expect(helper, List.of(clear.test(context), raining.test(context), thundering.test(context)), List.of(true, false, false), "clear sky");
+            level.setRainLevel(1f);
+            expect(helper, List.of(clear.test(context), raining.test(context), thundering.test(context)), List.of(false, true, false), "rain");
+            level.setThunderLevel(1f);
+            expect(helper, List.of(clear.test(context), raining.test(context), thundering.test(context)), List.of(false, true, true), "thunderstorm");
+        } finally {
+            level.setDayTime(dayTime);
+            level.setRainLevel(rain);
+            level.setThunderLevel(thunder);
+        }
+        helper.assertTrue(LogicCodecs.CONDITION.parse(RegistryOps.create(JsonOps.INSTANCE, level.registryAccess()),
+                JsonParser.parseString("{ \"type\": \"time\" }")).isError(), "time without period, min or max must fail");
+        level.getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void biomeEnteredFiresWhereThePlayerStands(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        String here = helper.getLevel().getBiome(player.blockPosition()).unwrapKey().orElseThrow().location().toString();
+        String elsewhere = here.equals("minecraft:desert") ? "minecraft:jungle" : "minecraft:desert";
+        withEvents(helper, Map.of(
+                key("biome_login"), "{ \"trigger\": { \"type\": \"biome_entered\", \"biome\": \"" + here + "\", \"fire_on_login\": true },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:biome_login\", \"amount\": 1 } }",
+                key("biome_plain"), "{ \"trigger\": { \"type\": \"biome_entered\", \"biome\": [\"" + here + "\"] },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:biome_plain\", \"amount\": 1 } }",
+                key("biome_other"), "{ \"trigger\": { \"type\": \"biome_entered\", \"biome\": \"" + elsewhere + "\", \"fire_on_login\": true },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:biome_other\", \"amount\": 1 } }"
+        ), () -> {
+            TriggerDispatcher.tickAreas(helper.getLevel().getServer());
+            TriggerDispatcher.tickAreas(helper.getLevel().getServer());
+            expect(helper, stored(player, "biome_login"), Optional.of(new StoryValue.Int(1)), "fire_on_login fires once after login, in " + here);
+            expect(helper, stored(player, "biome_plain"), Optional.empty(), "a biome the player was already in on login does not fire");
+            expect(helper, stored(player, "biome_other"), Optional.empty(), "another biome does not fire");
+        });
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void poiEnteredFiresNearAPointOfInterest(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        PoiManager pois = helper.getLevel().getPoiManager();
+        BlockPos bell = player.blockPosition().offset(3, 0, 0);
+        Holder<PoiType> meeting = BuiltInRegistries.POINT_OF_INTEREST_TYPE.getHolderOrThrow(PoiTypes.MEETING);
+        withEvents(helper, Map.of(
+                key("village_square"), "{ \"trigger\": { \"type\": \"poi_entered\", \"poi\": \"minecraft:meeting\", \"radius\": 4 },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:square_visits\", \"amount\": 1 } }",
+                key("far_square"), "{ \"trigger\": { \"type\": \"poi_entered\", \"poi\": \"minecraft:meeting\", \"radius\": 2 },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:far_visits\", \"amount\": 1 } }"
+        ), () -> {
+            MinecraftServer server = helper.getLevel().getServer();
+            TriggerDispatcher.tickAreas(server);
+            try {
+                pois.add(bell, meeting);
+                TriggerDispatcher.tickAreas(server);
+                TriggerDispatcher.tickAreas(server);
+                expect(helper, stored(player, "square_visits"), Optional.of(new StoryValue.Int(1)), "coming within the radius fires once");
+                expect(helper, stored(player, "far_visits"), Optional.empty(), "a point of interest beyond the radius does not fire");
+                pois.remove(bell);
+                TriggerDispatcher.tickAreas(server);
+                pois.add(bell, meeting);
+                TriggerDispatcher.tickAreas(server);
+                expect(helper, stored(player, "square_visits"), Optional.of(new StoryValue.Int(2)), "coming back fires again");
+            } finally {
+                if (pois.existsAtPosition(PoiTypes.MEETING, bell)) {
+                    pois.remove(bell);
+                }
+            }
         });
         helper.getLevel().getServer().getPlayerList().remove(player);
         helper.succeed();

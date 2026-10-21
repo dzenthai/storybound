@@ -257,6 +257,15 @@ public abstract class ListDetailView<E> extends MenuView {
             return this;
         }
 
+        /** Text under an {@link #item} with the same prefix, aligned with that item's text. */
+        public Detail note(String prefix, Component text, int color) {
+            int indent = font.width(prefix + " ");
+            for (FormattedCharSequence line : font.split(text, width - indent)) {
+                lines.add(new Line(null, line, indent, color, LINE_HEIGHT));
+            }
+            return this;
+        }
+
         /** An already wrapped line, e.g. from {@code .sbt} layout. */
         public Detail line(FormattedCharSequence text, int color, int height) {
             lines.add(new Line(null, text, 0, color, height));

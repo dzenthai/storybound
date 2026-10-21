@@ -6,6 +6,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
+import dev.dzenthai.storybound.core.data.ProjectSettings;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import io.netty.buffer.ByteBuf;
@@ -42,12 +43,13 @@ public final class ConfigTexts {
      * @param translations language → key → text
      * @param documents    language → text id → {@code .sbt} source
      */
-    public record Texts(Map<String, Map<String, String>> translations, Map<String, Map<ResourceLocation, String>> documents) {
-        public static final Texts EMPTY = new Texts(Map.of(), Map.of());
+    public record Texts(String sourceLanguage, Map<String, Map<String, String>> translations, Map<String, Map<ResourceLocation, String>> documents) {
+        public static final Texts EMPTY = new Texts(ProjectSettings.DEFAULT_SOURCE, Map.of(), Map.of());
         private static final StreamCodec<ByteBuf, String> LONG_STRING = ByteBufCodecs.stringUtf8(MAX_TEXT);
         private static final StreamCodec<ByteBuf, Map<String, String>> TRANSLATIONS = ByteBufCodecs.map(HashMap::new, LONG_STRING, LONG_STRING);
         private static final StreamCodec<ByteBuf, Map<ResourceLocation, String>> DOCUMENTS = ByteBufCodecs.map(HashMap::new, ResourceLocation.STREAM_CODEC, LONG_STRING);
         public static final StreamCodec<ByteBuf, Texts> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, Texts::sourceLanguage,
                 ByteBufCodecs.map(HashMap::new, ByteBufCodecs.STRING_UTF8, TRANSLATIONS), Texts::translations,
                 ByteBufCodecs.map(HashMap::new, ByteBufCodecs.STRING_UTF8, DOCUMENTS), Texts::documents,
                 Texts::new);
@@ -57,16 +59,15 @@ public final class ConfigTexts {
         return current;
     }
 
-    /** Reads the story folder's texts again; problems go to the validation report. */
     public static void reload() {
         List<ValidationIssue> issues = new ArrayList<>();
         current = load(ConfigStorySource.root(), issues);
         ValidationService.recordLoad(SOURCE, issues);
     }
 
-    /** Public for tests. */
     public static Texts load(Path root, List<ValidationIssue> issues) {
-        return new Texts(translations(root.resolve("lang"), issues), documents(root.resolve("texts"), issues));
+        ProjectSettings settings = ProjectSettings.load(root, problem -> issues.add(ValidationIssue.error(SOURCE, null, problem)));
+        return new Texts(settings.sourceLanguage(), translations(root.resolve("lang"), issues), documents(root.resolve("texts"), issues));
     }
 
     private static Map<String, Map<String, String>> translations(Path folder, List<ValidationIssue> issues) {

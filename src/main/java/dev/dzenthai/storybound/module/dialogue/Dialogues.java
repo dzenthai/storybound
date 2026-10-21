@@ -381,7 +381,8 @@ public final class Dialogues {
             ADDRESSED.put(entity.getUUID(), player.getUUID());
         }
         if (entity != null) {
-            boolean selfBubble = session.dialogue.presentation() == DialogueDefinition.Presentation.BUBBLE;
+            // Not over the player's own head, unseen in first person: the client shows those lines as subtitles.
+            boolean selfBubble = session.dialogue.presentation() == DialogueDefinition.Presentation.BUBBLE && entity != player;
             if (selfBubble || session.dialogue.broadcast()) {
                 bubble(entity, player, text, think == ThinkTime.NONE ? -1 : player.getId(), think, selfBubble, session.dialogue.broadcast());
             }

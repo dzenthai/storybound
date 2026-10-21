@@ -35,6 +35,15 @@ public final class ScriptHooks {
         REPORTED_MISSING.clear();
     }
 
+    /** The conditions registered now (for the dev mode, which shows which script blocks have code behind them). */
+    public static Set<ResourceLocation> conditions() {
+        return Set.copyOf(CONDITIONS.keySet());
+    }
+
+    public static Set<ResourceLocation> actions() {
+        return Set.copyOf(ACTIONS.keySet());
+    }
+
     public static boolean hasCondition(ResourceLocation id) {
         return CONDITIONS.containsKey(id);
     }

@@ -541,6 +541,27 @@
           "additionalProperties": false
         },
         {
+          "description": "The player walks into a biome (an id, a #tag or a list); checked every 10 ticks, with the same login and reload rules as area_entered.",
+          "properties": {
+            "type": { "enum": ["biome_entered", "storybound:biome_entered"] },
+            "biome": { "$ref": "#/definitions/id_list" },
+            "fire_on_login": { "type": "boolean", "default": false }
+          },
+          "required": ["biome"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The player comes within radius blocks of a point of interest (a village bed, a job site block, a bell: an id, a #tag or a list); checked every 10 ticks, with the same login and reload rules as area_entered.",
+          "properties": {
+            "type": { "enum": ["poi_entered", "storybound:poi_entered"] },
+            "poi": { "$ref": "#/definitions/id_list" },
+            "radius": { "type": "integer", "minimum": 1, "maximum": 128, "default": 12 },
+            "fire_on_login": { "type": "boolean", "default": false }
+          },
+          "required": ["poi"],
+          "additionalProperties": false
+        },
+        {
           "properties": {
             "type": { "enum": ["item_obtained", "storybound:item_obtained"] },
             "item": { "$ref": "#/definitions/id" },

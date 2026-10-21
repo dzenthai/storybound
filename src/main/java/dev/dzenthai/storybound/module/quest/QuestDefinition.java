@@ -141,6 +141,7 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
     /**
      * @param trigger required on the server (the validator reports a missing one); stripped for clients
      * @param text    the line shown in the quest view and on the HUD
+     * @param hint    shown under the objective in the Quests tab until the objective is done
      */
     public record Objective(Optional<String> id, Optional<Trigger<?>> trigger, Condition conditions, int count,
                             Optional<StoryText> text, boolean hidden, boolean optional, Optional<StoryText> hint) {
