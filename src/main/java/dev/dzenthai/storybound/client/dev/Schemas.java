@@ -147,7 +147,50 @@ final class Schemas {
             }
             current = new Node(merged, file, ref);
         }
-        return current.ref() == null && ref != null ? new Node(current.json(), current.file(), ref) : current;
+        Node resolved = current.ref() == null && ref != null ? new Node(current.json(), current.file(), ref) : current;
+        return objectForm(resolved);
+    }
+
+    /**
+     * A field written either as an object or, the older way, as an action list (a quest's {@code rewards}): the
+     * editor shows the object, so it gets a form; {@link FormView} turns an old list into the object when it is opened.
+     */
+    private static Node objectForm(Node node) {
+        if (!node.json().has("oneOf")) {
+            return node;
+        }
+        JsonObject object = null;
+        boolean actions = false;
+        for (JsonElement variant : node.json().getAsJsonArray("oneOf")) {
+            if (!variant.isJsonObject()) {
+                return node;
+            }
+            JsonObject json = variant.getAsJsonObject();
+            if (json.has("properties")) {
+                if (object != null) {
+                    return node;
+                }
+                object = json;
+            } else if (json.has("$ref") && json.get("$ref").getAsString().endsWith("/actions")) {
+                actions = true;
+            } else {
+                return node;
+            }
+        }
+        if (object == null || !actions) {
+            return node;
+        }
+        JsonObject merged = object.deepCopy();
+        if (node.json().has("description")) {
+            merged.add("description", node.json().get("description"));
+        }
+        return new Node(merged, node.file(), null);
+    }
+
+    /** Whether the object form's old way of writing it, an action list, is what the value is. */
+    static boolean isOldActionList(Node node, @Nullable JsonElement value) {
+        boolean oldForm = value != null && (value.isJsonArray() || value.isJsonObject() && value.getAsJsonObject().has("type"));
+        return oldForm && properties(node).containsKey("actions") && !properties(node).containsKey("type");
     }
 
     static Node child(Node parent, JsonElement json) {

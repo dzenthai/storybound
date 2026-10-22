@@ -1,11 +1,14 @@
 package dev.dzenthai.storybound.module.quest;
 
+import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.StoryIds;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.Condition;
+import dev.dzenthai.storybound.core.logic.ItemMatcher;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.condition.LogicConditions;
@@ -21,13 +24,16 @@ import net.minecraft.resources.ResourceLocation;
  * {@code data/<ns>/storybound/quests/<path>.json}: a story record with a status and stages.
  *
  * @param onComplete story effects, run once (in the context of the player who finished it)
- * @param rewards    run for every online player sharing the quest, so each party member is paid
+ * @param rewards    for every online player sharing the quest, so each party member is paid: given at once or claimed in the Journal (see {@link QuestRewards})
  * @param announce   JSON {@code notify}: show toasts when the quest starts, advances and ends
+ * @param repeatable the quest may be started again after it ends
+ * @param difficulty shown in the Journal, on the scale the modpack picks in {@code project.json}
+ * @param timeLimit  seconds of game time from the start; then the quest fails
  */
 public record QuestDefinition(ResourceLocation category, StoryScope scope, StoryText title, Optional<StoryText> description,
                               Texts text, Optional<Start> start, List<Stage> stages, Optional<Condition> failWhen,
-                              List<Action> onStart, List<Action> onComplete, List<Action> onFailed, List<Action> rewards,
-                              boolean announce) {
+                              List<Action> onStart, List<Action> onComplete, List<Action> onFailed, QuestRewards.Rewards rewards,
+                              boolean announce, Optional<Repeatable> repeatable, Optional<Difficulty> difficulty, Optional<Double> timeLimit) {
     public static final String COMPLETE = "@complete";
     public static final String FAIL = "@fail";
 
@@ -43,8 +49,11 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
             LogicCodecs.ACTIONS.optionalFieldOf("on_start", List.of()).forGetter(QuestDefinition::onStart),
             LogicCodecs.ACTIONS.optionalFieldOf("on_complete", List.of()).forGetter(QuestDefinition::onComplete),
             LogicCodecs.ACTIONS.optionalFieldOf("on_failed", List.of()).forGetter(QuestDefinition::onFailed),
-            LogicCodecs.ACTIONS.optionalFieldOf("rewards", List.of()).forGetter(QuestDefinition::rewards),
-            Codec.BOOL.optionalFieldOf("notify", true).forGetter(QuestDefinition::announce)
+            QuestRewards.Rewards.CODEC.optionalFieldOf("rewards", QuestRewards.Rewards.NONE).forGetter(QuestDefinition::rewards),
+            Codec.BOOL.optionalFieldOf("notify", true).forGetter(QuestDefinition::announce),
+            Repeatable.CODEC.optionalFieldOf("repeatable").forGetter(QuestDefinition::repeatable),
+            Difficulty.CODEC.optionalFieldOf("difficulty").forGetter(QuestDefinition::difficulty),
+            Codec.doubleRange(1, 10_000_000).optionalFieldOf("time_limit").forGetter(QuestDefinition::timeLimit)
     ).apply(instance, QuestDefinition::new));
 
     public Optional<Stage> stage(String id) {
@@ -67,7 +76,35 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
     /** What clients receive: texts, stages and objective counts; no triggers, conditions or actions. */
     QuestDefinition clientView() {
         return new QuestDefinition(category, scope, title, description, text, Optional.empty(),
-                stages.stream().map(Stage::clientView).toList(), Optional.empty(), List.of(), List.of(), List.of(), List.of(), announce);
+                stages.stream().map(Stage::clientView).toList(), Optional.empty(), List.of(), List.of(), List.of(), rewards.clientView(), announce,
+                repeatable, difficulty, timeLimit);
+    }
+
+    /**
+     * {@code "repeatable": { "cooldown": 1200, "times": 5 }} or {@code "repeatable": true}: after the quest is completed
+     * or failed, its start trigger starts it again once {@code cooldown} seconds of game time have passed, at most
+     * {@code times} completions in all.
+     */
+    public record Repeatable(double cooldown, Optional<Integer> times) {
+        private static final Codec<Repeatable> OBJECT = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.doubleRange(0, 10_000_000).optionalFieldOf("cooldown", 0d).forGetter(Repeatable::cooldown),
+                Codec.intRange(1, 1_000_000).optionalFieldOf("times").forGetter(Repeatable::times)
+        ).apply(instance, Repeatable::new));
+        public static final Codec<Repeatable> CODEC = Codec.either(Codec.BOOL, OBJECT).comapFlatMap(
+                either -> either.map(flag -> flag ? DataResult.success(new Repeatable(0, Optional.empty()))
+                        : DataResult.error(() -> "Leave 'repeatable' out instead of false"), DataResult::success),
+                repeatable -> repeatable.cooldown() == 0 && repeatable.times().isEmpty() ? Either.left(true) : Either.right(repeatable));
+
+        public long cooldownTicks() {
+            return Math.round(cooldown * 20);
+        }
+    }
+
+    /** {@code "difficulty": 3} (stars) or {@code "difficulty": "hard"} (a level of the modpack's scale). */
+    public record Difficulty(Optional<Integer> stars, Optional<String> level) {
+        public static final Codec<Difficulty> CODEC = Codec.either(Codec.intRange(1, DifficultyScale.MAX_STARS), Codec.STRING).xmap(
+                either -> either.map(stars -> new Difficulty(Optional.of(stars), Optional.empty()), level -> new Difficulty(Optional.empty(), Optional.of(level))),
+                difficulty -> difficulty.stars().<Either<Integer, String>>map(Either::left).orElseGet(() -> Either.right(difficulty.level().orElse(""))));
     }
 
     /** Description per status, shown above the stage log. */
@@ -143,8 +180,13 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
      * @param text    the line shown in the quest view and on the HUD
      * @param hint    shown under the objective in the Quests tab until the objective is done
      */
+    /**
+     * @param items {@code count} items to have (or, with {@code consume}, to hand in); without a trigger they are
+     *              looked at every second, with one when it fires
+     */
     public record Objective(Optional<String> id, Optional<Trigger<?>> trigger, Condition conditions, int count,
-                            Optional<StoryText> text, boolean hidden, boolean optional, Optional<StoryText> hint) {
+                            Optional<StoryText> text, boolean hidden, boolean optional, Optional<StoryText> hint, Optional<Items> items,
+                            List<Hint> hints) {
         public static final Codec<Objective> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.optionalFieldOf("id").forGetter(Objective::id),
                 LogicCodecs.TRIGGER.optionalFieldOf("trigger").forGetter(Objective::trigger),
@@ -153,16 +195,48 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
                 StoryText.CODEC.optionalFieldOf("text").forGetter(Objective::text),
                 Codec.BOOL.optionalFieldOf("hidden", false).forGetter(Objective::hidden),
                 Codec.BOOL.optionalFieldOf("optional", false).forGetter(Objective::optional),
-                StoryText.CODEC.optionalFieldOf("hint").forGetter(Objective::hint)
+                StoryText.CODEC.optionalFieldOf("hint").forGetter(Objective::hint),
+                Items.CODEC.optionalFieldOf("items").forGetter(Objective::items),
+                Hint.CODEC.listOf().optionalFieldOf("hints", List.of()).forGetter(Objective::hints)
         ).apply(instance, Objective::new));
 
         public Objective(Optional<String> id, Optional<Trigger<?>> trigger, Condition conditions, int count,
                          Optional<StoryText> text, boolean hidden, boolean optional) {
-            this(id, trigger, conditions, count, text, hidden, optional, Optional.empty());
+            this(id, trigger, conditions, count, text, hidden, optional, Optional.empty(), Optional.empty(), List.of());
         }
 
         Objective clientView() {
-            return new Objective(id, Optional.empty(), LogicConditions.ALWAYS, count, text, hidden, optional, hint);
+            return new Objective(id, Optional.empty(), LogicConditions.ALWAYS, count, text, hidden, optional, hint, Optional.empty(),
+                    hints.stream().map(Hint::clientView).toList());
         }
+    }
+
+    /**
+     * {@code { "text": "mypack.hint.wait_night", "conditions": { "type": "time", "period": "day" }, "after": 300 }}: shown under
+     * the objective while its conditions hold and, with {@code after}, once the objective has not moved for that many
+     * seconds (the player is stuck). The server decides which hints show (see {@link QuestHints}); clients get the texts.
+     */
+    public record Hint(StoryText text, Condition conditions, Optional<Double> after) {
+        public static final Codec<Hint> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                StoryText.CODEC.fieldOf("text").forGetter(Hint::text),
+                LogicCodecs.CONDITION.optionalFieldOf("conditions", LogicConditions.ALWAYS).forGetter(Hint::conditions),
+                Codec.doubleRange(1, 86_400).optionalFieldOf("after").forGetter(Hint::after)
+        ).apply(instance, Hint::new));
+
+        Hint clientView() {
+            return new Hint(text, LogicConditions.ALWAYS, after);
+        }
+    }
+
+    /**
+     * {@code "items": { "item": "minecraft:leather", "consume": true }}: the objective's {@code count} items. Without
+     * {@code consume} it counts what the player holds (also what was there before the stage), never going back down;
+     * with it the items are handed in as they come, taken from the inventory.
+     */
+    public record Items(ItemMatcher matcher, boolean consume) {
+        public static final Codec<Items> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                ItemMatcher.MAP_CODEC.forGetter(Items::matcher),
+                Codec.BOOL.optionalFieldOf("consume", false).forGetter(Items::consume)
+        ).apply(instance, Items::new));
     }
 }

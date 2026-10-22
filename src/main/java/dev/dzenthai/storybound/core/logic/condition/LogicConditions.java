@@ -1,7 +1,9 @@
 package dev.dzenthai.storybound.core.logic.condition;
 
+import com.google.gson.JsonObject;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.ConditionType;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
@@ -100,9 +102,15 @@ public final class LogicConditions {
         }
     }
 
-    /** {@code { "type": "kubejs", "id": "mypack:is_night" }}: a predicate registered by a script or a mod. */
-    public record Script(ResourceLocation id) implements Condition {
-        public static final MapCodec<Script> CODEC = ResourceLocation.CODEC.fieldOf("id").xmap(Script::new, Script::id);
+    /**
+     * {@code { "type": "kubejs", "id": "mypack:is_night", "args": { "dimension": "minecraft:the_nether" } }}: a predicate
+     * registered by a script or a mod, given {@code args} (an empty object without them).
+     */
+    public record Script(ResourceLocation id, JsonObject args) implements Condition {
+        public static final MapCodec<Script> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                ResourceLocation.CODEC.fieldOf("id").forGetter(Script::id),
+                LogicCodecs.JSON_OBJECT.optionalFieldOf("args", new JsonObject()).forGetter(Script::args)
+        ).apply(instance, Script::new));
 
         @Override
         public ConditionType<?> type() {
@@ -111,7 +119,17 @@ public final class LogicConditions {
 
         @Override
         public boolean test(StoryContext context) {
-            return ScriptHooks.testCondition(id, context);
+            return ScriptHooks.testCondition(id, context, args);
+        }
+
+        @Override
+        public void collectReferences(References references) {
+            references.script(id, true);
+        }
+
+        @Override
+        public String describe(StoryContext context) {
+            return ScriptHooks.hasCondition(id) ? "the script returned false" : "no script registers the condition " + id;
         }
     }
 }

@@ -3,15 +3,18 @@ package dev.dzenthai.storybound.module.dialogue;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.logic.Condition;
+import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.condition.LogicConditions;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * {@code data/<ns>/storybound/npc_bindings/<path>.json}: which entities talk, which dialogue they start and how.
@@ -20,27 +23,50 @@ import net.minecraft.world.entity.Entity;
  * @param interact  right-click starts the dialogue
  * @param proximity coming close starts it
  * @param custom    right-click posts {@code npcInteract} to scripts, which decide what happens
+ * @param exclusive while the NPC talks with one player, others cannot start its dialogues (parallel talks are the default)
+ * @param busyDialogue what others get meanwhile, e.g. a bubble "Wait, I am busy"; without it, nothing
  */
 public record NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity,
-                         boolean custom, boolean overrideInteract) {
+                         boolean custom, boolean overrideInteract, boolean exclusive, Optional<ResourceLocation> busyDialogue) {
     public static final Codec<NpcBinding> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             EntitySelector.CODEC.fieldOf("entity").forGetter(NpcBinding::entity),
             Entry.CODEC.listOf().optionalFieldOf("dialogues", List.of()).forGetter(NpcBinding::dialogues),
             Codec.BOOL.optionalFieldOf("interact", true).forGetter(NpcBinding::interact),
             Proximity.CODEC.optionalFieldOf("proximity").forGetter(NpcBinding::proximity),
             Codec.BOOL.optionalFieldOf("custom", false).forGetter(NpcBinding::custom),
-            Codec.BOOL.optionalFieldOf("override_interact", false).forGetter(NpcBinding::overrideInteract)
+            Codec.BOOL.optionalFieldOf("override_interact", false).forGetter(NpcBinding::overrideInteract),
+            Codec.BOOL.optionalFieldOf("exclusive", false).forGetter(NpcBinding::exclusive),
+            ResourceLocation.CODEC.optionalFieldOf("busy_dialogue").forGetter(NpcBinding::busyDialogue)
     ).apply(instance, NpcBinding::new));
 
     public NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity, boolean custom) {
-        this(entity, dialogues, interact, proximity, custom, false);
+        this(entity, dialogues, interact, proximity, custom, false, false, Optional.empty());
     }
 
     /** The dialogue to start for this player, if any entry's conditions pass. */
     public Optional<ResourceLocation> pick(StoryContext context) {
+        return pick(context, null);
+    }
+
+    /**
+     * The dialogue to start for this player, if any entry's conditions pass.
+     *
+     * @param source names the binding in the trace when the player talks (see {@link Conditions#check}); null for
+     *               checks that are only asked, such as whether the talk key works on the NPC
+     */
+    public Optional<ResourceLocation> pick(StoryContext context, @Nullable String source) {
         return dialogues.stream()
                 .sorted(Comparator.comparingInt(Entry::priority).reversed())
-                .filter(entry -> entry.conditions().test(context))
+                // A dialogue that is gone (deleted, a typo) is passed over, so the next entry still talks.
+                .filter(entry -> {
+                    boolean known = Dialogues.definition(entry.dialogue()) != null;
+                    if (!known && source != null) {
+                        StoryTrace.note(context.player(), source + " entry " + entry.dialogue(), "skipped: no such dialogue");
+                    }
+                    return known;
+                })
+                .filter(entry -> source == null ? entry.conditions().test(context)
+                        : Conditions.check(entry.conditions(), context, source + " entry " + entry.dialogue()))
                 .map(Entry::dialogue)
                 .findFirst();
     }

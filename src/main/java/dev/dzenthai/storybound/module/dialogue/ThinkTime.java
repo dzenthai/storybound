@@ -35,6 +35,14 @@ public final class ThinkTime {
         return code == AUTO ? forText(playerTextLength) : Math.max(0, code);
     }
 
+    /**
+     * The pause as a player wants it: {@code multiplier} times the usual one (the client setting), never above
+     * {@link #MAX_MILLIS}, which is what the server waits for timed lines.
+     */
+    public static int resolve(int code, int playerTextLength, double multiplier) {
+        return (int) Math.min(MAX_MILLIS, Math.round(resolve(code, playerTextLength) * multiplier));
+    }
+
     /** "." / ".." / "..." cycling every 0.4 s. */
     public static String dots(long elapsedMillis) {
         return ".".repeat((int) (elapsedMillis / 400 % 3) + 1);

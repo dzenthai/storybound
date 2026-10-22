@@ -1,7 +1,12 @@
 package dev.dzenthai.storybound.core.logic;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.Dynamic;
+import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.core.logic.condition.LogicConditions;
 import java.util.List;
 import java.util.function.Function;
@@ -31,6 +36,15 @@ public final class LogicCodecs {
     public static final Codec<Trigger<?>> TRIGGER = Codec.lazyInitialized(() ->
             LogicRegistries.typeCodec(LogicRegistries.TRIGGER_TYPES, "trigger")
                     .<Trigger<?>>dispatch("type", Trigger::type, TriggerType::codec));
+
+    /**
+     * Any JSON object, kept as written: the {@code args} of script conditions and actions. Read through any ops
+     * (JSON from files, NBT when definitions are synced), so it survives every way a definition travels.
+     */
+    public static final Codec<JsonObject> JSON_OBJECT = Codec.PASSTHROUGH.comapFlatMap(dynamic -> {
+        JsonElement json = dynamic.convert(JsonOps.INSTANCE).getValue();
+        return json.isJsonObject() ? DataResult.success(json.getAsJsonObject()) : DataResult.error(() -> "Expected an object, got " + json);
+    }, json -> new Dynamic<>(JsonOps.INSTANCE, json));
 
     private LogicCodecs() {}
 }

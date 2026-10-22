@@ -1,10 +1,13 @@
 package dev.dzenthai.storybound.module.dialogue;
 
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.compat.cutscene.Cutscenes;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.NpcInteractEvent;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
@@ -17,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -43,6 +47,8 @@ public final class NpcBindings {
     private static final Map<UUID, Set<UUID>> NEAR = new HashMap<>();
     /** Player → entity → tick of the last proximity start, for the cooldown. */
     private static final Map<UUID, Map<UUID, Long>> LAST_START = new HashMap<>();
+    /** The entity each player's trace last explained (see {@link #explainNoBinding}). */
+    private static final Map<UUID, UUID> EXPLAINED = new HashMap<>();
     /** Players whose next check is their first since logging in: it only records who is near. */
     private static final Set<UUID> FRESH = new HashSet<>();
 
@@ -96,10 +102,20 @@ public final class NpcBindings {
         }
         Found found = find(target).orElse(null);
         if (found == null) {
+            explainNoBinding(player, target);
             return false;
+        }
+        if (found.binding().interact() && busyWith(found, target, player) != null) {
+            // A busy NPC offers its busy line, or nothing.
+            return found.binding().busyDialogue().isPresent() || found.binding().custom() && found.id() != null;
         }
         return (found.binding().custom() && found.id() != null)
                 || (found.binding().interact() && found.binding().pick(new StoryContext(player, target)).isPresent());
+    }
+
+    /** The player an {@code exclusive} NPC talks with now, other than this one; null when it is free (or not exclusive). */
+    private static @Nullable ServerPlayer busyWith(Found found, Entity npc, ServerPlayer player) {
+        return found.binding().exclusive() ? Dialogues.talkingWith(npc, player) : null;
     }
 
     private static @Nullable Entity reachable(ServerPlayer player, int entityId) {
@@ -117,7 +133,7 @@ public final class NpcBindings {
      */
     public static void talk(ServerPlayer player, Entity target) {
         if (Dialogues.isEnabled() && Dialogues.state(player).isEmpty()) {
-            find(target).ifPresent(found -> talk(player, target, found));
+            find(target).ifPresentOrElse(found -> talk(player, target, found), () -> explainNoBinding(player, target));
         }
     }
 
@@ -141,13 +157,27 @@ public final class NpcBindings {
 
     /** @return whether the binding handled the talk: posted {@link NpcInteractEvent} or started a dialogue */
     private static boolean talk(ServerPlayer player, Entity target, Found found) {
+        if (Cutscenes.watching(player) != null) {
+            // A cutscene is a scene of its own: no NPC talks into it.
+            StoryTrace.note(player, bindingName(found, target), "talk: not during a cutscene");
+            return false;
+        }
         boolean handled = false;
         if (found.binding().custom() && found.id() != null) {
             NeoForge.EVENT_BUS.post(new NpcInteractEvent(player, target, found.id()));
             handled = true;
         }
         if (found.binding().interact() && Dialogues.state(player).isEmpty()) {
-            Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, target));
+            ServerPlayer other = busyWith(found, target, player);
+            if (other != null) {
+                // Taken: the busy line, if the binding has one, instead of its dialogues.
+                StoryTrace.note(player, bindingName(found, target), "talk: busy with " + other.getGameProfile().getName());
+                return found.binding().busyDialogue().map(busy -> Dialogues.start(player, busy, target)).orElse(false) || handled;
+            }
+            Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, target), bindingName(found, target));
+            if (dialogue.isEmpty()) {
+                StoryTrace.note(player, bindingName(found, target), "talk: no dialogue entry passed its conditions");
+            }
             handled |= dialogue.isPresent() && Dialogues.start(player, dialogue.get(), target);
         }
         return handled;
@@ -191,7 +221,7 @@ public final class NpcBindings {
     }
 
     private static void tryStart(ServerPlayer player, Entity entity, Found found, NpcBinding.Proximity proximity, long now) {
-        if (Dialogues.state(player).isPresent()) {
+        if (Dialogues.state(player).isPresent() || Cutscenes.watching(player) != null) {
             return;
         }
         Map<UUID, Long> starts = LAST_START.computeIfAbsent(player.getUUID(), id -> new HashMap<>());
@@ -203,7 +233,11 @@ public final class NpcBindings {
         if (once != null && StoryState.getStored(player, StoryScope.PLAYER, once).isPresent()) {
             return;
         }
-        Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, entity));
+        if (busyWith(found, entity, player) != null) {
+            // Coming close to a busy NPC starts nothing, not even the busy line: only talking to it does.
+            return;
+        }
+        Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, entity), bindingName(found, entity) + " proximity");
         if (dialogue.isPresent() && Dialogues.start(player, dialogue.get(), entity)) {
             starts.put(entity.getUUID(), now);
             if (once != null) {
@@ -230,15 +264,44 @@ public final class NpcBindings {
     static void forget(ServerPlayer player) {
         NEAR.remove(player.getUUID());
         LAST_START.remove(player.getUUID());
+        EXPLAINED.remove(player.getUUID());
         FRESH.remove(player.getUUID());
     }
 
     static void reset() {
         NEAR.clear();
         LAST_START.clear();
+        EXPLAINED.clear();
         FRESH.clear();
     }
 
     /** @param id the binding file, or null for a binding stored on the entity */
+    /** How the trace names a binding: its id, or the entity whose own binding it is. */
+    /**
+     * For the trace, when the player looks at or talks to an entity no binding matches: what each binding of its type
+     * (every binding, when none is of its type) wants that it lacks. Once per entity looked at, as the talk hint asks
+     * again and again.
+     */
+    private static void explainNoBinding(ServerPlayer player, Entity target) {
+        if (!StoryTrace.active(player) || target.getUUID().equals(EXPLAINED.put(player.getUUID(), target.getUUID()))) {
+            return;
+        }
+        List<String> reasons = new ArrayList<>();
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
+            EntitySelector selector = entry.getValue().entity();
+            String mismatch = selector.mismatch(target);
+            if (!mismatch.startsWith("type is ")) {
+                reasons.add(entry.getKey() + ": " + mismatch);
+            }
+        }
+        String entity = BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()) + " " + target.getUUID();
+        StoryTrace.note(player, "npc " + entity, reasons.isEmpty() ? "no NPC binding is for this kind of entity"
+                : "no NPC binding matches: " + String.join(" | ", reasons));
+    }
+
+    private static String bindingName(Found found, Entity entity) {
+        return "npc binding " + (found.id() != null ? found.id().toString() : "of " + entity.getUUID());
+    }
+
     public record Found(@Nullable ResourceLocation id, NpcBinding binding) {}
 }

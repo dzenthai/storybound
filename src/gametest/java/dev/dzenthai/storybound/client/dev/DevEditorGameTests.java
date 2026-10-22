@@ -14,8 +14,10 @@ import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.core.data.DialogueLayout;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition;
+import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.gametest.framework.GameTest;
@@ -78,6 +80,17 @@ public final class DevEditorGameTests {
                 parse(helper, type.codec(), created.json(), template + " " + created.key());
             }
         }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void questGiverEntriesLoad(GameTestHelper helper) {
+        JsonObject binding = NodeTemplates.create(NodeTemplates.Template.NPC, 1, new NodeTemplates.Place(null, ""), (key, args) -> key).getFirst().json();
+        ResourceLocation quest = ResourceLocation.fromNamespaceAndPath("gametest", "given");
+        for (QuestGiver.Phase phase : QuestGiver.Phase.values()) {
+            QuestGiver.addEntry(binding, ResourceLocation.fromNamespaceAndPath("gametest", "say_" + phase.name().toLowerCase(Locale.ROOT)), quest, phase);
+        }
+        parse(helper, NpcBinding.CODEC, binding, "an NPC binding with the quest giver's entries");
         helper.succeed();
     }
 
@@ -155,6 +168,9 @@ public final class DevEditorGameTests {
                 case "structure" -> "#minecraft:village";
                 case "poi" -> "minecraft:meeting";
                 case "sound" -> "minecraft:block.note_block.bell";
+                case "effect" -> "minecraft:speed";
+                case "stat" -> "minecraft:jump";
+                case "stat_type" -> "minecraft:custom";
                 case "dimension" -> "minecraft:overworld";
                 default -> "gametest:sample";
             });

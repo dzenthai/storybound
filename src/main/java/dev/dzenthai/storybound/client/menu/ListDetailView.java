@@ -95,6 +95,12 @@ public abstract class ListDetailView<E> extends MenuView {
         selectionChanged();
     }
 
+    /** Builds the detail again after the view's own state changed (a choice), and updates the buttons. */
+    protected final void refreshDetail() {
+        rebuildDetail();
+        selectionChanged();
+    }
+
     private void rebuildDetail() {
         Detail builder = new Detail(font, detailWidth());
         if (selected != null) {
@@ -152,6 +158,9 @@ public abstract class ListDetailView<E> extends MenuView {
             if (line.block() != null && y + line.height() > top && y < bottom) {
                 line.block().render(graphics, x, y, detailWidth(), mouseX, mouseY, partialTick);
             } else if (line.text() != null && y + line.height() > top && y < bottom) {
+                if (line.click() != null && mouseX >= x && mouseX < x + detailWidth() && mouseY >= y && mouseY < y + line.height()) {
+                    graphics.fill(x - 2, y - 1, x + detailWidth(), y + line.height() - 1, theme().hover());
+                }
                 if (line.prefix() != null) {
                     graphics.drawString(font, line.prefix(), x, y, line.color(), false);
                 }
@@ -164,6 +173,16 @@ public abstract class ListDetailView<E> extends MenuView {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (mouseX >= detailX() && mouseX < detailX() + detailWidth() && mouseY >= top && mouseY < top + height - BUTTON_ROW) {
+            int y = top - detailScroll;
+            for (Line line : detail) {
+                if (line.click() != null && mouseY >= y && mouseY < y + line.height()) {
+                    line.click().run();
+                    return true;
+                }
+                y += line.height();
+            }
+        }
         if (mouseX >= left && mouseX < left + listWidth() && mouseY >= top && mouseY < top + height) {
             int index = listScroll + (int) ((mouseY - top) / ROW_HEIGHT);
             if (index >= 0 && index < rows.size() && rows.get(index).entry() != null) {
@@ -217,9 +236,11 @@ public abstract class ListDetailView<E> extends MenuView {
         }
     }
 
-    private record Line(@Nullable String prefix, @Nullable FormattedCharSequence text, int indent, int color, int height, @Nullable Block block) {
+    /** @param click what clicking the line does (a choice); null for text */
+    private record Line(@Nullable String prefix, @Nullable FormattedCharSequence text, int indent, int color, int height, @Nullable Block block,
+                        @Nullable Runnable click) {
         Line(@Nullable String prefix, @Nullable FormattedCharSequence text, int indent, int color, int height) {
-            this(prefix, text, indent, color, height, null);
+            this(prefix, text, indent, color, height, null, null);
         }
     }
 
@@ -257,6 +278,16 @@ public abstract class ListDetailView<E> extends MenuView {
             return this;
         }
 
+        /** An {@link #item} the player can click (a choice); it is highlighted under the mouse. */
+        public Detail clickable(String prefix, Component text, int color, Runnable click) {
+            int indent = font.width(prefix + " ");
+            List<FormattedCharSequence> wrapped = font.split(text, width - indent);
+            for (int i = 0; i < wrapped.size(); i++) {
+                lines.add(new Line(i == 0 ? prefix : null, wrapped.get(i), indent, color, LINE_HEIGHT, null, click));
+            }
+            return this;
+        }
+
         /** Text under an {@link #item} with the same prefix, aligned with that item's text. */
         public Detail note(String prefix, Component text, int color) {
             int indent = font.width(prefix + " ");
@@ -273,7 +304,7 @@ public abstract class ListDetailView<E> extends MenuView {
         }
 
         public Detail block(int height, Block block) {
-            lines.add(new Line(null, null, 0, 0, height, block));
+            lines.add(new Line(null, null, 0, 0, height, block, null));
             return this;
         }
 

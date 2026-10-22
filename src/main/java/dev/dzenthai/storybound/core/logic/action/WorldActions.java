@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.core.logic.action;
 
+import com.google.gson.JsonObject;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
@@ -10,6 +11,8 @@ import dev.dzenthai.storybound.core.logic.condition.WorldConditions;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.ActionType;
 import dev.dzenthai.storybound.core.logic.ItemMatcher;
+import dev.dzenthai.storybound.core.logic.LogicCodecs;
+import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.ScriptHooks;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.notify.NotifyKind;
@@ -32,7 +35,7 @@ import net.neoforged.neoforge.items.ItemHandlerHelper;
 
 /** Effects on the player and the world. */
 public final class WorldActions {
-    private static final Codec<SoundSource> SOUND_SOURCE_CODEC = Codec.STRING.comapFlatMap(
+    static final Codec<SoundSource> SOUND_SOURCE_CODEC = Codec.STRING.comapFlatMap(
             name -> Arrays.stream(SoundSource.values())
                     .filter(source -> source.getName().equals(name))
                     .findFirst()
@@ -90,19 +93,25 @@ public final class WorldActions {
                 throw new StoryException(Component.translatableWithFallback("storybound.action.take_item.not_enough",
                         "Not enough items: needs %s, has %s", count, available));
             }
-            Inventory inventory = player.getInventory();
-            int remaining = count;
-            for (int slot = 0; slot < inventory.getContainerSize() && remaining > 0; slot++) {
-                ItemStack stack = inventory.getItem(slot);
-                if (matcher.test(stack)) {
-                    int taken = Math.min(remaining, stack.getCount());
-                    stack.shrink(taken);
-                    remaining -= taken;
-                }
-            }
-            inventory.setChanged();
-            player.containerMenu.broadcastChanges();
+            removeItems(player, matcher, count);
         }
+    }
+
+    /** Takes up to {@code count} matching items from the whole inventory; returns how many it took. */
+    public static int removeItems(ServerPlayer player, ItemMatcher matcher, int count) {
+        Inventory inventory = player.getInventory();
+        int remaining = count;
+        for (int slot = 0; slot < inventory.getContainerSize() && remaining > 0; slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (matcher.test(stack)) {
+                int taken = Math.min(remaining, stack.getCount());
+                stack.shrink(taken);
+                remaining -= taken;
+            }
+        }
+        inventory.setChanged();
+        player.containerMenu.broadcastChanges();
+        return count - remaining;
     }
 
     /** Plays only for this player. The sound id may come from a resource pack, so it is not checked against the registry. */
@@ -146,9 +155,15 @@ public final class WorldActions {
         }
     }
 
-    /** {@code { "type": "kubejs", "id": "mypack:pay_bribe" }}: an action registered by a script or a mod. */
-    public record Script(ResourceLocation id) implements Action {
-        public static final MapCodec<Script> CODEC = ResourceLocation.CODEC.fieldOf("id").xmap(Script::new, Script::id);
+    /**
+     * {@code { "type": "kubejs", "id": "mypack:pay_bribe", "args": { "gold": 5 } }}: an action registered by a script or a
+     * mod, given {@code args} (an empty object without them).
+     */
+    public record Script(ResourceLocation id, JsonObject args) implements Action {
+        public static final MapCodec<Script> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                ResourceLocation.CODEC.fieldOf("id").forGetter(Script::id),
+                LogicCodecs.JSON_OBJECT.optionalFieldOf("args", new JsonObject()).forGetter(Script::args)
+        ).apply(instance, Script::new));
 
         @Override
         public ActionType<?> type() {
@@ -157,7 +172,12 @@ public final class WorldActions {
 
         @Override
         public void run(StoryContext context) {
-            ScriptHooks.runAction(id, context);
+            ScriptHooks.runAction(id, context, args);
+        }
+
+        @Override
+        public void collectReferences(References references) {
+            references.script(id, false);
         }
     }
 

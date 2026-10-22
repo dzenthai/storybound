@@ -19,15 +19,18 @@ import net.minecraft.world.entity.EntityType;
  *
  * @param entity   what {@code seen} and {@code killed} refer to: an id, a #tag or a list; also the portrait
  * @param announce JSON {@code notify}: toasts when the entry appears or a section opens
+ * @param showKills JSON {@code show_kills}: the entry counts and shows how many of its {@code entity} the player killed (off for
+ *                  characters and peaceful creatures)
  */
 public record CodexDefinition(ResourceLocation category, Optional<HolderSet<EntityType<?>>> entity, StoryText title,
-                              List<Section> sections, boolean announce) {
+                              List<Section> sections, boolean announce, boolean showKills) {
     public static final Codec<CodexDefinition> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             StoryIds.CODEC.optionalFieldOf("category", Storybound.id("monsters")).forGetter(CodexDefinition::category),
             RegistryCodecs.homogeneousList(Registries.ENTITY_TYPE).optionalFieldOf("entity").forGetter(CodexDefinition::entity),
             StoryText.CODEC.fieldOf("title").forGetter(CodexDefinition::title),
             Section.CODEC.listOf().fieldOf("sections").forGetter(CodexDefinition::sections),
-            Codec.BOOL.optionalFieldOf("notify", true).forGetter(CodexDefinition::announce)
+            Codec.BOOL.optionalFieldOf("notify", true).forGetter(CodexDefinition::announce),
+            Codec.BOOL.optionalFieldOf("show_kills", true).forGetter(CodexDefinition::showKills)
     ).apply(instance, CodexDefinition::new));
 
     public Optional<Section> section(String id) {
@@ -41,7 +44,7 @@ public record CodexDefinition(ResourceLocation category, Optional<HolderSet<Enti
 
     /** What clients receive: everything except how sections open. */
     CodexDefinition clientView() {
-        return new CodexDefinition(category, entity, title, sections.stream().map(Section::clientView).toList(), announce);
+        return new CodexDefinition(category, entity, title, sections.stream().map(Section::clientView).toList(), announce, showKills);
     }
 
     /**

@@ -5,6 +5,7 @@ import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.core.logic.TriggerType;
+import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Unit;
 import net.minecraft.world.entity.Entity;
@@ -39,6 +40,14 @@ public final class BuiltinTriggers {
             REGISTER.register("party_left", () -> new TriggerType<>(CoreTriggers.PartyLeft.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.Custom, ResourceLocation>> CUSTOM =
             REGISTER.register("custom", () -> new TriggerType<>(CoreTriggers.Custom.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<ProgressTriggers.AdvancementEarned, AdvancementHolder>> ADVANCEMENT_EARNED =
+            REGISTER.register("advancement_earned", () -> new TriggerType<>(ProgressTriggers.AdvancementEarned.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<ProgressTriggers.DimensionChanged, ProgressTriggers.Travel>> DIMENSION_CHANGED =
+            REGISTER.register("dimension_changed", () -> new TriggerType<>(ProgressTriggers.DimensionChanged.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<ProgressTriggers.LevelReached, ProgressTriggers.Change>> LEVEL_REACHED =
+            REGISTER.register("level_reached", () -> new TriggerType<>(ProgressTriggers.LevelReached.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<ProgressTriggers.StatReached, ProgressTriggers.StatChange>> STAT_REACHED =
+            REGISTER.register("stat_reached", () -> new TriggerType<>(ProgressTriggers.StatReached.CODEC));
 
     private BuiltinTriggers() {}
 }

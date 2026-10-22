@@ -58,6 +58,11 @@ public final class TriggerDispatcher {
         return index.containsKey(type);
     }
 
+    /** What listens to the trigger type now; for detectors that only look for what someone waits for. */
+    public static List<Subscription<?>> subscriptions(TriggerType<?, ?> type) {
+        return index.getOrDefault(type, List.of());
+    }
+
     @SuppressWarnings("unchecked")
     public static <E> void fire(TriggerType<?, E> type, StoryContext context, E event) {
         List<Subscription<?>> subscriptions = index.get(type);

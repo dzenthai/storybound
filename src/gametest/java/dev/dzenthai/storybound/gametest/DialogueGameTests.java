@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -39,6 +40,7 @@ import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.npc.Villager;
@@ -522,6 +524,70 @@ public final class DialogueGameTests {
     }
 
     /** Installs {@code gametest:talk} and {@code gametest:aside}, runs the body, then restores the loaded dialogues. */
+    @GameTest(template = "empty")
+    public static void anExclusiveNpcTalksWithOnePlayerAtATime(GameTestHelper helper) {
+        Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
+        npc.addTag("gametest_exclusive");
+        ServerPlayer first = near(helper, helper.makeMockServerPlayerInLevel(), 2, 2, 2);
+        ServerPlayer second = near(helper, helper.makeMockServerPlayerInLevel(), 2, 2, 1);
+        withDialogues(helper, "exclusive", true, () -> with(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(
+                key("exclusive"), """
+                        { "entity": { "type": "minecraft:villager", "tag": "gametest_exclusive" }, "exclusive": true,
+                          "busy_dialogue": "gametest:aside", "dialogues": [ { "dialogue": "gametest:talk" } ] }
+                        """), () -> {
+            NpcBindings.rebuild();
+            NpcBindings.talkRequested(first, npc.getId());
+            expect(helper, state(first).dialogue(), TALK, "the first player talks");
+            helper.assertTrue(NpcBindings.canTalk(second, npc.getId()), "the second sees the talk hint: there is a busy line");
+            NpcBindings.talkRequested(second, npc.getId());
+            expect(helper, state(second).dialogue(), ASIDE, "the second gets the busy line, not the dialogue");
+            Dialogues.interrupt(second, EndReason.STOPPED);
+            Dialogues.interrupt(first, EndReason.STOPPED);
+            NpcBindings.talkRequested(second, npc.getId());
+            expect(helper, state(second).dialogue(), TALK, "free again: the dialogue");
+            Dialogues.interrupt(second, EndReason.STOPPED);
+        }));
+        withDialogues(helper, "exclusive_silent", true, () -> with(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(
+                key("exclusive"), """
+                        { "entity": { "type": "minecraft:villager", "tag": "gametest_exclusive" }, "exclusive": true,
+                          "dialogues": [ { "dialogue": "gametest:talk" } ] }
+                        """), () -> {
+            NpcBindings.rebuild();
+            NpcBindings.talkRequested(first, npc.getId());
+            helper.assertFalse(NpcBindings.canTalk(second, npc.getId()), "without a busy line, no talk hint");
+            NpcBindings.talkRequested(second, npc.getId());
+            expect(helper, Dialogues.state(second), Optional.empty(), "and nothing starts");
+            Dialogues.interrupt(first, EndReason.STOPPED);
+        }));
+        NpcBindings.rebuild();
+        helper.getLevel().getServer().getPlayerList().remove(first);
+        helper.getLevel().getServer().getPlayerList().remove(second);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void aGoneDialogueIsPassedOverAndMismatchesAreExplained(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        withDialogues(helper, "gone", true, () -> {
+            NpcBinding binding = NpcBinding.CODEC.parse(ops(helper), JsonParser.parseString("""
+                    { "entity": { "type": "minecraft:villager", "tag": "quest_man", "name": "Quest Man" },
+                      "dialogues": [ { "dialogue": "gametest:deleted", "priority": 10 }, { "dialogue": "%s" } ] }
+                    """.formatted(TALK))).getOrThrow(GameTestAssertException::new);
+            expect(helper, binding.pick(StoryContext.of(player)), Optional.of(TALK), "the next entry talks when the first dialogue is gone");
+            Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(1, 2, 1));
+            villager.addTag("npc_4");
+            String why = binding.entity().mismatch(villager);
+            helper.assertTrue(why.contains("tag quest_man missing (has npc_4)") && why.contains("custom name is none, wanted Quest Man"),
+                    "says what the villager lacks: " + why);
+            villager.addTag("quest_man");
+            villager.setCustomName(Component.literal("Quest Man"));
+            expect(helper, binding.entity().mismatch(villager), "", "nothing when it matches");
+            villager.discard();
+        });
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
     private static void withDialogues(GameTestHelper helper, String prefix, boolean closable, Runnable body) {
         Map<ResourceLocation, DialogueDefinition> previous = install(helper, prefix, closable);
         try {

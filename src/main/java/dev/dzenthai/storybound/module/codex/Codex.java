@@ -2,13 +2,17 @@ package dev.dzenthai.storybound.module.codex;
 
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.event.CodexUnlockedEvent;
+import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.notify.Notifications;
 import dev.dzenthai.storybound.core.notify.NotifyKind;
+import dev.dzenthai.storybound.network.CodexKillsPayload;
 import dev.dzenthai.storybound.network.CodexSyncPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -53,13 +57,16 @@ public final class Codex {
         for (CodexDefinition.Section section : definition.sections()) {
             Unlock unlock = section.unlock();
             if (!data.isUnlocked(entry, section.id()) && unlock.on().contains(source) && counter >= unlock.count()
-                    && unlock.conditions().test(context) && data.open(entry, section.id())) {
+                    && Conditions.check(unlock.conditions(), context, "codex " + entry + " section " + section.id()) && data.open(entry, section.id())) {
                 opened.add(section.id());
             }
         }
         // Counters changed even when nothing opened; the attachment is saved with the player either way.
         if (!opened.isEmpty()) {
             changed(context.player(), entry, definition, opened, wasNew);
+        } else if (source instanceof Unlock.Source.Killed && definition.showKills()) {
+            // One number, not the whole Codex: kills come often (a mob farm).
+            StoryboundNetwork.sendToPlayer(context.player(), new CodexKillsPayload(Map.of(entry, counter), false));
         }
     }
 
@@ -94,6 +101,19 @@ public final class Codex {
 
     public static void sync(ServerPlayer player) {
         StoryboundNetwork.sendToPlayer(player, new CodexSyncPayload(data(player).unlocked()));
+        StoryboundNetwork.sendToPlayer(player, new CodexKillsPayload(kills(player), true));
+    }
+
+    /** The kills counted for entries that show them. */
+    private static Map<ResourceLocation, Integer> kills(ServerPlayer player) {
+        CodexData data = data(player);
+        Map<ResourceLocation, Integer> kills = new HashMap<>();
+        CodexRegistries.CODEX.serverStore().all().forEach((entry, definition) -> {
+            if (definition.showKills() && data.kills(entry) > 0) {
+                kills.put(entry, data.kills(entry));
+            }
+        });
+        return kills;
     }
 
     private static void changed(ServerPlayer player, ResourceLocation entry, CodexDefinition definition, List<String> opened, boolean wasNew) {

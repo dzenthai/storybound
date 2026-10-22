@@ -14,6 +14,7 @@ import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -83,6 +84,44 @@ public final class DevModeGameTests {
         }
         players.remove(author);
         players.remove(guest);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void savingKeepsTheAuthorsFile(GameTestHelper helper) {
+        ServerPlayer author = helper.makeMockServerPlayerInLevel();
+        PlayerList players = helper.getLevel().getServer().getPlayerList();
+        players.getOps().add(new ServerOpListEntry(author.getGameProfile(), 4, false));
+        DefinitionStore<QuestDefinition> store = QuestRegistries.QUESTS.serverStore();
+        ResourceLocation type = QuestRegistries.QUESTS.id();
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath("gametest", "dev_as_written");
+        Path file = ConfigStorySource.fileFor(ConfigStorySource.root(), QuestRegistries.QUESTS, id);
+        try {
+            // Written by hand: four spaces, Windows line ends, the category first, a default written out, a note the game does not know.
+            String byHand = "{\r\n    \"category\": \"side\",\r\n    \"title\": \"gametest.as_written\",\r\n    \"announce\": true,\r\n"
+                    + "    \"x_note\": \"ask the writer\"\r\n}\r\n";
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, byHand);
+            DevModeServer.saveDefinition(author, type, id,
+                    "{ \"category\": \"main\", \"title\": \"gametest.as_written\", \"announce\": true, \"x_note\": \"ask the writer\" }",
+                    Optional.empty(), "en_us", Map.of());
+            String saved = read(file);
+            helper.assertTrue(saved.equals(byHand.replace("\"side\"", "\"main\"")), "only the edited value changed:\n" + saved);
+            helper.assertTrue(store.contains(id), "and the quest is in use");
+
+            FileTime old = FileTime.fromMillis(1_000_000_000_000L);
+            Files.setLastModifiedTime(file, old);
+            DevModeServer.saveDefinition(author, type, id,
+                    "{\"category\":\"main\",\"title\":\"gametest.as_written\",\"announce\":true,\"x_note\":\"ask the writer\"}",
+                    Optional.empty(), "en_us", Map.of());
+            helper.assertTrue(Files.getLastModifiedTime(file).equals(old), "the same JSON leaves the file untouched");
+        } catch (IOException e) {
+            throw new GameTestAssertException(e.getMessage());
+        } finally {
+            players.getOps().remove(author.getGameProfile());
+            cleanUp(store, id, file);
+        }
+        players.remove(author);
         helper.succeed();
     }
 

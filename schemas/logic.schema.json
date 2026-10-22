@@ -59,7 +59,7 @@
       "properties": {
         "type": { "description": "An entity type, a #tag or a list.", "$ref": "#/definitions/id_list" },
         "tag": { "description": "A scoreboard tag (/tag @e add elder).", "type": "string" },
-        "name": { "description": "The exact custom name.", "type": "string" },
+        "name": { "description": "Only an entity with exactly this custom name (from a name tag or /summon). It is a filter, not the name shown in dialogues: that is the dialogue participant's name.", "type": "string" },
         "uuid": { "description": "One entity, e.g. an Easy NPC.", "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }
       }
     },
@@ -71,6 +71,12 @@
     "unlock_target": {
       "description": "player: just this player. party: every online member of their party.",
       "enum": ["player", "party"],
+      "default": "player"
+    },
+    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "scene_target": {
+      "description": "player: the player the story runs for. entity: the context entity (the NPC talked to, the mob killed, the dialogue partner).",
+      "enum": ["player", "entity"],
       "default": "player"
     },
     "area": {
@@ -170,7 +176,8 @@
         {
           "properties": {
             "type": { "enum": ["kubejs", "storybound:kubejs"] },
-            "id": { "$ref": "#/definitions/id" }
+            "id": { "$ref": "#/definitions/id" },
+            "args": { "description": "Any values for the script, as ctx.args: one handler can serve the whole story.", "type": "object" }
           },
           "required": ["id"],
           "additionalProperties": false
@@ -233,6 +240,45 @@
             "weather": { "enum": ["clear", "rain", "thunder"] }
           },
           "required": ["weather"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The player has the advancement (done: false, has not). One that is not loaded is never done.",
+          "properties": {
+            "type": { "enum": ["advancement", "storybound:advancement"] },
+            "advancement": { "$ref": "#/definitions/id" },
+            "done": { "type": "boolean", "default": true }
+          },
+          "required": ["advancement"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The player's experience level is in min..max.",
+          "properties": {
+            "type": { "enum": ["level", "storybound:level"] },
+            "min": { "type": "integer", "minimum": 0 },
+            "max": { "type": "integer", "minimum": 0 }
+          },
+          "anyOf": [ { "required": ["min"] }, { "required": ["max"] } ],
+          "additionalProperties": false
+        },
+        {
+          "description": "A vanilla statistic is at least min: stat alone is a custom one (minecraft:mob_kills); with stat_type, e.g. minecraft:killed and minecraft:zombie.",
+          "properties": {
+            "type": { "enum": ["stat", "storybound:stat"] },
+            "stat_type": { "$ref": "#/definitions/id" },
+            "stat": { "$ref": "#/definitions/id" },
+            "min": { "type": "integer", "minimum": 0, "default": 1 }
+          },
+          "required": ["stat"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The player watches the cutscene (any one without an id); false without Cutscene API.",
+          "properties": {
+            "type": { "enum": ["in_cutscene", "storybound:in_cutscene"] },
+            "cutscene": { "$ref": "#/definitions/id" }
+          },
           "additionalProperties": false
         },
         {
@@ -331,6 +377,117 @@
           "additionalProperties": false
         },
         {
+          "description": "Spawns entities at the place: pos (with dimension), else offset from at (the player, or the context entity). Tags let a waypoint or an NPC binding find them.",
+          "properties": {
+            "type": { "enum": ["spawn_entity", "storybound:spawn_entity"] },
+            "entity": { "$ref": "#/definitions/id" },
+            "count": { "type": "integer", "minimum": 1, "maximum": 64, "default": 1 },
+            "pos": { "$ref": "#/definitions/vec3" },
+            "dimension": { "$ref": "#/definitions/id" },
+            "at": { "$ref": "#/definitions/scene_target" },
+            "offset": { "$ref": "#/definitions/vec3" },
+            "tag": { "description": "A tag or a list of tags given to every spawned entity.", "oneOf": [ { "type": "string" }, { "type": "array", "items": { "type": "string" } } ] },
+            "name": { "$ref": "#/definitions/story_text" },
+            "nbt": { "description": "Entity NBT, as /summon takes it.", "type": "object" },
+            "persistent": { "description": "Never despawns (mobs).", "type": "boolean", "default": true }
+          },
+          "required": ["entity"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Moves the player (or the context entity) to the place: pos (with dimension, also another one), else offset from at.",
+          "properties": {
+            "type": { "enum": ["teleport", "storybound:teleport"] },
+            "target": { "$ref": "#/definitions/scene_target" },
+            "pos": { "$ref": "#/definitions/vec3" },
+            "dimension": { "$ref": "#/definitions/id" },
+            "at": { "$ref": "#/definitions/scene_target" },
+            "offset": { "$ref": "#/definitions/vec3" },
+            "yaw": { "type": "number" },
+            "pitch": { "type": "number", "minimum": -90, "maximum": 90 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Gives the player (or the context entity) an effect for duration seconds (-1: forever); clear takes it away.",
+          "properties": {
+            "type": { "enum": ["effect", "storybound:effect"] },
+            "effect": { "$ref": "#/definitions/id" },
+            "target": { "$ref": "#/definitions/scene_target" },
+            "duration": { "type": "integer", "minimum": -1, "maximum": 1000000, "not": { "const": 0 }, "default": 30 },
+            "amplifier": { "description": "0 is level I.", "type": "integer", "minimum": 0, "maximum": 255, "default": 0 },
+            "particles": { "type": "boolean", "default": true },
+            "clear": { "type": "boolean", "default": false }
+          },
+          "required": ["effect"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A title, a subtitle and an action bar line for the player; times in ticks.",
+          "properties": {
+            "type": { "enum": ["title", "storybound:title"] },
+            "title": { "$ref": "#/definitions/story_text" },
+            "subtitle": { "$ref": "#/definitions/story_text" },
+            "actionbar": { "$ref": "#/definitions/story_text" },
+            "fade_in": { "type": "integer", "minimum": 0, "maximum": 600, "default": 10 },
+            "stay": { "type": "integer", "minimum": 0, "maximum": 2400, "default": 70 },
+            "fade_out": { "type": "integer", "minimum": 0, "maximum": 600, "default": 20 }
+          },
+          "anyOf": [ { "required": ["title"] }, { "required": ["subtitle"] }, { "required": ["actionbar"] } ],
+          "additionalProperties": false
+        },
+        {
+          "description": "A sound at the place, heard by everyone near it (play_sound is heard by the player alone).",
+          "properties": {
+            "type": { "enum": ["sound_at", "storybound:sound_at"] },
+            "sound": { "$ref": "#/definitions/id" },
+            "pos": { "$ref": "#/definitions/vec3" },
+            "dimension": { "$ref": "#/definitions/id" },
+            "at": { "$ref": "#/definitions/scene_target" },
+            "offset": { "$ref": "#/definitions/vec3" },
+            "source": { "enum": ["master", "music", "record", "weather", "block", "hostile", "neutral", "player", "ambient", "voice"], "default": "master" },
+            "volume": { "type": "number", "minimum": 0, "maximum": 10, "default": 1 },
+            "pitch": { "type": "number", "minimum": 0.5, "maximum": 2, "default": 1 }
+          },
+          "required": ["sound"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The rest of this action list runs that many seconds later (game time: a restart only pauses it). The list counts as done at once.",
+          "properties": {
+            "type": { "enum": ["wait", "storybound:wait"] },
+            "seconds": { "type": "number", "minimum": 0.05, "maximum": 86400 }
+          },
+          "required": ["seconds"],
+          "additionalProperties": false
+        },
+        {
+          "description": "These actions run that many seconds later, for the same player and entity; the list goes on at once.",
+          "properties": {
+            "type": { "enum": ["schedule", "storybound:schedule"] },
+            "seconds": { "type": "number", "minimum": 0.05, "maximum": 86400 },
+            "actions": { "$ref": "#/definitions/actions" },
+            "on_fail": { "enum": ["abort", "continue"], "default": "abort" }
+          },
+          "required": ["seconds", "actions"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Plays a Cutscene API cutscene for the player (needs the mod cutscene_api): from the place (the player's by default; pos, offset, at as for spawn_entity), the camera turned by rotation and the path by path_rotation ([yaw, pitch, roll]).",
+          "properties": {
+            "type": { "enum": ["play_cutscene", "storybound:play_cutscene"] },
+            "cutscene": { "$ref": "#/definitions/id" },
+            "pos": { "$ref": "#/definitions/vec3" },
+            "dimension": { "$ref": "#/definitions/id" },
+            "at": { "$ref": "#/definitions/scene_target" },
+            "offset": { "$ref": "#/definitions/vec3" },
+            "rotation": { "$ref": "#/definitions/vec3" },
+            "path_rotation": { "$ref": "#/definitions/vec3" }
+          },
+          "required": ["cutscene"],
+          "additionalProperties": false
+        },
+        {
           "properties": {
             "type": { "enum": ["run_command", "storybound:run_command"] },
             "command": { "type": "string" }
@@ -341,7 +498,8 @@
         {
           "properties": {
             "type": { "enum": ["kubejs", "storybound:kubejs"] },
-            "id": { "$ref": "#/definitions/id" }
+            "id": { "$ref": "#/definitions/id" },
+            "args": { "description": "Any values for the script, as ctx.args: one handler can serve the whole story.", "type": "object" }
           },
           "required": ["id"],
           "additionalProperties": false
@@ -582,6 +740,52 @@
             "id": { "$ref": "#/definitions/id" }
           },
           "required": ["id"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The player earns the advancement; without one, any advancement with a toast (not recipes).",
+          "properties": {
+            "type": { "enum": ["advancement_earned", "storybound:advancement_earned"] },
+            "advancement": { "$ref": "#/definitions/id" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "The player goes to another dimension (from and to are optional).",
+          "properties": {
+            "type": { "enum": ["dimension_changed", "storybound:dimension_changed"] },
+            "from": { "$ref": "#/definitions/id" },
+            "to": { "$ref": "#/definitions/id" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "The player's experience level reaches the value (checked every second; not for a player already past it).",
+          "properties": {
+            "type": { "enum": ["level_reached", "storybound:level_reached"] },
+            "level": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["level"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A vanilla statistic reaches the value (checked every second; not for a player already past it). See the stat condition.",
+          "properties": {
+            "type": { "enum": ["stat_reached", "storybound:stat_reached"] },
+            "stat_type": { "$ref": "#/definitions/id" },
+            "stat": { "$ref": "#/definitions/id" },
+            "value": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["stat", "value"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A cutscene the player watched ended: finish (played to the end), interrupt (another one, logging out), command, error; any without reason.",
+          "properties": {
+            "type": { "enum": ["cutscene_finished", "storybound:cutscene_finished"] },
+            "cutscene": { "$ref": "#/definitions/id" },
+            "reason": { "enum": ["finish", "interrupt", "command", "error"] }
+          },
           "additionalProperties": false
         },
         {

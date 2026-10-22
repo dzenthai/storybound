@@ -26,7 +26,7 @@ public final class ClientWaypoints {
     private static final List<WaypointRenderer> RENDERERS = new CopyOnWriteArrayList<>();
     private static int version;
     private static int shownVersion = -1;
-    private static Optional<ResourceLocation> shownTracked = Optional.empty();
+    private static List<ResourceLocation> shownTracked = List.of();
     private static @Nullable ClientLevel shownLevel;
     private static @Nullable StoryboundClientConfig.Untracked shownUntracked;
 
@@ -60,7 +60,7 @@ public final class ClientWaypoints {
         if (waypoint.quest().isEmpty()) {
             return Display.NORMAL;
         }
-        if (waypoint.quest().equals(ClientQuests.tracked())) {
+        if (waypoint.quest().map(ClientQuests::isPinned).orElse(false)) {
             return Display.TRACKED;
         }
         return switch (StoryboundClientConfig.INSTANCE.untrackedQuestWaypoints.get()) {
@@ -84,7 +84,7 @@ public final class ClientWaypoints {
     /** Pushes changes to the renderers; every client tick, cheap when nothing changed. */
     public static void tick() {
         Minecraft minecraft = Minecraft.getInstance();
-        Optional<ResourceLocation> tracked = ClientQuests.tracked();
+        List<ResourceLocation> tracked = ClientQuests.pinned();
         StoryboundClientConfig.Untracked untracked = StoryboundClientConfig.INSTANCE.untrackedQuestWaypoints.get();
         if (version == shownVersion && tracked.equals(shownTracked) && minecraft.level == shownLevel && untracked == shownUntracked) {
             return;
@@ -97,7 +97,7 @@ public final class ClientWaypoints {
         for (WaypointRenderer renderer : RENDERERS) {
             try {
                 renderer.refresh(shown);
-                Storybound.LOGGER.debug("Storybound: {} waypoints sent to {} (tracked quest: {})", shown.size(), renderer.name(), tracked.orElse(null));
+                Storybound.LOGGER.debug("Storybound: {} waypoints sent to {} (pinned quests: {})", shown.size(), renderer.name(), tracked);
             } catch (RuntimeException | LinkageError e) {
                 // A map mod changed its internals: drop that integration, keep the others.
                 Storybound.LOGGER.error("Storybound: waypoint renderer {} failed and is disabled", renderer.name(), e);

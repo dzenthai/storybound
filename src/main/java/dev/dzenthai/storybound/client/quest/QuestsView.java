@@ -6,8 +6,12 @@ import dev.dzenthai.storybound.client.menu.ListDetailView;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
+import dev.dzenthai.storybound.module.quest.DifficultyScale;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
+import dev.dzenthai.storybound.module.quest.QuestRewardData;
+import dev.dzenthai.storybound.module.quest.QuestRewards;
+import dev.dzenthai.storybound.network.ClaimRewardPayload;
 import dev.dzenthai.storybound.network.TrackQuestPayload;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -16,10 +20,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,10 +36,19 @@ import org.jetbrains.annotations.Nullable;
  * quest's description, the log of passed stages and the current objectives.
  */
 public class QuestsView extends ListDetailView<QuestsView.Entry> {
+    private static final int ITEM_ROW = 18;
+
     private Button trackButton;
+    private Button claimButton;
+    /** The reward chosen for {@link #chosenFor}; -1 while none is. */
+    private int chosen = -1;
+    private @Nullable ResourceLocation chosenFor;
 
     /** True while some quest changed since the player last looked at it. */
     public static boolean hasUnseen() {
+        if (entries().stream().anyMatch(entry -> ClientQuests.waitingReward(entry.id()).isPresent())) {
+            return true;
+        }
         for (Entry entry : entries()) {
             if (!SeenMarks.isSeen(seenKey(entry))) {
                 return true;
@@ -45,12 +62,50 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         trackButton = addWidget(Button.builder(Component.empty(), button -> toggleTracking())
                 .bounds(left + width - 90, buttonY(), 90, 18)
                 .build());
+        claimButton = addWidget(Button.builder(Component.translatable("storybound.quests.rewards.claim"), button -> claim())
+                .bounds(left + width - 184, buttonY(), 90, 18)
+                .build());
         super.init();
     }
 
     @Override
     protected int dataVersion() {
-        return ClientQuests.version();
+        // A running clock (a time limit, a cooldown) shows a new second every second.
+        Entry shown = selected();
+        boolean ticking = shown != null && (secondsLeft(shown.definition(), shown.progress()).isPresent()
+                || secondsUntilRepeat(shown.definition(), shown.progress()).isPresent());
+        return ClientQuests.version() * 31 + (ticking ? (int) (gameTime() / 20) : 0);
+    }
+
+    private static long gameTime() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.level != null ? minecraft.level.getGameTime() : 0;
+    }
+
+    /** Seconds before the time limit of an active quest; empty without one. */
+    public static OptionalLong secondsLeft(QuestDefinition definition, QuestProgress progress) {
+        if (definition.timeLimit().isEmpty() || progress.status() != QuestStatus.ACTIVE || progress.startedAt() == 0) {
+            return OptionalLong.empty();
+        }
+        long end = progress.startedAt() + Math.round(definition.timeLimit().get() * 20);
+        return OptionalLong.of(Math.max(0, (end - gameTime() + 19) / 20));
+    }
+
+    /** Seconds before a repeatable quest that ended can start again; empty when it cannot (or can already). */
+    static OptionalLong secondsUntilRepeat(QuestDefinition definition, QuestProgress progress) {
+        if (definition.repeatable().isEmpty() || progress.status() == QuestStatus.ACTIVE) {
+            return OptionalLong.empty();
+        }
+        long left = progress.finishedAt() + definition.repeatable().get().cooldownTicks() - gameTime();
+        return left > 0 ? OptionalLong.of((left + 19) / 20) : OptionalLong.empty();
+    }
+
+    /** {@code 4:05}, {@code 1:02:03}. */
+    public static String clock(long seconds) {
+        long hours = seconds / 3600;
+        long minutes = seconds / 60 % 60;
+        long rest = seconds % 60;
+        return hours > 0 ? String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, rest) : String.format(Locale.ROOT, "%d:%02d", minutes, rest);
     }
 
     @Override
@@ -68,13 +123,12 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
             }
         }
         List<Row<Entry>> rows = new ArrayList<>();
-        Optional<ResourceLocation> tracked = ClientQuests.tracked();
         active.entrySet().stream()
                 .sorted(Comparator.comparing(category -> categoryName(category.getKey()).getString()))
                 .forEach(category -> {
                     rows.add(Row.header(categoryName(category.getKey())));
                     for (Entry entry : category.getValue()) {
-                        Component text = tracked.equals(Optional.of(entry.id())) ? Component.literal("» ").append(entry.title()) : entry.title();
+                        Component text = ClientQuests.isPinned(entry.id()) ? Component.literal("» ").append(entry.title()) : entry.title();
                         rows.add(Row.entry(text, entry));
                     }
                 });
@@ -86,7 +140,9 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
     private static void addSection(List<Row<Entry>> rows, String title, List<Entry> entries, int color) {
         if (!entries.isEmpty()) {
             rows.add(new Row<>(Component.translatable(title), null, 0));
-            entries.forEach(entry -> rows.add(new Row<>(entry.title(), entry, color)));
+            // Rewards waiting to be claimed are marked, so the player comes back for them.
+            entries.forEach(entry -> rows.add(new Row<>(ClientQuests.waitingReward(entry.id()).isPresent()
+                    ? Component.literal("✦ ").append(entry.title()) : entry.title(), entry, color)));
         }
     }
 
@@ -108,7 +164,8 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
     @Override
     protected @Nullable Entry preferredSelection(List<Entry> entries) {
         Optional<ResourceLocation> tracked = ClientQuests.tracked();
-        return entries.stream().filter(entry -> tracked.equals(Optional.of(entry.id()))).findFirst()
+        return entries.stream().filter(entry -> ClientQuests.waitingReward(entry.id()).isPresent()).findFirst()
+                .or(() -> entries.stream().filter(entry -> tracked.equals(Optional.of(entry.id()))).findFirst())
                 .orElseGet(() -> super.preferredSelection(entries));
     }
 
@@ -140,6 +197,17 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         detail.text(entry.title().copy().withStyle(ChatFormatting.BOLD), theme.title());
         detail.text(Component.translatable("storybound.quests.status." + progress.status().name().toLowerCase(Locale.ROOT))
                 .append(" · ").append(categoryName(definition.category())), statusColor(theme, progress.status()));
+        definition.difficulty().ifPresent(difficulty ->
+                detail.text(Component.translatable("storybound.quests.difficulty", DifficultyScale.current().render(difficulty)), theme.ink()));
+        secondsLeft(definition, progress).ifPresent(left -> detail.text(Component.translatable("storybound.quests.time_left", clock(left)),
+                left < 60 ? 0xFFD9534F : theme.ink()));
+        if (definition.repeatable().isPresent()) {
+            OptionalLong again = secondsUntilRepeat(definition, progress);
+            Component repeat = progress.status() == QuestStatus.ACTIVE ? Component.translatable("storybound.quests.repeatable")
+                    : again.isPresent() ? Component.translatable("storybound.quests.repeat_in", clock(again.getAsLong()))
+                    : Component.translatable("storybound.quests.repeat_ready");
+            detail.text(repeat, theme.ink());
+        }
         detail.gap(6);
 
         definition.text().forStatus(progress.status()).or(definition::description)
@@ -154,11 +222,12 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         }
 
         if (progress.status() == QuestStatus.ACTIVE) {
-            progress.stage().flatMap(definition::stage).ifPresent(stage -> addObjectives(detail, theme, stage, progress));
+            progress.stage().flatMap(definition::stage).ifPresent(stage -> addObjectives(detail, theme, entry.id(), stage, progress));
         }
+        addRewards(detail, theme, entry);
     }
 
-    private static void addObjectives(Detail detail, MenuTheme theme, QuestDefinition.Stage stage, QuestProgress progress) {
+    private static void addObjectives(Detail detail, MenuTheme theme, ResourceLocation quest, QuestDefinition.Stage stage, QuestProgress progress) {
         boolean header = false;
         for (int i = 0; i < stage.objectives().size(); i++) {
             QuestDefinition.Objective objective = stage.objectives().get(i);
@@ -176,8 +245,23 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
             // A hint helps with what is left to do; a finished objective needs none.
             if (!done) {
                 objective.hint().ifPresent(hint -> detail.note(mark, hint.asComponent().copy().withStyle(ChatFormatting.ITALIC), theme.muted()));
+                for (Component hint : shownHints(quest, stage, i)) {
+                    detail.note(mark, Component.literal("» ").append(hint).withStyle(ChatFormatting.ITALIC), theme.accent());
+                }
             }
         }
+    }
+
+    /** The objective's hints the server says show now (conditions, waiting). */
+    static List<Component> shownHints(ResourceLocation quest, QuestDefinition.Stage stage, int objective) {
+        List<Component> shown = new ArrayList<>();
+        List<QuestDefinition.Hint> hints = stage.objectives().get(objective).hints();
+        for (int h = 0; h < hints.size(); h++) {
+            if (ClientQuests.hintShown(quest, stage.id(), stage.objectiveId(objective), h)) {
+                shown.add(hints.get(h).text().asComponent());
+            }
+        }
+        return shown;
     }
 
     static String objectiveMark(QuestDefinition.Objective objective, int count) {
@@ -212,16 +296,84 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
     @Override
     protected void selectionChanged() {
         Entry entry = selected();
+        if (entry == null || !entry.id().equals(chosenFor)) {
+            chosen = -1;
+            chosenFor = entry != null ? entry.id() : null;
+        }
         trackButton.visible = entry != null && entry.progress().status() == QuestStatus.ACTIVE;
-        boolean tracked = entry != null && ClientQuests.tracked().equals(Optional.of(entry.id()));
-        trackButton.setMessage(Component.translatable(tracked ? "storybound.quests.untrack" : "storybound.quests.track"));
+        boolean pinned = entry != null && ClientQuests.isPinned(entry.id());
+        trackButton.setMessage(Component.translatable(pinned ? "storybound.quests.untrack" : "storybound.quests.track"));
+        boolean waiting = entry != null && ClientQuests.waitingReward(entry.id()).isPresent();
+        claimButton.visible = waiting;
+        claimButton.active = waiting && (entry.definition().rewards().choice().isEmpty() || chosen >= 0);
+        claimButton.setTooltip(claimButton.active ? null : Tooltip.create(Component.translatable("storybound.quests.rewards.choose")));
     }
 
     private void toggleTracking() {
         Entry entry = selected();
         if (entry != null) {
-            boolean tracked = ClientQuests.tracked().equals(Optional.of(entry.id()));
-            PacketDistributor.sendToServer(new TrackQuestPayload(tracked ? Optional.empty() : Optional.of(entry.id())));
+            PacketDistributor.sendToServer(new TrackQuestPayload(entry.id(), !ClientQuests.isPinned(entry.id())));
+        }
+    }
+
+    private void claim() {
+        Entry entry = selected();
+        if (entry != null) {
+            PacketDistributor.sendToServer(new ClaimRewardPayload(entry.id(), entry.definition().rewards().choice().isEmpty() ? -1 : chosen));
+        }
+    }
+
+    /**
+     * What the quest gives: shown beforehand on every quest that has rewards; the rolled loot and the choice while
+     * they wait to be claimed.
+     */
+    private void addRewards(Detail detail, MenuTheme theme, Entry entry) {
+        QuestRewards.Rewards rewards = entry.definition().rewards();
+        if (!rewards.hasThings()) {
+            return;
+        }
+        Optional<QuestRewardData.Pending> waiting = ClientQuests.waitingReward(entry.id());
+        detail.gap(4).text(Component.translatable(waiting.isPresent() ? "storybound.quests.rewards.waiting" : "storybound.quests.rewards")
+                .withStyle(ChatFormatting.BOLD), theme.accent());
+        List<ItemStack> shown = new ArrayList<>();
+        rewards.items().forEach(item -> shown.add(item.stack()));
+        waiting.ifPresent(pending -> shown.addAll(pending.loot()));
+        if (!shown.isEmpty()) {
+            detail.block(ITEM_ROW, (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
+                for (int i = 0; i < shown.size() && (i + 1) * 18 <= width; i++) {
+                    graphics.renderItem(shown.get(i), x + i * 18, y);
+                    graphics.renderItemDecorations(detail.font(), shown.get(i), x + i * 18, y);
+                }
+            });
+            for (ItemStack stack : shown) {
+                detail.item("•", Component.literal(stack.getCount() + " × ").append(stack.getHoverName()), theme.ink());
+            }
+        }
+        if (rewards.loot().isPresent() && waiting.isEmpty()) {
+            detail.item("•", Component.translatable("storybound.quests.rewards.loot"), theme.ink());
+        }
+        if (rewards.xp() > 0) {
+            detail.item("•", Component.translatable("storybound.quests.rewards.xp", rewards.xp()), theme.ink());
+        }
+        if (!rewards.choice().isEmpty()) {
+            detail.gap(2).text(Component.translatable("storybound.quests.rewards.choice"), theme.ink());
+            for (int i = 0; i < rewards.choice().size(); i++) {
+                ItemStack stack = rewards.choice().get(i).stack();
+                Component text = Component.literal(stack.getCount() + " × ").append(stack.getHoverName());
+                if (waiting.isPresent()) {
+                    int index = i;
+                    detail.clickable(index == chosen ? "◉" : "○", text, index == chosen ? theme.accent() : theme.ink(), () -> {
+                        chosen = index;
+                        refreshDetail();
+                    });
+                } else {
+                    detail.item("○", text, theme.ink());
+                }
+            }
+        }
+        long times = ClientQuests.waitingRewards(entry.id());
+        if (times > 1) {
+            detail.text(Component.translatable("storybound.quests.rewards.times", times), theme.muted());
         }
     }
 

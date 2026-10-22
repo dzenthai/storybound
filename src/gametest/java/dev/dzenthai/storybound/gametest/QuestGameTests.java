@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.gametest;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
@@ -25,21 +26,29 @@ import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.WorldStoryData;
+import dev.dzenthai.storybound.module.quest.DifficultyScale;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
+import dev.dzenthai.storybound.module.quest.QuestHints;
 import dev.dzenthai.storybound.module.quest.QuestEvents;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
+import dev.dzenthai.storybound.module.quest.QuestRewardData;
+import dev.dzenthai.storybound.module.quest.QuestRewards;
 import dev.dzenthai.storybound.module.quest.Quests;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -176,10 +185,8 @@ public final class QuestGameTests {
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void failWhenFailsAnActiveQuest(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        DefinitionStore<QuestDefinition> store = QuestRegistries.QUESTS.serverStore();
-        Map<ResourceLocation, QuestDefinition> previous = store.all();
         ResourceLocation escort = key("escort");
-        install(helper, store, QuestDefinition.CODEC, Map.of(escort, """
+        install(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(escort, """
                 { "title": "gametest.quest.escort",
                   "stages": [ { "id": "walk" } ],
                   "fail_when": { "type": "flag", "key": "gametest:escort_dead" } }
@@ -188,8 +195,237 @@ public final class QuestGameTests {
         ok(() -> StoryState.set(player, StoryScope.PLAYER, key("escort_dead"), new StoryValue.Bool(true)));
         helper.succeedWhen(() -> {
             expect(helper, Quests.progress(player, escort).map(QuestProgress::status), Optional.of(QuestStatus.FAILED), "failed by fail_when");
-            store.replace(previous);
+            // Only its own quest: a snapshot restored ticks later would drop quests other tests installed meanwhile.
+            forget(escort);
             remove(helper, player);
+        });
+    }
+
+    @GameTest(template = "empty")
+    public static void itemObjectivesCountWhatIsHeldAndTakeWhatIsHandedIn(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        withQuest(helper, """
+                { "title": "gametest.quest.tanner",
+                  "stages": [
+                    { "id": "gather", "objectives": [ { "id": "leather", "items": { "item": "minecraft:leather" }, "count": 5 } ] },
+                    { "id": "hand_in", "objectives": [ { "id": "emeralds", "items": { "item": "minecraft:emerald", "consume": true }, "count": 3,
+                        "trigger": { "type": "custom", "id": "gametest:tanner" } } ] } ] }
+                """, () -> {
+            player.getInventory().add(new ItemStack(Items.LEATHER, 2));
+            Quests.start(player, QUEST);
+            Quests.checkItems(player);
+            expect(helper, progress(player).count("leather"), 2, "what was held before the quest counts");
+            player.getInventory().add(new ItemStack(Items.LEATHER, 3));
+            Quests.checkItems(player);
+            expect(helper, progress(player).stage(), Optional.of("hand_in"), "five held: the stage is done");
+            helper.assertTrue(player.getInventory().countItem(Items.LEATHER) == 5, "checking takes nothing");
+
+            player.getInventory().add(new ItemStack(Items.EMERALD, 2));
+            Quests.checkItems(player);
+            expect(helper, progress(player).count("emeralds"), 0, "with a trigger, nothing happens every second");
+            fire(player, "tanner");
+            expect(helper, progress(player).count("emeralds"), 2, "two handed in");
+            helper.assertTrue(player.getInventory().countItem(Items.EMERALD) == 0, "and taken");
+            player.getInventory().add(new ItemStack(Items.EMERALD, 5));
+            fire(player, "tanner");
+            expect(helper, Quests.progress(player, QUEST).map(QuestProgress::status), Optional.of(QuestStatus.COMPLETED), "the third completes it");
+            helper.assertTrue(player.getInventory().countItem(Items.EMERALD) == 4, "only what was missing is taken: " + player.getInventory().countItem(Items.EMERALD));
+            remove(helper, player);
+        });
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void repeatableQuestsWaitForTheirCooldown(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation daily = key("daily");
+        install(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(daily, """
+                { "title": "gametest.quest.daily", "repeatable": { "cooldown": 1, "times": 2 },
+                  "start": { "trigger": { "type": "custom", "id": "gametest:again" } },
+                  "stages": [ { "id": "do", "objectives": [ { "trigger": { "type": "custom", "id": "gametest:done" } } ] } ] }
+                """));
+        QuestEvents.rebuild();
+        fire(player, "again");
+        fire(player, "done");
+        expect(helper, Quests.progress(player, daily).orElseThrow().status(), QuestStatus.COMPLETED, "done once");
+        fire(player, "again");
+        expect(helper, Quests.progress(player, daily).orElseThrow().status(), QuestStatus.COMPLETED, "not again before the cooldown");
+        helper.runAfterDelay(30, () -> {
+            fire(player, "again");
+            expect(helper, Quests.progress(player, daily).orElseThrow().status(), QuestStatus.ACTIVE, "again after the cooldown");
+            expect(helper, Quests.progress(player, daily).orElseThrow().count("0"), 0, "the counters start over");
+            fire(player, "done");
+            expect(helper, Quests.progress(player, daily).orElseThrow().completions(), 2, "two completions");
+            helper.runAfterDelay(30, () -> {
+                fire(player, "again");
+                expect(helper, Quests.progress(player, daily).orElseThrow().status(), QuestStatus.COMPLETED, "not a third time");
+                forget(daily);
+                QuestEvents.rebuild();
+                remove(helper, player);
+                helper.succeed();
+            });
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void aQuestFailsWhenItsTimeIsUp(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation hurry = key("hurry");
+        install(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(hurry, """
+                { "title": "gametest.quest.hurry", "time_limit": 1, "difficulty": "deadly",
+                  "stages": [ { "id": "run", "objectives": [ { "trigger": { "type": "custom", "id": "gametest:never" } } ] } ],
+                  "on_failed": { "type": "add_var", "key": "gametest:too_late", "scope": "world", "amount": 1 } }
+                """));
+        QuestEvents.rebuild();
+        Quests.start(player, hurry);
+        helper.assertTrue(Quests.progress(player, hurry).orElseThrow().startedAt() > 0, "the start time is kept");
+        helper.runAfterDelay(60, () -> {
+            expect(helper, Quests.progress(player, hurry).orElseThrow().status(), QuestStatus.FAILED, "failed when the time was up");
+            expect(helper, world(helper, "too_late"), Optional.of(new StoryValue.Int(1)), "on_failed ran");
+            forget(hurry);
+            QuestEvents.rebuild();
+            remove(helper, player);
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty")
+    public static void difficultyScaleMapsStarsAndLevels(GameTestHelper helper) {
+        DifficultyScale scale = DifficultyScale.DEFAULT;
+        QuestDefinition.Difficulty hard = new QuestDefinition.Difficulty(Optional.empty(), Optional.of("hard"));
+        QuestDefinition.Difficulty four = new QuestDefinition.Difficulty(Optional.of(4), Optional.empty());
+        expect(helper, scale.stars(hard), 3, "the third level is three stars");
+        expect(helper, scale.level(four).map(DifficultyScale.Level::id), Optional.of("deadly"), "four stars is the fourth level");
+        DifficultyScale stars = new DifficultyScale(DifficultyScale.Style.STARS, scale.levels());
+        expect(helper, stars.render(hard).getString(), "★★★☆☆", "stars as in Stardew Valley");
+        expect(helper, scale.render(hard).getString(), "Hard", "a level by its name");
+        // The editor offers exactly the scale: five numbers of stars, or the levels.
+        expect(helper, stars.choices().stream().map(choice -> stars.render(choice).getString()).toList(),
+                List.of("★☆☆☆☆", "★★☆☆☆", "★★★☆☆", "★★★★☆", "★★★★★"), "1 to 5 stars");
+        expect(helper, scale.choices().stream().map(choice -> choice.level().orElse("?")).toList(),
+                List.of("easy", "normal", "hard", "deadly"), "the levels, easiest first");
+        helper.assertTrue(QuestDefinition.Difficulty.CODEC.parse(JsonOps.INSTANCE, new JsonPrimitive(6)).isError(), "no more than 5 stars");
+        expect(helper, DifficultyScale.parse(JsonParser.parseString("""
+                { "levels": [ { "id": "a" }, { "id": "b" }, { "id": "c" }, { "id": "d" }, { "id": "e" }, { "id": "f" } ] }
+                """).getAsJsonObject()).levels().size(), 5, "no more than 5 levels");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void rewardsWaitToBeClaimedAndNeverDrop(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        withQuest(helper, """
+                { "title": "gametest.quest.paid",
+                  "stages": [ { "id": "do", "objectives": [ { "trigger": { "type": "custom", "id": "gametest:paid_done" } } ] } ],
+                  "rewards": { "items": [ { "item": "minecraft:emerald", "count": 3 } ],
+                    "choice": [ { "item": "minecraft:iron_sword" }, { "id": "minecraft:bow" } ],
+                    "loot": "minecraft:chests/simple_dungeon", "xp": 10,
+                    "actions": { "type": "add_var", "key": "gametest:paid", "scope": "world", "amount": 1 } } }
+                """, () -> {
+            Quests.start(player, QUEST);
+            fire(player, "paid_done");
+            expect(helper, progress(player).status(), QuestStatus.COMPLETED, "completed");
+            helper.assertTrue(QuestRewardData.of(player).pending().size() == 1, "the rewards wait");
+            helper.assertTrue(player.getInventory().countItem(Items.EMERALD) == 0 && world(helper, "paid").isEmpty(), "nothing given yet");
+            List<ItemStack> loot = QuestRewardData.of(player).pending().getFirst().loot();
+            helper.assertTrue(!loot.isEmpty(), "the loot was rolled at completion");
+
+            helper.assertTrue(QuestRewards.claim(player, QUEST, -1) != null, "a choice is needed");
+            // A full inventory: refused, nothing dropped.
+            for (int slot = 0; slot < 36; slot++) {
+                player.getInventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+            }
+            helper.assertTrue(QuestRewards.claim(player, QUEST, 1) != null, "no room: refused");
+            helper.assertTrue(helper.getLevel().getEntitiesOfClass(ItemEntity.class, player.getBoundingBox().inflate(8)).isEmpty(), "nothing on the ground");
+            for (int slot = 0; slot < 36; slot++) {
+                player.getInventory().setItem(slot, ItemStack.EMPTY);
+            }
+            int lootCount = loot.stream().mapToInt(ItemStack::getCount).sum();
+            helper.assertTrue(QuestRewards.claim(player, QUEST, 1) == null, "claimed");
+            helper.assertTrue(player.getInventory().countItem(Items.EMERALD) >= 3 && player.getInventory().countItem(Items.BOW) == 1
+                    && player.getInventory().countItem(Items.IRON_SWORD) == 0, "the items and the chosen bow");
+            int held = 0;
+            for (ItemStack stack : player.getInventory().items) {
+                held += stack.getCount();
+            }
+            expect(helper, held, 3 + 1 + lootCount, "and exactly the loot that was rolled");
+            expect(helper, world(helper, "paid"), Optional.of(new StoryValue.Int(1)), "the actions ran");
+            helper.assertTrue(QuestRewardData.of(player).pending().isEmpty(), "nothing waits");
+            helper.assertTrue(QuestRewards.claim(player, QUEST, 1) != null, "and nothing can be claimed twice");
+            remove(helper, player);
+        });
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void rewardsWithoutClaimAreGivenAtOnce(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        withQuest(helper, """
+                { "title": "gametest.quest.instant",
+                  "stages": [ { "id": "do", "objectives": [ { "trigger": { "type": "custom", "id": "gametest:instant_done" } } ] } ],
+                  "rewards": { "items": [ { "item": "minecraft:gold_ingot", "count": 2 } ], "claim": false } }
+                """, () -> {
+            Quests.start(player, QUEST);
+            fire(player, "instant_done");
+            helper.assertTrue(player.getInventory().countItem(Items.GOLD_INGOT) == 2 && QuestRewardData.of(player).pending().isEmpty(), "given at once");
+            remove(helper, player);
+        });
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void severalQuestsArePinnedTheMainOneFirst(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        List<ResourceLocation> quests = new ArrayList<>();
+        for (int i = 0; i < Quests.MAX_PINNED + 1; i++) {
+            quests.add(key("pin_" + i));
+            Quests.track(player, quests.getLast());
+        }
+        expect(helper, Quests.pinned(player).size(), Quests.MAX_PINNED, "at most " + Quests.MAX_PINNED);
+        expect(helper, Quests.tracked(player), Optional.of(quests.getLast()), "the last pinned is the main one");
+        helper.assertFalse(Quests.pinned(player).contains(quests.getFirst()), "the oldest went");
+        Quests.unpin(player, quests.getLast());
+        helper.assertFalse(Quests.pinned(player).contains(quests.getLast()), "unpinned");
+        Quests.track(player, null);
+        helper.assertTrue(Quests.pinned(player).isEmpty(), "none");
+        // A save from before several could be pinned.
+        var old = QuestRegistries.TrackedQuest.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString("{ \"quest\": \"gametest:old\" }")).getOrThrow();
+        expect(helper, old.quests(), List.of(key("old")), "the old save keeps its quest");
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void hintsShowByConditionsAndWhenStuck(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation stuck = key("stuck");
+        install(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(stuck, """
+                { "title": "gametest.quest.stuck",
+                  "stages": [ { "id": "hunt", "objectives": [ { "id": "wolves", "count": 3,
+                    "trigger": { "type": "custom", "id": "gametest:stuck_wolf" },
+                    "hints": [ { "text": "gametest.hint.night", "conditions": { "type": "flag", "key": "gametest:stuck_night" } },
+                               { "text": "gametest.hint.stuck", "after": 1 } ] } ] } ] }
+                """));
+        QuestEvents.rebuild();
+        String night = QuestHints.key(stuck, "hunt", "wolves", 0);
+        String waited = QuestHints.key(stuck, "hunt", "wolves", 1);
+        Quests.start(player, stuck);
+        QuestHints.check(player);
+        helper.assertTrue(QuestHints.shown(player).isEmpty(), "nothing yet: the flag is off and nothing was waited for");
+        ok(() -> StoryState.set(player, StoryScope.PLAYER, key("stuck_night"), new StoryValue.Bool(true)));
+        QuestHints.check(player);
+        helper.assertTrue(QuestHints.shown(player).equals(Set.of(night)), "the hint whose condition holds: " + QuestHints.shown(player));
+        helper.runAfterDelay(30, () -> {
+            QuestHints.check(player);
+            helper.assertTrue(QuestHints.shown(player).contains(waited), "stuck for over a second: the other hint too; shown " + QuestHints.shown(player)
+                    + ", quest " + Quests.progress(player, stuck).orElse(null) + ", game time " + helper.getLevel().getServer().overworld().getGameTime());
+            fire(player, "stuck_wolf");
+            QuestHints.check(player);
+            helper.assertFalse(QuestHints.shown(player).contains(waited), "progress: the waiting starts again");
+            forget(stuck);
+            QuestEvents.rebuild();
+            remove(helper, player);
+            helper.succeed();
         });
     }
 
@@ -205,12 +441,19 @@ public final class QuestGameTests {
                 """, () -> {
             List<String> errors = ValidationService.validate().issues().stream()
                     .filter(issue -> QUEST.equals(issue.entry()) && issue.isError()).map(ValidationIssue::message).toList();
-            for (String expected : List.of("Duplicate stage id 'a'", "leads to unknown stage 'nowhere'", "has no trigger", "Unknown quest gametest:missing")) {
+            for (String expected : List.of("Duplicate stage id 'a'", "leads to unknown stage 'nowhere'", "has neither a trigger nor items", "Unknown quest gametest:missing")) {
                 helper.assertTrue(errors.stream().anyMatch(message -> message.contains(expected)), "expected an error containing '" + expected + "', got " + errors);
             }
         });
         QuestEvents.rebuild();
         helper.succeed();
+    }
+
+    /** Removes one test quest only: tests running at the same time keep theirs. */
+    private static void forget(ResourceLocation quest) {
+        Map<ResourceLocation, QuestDefinition> left = new LinkedHashMap<>(QuestRegistries.QUESTS.serverStore().all());
+        left.remove(quest);
+        QuestRegistries.QUESTS.serverStore().replace(left);
     }
 
     private static QuestProgress progress(ServerPlayer player) {

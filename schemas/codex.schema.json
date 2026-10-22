@@ -35,7 +35,8 @@
         }
       }
     },
-    "notify": { "description": "Toasts when the entry appears or a section opens.", "type": "boolean", "default": true }
+    "notify": { "description": "Toasts when the entry appears or a section opens.", "type": "boolean", "default": true },
+    "show_kills": { "description": "With an entity: count and show \"Killed: N\" in the Codex. Off for characters and peaceful creatures.", "type": "boolean", "default": true }
   },
   "definitions": {
     "unlock": {

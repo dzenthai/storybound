@@ -52,7 +52,12 @@ class DevEditsTest {
         assertEquals(Schemas.Kind.OBJECT, Schemas.kind(quest.get("start")));
         assertEquals(Schemas.Kind.LIST, Schemas.kind(quest.get("stages")));
         assertEquals(Schemas.Kind.CONDITIONS, Schemas.kind(quest.get("fail_when")));
-        assertEquals(Schemas.Kind.ACTIONS, Schemas.kind(quest.get("rewards")));
+        // Rewards are the object (the older action list is turned into it when opened); its actions are a list of actions.
+        assertEquals(Schemas.Kind.OBJECT, Schemas.kind(quest.get("rewards")));
+        assertEquals(Schemas.Kind.ACTIONS, Schemas.kind(Schemas.properties(quest.get("rewards")).get("actions")));
+        assertTrue(Schemas.isOldActionList(quest.get("rewards"), JsonParser.parseString("[ { \"type\": \"give_item\", \"item\": \"minecraft:bread\" } ]")));
+        assertTrue(Schemas.isOldActionList(quest.get("rewards"), JsonParser.parseString("{ \"type\": \"give_item\", \"item\": \"minecraft:bread\" }")));
+        assertFalse(Schemas.isOldActionList(quest.get("rewards"), JsonParser.parseString("{ \"xp\": 5 }")));
         Schemas.Node objective = Schemas.items(Schemas.properties(Schemas.items(quest.get("stages"))).get("objectives"));
         assertEquals(Schemas.Kind.TRIGGER, Schemas.kind(Schemas.properties(objective).get("trigger")));
         assertEquals(Schemas.Kind.INTEGER, Schemas.kind(Schemas.properties(objective).get("count")));
@@ -215,6 +220,62 @@ class DevEditsTest {
         assertEquals("ask", nodes.getAsJsonObject("greet").get("next").getAsString(), "the start still leads on");
         assertEquals("start_quest_hunt", nodes.getAsJsonObject("ask").get("next").getAsString(), "the last line leads to the quest");
         assertEquals("end", nodes.getAsJsonObject("start_quest_hunt").get("type").getAsString());
+    }
+
+    @Test
+    void theQuestGiverSaysSomethingElseBeforeDuringAndAfter() {
+        ResourceLocation quest = Storybound.id("quest_2");
+        ResourceLocation offer = Storybound.id("dialogue_5");
+        ClientDevStore.setSnapshot(Map.of(
+                ClientDevStore.TYPE_DIALOGUE, Map.of(offer, """
+                        { "start": "greet", "nodes": { "greet": { "type": "end",
+                          "actions": { "type": "storybound:set_quest_state", "quest": "storybound:quest_2", "state": "active" } } } }"""),
+                ClientDevStore.TYPE_NPC, Map.of(Storybound.id("npc_6"), """
+                        { "entity": { "type": "minecraft:villager", "tag": "npc_6" }, "dialogues": [ { "dialogue": "storybound:dialogue_5" } ] }""")
+        ), List.of(), "en_us", List.of("en_us"));
+        QuestGiver.Giver giver = QuestGiver.find(quest);
+        assertNotNull(giver, "the NPC whose dialogue gives the quest");
+        assertEquals(Map.of(QuestGiver.Phase.BEFORE, offer), giver.dialogues(), "the dialogue giving it is \"before\"");
+
+        JsonObject binding = ClientDevStore.parseObject(ClientDevStore.getJson(ClientDevStore.TYPE_NPC, Storybound.id("npc_6")));
+        QuestGiver.addEntry(binding, Storybound.id("thanks"), quest, QuestGiver.Phase.AFTER);
+        JsonArray entries = binding.getAsJsonArray("dialogues");
+        assertEquals("unknown", entries.get(0).getAsJsonObject().getAsJsonObject("conditions").get("state").getAsString(),
+                "the offer stops once the quest is known");
+        JsonObject thanks = entries.get(1).getAsJsonObject();
+        assertEquals(20, thanks.get("priority").getAsInt());
+        assertEquals("completed", thanks.getAsJsonObject("conditions").get("state").getAsString());
+        assertEquals(Map.of(QuestGiver.Phase.BEFORE, offer, QuestGiver.Phase.AFTER, Storybound.id("thanks")), QuestGiver.phases(binding, quest));
+        // Adding another phase leaves the offer's condition as it is.
+        QuestGiver.addEntry(binding, Storybound.id("reminder"), quest, QuestGiver.Phase.DURING);
+        assertEquals(3, entries.size());
+        assertEquals(QuestGiver.Phase.DURING, QuestGiver.phaseOf(entries.get(2).getAsJsonObject(), quest));
+        assertNull(QuestGiver.phaseOf(json("{ \"conditions\": [ { \"type\": \"quest\", \"quest\": \"storybound:quest_2\", \"stage\": \"x\" } ] }"), quest),
+                "a stage is not a phase");
+
+        // With entries asking for the quest, the NPC is still where the quest starts on the map.
+        ClientDevStore.setSnapshot(Map.of(
+                ClientDevStore.TYPE_DIALOGUE, Map.of(offer, ClientDevStore.getJson(ClientDevStore.TYPE_DIALOGUE, offer)),
+                ClientDevStore.TYPE_NPC, Map.of(Storybound.id("npc_6"), DevUi.GSON.toJson(binding))), List.of(), "en_us", List.of("en_us"));
+        List<ClientDevStore.Edge> edges = ClientDevStore.collectEdges();
+        assertEquals(List.of(new NodeKey(ClientDevStore.TYPE_NPC, Storybound.id("npc_6")), new NodeKey(ClientDevStore.TYPE_DIALOGUE, offer)),
+                StoryFlow.entries(edges).get(new NodeKey(ClientDevStore.TYPE_QUEST, quest)));
+        ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
+    }
+
+    @Test
+    void aScriptHandlerRenamedMovesWhatRanIt() {
+        JsonObject quest = json("""
+                { "on_complete": [ { "type": "storybound:kubejs", "id": "storybound:script_3" }, { "type": "set_flag", "key": "a:b" } ],
+                  "start": { "conditions": { "type": "kubejs", "id": "storybound:script_3" } },
+                  "rewards": { "actions": { "type": "kubejs", "id": "storybound:other" } } }
+                """);
+        assertTrue(StoryEdits.renameScriptHook(quest, "storybound:script_3", "storybound:script_2"));
+        assertEquals("storybound:script_2", quest.getAsJsonArray("on_complete").get(0).getAsJsonObject().get("id").getAsString());
+        assertEquals("storybound:script_2", quest.getAsJsonObject("start").getAsJsonObject("conditions").get("id").getAsString(), "conditions too");
+        assertEquals("storybound:other", quest.getAsJsonObject("rewards").getAsJsonObject("actions").get("id").getAsString(), "other handlers stay");
+        assertFalse(StoryEdits.renameScriptHook(quest, "storybound:script_3", "storybound:script_2"), "nothing left to change");
+        assertEquals("storybound:script_3", StoryEdits.hookOf(Storybound.id("script_3"), new JsonObject()), "without a hook, the block's id");
     }
 
     @Test

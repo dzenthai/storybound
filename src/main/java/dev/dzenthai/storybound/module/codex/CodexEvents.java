@@ -48,6 +48,10 @@ public final class CodexEvents {
             CodexRegistries.CODEX.serverStore().all().forEach((entry, definition) -> {
                 Set<Unlock.Source> sources = new LinkedHashSet<>();
                 definition.sections().forEach(section -> sources.addAll(section.unlock().on()));
+                if (definition.showKills() && definition.entity().isPresent()) {
+                    // Kills are counted for "Killed: N" even when no section opens on them.
+                    sources.add(Unlock.Source.KILLED);
+                }
                 for (Unlock.Source source : sources) {
                     Trigger<?> trigger = switch (source) {
                         case Unlock.Source.Seen seen -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntitySeen(Optional.of(set))).orElse(null);

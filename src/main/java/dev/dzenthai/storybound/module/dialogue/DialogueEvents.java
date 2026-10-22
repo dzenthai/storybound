@@ -47,10 +47,13 @@ public final class DialogueEvents {
         gameBus.addListener(EventPriority.LOWEST, DialogueEvents::onEntityInteract);
         gameBus.addListener(DialogueEvents::onServerStopped);
         LogicOwners.register(DialogueRegistries.DIALOGUES, DialogueEvents::collectReferences);
-        LogicOwners.register(DialogueRegistries.NPC_BINDINGS, (binding, references) -> binding.dialogues().forEach(entry -> {
-            references.dialogue(entry.dialogue());
-            entry.conditions().collectReferences(references);
-        }));
+        LogicOwners.register(DialogueRegistries.NPC_BINDINGS, (binding, references) -> {
+            binding.dialogues().forEach(entry -> {
+                references.dialogue(entry.dialogue());
+                entry.conditions().collectReferences(references);
+            });
+            binding.busyDialogue().ifPresent(references::dialogue);
+        });
         ValidationService.registerValidator(DialogueEvents::validate);
     }
 

@@ -2,6 +2,7 @@ package dev.dzenthai.storybound;
 
 import com.mojang.logging.LogUtils;
 import dev.dzenthai.storybound.command.StoryboundCommands;
+import dev.dzenthai.storybound.compat.cutscene.Cutscenes;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.StoryFolder;
@@ -50,6 +51,7 @@ public final class Storybound {
         CodexRegistries.register(modBus);
         BossRegistries.register(modBus);
         WaypointRegistries.register(modBus);
+        Cutscenes.register(modBus);
         // After every definition type is known: the story folder gets a folder for each.
         StoryFolder.createIfMissing();
 

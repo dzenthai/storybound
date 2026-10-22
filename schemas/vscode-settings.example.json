@@ -29,6 +29,10 @@
       "url": "./schemas/quest.schema.json"
     },
     {
+      "fileMatch": ["**/config/storybound/project.json"],
+      "url": "./schemas/project.schema.json"
+    },
+    {
       "fileMatch": ["**/data/*/storybound/dialogues/**/*.json", "**/config/storybound/dialogues/**/*.json"],
       "url": "./schemas/dialogue.schema.json"
     },

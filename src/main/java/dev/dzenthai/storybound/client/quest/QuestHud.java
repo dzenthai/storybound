@@ -5,6 +5,7 @@ import dev.dzenthai.storybound.client.ClientQuests;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
+import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
@@ -20,7 +21,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 
-/** The HUD layer with the tracked quest: its title and the open objectives of the current stage. */
+/** The HUD layer with the pinned quests, the main one first: each one's title, time left and open objectives of the current stage. */
 public final class QuestHud {
     private static final int MAX_WIDTH = 170;
     private static final int PADDING = 4;
@@ -33,22 +34,35 @@ public final class QuestHud {
         Minecraft minecraft = Minecraft.getInstance();
         StoryboundClientConfig config = StoryboundClientConfig.INSTANCE;
         if (minecraft.options.hideGui || minecraft.player == null || minecraft.gui.getDebugOverlay().showDebugScreen()
-                || !config.questTracker.get() || !ClientModules.isEnabled("quests")) {
+                || !config.questTracker.get() || !ClientModules.isEnabled("quests") || CutsceneClient.playing()) {
             return;
         }
-        ResourceLocation quest = ClientQuests.tracked().orElse(null);
-        QuestDefinition definition = quest != null ? QuestRegistries.QUESTS.clientStore().getOrNull(quest) : null;
-        QuestProgress progress = quest != null ? ClientQuests.get(quest).orElse(null) : null;
-        if (definition == null || progress == null || progress.status() != QuestStatus.ACTIVE) {
-            return;
-        }
-
         MenuTheme theme = MenuThemes.INSTANCE.theme();
         Font font = minecraft.font;
         List<Line> lines = new ArrayList<>();
+        for (ResourceLocation quest : ClientQuests.pinned()) {
+            QuestDefinition definition = QuestRegistries.QUESTS.clientStore().getOrNull(quest);
+            QuestProgress progress = ClientQuests.get(quest).orElse(null);
+            if (definition != null && progress != null && progress.status() == QuestStatus.ACTIVE) {
+                if (!lines.isEmpty()) {
+                    lines.add(Line.GAP);
+                }
+                addQuest(lines, font, theme, quest, definition, progress);
+            }
+        }
+        if (lines.isEmpty()) {
+            return;
+        }
+        render(graphics, config, font, theme, lines);
+    }
+
+    private static void addQuest(List<Line> lines, Font font, MenuTheme theme, ResourceLocation quest, QuestDefinition definition, QuestProgress progress) {
         for (FormattedCharSequence line : font.split(definition.title().asComponent().copy().withStyle(ChatFormatting.BOLD), MAX_WIDTH)) {
             lines.add(new Line(line, theme.hudTitle()));
         }
+        QuestsView.secondsLeft(definition, progress).ifPresent(left -> lines.add(new Line(
+                Component.translatable("storybound.quests.time_left", QuestsView.clock(left)).getVisualOrderText(),
+                left < 60 ? 0xFFD9534F : theme.hudText())));
         progress.stage().flatMap(definition::stage).ifPresent(stage -> {
             for (int i = 0; i < stage.objectives().size(); i++) {
                 QuestDefinition.Objective objective = stage.objectives().get(i);
@@ -60,20 +74,37 @@ public final class QuestHud {
                 for (FormattedCharSequence line : font.split(text, MAX_WIDTH)) {
                     lines.add(new Line(line, theme.hudText()));
                 }
+                // Quieter than in the Journal: the hint under its objective, dimmed.
+                for (Component hint : QuestsView.shownHints(quest, stage, i)) {
+                    for (FormattedCharSequence line : font.split(Component.literal("  » ").append(hint).withStyle(ChatFormatting.ITALIC), MAX_WIDTH)) {
+                        lines.add(new Line(line, theme.hudText() & 0x00FFFFFF | 0xA0000000));
+                    }
+                }
             }
         });
+    }
 
+    private static void render(GuiGraphics graphics, StoryboundClientConfig config, Font font, MenuTheme theme, List<Line> lines) {
         int width = lines.stream().mapToInt(line -> font.width(line.text())).max().orElse(0) + 2 * PADDING;
-        int height = lines.size() * LINE_HEIGHT + 2 * PADDING - 1;
+        int height = lines.stream().mapToInt(Line::height).sum() + 2 * PADDING - 1;
         StoryboundClientConfig.Corner corner = config.questTrackerCorner.get();
         int offsetY = config.questTrackerOffsetY.get();
         int x = corner.right() ? graphics.guiWidth() - width - MARGIN : MARGIN;
         int y = corner.bottom() ? graphics.guiHeight() - height - offsetY : offsetY;
         graphics.fill(x, y, x + width, y + height, theme.hudBackground());
-        for (int i = 0; i < lines.size(); i++) {
-            graphics.drawString(font, lines.get(i).text(), x + PADDING, y + PADDING + i * LINE_HEIGHT, lines.get(i).color(), true);
+        int lineY = y + PADDING;
+        for (Line line : lines) {
+            graphics.drawString(font, line.text(), x + PADDING, lineY, line.color(), true);
+            lineY += line.height();
         }
     }
 
-    private record Line(FormattedCharSequence text, int color) {}
+    /** @param height {@link #LINE_HEIGHT}, or a small gap between two quests */
+    private record Line(FormattedCharSequence text, int color, int height) {
+        static final Line GAP = new Line(FormattedCharSequence.EMPTY, 0, 4);
+
+        Line(FormattedCharSequence text, int color) {
+            this(text, color, LINE_HEIGHT);
+        }
+    }
 }

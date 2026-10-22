@@ -46,6 +46,9 @@ final class StoryInspector {
      */
     private record Link(NodeKey partner, boolean outgoing, String label, boolean missing, boolean removable) {}
 
+    /** A row of the quest giver's block: its phase, where its label is drawn. */
+    private record GiverRow(QuestGiver.Phase phase, int y) {}
+
     private final StoryView view;
     private final FormView form;
     private @Nullable DevModeScreen screen;
@@ -59,6 +62,9 @@ final class StoryInspector {
     /** The script block's state line, drawn where its panel starts; null for other nodes. */
     private @Nullable ClientDevStore.ScriptState scriptState;
     private int scriptStateY;
+    private final List<GiverRow> giverRows = new ArrayList<>();
+    private @Nullable String giverTitle;
+    private int giverY;
 
     StoryInspector(StoryView view) {
         this.view = view;
@@ -122,6 +128,11 @@ final class StoryInspector {
         int w = DevUi.RIGHT_PANEL_W - 16;
         int y = DevUi.TOP_BAR_H + 30;
         y = quickTests(screen, key, x, y, w);
+        giverRows.clear();
+        giverTitle = null;
+        if (key.type().equals(ClientDevStore.TYPE_QUEST)) {
+            y = giver(screen, key, x, y, w);
+        }
         if (key.type().equals(ClientDevStore.TYPE_DOCUMENT)) {
             y = documentText(screen, key, x, y + 10, w);
         }
@@ -188,6 +199,46 @@ final class StoryInspector {
         });
         screen.add(textBox);
         return y + 22;
+    }
+
+    // --- the quest giver
+
+    /**
+     * What the NPC giving the quest says before, during and after it (see {@link QuestGiver}): a row per phase, its
+     * dialogue (opens the graph) or "+ New". Shown only when an NPC's dialogue gives the quest.
+     */
+    private int giver(DevModeScreen screen, NodeKey quest, int x, int y, int w) {
+        QuestGiver.Giver giver = QuestGiver.find(quest.id());
+        if (giver == null) {
+            return y;
+        }
+        giverTitle = DevUi.str("giver.title", StoryView.title(giver.npc()));
+        giverY = y;
+        y += 12;
+        int labelW = 64;
+        for (QuestGiver.Phase phase : QuestGiver.Phase.values()) {
+            ResourceLocation dialogue = giver.dialogues().get(phase);
+            Button button = dialogue != null
+                    ? Button.builder(Component.literal("💬 " + StoryView.title(new NodeKey(ClientDevStore.TYPE_DIALOGUE, dialogue))),
+                            b -> screen.openDialogue(dialogue)).tooltip(Tooltip.create(DevUi.text("giver.open", dialogue.toString()))).build()
+                    : Button.builder(DevUi.text("giver.create"), b -> view.addGiverDialogue(screen, quest.id(), giver, phase))
+                            .tooltip(Tooltip.create(DevUi.text("giver.create_tooltip." + phase.name().toLowerCase(Locale.ROOT)))).build();
+            button.setRectangle(w - labelW, 18, x + labelW, y);
+            screen.add(button);
+            giverRows.add(new GiverRow(phase, y));
+            y += 20;
+        }
+        return y + 4;
+    }
+
+    private void renderGiver(Font font, GuiGraphics graphics, int left) {
+        if (giverTitle == null) {
+            return;
+        }
+        graphics.drawString(font, font.plainSubstrByWidth(giverTitle, DevUi.RIGHT_PANEL_W - 16), left + 8, giverY + 1, DevUi.ACCENT, false);
+        for (GiverRow row : giverRows) {
+            graphics.drawString(font, DevUi.text("giver." + row.phase().name().toLowerCase(Locale.ROOT)), left + 8, row.y() + 5, DevUi.LABEL, false);
+        }
     }
 
     // --- script blocks
@@ -375,6 +426,7 @@ final class StoryInspector {
             graphics.drawString(font, DevUi.text("document.text"), left + 8, textBox.getY() - 10, DevUi.LABEL, false);
         }
         renderScriptState(font, graphics, left);
+        renderGiver(font, graphics, left);
         form.render(graphics, font);
         renderLinks(font, graphics, left);
     }

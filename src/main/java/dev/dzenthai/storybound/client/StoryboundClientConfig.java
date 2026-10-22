@@ -14,6 +14,7 @@ public final class StoryboundClientConfig {
     public final ModConfigSpec.IntValue questTrackerOffsetY;
     public final ModConfigSpec.IntValue textSpeed;
     public final ModConfigSpec.BooleanValue speechBubbles;
+    public final ModConfigSpec.DoubleValue thinkPause;
     public final ModConfigSpec.EnumValue<Untracked> untrackedQuestWaypoints;
     public final ModConfigSpec.BooleanValue waypointMarkers;
     public final ModConfigSpec.DoubleValue waypointMarkerScale;
@@ -44,6 +45,9 @@ public final class StoryboundClientConfig {
         textSpeed = builder.comment("How fast dialogue text is printed, in characters per second; 0 shows it at once.")
                 .translation("storybound.configuration.textSpeed")
                 .defineInRange("textSpeed", 45, 0, 500);
+        thinkPause = builder.comment("How long NPCs think before answering an option (the dots), as a multiple of the usual pause; 0 answers at once. Never longer than 4 seconds.")
+                .translation("storybound.configuration.thinkPause")
+                .defineInRange("thinkPause", 1.0, 0.0, 2.0);
         speechBubbles = builder.comment("Show what NPCs and players say in other players' dialogues above their heads.")
                 .translation("storybound.configuration.speechBubbles")
                 .define("speechBubbles", true);

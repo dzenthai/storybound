@@ -53,7 +53,7 @@ public final class SpeechBubbles {
             Bubble option = said.isEmpty() ? null : said.getLast();
             long from = option != null ? option.createdAt() : now;
             int length = option != null ? option.text().getString().length() : 0;
-            showAt = Math.max(now, from + ThinkTime.resolve(think, length));
+            showAt = Math.max(now, from + ThinkTime.resolve(think, length, StoryboundClientConfig.INSTANCE.thinkPause.get()));
         }
         long duration = Mth.clamp(2500L + 60L * component.getString().length(), 3000L, 10000L);
         List<Bubble> bubbles = BUBBLES.computeIfAbsent(entityId, id -> new ArrayList<>());

@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -508,10 +509,33 @@ final class StoryView extends GraphView {
         dirty = false;
         ClientDevStore.putLocal(target.type(), target.id(), after);
         DevRequests.save(target.type(), target.id(), after, afterText);
+        // A script block's handler changed: what ran the old one runs the new one, in the same undoable step.
+        List<Unlinked> renamed = new ArrayList<>();
+        if (target.type().equals(ClientDevStore.TYPE_SCRIPT) && before != null) {
+            String oldHook = StoryEdits.hookOf(target.id(), ClientDevStore.parseObject(before));
+            String newHook = StoryEdits.hookOf(target.id(), editing);
+            if (!oldHook.equals(newHook)) {
+                renamed = renameHook(oldHook, newHook);
+                if (!renamed.isEmpty()) {
+                    screen.status(DevUi.text("status.hook_renamed", renamed.size(), newHook), DevUi.LINK);
+                }
+            }
+        }
+        List<Unlinked> alsoChanged = renamed;
         if (before != null && !before.equals(after) || !beforeText.equals(afterText) && afterText.isPresent()) {
             screen.remember(DevUi.str("history.save", target.id().getPath()),
-                    () -> DevRequests.restore(target.type(), target.id(), before != null ? before : after, beforeText),
-                    () -> DevRequests.restore(target.type(), target.id(), after, afterText));
+                    () -> {
+                        DevRequests.restore(target.type(), target.id(), before != null ? before : after, beforeText);
+                        alsoChanged.forEach(change -> restore(change.key(), change.before()));
+                    },
+                    () -> {
+                        DevRequests.restore(target.type(), target.id(), after, afterText);
+                        alsoChanged.forEach(change -> restore(change.key(), change.after()));
+                    });
+        }
+        if (!renamed.isEmpty()) {
+            rebuildCards();
+            return;
         }
         rebuildCards();
         screen.status(DevUi.text("status.saved", target.id().toString()), DevUi.OK);
@@ -545,15 +569,7 @@ final class StoryView extends GraphView {
 
     /** Makes the template's definitions at the context menu's place; returns the one the inspector shows. */
     private @Nullable NodeKey create(DevModeScreen screen, Template template) {
-        Player player = Minecraft.getInstance().player;
-        NodeTemplates.Place place = player != null
-                ? new NodeTemplates.Place(new double[]{player.getX(), player.getY(), player.getZ()}, player.level().dimension().location().toString())
-                : new NodeTemplates.Place(null, "minecraft:overworld");
-        int number = freeNumber();
-        List<NodeTemplates.Created> created = NodeTemplates.create(template, number, place, DevUi::str);
-        while (created.stream().anyMatch(c -> ClientDevStore.getJson(c.key().type(), c.key().id()) != null)) {
-            created = NodeTemplates.create(template, ++number, place, DevUi::str);
-        }
+        List<NodeTemplates.Created> created = fresh(template);
         NodeKey last = null;
         NodeKey shown = null;
         for (NodeTemplates.Created definition : created) {
@@ -566,6 +582,59 @@ final class StoryView extends GraphView {
             select(screen, shown);
         }
         return last;
+    }
+
+    /** The template's definitions with ids nothing has yet, placed where the author stands (for waypoints). */
+    private List<NodeTemplates.Created> fresh(Template template) {
+        Player player = Minecraft.getInstance().player;
+        NodeTemplates.Place place = player != null
+                ? new NodeTemplates.Place(new double[]{player.getX(), player.getY(), player.getZ()}, player.level().dimension().location().toString())
+                : new NodeTemplates.Place(null, "minecraft:overworld");
+        int number = freeNumber();
+        List<NodeTemplates.Created> created = NodeTemplates.create(template, number, place, DevUi::str);
+        while (created.stream().anyMatch(c -> ClientDevStore.getJson(c.key().type(), c.key().id()) != null)) {
+            created = NodeTemplates.create(template, ++number, place, DevUi::str);
+        }
+        return created;
+    }
+
+    /**
+     * The quest giver's dialogue for a phase of the quest (see {@link QuestGiver}): a new dialogue, an entry for it in
+     * the NPC's binding, one undoable step; then its graph opens to be written.
+     */
+    void addGiverDialogue(DevModeScreen screen, ResourceLocation quest, QuestGiver.Giver giver, QuestGiver.Phase phase) {
+        saveEdits(screen);
+        NodeKey npc = giver.npc();
+        String bindingBefore = ClientDevStore.getJson(npc.type(), npc.id());
+        if (bindingBefore == null) {
+            return;
+        }
+        NodeTemplates.Created dialogue = fresh(Template.DIALOGUE_SCREEN).getFirst();
+        NodeKey key = dialogue.key();
+        String dialogueJson = DevUi.GSON.toJson(dialogue.json());
+        JsonObject binding = ClientDevStore.parseObject(bindingBefore);
+        QuestGiver.addEntry(binding, key.id(), quest, phase);
+        String bindingAfter = DevUi.GSON.toJson(binding);
+        ClientDevStore.putLocal(key.type(), key.id(), dialogueJson);
+        DevRequests.save(key.type(), key.id(), dialogueJson, dialogue.text());
+        restore(npc, bindingAfter);
+        if (npc.equals(selected)) {
+            editing = binding;
+            dirty = false;
+        }
+        screen.remember(DevUi.str("history.giver", key.id().getPath()),
+                () -> {
+                    DevRequests.delete(key.type(), key.id());
+                    restore(npc, bindingBefore);
+                },
+                () -> {
+                    ClientDevStore.putLocal(key.type(), key.id(), dialogueJson);
+                    DevRequests.restore(key.type(), key.id(), dialogueJson, dialogue.text());
+                    restore(npc, bindingAfter);
+                });
+        rebuildCards();
+        screen.openDialogue(key.id());
+        screen.status(DevUi.text("status.giver_created", key.id().getPath(), DevUi.str("giver." + phase.name().toLowerCase(Locale.ROOT))), DevUi.OK);
     }
 
     /** "+ New" in the library: the template's definitions, nowhere on a canvas. */
@@ -780,6 +849,21 @@ final class StoryView extends GraphView {
                 }
                 if (changed) {
                     changes.add(new Unlinked(key, before, DevUi.GSON.toJson(json)));
+                }
+            });
+        }
+        changes.forEach(change -> restore(change.key(), change.after()));
+        return changes;
+    }
+
+    /** Points every action and condition "Script" of the old handler to the new one, and saves what changed. */
+    private static List<Unlinked> renameHook(String oldHook, String newHook) {
+        List<Unlinked> changes = new ArrayList<>();
+        for (ResourceLocation type : KINDS) {
+            ClientDevStore.byType(type).forEach((id, before) -> {
+                JsonObject json = ClientDevStore.parseObject(before);
+                if (StoryEdits.renameScriptHook(json, oldHook, newHook)) {
+                    changes.add(new Unlinked(new NodeKey(type, id), before, DevUi.GSON.toJson(json)));
                 }
             });
         }

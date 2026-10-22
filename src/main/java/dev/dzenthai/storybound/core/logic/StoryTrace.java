@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -149,13 +148,19 @@ public final class StoryTrace {
         write(line);
     }
 
-    /** Story logic run for a player: a quest's state or stage, a dialogue's start and end. */
-    public static void event(ServerPlayer player, String kind, Map<String, String> fields) {
+    /**
+     * Story logic run for a player: a quest's state or stage, a dialogue's start and end.
+     *
+     * @param fields names and values, in pairs, in the order they are written
+     */
+    public static void event(ServerPlayer player, String kind, String... fields) {
         if (!active(player)) {
             return;
         }
         JsonObject line = line(StoryContext.of(player), kind, null);
-        fields.forEach(line::addProperty);
+        for (int i = 0; i + 1 < fields.length; i += 2) {
+            line.addProperty(fields[i], fields[i + 1]);
+        }
         write(line);
     }
 

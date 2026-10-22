@@ -68,6 +68,11 @@ public final class StoryState {
         return result;
     }
 
+    /** Everything stored for the player in a scope, read only: its values and quests (for dumps and tools). */
+    public static StoryContainer stored(ServerPlayer player, StoryScope scope) {
+        return container(player, scope);
+    }
+
     /** A quest's progress in a scope; empty means the quest is unknown there. */
     public static Optional<QuestProgress> getQuest(ServerPlayer player, StoryScope scope, ResourceLocation quest) {
         return container(player, scope).quest(quest);

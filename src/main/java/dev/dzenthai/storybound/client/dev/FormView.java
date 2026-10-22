@@ -13,6 +13,8 @@ import dev.dzenthai.storybound.client.dev.Schemas.Kind;
 import dev.dzenthai.storybound.client.dev.Schemas.Logic;
 import dev.dzenthai.storybound.client.dev.Schemas.Node;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
+import dev.dzenthai.storybound.module.quest.DifficultyScale;
+import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -377,6 +379,10 @@ final class FormView {
         Component label = fieldLabel(name, required);
         Tooltip tooltip = node.description().isEmpty() && Schemas.resolve(node).description().isEmpty() ? null
                 : Tooltip.create(Component.literal(!node.description().isEmpty() ? node.description() : Schemas.resolve(node).description()));
+        if (name.equals("difficulty") && path.isEmpty()) {
+            difficultyField(name, value, label);
+            return;
+        }
         switch (kind) {
             case TEXT -> textField(path, name, label, tooltip);
             case ENUM -> enumField(path, name, node, required, value, label, tooltip);
@@ -385,7 +391,23 @@ final class FormView {
             default -> {
                 if (row(CONTROL_H)) {
                     Component summary = Component.empty().append(label).append(": ").append(summary(kind, node, value)).append(" ▸");
-                    Button button = Button.builder(summary, b -> push(with(path, name), node, fieldLabel(name, false).getString(), !required))
+                    Button button = Button.builder(summary, b -> {
+                                if (Schemas.isOldActionList(node, value)) {
+                                    // Written the older way (only actions, given at once): the same as the object with them and no claim.
+                                    JsonArray actions = new JsonArray();
+                                    if (value.isJsonArray()) {
+                                        actions = value.getAsJsonArray();
+                                    } else {
+                                        actions.add(value);
+                                    }
+                                    JsonObject form = new JsonObject();
+                                    form.add("actions", actions);
+                                    form.addProperty("claim", false);
+                                    ensureObject(path).add(name, form);
+                                    host.edited();
+                                }
+                                push(with(path, name), node, fieldLabel(name, false).getString(), !required);
+                            })
                             .bounds(x, rowY(CONTROL_H), w, CONTROL_H).build();
                     if (tooltip != null) {
                         button.setTooltip(tooltip);
@@ -456,6 +478,34 @@ final class FormView {
         if (tooltip != null) {
             button.setTooltip(tooltip);
         }
+        screen.add(button);
+    }
+
+    /**
+     * A quest's difficulty: cycles through the scale the modpack picked (1 to 5 stars, or its levels), shown as the
+     * Journal shows it, then unset. A value off the scale (stars under a scale of levels) shows as it is until changed.
+     */
+    private void difficultyField(String name, @Nullable JsonElement value, Component label) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        DifficultyScale scale = DifficultyScale.current();
+        List<QuestDefinition.Difficulty> choices = scale.choices();
+        QuestDefinition.Difficulty current = value == null ? null
+                : QuestDefinition.Difficulty.CODEC.parse(JsonOps.INSTANCE, value).result().orElse(null);
+        Component shown = current == null ? DevUi.text("form.unset", DevUi.text("none")) : scale.render(current);
+        Button button = Button.builder(shown, b -> {
+            int next = current == null ? 0 : choices.indexOf(current) + 1;
+            JsonObject root = ensureObject(List.of());
+            if (next >= choices.size()) {
+                root.remove(name);
+            } else {
+                root.add(name, QuestDefinition.Difficulty.CODEC.encodeStart(JsonOps.INSTANCE, choices.get(next)).getOrThrow());
+            }
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text(scale.style() == DifficultyScale.Style.STARS ? "form.difficulty.stars" : "form.difficulty.levels")));
         screen.add(button);
     }
 
@@ -992,7 +1042,7 @@ final class FormView {
         }
         ResourceLocation story = switch (field) {
             case "quest" -> ClientDevStore.TYPE_QUEST;
-            case "dialogue" -> ClientDevStore.TYPE_DIALOGUE;
+            case "dialogue", "busy_dialogue" -> ClientDevStore.TYPE_DIALOGUE;
             case "document" -> ClientDevStore.TYPE_DOCUMENT;
             case "boss" -> ClientDevStore.TYPE_BOSS;
             case "entry" -> ClientDevStore.TYPE_CODEX;

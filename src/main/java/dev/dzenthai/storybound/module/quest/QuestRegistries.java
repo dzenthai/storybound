@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import net.minecraft.resources.ResourceLocation;
@@ -20,9 +21,13 @@ public final class QuestRegistries {
 
     private static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES = DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, Storybound.MOD_ID);
 
-    /** The quest a player tracks on the HUD; personal even for party quests. */
+    /** The quests a player pins on the HUD, the main one first; personal even for party quests. */
     public static final Supplier<AttachmentType<TrackedQuest>> TRACKED = ATTACHMENT_TYPES.register("tracked_quest",
             () -> AttachmentType.builder(() -> TrackedQuest.NONE).serialize(TrackedQuest.CODEC).copyOnDeath().build());
+
+    /** Rewards waiting to be claimed in the Journal; personal, kept through death. */
+    public static final Supplier<AttachmentType<QuestRewardData>> REWARDS = ATTACHMENT_TYPES.register("quest_rewards",
+            () -> AttachmentType.builder(() -> QuestRewardData.EMPTY).serialize(QuestRewardData.CODEC).copyOnDeath().build());
 
     private QuestRegistries() {}
 
@@ -33,10 +38,16 @@ public final class QuestRegistries {
         QuestLogic.REGISTER_TRIGGERS.register(modBus);
     }
 
-    public record TrackedQuest(Optional<ResourceLocation> quest) {
-        public static final TrackedQuest NONE = new TrackedQuest(Optional.empty());
+    /** @param quests pinned, the main one first (saves from before several could be pinned keep theirs as {@code quest}) */
+    public record TrackedQuest(List<ResourceLocation> quests) {
+        public static final TrackedQuest NONE = new TrackedQuest(List.of());
         public static final Codec<TrackedQuest> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                ResourceLocation.CODEC.optionalFieldOf("quest").forGetter(TrackedQuest::quest)
-        ).apply(instance, TrackedQuest::new));
+                ResourceLocation.CODEC.listOf().optionalFieldOf("quests", List.of()).forGetter(TrackedQuest::quests),
+                ResourceLocation.CODEC.optionalFieldOf("quest").forGetter(tracked -> Optional.<ResourceLocation>empty())
+        ).apply(instance, (quests, old) -> new TrackedQuest(old.map(List::of).orElse(quests))));
+
+        public TrackedQuest {
+            quests = List.copyOf(quests);
+        }
     }
 }

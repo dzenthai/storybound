@@ -163,6 +163,12 @@ dependencies {
         cameraModArtifacts[mod].each { localRuntime(it) { transitive = false } }
     }
 
+    // Cutscene API: play_cutscene, cutscene_finished and in_cutscene go through its server API when it is installed.
+    compileOnly("maven.modrinth:cutscene-api:${cutscene_api_version}") { transitive = false }
+    if (project.dev_with_cutscenes.toBoolean()) {
+        localRuntime("maven.modrinth:cutscene-api:${cutscene_api_version}") { transitive = false }
+    }
+
     // Easy NPC needs no compile-time integration: its NPCs are ordinary entities. Dev runs only.
     if (project.dev_with_easynpc.toBoolean()) {
         localRuntime("maven.modrinth:easy-npc:${easy_npc_version}") { transitive = false }
@@ -189,7 +195,8 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             mod_authors            : mod_authors,
             mod_description        : mod_description,
             xaero_minimap_version_range: xaero_minimap_version_range,
-            kubejs_version_range   : kubejs_version_range
+            kubejs_version_range   : kubejs_version_range,
+            cutscene_api_version_range: cutscene_api_version_range
     ]
     inputs.properties replaceProperties
     expand replaceProperties

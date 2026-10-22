@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.ModList;
 
 /** Subscribes loaded story events to their triggers and runs them. */
 public final class StoryEvents {
@@ -38,9 +39,10 @@ public final class StoryEvents {
 
     static void run(ResourceLocation id, StoryEvent event, StoryContext context) {
         if (event.once().isPresent() && StoryState.getStored(context.player(), event.once().get(), onceKey(id)).isPresent()) {
+            StoryTrace.note(context.player(), "story event " + id, "skipped: already run once (" + event.once().get().getSerializedName() + ")");
             return;
         }
-        if (!event.conditions().test(context)) {
+        if (!Conditions.check(event.conditions(), context, "story event " + id)) {
             return;
         }
         // Marked before the actions run, so an action that re-fires the same trigger cannot repeat the event.
@@ -73,6 +75,17 @@ public final class StoryEvents {
             public void flag(ResourceLocation key) {
                 if (!CoreDefinitions.FLAGS.serverStore().contains(key) && reported.add(key)) {
                     sink.accept(ValidationIssue.warning(type.id(), id, "Uses undeclared flag " + key));
+                }
+            }
+
+            @Override
+            public void script(ResourceLocation hook, boolean condition) {
+                // Only with KubeJS: without it every script is missing, and the dev mode says so on its own.
+                boolean registered = condition ? ScriptHooks.hasCondition(hook) : ScriptHooks.hasAction(hook);
+                if (ModList.get().isLoaded("kubejs") && !registered && reported.add(hook)) {
+                    sink.accept(ValidationIssue.warning(type.id(), id, "No script registers the " + (condition ? "condition " : "action ") + hook
+                            + " (StoryboundEvents." + (condition ? "registerConditions" : "registerActions") + ", e.add('" + hook + "', ...)): it "
+                            + (condition ? "is always false" : "does nothing")));
                 }
             }
         });

@@ -14,6 +14,7 @@ public final class LogicEvents {
         // HIGH: subscriptions must be in place before anything reacts to the finished reload.
         gameBus.addListener(EventPriority.HIGH, LogicEvents::onTagsUpdated);
         TriggerEvents.register(gameBus);
+        ScheduledActions.register(gameBus);
         LogicOwners.register(CoreDefinitions.EVENTS, StoryEvents::collectReferences);
         ValidationService.registerValidator(StoryEvents::validate);
     }

@@ -1,13 +1,16 @@
 package dev.dzenthai.storybound.module.quest;
 
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.logic.Action;
+import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.trigger.Subscription;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
@@ -24,6 +27,8 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,17 +47,23 @@ public final class QuestEvents {
         gameBus.addListener(QuestEvents::onPartyJoined);
         gameBus.addListener(QuestEvents::onPartyLeft);
         gameBus.addListener(QuestEvents::onServerTick);
+        gameBus.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> QuestHints.forget(event.getEntity().getUUID()));
+        gameBus.addListener((ServerStoppedEvent event) -> QuestHints.reset());
         LogicOwners.register(QuestRegistries.QUESTS, QuestEvents::collectReferences);
         ValidationService.registerValidator(QuestEvents::validate);
     }
 
     /** Subscribes quest starts and objectives to their triggers; nothing while the module is disabled. */
     public static void rebuild() {
+        DifficultyScale.set(DifficultyScale.load(ConfigStorySource.root()));
         List<Subscription<?>> subscriptions = new ArrayList<>();
         if (Quests.isEnabled()) {
             QuestRegistries.QUESTS.serverStore().all().forEach((quest, definition) -> {
                 definition.start().ifPresent(start -> subscriptions.add(subscribe("quest " + quest + " start", start.trigger(), context -> {
-                    if (Quests.progress(context.player(), quest).isEmpty() && start.conditions().test(context)) {
+                    String refused = Quests.whyNotStart(context.player(), quest);
+                    if (refused != null) {
+                        StoryTrace.note(context.player(), "quest " + quest + " start", "skipped: " + refused);
+                    } else if (Conditions.check(start.conditions(), context, "quest " + quest + " start")) {
                         Quests.start(context.player(), quest);
                     }
                 })));
@@ -102,6 +113,8 @@ public final class QuestEvents {
         if (event.getServer().getTickCount() % FAIL_CHECK_INTERVAL == 0) {
             for (ServerPlayer player : List.copyOf(event.getServer().getPlayerList().getPlayers())) {
                 Quests.checkFailures(player);
+                Quests.checkItems(player);
+                QuestHints.check(player);
             }
         }
     }
@@ -116,7 +129,17 @@ public final class QuestEvents {
      */
     private static void validate(Consumer<ValidationIssue> sink) {
         DefinitionType<QuestDefinition> type = QuestRegistries.QUESTS;
+        DifficultyScale scale = DifficultyScale.load(ConfigStorySource.root());
         type.serverStore().all().forEach((id, quest) -> {
+            quest.difficulty().ifPresent(difficulty -> {
+                if (difficulty.level().isPresent() && scale.level(difficulty).isEmpty()) {
+                    sink.accept(ValidationIssue.warning(type.id(), id, "Difficulty '" + difficulty.level().get() + "' is not a level of the scale in project.json"));
+                }
+                if (scale.style() == DifficultyScale.Style.LEVELS && difficulty.stars().isPresent() && difficulty.stars().get() > scale.levels().size()) {
+                    sink.accept(ValidationIssue.warning(type.id(), id, "Difficulty " + difficulty.stars().get() + " has no level of its own: the scale in project.json has "
+                            + scale.levels().size() + " levels, so it shows as the last one"));
+                }
+            });
             Set<String> stageIds = new HashSet<>();
             for (QuestDefinition.Stage stage : quest.stages()) {
                 if (stage.id().startsWith("@")) {
@@ -130,8 +153,8 @@ public final class QuestEvents {
                     if (!objectiveIds.add(stage.objectiveId(i))) {
                         sink.accept(ValidationIssue.error(type.id(), id, "Duplicate objective id '" + stage.objectiveId(i) + "' in stage '" + stage.id() + "'"));
                     }
-                    if (stage.objectives().get(i).trigger().isEmpty()) {
-                        sink.accept(ValidationIssue.error(type.id(), id, "Objective '" + stage.objectiveId(i) + "' in stage '" + stage.id() + "' has no trigger"));
+                    if (stage.objectives().get(i).trigger().isEmpty() && stage.objectives().get(i).items().isEmpty()) {
+                        sink.accept(ValidationIssue.error(type.id(), id, "Objective '" + stage.objectiveId(i) + "' in stage '" + stage.id() + "' has neither a trigger nor items"));
                     }
                 }
             }
@@ -157,11 +180,12 @@ public final class QuestEvents {
         actions.addAll(quest.onStart());
         actions.addAll(quest.onComplete());
         actions.addAll(quest.onFailed());
-        actions.addAll(quest.rewards());
+        actions.addAll(quest.rewards().actions());
         for (QuestDefinition.Stage stage : quest.stages()) {
             actions.addAll(stage.onEnter());
             for (QuestDefinition.Objective objective : stage.objectives()) {
                 objective.trigger().ifPresent(trigger -> trigger.collectReferences(references));
+                objective.hints().forEach(hint -> hint.conditions().collectReferences(references));
                 objective.conditions().collectReferences(references);
             }
         }

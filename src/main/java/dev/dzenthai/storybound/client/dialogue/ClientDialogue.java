@@ -69,7 +69,7 @@ public final class ClientDialogue {
         long now = Util.getMillis();
         long startAt = now;
         if (payload.think() != ThinkTime.NONE) {
-            startAt = Math.max(now, (choseAt > 0 ? choseAt : now) + ThinkTime.resolve(payload.think(), choiceLength));
+            startAt = Math.max(now, (choseAt > 0 ? choseAt : now) + ThinkTime.resolve(payload.think(), choiceLength, StoryboundClientConfig.INSTANCE.thinkPause.get()));
         }
         line = new Line(payload.step(), speaker, name, payload.text().toComponent(), payload.timed(), startAt);
         choices = null;

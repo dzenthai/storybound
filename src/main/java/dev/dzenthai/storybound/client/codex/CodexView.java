@@ -96,6 +96,10 @@ public class CodexView extends ListDetailView<CodexView.Entry> {
         }));
         detail.text(entry.title().copy().withStyle(ChatFormatting.BOLD), theme.title());
         detail.text(categoryName(entry.definition().category()), theme.muted());
+        int kills = ClientCodex.kills(entry.id());
+        if (entry.definition().showKills() && entry.definition().entity().isPresent() && kills > 0) {
+            detail.text(Component.translatable("storybound.codex.kills", kills), theme.muted());
+        }
         detail.gap(6);
         for (CodexDefinition.Section section : entry.definition().sections()) {
             if (!entry.sections().contains(section.id())) {

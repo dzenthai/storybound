@@ -136,7 +136,8 @@ final class StoryFlow {
                     }
                     depth.put(cause, d + 1);
                     towards.put(cause, node);
-                    if (previous.getOrDefault(cause, List.of()).isEmpty()) {
+                    // An NPC is where the player starts talking, even when what it says depends on quests ("after").
+                    if (previous.getOrDefault(cause, List.of()).isEmpty() || cause.type().equals(ClientDevStore.TYPE_NPC)) {
                         root = cause;
                         break;
                     }

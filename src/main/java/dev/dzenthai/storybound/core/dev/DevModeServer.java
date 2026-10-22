@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.google.gson.stream.JsonWriter;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
@@ -38,6 +39,7 @@ import dev.dzenthai.storybound.network.DevModePayloads;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,6 +48,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.network.chat.Component;
@@ -54,6 +58,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The server side of the dev mode editor. Every request needs permission level 2. A save writes the story folder
@@ -81,12 +86,35 @@ public final class DevModeServer {
         StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages()));
     }
 
+    /**
+     * Every definition as the editor edits it: the story folder's file as the author wrote it (field order, defaults
+     * written out, fields the game does not know), else, for a datapack's definition, as the codec writes it.
+     */
     private static <T> Map<ResourceLocation, String> encodeStore(DefinitionType<T> type, RegistryOps<JsonElement> ops) {
         Map<ResourceLocation, String> encoded = new LinkedHashMap<>();
-        type.serverStore().all().forEach((id, value) -> type.codec().encodeStart(ops, value)
-                .result()
-                .ifPresent(json -> encoded.put(id, GSON.toJson(json))));
+        type.serverStore().all().forEach((id, value) -> {
+            JsonElement written = storyFile(type, id, ops);
+            if (written != null) {
+                encoded.put(id, GSON.toJson(written));
+            } else {
+                type.codec().encodeStart(ops, value).result().ifPresent(json -> encoded.put(id, GSON.toJson(json)));
+            }
+        });
         return encoded;
+    }
+
+    /** The definition's file in the story folder, when there is one that loads; null otherwise (a datapack's, a broken one). */
+    private static <T> @Nullable JsonElement storyFile(DefinitionType<T> type, ResourceLocation id, RegistryOps<JsonElement> ops) {
+        try {
+            Path file = ConfigStorySource.fileFor(ConfigStorySource.root(), type, id);
+            if (!Files.isRegularFile(file)) {
+                return null;
+            }
+            JsonElement json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+            return type.codec().parse(ops, json).isSuccess() ? json : null;
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
     }
 
     public static void saveDefinition(ServerPlayer player, ResourceLocation typeId, ResourceLocation id, String json, Optional<String> sbtText, String language, Map<String, String> translations) {
@@ -211,13 +239,44 @@ public final class DevModeServer {
         RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, registries);
         DataResult<T> parsed = type.codec().parse(ops, element);
         T value = parsed.getOrThrow(IOException::new);
-        JsonElement canonical = type.codec().encodeStart(ops, value).getOrThrow(IOException::new);
+        // The codec only checks it: the file keeps what was sent, so the author's field order, written-out defaults
+        // and fields the game does not know survive a save from the editor.
         Path target = ConfigStorySource.fileFor(ConfigStorySource.root(), type, id);
         Files.createDirectories(target.getParent());
-        Files.writeString(target, GSON.toJson(canonical) + "\n", StandardCharsets.UTF_8);
+        writeJson(target, element);
         Map<ResourceLocation, T> updated = new LinkedHashMap<>(type.serverStore().all());
         updated.put(id, value);
         type.serverStore().replace(updated);
+    }
+
+    /**
+     * Writes the JSON in the file's own style (its indent and line ends, two spaces and {@code \n} for a new file).
+     * A file that already holds the same JSON is left alone, so git sees no change for a definition nobody edited.
+     */
+    static void writeJson(Path file, JsonElement json) throws IOException {
+        String indent = "  ";
+        String newline = "\n";
+        if (Files.isRegularFile(file)) {
+            String before = Files.readString(file, StandardCharsets.UTF_8);
+            try {
+                if (JsonParser.parseString(before).equals(json)) {
+                    return;
+                }
+            } catch (JsonParseException e) {
+                // A broken file is replaced by the definition that loads.
+            }
+            newline = before.contains("\r\n") ? "\r\n" : "\n";
+            Matcher first = Pattern.compile("\\n([ \\t]+)\\S").matcher(before);
+            if (first.find()) {
+                indent = first.group(1);
+            }
+        }
+        StringWriter out = new StringWriter();
+        JsonWriter writer = new JsonWriter(out);
+        writer.setIndent(indent);
+        GSON.toJson(json, writer);
+        writer.flush();
+        Files.writeString(file, out.toString().replace("\n", newline) + newline, StandardCharsets.UTF_8);
     }
 
     private static void writeSbt(ResourceLocation textId, String language, String content) {

@@ -117,6 +117,14 @@ public final class QuestLogic {
         }
 
         @Override
+        public String describe(StoryContext context) {
+            Optional<QuestProgress> progress = Quests.progress(context.player(), quest);
+            String actual = State.of(progress.map(QuestProgress::status)).getSerializedName()
+                    + progress.flatMap(QuestProgress::stage).map(at -> " at stage " + at).orElse("");
+            return "quest " + quest + " is " + actual;
+        }
+
+        @Override
         public void collectReferences(References references) {
             references.quest(quest, stage.orElse(null));
         }
@@ -172,9 +180,15 @@ public final class QuestLogic {
         }
     }
 
-    /** Tracks a quest on the player's HUD; without {@code quest} tracks nothing. */
-    public record TrackQuest(Optional<ResourceLocation> quest) implements Action {
-        public static final MapCodec<TrackQuest> CODEC = ResourceLocation.CODEC.optionalFieldOf("quest").xmap(TrackQuest::new, TrackQuest::quest);
+    /**
+     * Pins a quest on the player's HUD, as the main one ({@code "pinned": false} unpins it); without {@code quest}
+     * unpins every quest.
+     */
+    public record TrackQuest(Optional<ResourceLocation> quest, boolean pinned) implements Action {
+        public static final MapCodec<TrackQuest> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                ResourceLocation.CODEC.optionalFieldOf("quest").forGetter(TrackQuest::quest),
+                Codec.BOOL.optionalFieldOf("pinned", true).forGetter(TrackQuest::pinned)
+        ).apply(instance, TrackQuest::new));
 
         @Override
         public ActionType<?> type() {
@@ -183,7 +197,11 @@ public final class QuestLogic {
 
         @Override
         public void run(StoryContext context) {
-            Quests.track(context.player(), quest.orElse(null));
+            if (quest.isPresent() && !pinned) {
+                Quests.unpin(context.player(), quest.get());
+            } else {
+                Quests.track(context.player(), quest.orElse(null));
+            }
         }
 
         @Override

@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.core.logic;
 
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.StoryException;
+import dev.dzenthai.storybound.core.logic.action.FlowActions;
 import java.util.List;
 
 public final class Actions {
@@ -9,7 +10,8 @@ public final class Actions {
 
     /**
      * Runs actions in order. A failure ({@link StoryException} or a crashed script) is logged;
-     * with {@link OnFail#ABORT} the remaining actions are skipped. Each action goes to the trace (see {@link StoryTrace}).
+     * with {@link OnFail#ABORT} the remaining actions are skipped. A {@code wait} leaves the rest for later (see
+     * {@link ScheduledActions}). Each action goes to the trace (see {@link StoryTrace}).
      *
      * @return true if every action ran successfully
      */
@@ -17,6 +19,12 @@ public final class Actions {
         boolean success = true;
         for (int i = 0; i < actions.size(); i++) {
             Action action = actions.get(i);
+            if (action instanceof FlowActions.Wait wait) {
+                // The rest runs later; for its owner the list is done.
+                StoryTrace.action(context, origin, i + 1, action, "ok", null);
+                ScheduledActions.schedule(context, List.copyOf(actions.subList(i + 1, actions.size())), wait.ticks(), origin, onFail);
+                return success;
+            }
             try {
                 action.run(context);
                 StoryTrace.action(context, origin, i + 1, action, "ok", null);

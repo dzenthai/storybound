@@ -267,6 +267,26 @@ public final class CodexGameTests {
         return issues.stream().filter(issue -> entry.equals(issue.entry()) && issue.isError()).map(ValidationIssue::message).toList();
     }
 
+    @GameTest(template = "empty")
+    public static void killsAreCountedForEntriesThatShowThem(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation cows = ResourceLocation.fromNamespaceAndPath("gametest", "cows");
+        ResourceLocation chickens = ResourceLocation.fromNamespaceAndPath("gametest", "chickens");
+        with(helper, CodexRegistries.CODEX.serverStore(), CodexDefinition.CODEC, Map.of(
+                cows, "{ \"title\": \"gametest.cows\", \"entity\": \"minecraft:cow\", \"sections\": [ { \"id\": \"lore\", \"unlock\": { \"on\": [\"manual\"] } } ] }",
+                chickens, "{ \"title\": \"gametest.chickens\", \"entity\": \"minecraft:chicken\", \"show_kills\": false, \"sections\": [ { \"id\": \"lore\", \"unlock\": { \"on\": [\"manual\"] } } ] }"), () -> {
+            CodexEvents.rebuild();
+            kill(helper.spawnWithNoFreeWill(EntityType.COW, 1, 2, 1), player);
+            kill(helper.spawnWithNoFreeWill(EntityType.COW, 2, 2, 1), player);
+            kill(helper.spawnWithNoFreeWill(EntityType.CHICKEN, 3, 2, 1), player);
+            helper.assertTrue(Codex.data(player).kills(cows) == 2, "cows killed, though no section opens on kills: " + Codex.data(player).kills(cows));
+            helper.assertTrue(Codex.data(player).kills(chickens) == 0, "chickens are not counted with show_kills false");
+        });
+        CodexEvents.rebuild();
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
     /** Installs {@code gametest:pigs} and the {@code gametest:bestiary} document and subscribes them, then restores the loaded data. */
     private static void withCodex(GameTestHelper helper, Runnable body) {
         with(helper, DocumentRegistries.DOCUMENTS.serverStore(), DocumentDefinition.CODEC, Map.of(BESTIARY, "{ \"kind\": \"book\", \"title\": \"gametest.bestiary\" }"),

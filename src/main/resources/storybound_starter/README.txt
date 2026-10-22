@@ -29,4 +29,10 @@ The player's language is used first, then en_us.
 The four blank documents (book, scroll, note, letter) are here to show how it works; change or delete them.
 To add the example story (wolves, a village, an elder), run in game:  /storybound example install
 
+Writing a story from files (without watching the game), these commands write for you to read:
+  /storybound trace on [players]    what the story logic does, line by line: logs/storybound-trace.log
+  /storybound dump <player>         the player's story state: logs/storybound-dump-<player>.json
+  /storybound export                every type, id, stage, node and flag a story can name: logs/storybound-export.json
+  /storybound capture pos <name>    where you stand, into captures.json here (capture entity <name>: what you look at)
+
 This folder is created once, when it does not exist. Delete it to get the starter files back.

@@ -230,6 +230,38 @@ final class StoryEdits {
         return true;
     }
 
+    /**
+     * Points the actions and conditions "Script" of {@code from} to {@code to}: a script block's handler changed, so
+     * what ran the old one runs the new one.
+     *
+     * @return whether anything changed
+     */
+    static boolean renameScriptHook(JsonElement element, String from, String to) {
+        boolean changed = false;
+        if (element.isJsonArray()) {
+            for (JsonElement child : element.getAsJsonArray()) {
+                changed |= renameScriptHook(child, from, to);
+            }
+        } else if (element.isJsonObject()) {
+            JsonObject object = element.getAsJsonObject();
+            if (object.has("type") && object.get("type").isJsonPrimitive() && DevUi.shortId(object.get("type").getAsString()).equals("kubejs")
+                    && isId(object.get("id"), from)) {
+                object.addProperty("id", to);
+                changed = true;
+            }
+            for (JsonElement child : object.asMap().values()) {
+                changed |= renameScriptHook(child, from, to);
+            }
+        }
+        return changed;
+    }
+
+    /** The handler a script block's JSON names: its {@code hook}, else the block's id. */
+    static String hookOf(ResourceLocation block, JsonObject json) {
+        return json.has("hook") && json.get("hook").isJsonPrimitive() && !json.get("hook").getAsString().isBlank()
+                ? json.get("hook").getAsString() : block.toString();
+    }
+
     /** A {@code leads_to} entry naming that node. */
     private static boolean sameTarget(JsonObject entry, NodeKey target) {
         ResourceLocation type = entry.has("type") ? DevUi.normalizeType(entry.get("type").getAsString()) : null;

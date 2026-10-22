@@ -21,4 +21,7 @@ public interface References {
     default void codex(ResourceLocation entry, @Nullable String section) {}
 
     default void boss(ResourceLocation boss) {}
+
+    /** A handler of the action or condition "Script" ({@code kubejs}). */
+    default void script(ResourceLocation id, boolean condition) {}
 }

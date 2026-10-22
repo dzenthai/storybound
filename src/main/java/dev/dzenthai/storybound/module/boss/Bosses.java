@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.event.BossDefeatedEvent;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.Actions;
+import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.KillCredit;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
@@ -196,7 +197,7 @@ public final class Bosses {
             Unlock unlock = definition.unlock(section).orElse(null);
             BossData.Record record = data.get(boss);
             if (unlock != null && !record.isUnlocked(section) && unlock.on().contains(source) && counter >= unlock.count()
-                    && unlock.conditions().test(context)) {
+                    && Conditions.check(unlock.conditions(), context, "boss " + boss + " section " + section)) {
                 data.put(record.open(section));
                 opened = true;
             }

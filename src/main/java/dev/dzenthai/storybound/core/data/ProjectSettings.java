@@ -101,12 +101,23 @@ public record ProjectSettings(String sourceLanguage, List<String> languages) {
         if (!ConfigStorySource.isLanguageCode(settings.sourceLanguage()) || !settings.languages().stream().allMatch(ConfigStorySource::isLanguageCode)) {
             throw new IllegalArgumentException("Not a language code in " + settings);
         }
+        Path file = root.resolve(FILE_NAME);
+        // Only the languages change: other settings of the file (the difficulty scale) stay as written.
         JsonObject json = new JsonObject();
+        if (Files.isRegularFile(file)) {
+            try {
+                JsonElement read = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+                if (read.isJsonObject()) {
+                    json = read.getAsJsonObject();
+                }
+            } catch (JsonParseException e) {
+                // A broken file is replaced by the settings that load.
+            }
+        }
         json.addProperty("source_language", settings.sourceLanguage());
         JsonArray languages = new JsonArray();
         settings.languages().forEach(languages::add);
         json.add("languages", languages);
-        Path file = root.resolve(FILE_NAME);
         Files.createDirectories(file.getParent());
         Files.writeString(file, new GsonBuilder().setPrettyPrinting().create().toJson(json) + "\n", StandardCharsets.UTF_8);
     }

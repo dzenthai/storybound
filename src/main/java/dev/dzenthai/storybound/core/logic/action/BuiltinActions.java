@@ -31,5 +31,20 @@ public final class BuiltinActions {
     public static final DeferredHolder<ActionType<?>, ActionType<WorldActions.Notify>> NOTIFY =
             REGISTER.register("notify", () -> new ActionType<>(WorldActions.Notify.CODEC));
 
+    public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.SpawnEntity>> SPAWN_ENTITY =
+            REGISTER.register("spawn_entity", () -> new ActionType<>(SceneActions.SpawnEntity.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.Teleport>> TELEPORT =
+            REGISTER.register("teleport", () -> new ActionType<>(SceneActions.Teleport.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.Effect>> EFFECT =
+            REGISTER.register("effect", () -> new ActionType<>(SceneActions.Effect.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.Title>> TITLE =
+            REGISTER.register("title", () -> new ActionType<>(SceneActions.Title.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.SoundAt>> SOUND_AT =
+            REGISTER.register("sound_at", () -> new ActionType<>(SceneActions.SoundAt.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<FlowActions.Wait>> WAIT =
+            REGISTER.register("wait", () -> new ActionType<>(FlowActions.Wait.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<FlowActions.Schedule>> SCHEDULE =
+            REGISTER.register("schedule", () -> new ActionType<>(FlowActions.Schedule.CODEC));
+
     private BuiltinActions() {}
 }

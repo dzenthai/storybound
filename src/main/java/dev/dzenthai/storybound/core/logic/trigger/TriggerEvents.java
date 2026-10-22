@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
 import dev.dzenthai.storybound.core.logic.KillCredit;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.state.StoryState;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
@@ -35,6 +36,7 @@ public final class TriggerEvents {
         gameBus.addListener(TriggerEvents::onLoggedIn);
         gameBus.addListener(TriggerEvents::onLoggedOut);
         gameBus.addListener(TriggerEvents::onServerStopped);
+        ProgressTriggers.register(gameBus);
     }
 
     // Runs for the player who caused the change; changes without one (console, scripts) run for every affected player.
@@ -111,6 +113,7 @@ public final class TriggerEvents {
     }
 
     private static void onServerStopped(ServerStoppedEvent event) {
+        StoryTrace.stop();
         TriggerDispatcher.reset();
         SeenTracker.reset();
     }

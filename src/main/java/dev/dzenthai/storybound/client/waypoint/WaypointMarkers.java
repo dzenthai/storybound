@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
 import dev.dzenthai.storybound.client.ClientModules;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
+import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -74,7 +75,7 @@ public final class WaypointMarkers {
         Minecraft minecraft = Minecraft.getInstance();
         StoryboundClientConfig config = StoryboundClientConfig.INSTANCE;
         if (minecraft.level == null || minecraft.player == null || view == null || projection == null
-                || !config.waypointMarkers.get() || !ClientModules.isEnabled("waypoints")) {
+                || !config.waypointMarkers.get() || !ClientModules.isEnabled("waypoints") || CutsceneClient.playing()) {
             return;
         }
         long now = Util.getMillis();

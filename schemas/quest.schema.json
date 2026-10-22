@@ -58,16 +58,64 @@
     },
     "on_failed": { "$ref": "logic.schema.json#/definitions/actions" },
     "rewards": {
-      "description": "Run on completion for every online player sharing the quest, so each party member is paid.",
-      "$ref": "logic.schema.json#/definitions/actions"
+      "description": "For every online player sharing the quest, so each party member is paid. An action list (the older way) runs at once on completion; the object waits in the Journal for Claim (claim: false gives it at once when it fits and nothing is to be chosen). Never dropped on the ground.",
+      "oneOf": [
+        { "$ref": "logic.schema.json#/definitions/actions" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "items": { "description": "Given every time.", "type": "array", "items": { "$ref": "#/definitions/reward_item" } },
+            "choice": { "description": "One of them, picked by the player when claiming.", "type": "array", "items": { "$ref": "#/definitions/reward_item" } },
+            "loot": { "description": "A loot table, rolled when the quest is completed.", "$ref": "logic.schema.json#/definitions/id" },
+            "xp": { "description": "Experience points.", "type": "integer", "minimum": 0 },
+            "actions": { "$ref": "logic.schema.json#/definitions/actions" },
+            "claim": { "description": "Wait for the Journal's Claim button.", "type": "boolean", "default": true }
+          }
+        }
+      ]
     },
     "notify": {
       "description": "Show toasts when the quest starts, advances and ends.",
       "type": "boolean",
       "default": true
+    },
+    "repeatable": {
+      "description": "After the quest is completed or failed, its start trigger starts it again once cooldown seconds of game time have passed, at most times completions in all. true: at once, without a limit.",
+      "oneOf": [
+        { "const": true },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cooldown": { "type": "number", "minimum": 0, "default": 0 },
+            "times": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "difficulty": {
+      "description": "Stars (1-5) or a level id of the scale in project.json (easy, normal, hard, deadly by default); the n-th level is n stars.",
+      "oneOf": [ { "type": "integer", "minimum": 1, "maximum": 5 }, { "type": "string" } ]
+    },
+    "time_limit": {
+      "description": "Seconds of game time from the start; then the quest fails (on_failed runs). Shown as a clock in the Journal and on the HUD.",
+      "type": "number",
+      "minimum": 1
     }
   },
   "definitions": {
+    "reward_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item": { "$ref": "logic.schema.json#/definitions/id" },
+        "id": { "description": "The item, written as an item stack.", "$ref": "logic.schema.json#/definitions/id" },
+        "count": { "type": "integer", "minimum": 1, "maximum": 2304, "default": 1 },
+        "components": { "type": "object" }
+      },
+      "oneOf": [ { "required": ["item"] }, { "required": ["id"] } ]
+    },
     "stage": {
       "type": "object",
       "required": ["id"],
@@ -97,7 +145,7 @@
     },
     "objective": {
       "type": "object",
-      "required": ["trigger"],
+      "anyOf": [ { "required": ["trigger"] }, { "required": ["items"] } ],
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -120,6 +168,31 @@
         "hint": {
           "description": "Shown under the objective in the Quests tab until the objective is done.",
           "$ref": "logic.schema.json#/definitions/story_text"
+        },
+        "hints": {
+          "description": "Shown under the objective (and, dimmed, on the HUD) while their conditions hold and, with after, once the objective has not moved for that many seconds. Checked every second on the server.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "additionalProperties": false,
+            "properties": {
+              "text": { "$ref": "logic.schema.json#/definitions/story_text" },
+              "conditions": { "$ref": "logic.schema.json#/definitions/conditions" },
+              "after": { "description": "Seconds without progress on the objective (the player is stuck).", "type": "number", "minimum": 1, "maximum": 86400 }
+            }
+          }
+        },
+        "items": {
+          "description": "count items to have; with consume, to hand in (taken as they come). Without a trigger they are looked at every second, with one when it fires (bring 10 hides, then talk to the tanner).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "item": { "$ref": "logic.schema.json#/definitions/id" },
+            "tag": { "$ref": "logic.schema.json#/definitions/id" },
+            "consume": { "type": "boolean", "default": false }
+          },
+          "oneOf": [ { "required": ["item"] }, { "required": ["tag"] } ]
         }
       }
     }

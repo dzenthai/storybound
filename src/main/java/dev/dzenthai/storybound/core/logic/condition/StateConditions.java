@@ -41,6 +41,13 @@ public final class StateConditions {
         }
 
         @Override
+        public String describe(StoryContext context) {
+            StoryScope resolved = scope.orElseGet(() -> StoryState.declaredScope(key));
+            String actual = StoryState.get(context.player(), resolved, key).map(StoryValues::display).orElse("unset");
+            return "flag " + key + " (" + resolved.getSerializedName() + ") is " + actual + ", wanted " + value;
+        }
+
+        @Override
         public void collectReferences(References references) {
             references.flag(key);
         }
@@ -66,6 +73,13 @@ public final class StateConditions {
             // An unset, undeclared variable reads as 0, false or "" to match the compared value.
             StoryValue actual = StoryState.get(context.player(), resolved, key).orElse(value.type().zero());
             return op.test(actual, value);
+        }
+
+        @Override
+        public String describe(StoryContext context) {
+            StoryScope resolved = scope.orElseGet(() -> StoryState.declaredScope(key));
+            String actual = StoryState.get(context.player(), resolved, key).map(StoryValues::display).orElse("unset");
+            return key + " (" + resolved.getSerializedName() + ") is " + actual + ", wanted " + op.symbol + " " + StoryValues.display(value);
         }
 
         @Override

@@ -54,6 +54,11 @@ public final class WorldConditions {
         public boolean test(StoryContext context) {
             return countItems(context.player(), matcher) >= count;
         }
+
+        @Override
+        public String describe(StoryContext context) {
+            return "has " + countItems(context.player(), matcher) + ", wanted " + count;
+        }
     }
 
     /**
@@ -130,6 +135,11 @@ public final class WorldConditions {
             return true;
         }
 
+        @Override
+        public String describe(StoryContext context) {
+            return "the time of day is " + Math.floorMod(context.player().level().getDayTime(), 24000L);
+        }
+
         public enum Period implements StringRepresentable {
             DAY("day", 0, 12000),
             SUNSET("sunset", 12000, 13800),
@@ -175,6 +185,12 @@ public final class WorldConditions {
                 case RAIN -> level.isRaining();
                 case THUNDER -> level.isThundering();
             };
+        }
+
+        @Override
+        public String describe(StoryContext context) {
+            Level level = context.player().level();
+            return "the weather is " + (level.isThundering() ? "thunder" : level.isRaining() ? "rain" : "clear");
         }
 
         public enum State implements StringRepresentable {

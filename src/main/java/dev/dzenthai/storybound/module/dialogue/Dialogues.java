@@ -6,8 +6,10 @@ import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
 import dev.dzenthai.storybound.core.logic.Actions;
+import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
@@ -31,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -77,6 +80,16 @@ public final class Dialogues {
     }
 
     /** What the player's conversation is waiting for; empty when they are not in one. */
+    /** Another player talking with the entity now (it is their dialogue's bound participant); null when nobody is. */
+    public static @Nullable ServerPlayer talkingWith(Entity entity, ServerPlayer except) {
+        for (DialogueSession session : SESSIONS.values()) {
+            if (!session.closed && session.bound == entity && session.player != except) {
+                return session.player;
+            }
+        }
+        return null;
+    }
+
     public static Optional<State> state(ServerPlayer player) {
         DialogueSession session = SESSIONS.get(player.getUUID());
         return session == null ? Optional.empty()
@@ -90,9 +103,14 @@ public final class Dialogues {
      */
     public static boolean start(ServerPlayer player, ResourceLocation dialogueId, @Nullable Entity speaker) {
         DialogueDefinition dialogue = definition(dialogueId);
-        if (dialogue == null || !isEnabled() || SESSIONS.containsKey(player.getUUID()) || !player.isAlive()) {
+        String refused = dialogue == null ? "unknown dialogue" : !isEnabled() ? "the dialogues module is disabled"
+                : SESSIONS.containsKey(player.getUUID()) ? "the player is already talking" : !player.isAlive() ? "the player is dead" : null;
+        if (refused != null) {
+            StoryTrace.note(player, "dialogue " + dialogueId, "not started: " + refused);
             return false;
         }
+        StoryTrace.event(player, "dialogue_started", "dialogue", dialogueId.toString(),
+                "speaker", speaker != null ? BuiltInRegistries.ENTITY_TYPE.getKey(speaker.getType()) + " " + speaker.getUUID() : "none");
         DialogueSession session = new DialogueSession(nextSession++, player, speaker, dialogueId, dialogue, player.server.getTickCount());
         SESSIONS.put(player.getUUID(), session);
         NeoForge.EVENT_BUS.post(new DialogueEvent.Started(player, dialogueId, speaker));
@@ -126,7 +144,7 @@ public final class Dialogues {
         Option option = choice.options().get(optionIndex);
         StoryContext context = context(session);
         ResourceLocation once = option.once() ? onceKey(session.dialogueId, choiceNode, choice.optionId(optionIndex)) : null;
-        if ((once != null && isOnceUsed(player, once)) || !option.conditions().test(context)) {
+        if ((once != null && isOnceUsed(player, once)) || !Conditions.check(option.conditions(), context, origin(session, choiceNode) + " option " + optionIndex)) {
             reject(player, "option " + index + " is not available");
             // Something changed since the options were shown (an item was dropped); show the current ones.
             proceed(session, choiceNode);
@@ -289,7 +307,8 @@ public final class Dialogues {
                             session.dialogueId, target, session.player.getGameProfile().getName());
                     target = choice.timeout().map(DialogueDefinition.Timeout::next).orElse(DialogueDefinition.END);
                 }
-                case DialogueDefinition.Branch branch -> target = branch.conditions().test(context(session)) ? branch.then() : branch.otherwise();
+                case DialogueDefinition.Branch branch -> target = Conditions.check(branch.conditions(), context(session), origin(session, target))
+                        ? branch.then() : branch.otherwise();
                 case DialogueDefinition.Act act -> {
                     boolean done = Actions.runAll(act.actions(), context(session), origin(session, target), act.onFail());
                     if (session.closed) {
@@ -400,7 +419,7 @@ public final class Dialogues {
             if (option.once() && isOnceUsed(player, onceKey(session.dialogueId, session.node, choice.optionId(i)))) {
                 continue;
             }
-            boolean available = option.conditions().test(context);
+            boolean available = Conditions.check(option.conditions(), context, origin(session, session.node) + " option " + i + " shown");
             if (!available && option.locked() == Option.Locked.HIDE) {
                 continue;
             }
@@ -438,6 +457,7 @@ public final class Dialogues {
         }
         ResourceLocation base = session.baseId();
         String node = session.node;
+        StoryTrace.event(session.player, "dialogue_ended", "dialogue", base.toString(), "node", node, "reason", "finished");
         close(session);
         NeoForge.EVENT_BUS.post(new DialogueEvent.Ended(session.player, base, session.bound, node, EndReason.FINISHED));
         TriggerDispatcher.fire(DialogueLogic.DIALOGUE_ENDED.get(), context(session), new DialogueLogic.Ended(base, node));
@@ -450,6 +470,7 @@ public final class Dialogues {
         ResourceLocation base = session.baseId();
         DialogueDefinition baseDialogue = session.base();
         String node = session.node;
+        StoryTrace.event(session.player, "dialogue_ended", "dialogue", base.toString(), "node", node, "reason", reason.name().toLowerCase(Locale.ROOT));
         close(session);
         NeoForge.EVENT_BUS.post(new DialogueEvent.Ended(session.player, base, session.bound, node, reason));
         if (!baseDialogue.onAbort().isEmpty()) {
@@ -458,6 +479,7 @@ public final class Dialogues {
     }
 
     private static void fail(DialogueSession session, String problem) {
+        StoryTrace.note(session.player, "dialogue " + session.dialogueId, "stopped: " + problem);
         Storybound.LOGGER.error("Storybound: dialogue {} stopped for {}: {}", session.dialogueId, session.player.getGameProfile().getName(), problem);
         abort(session, EndReason.ERROR);
     }
