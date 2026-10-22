@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.module.journal;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -53,6 +54,24 @@ public final class JournalData {
     /** A note with the same id replaces the old one, so a story can update an entry. */
     void putNote(JournalNote note) {
         notes.put(note.id(), note);
+    }
+
+    /** Renamed documents and notes (see {@link StoryMigrations}); returns how many moved. */
+    int migrate(StoryMigrations.Renames renames) {
+        int moved = renameAll(read, renames) + renameAll(documents, renames);
+        return moved + StoryMigrations.renameKeys(notes, id -> renames.id(StoryMigrations.Kind.NOTES, id),
+                (id, note) -> note.id().equals(id) ? note : new JournalNote(id, note.category(), note.title(), note.text()));
+    }
+
+    private static int renameAll(Set<ResourceLocation> documents, StoryMigrations.Renames renames) {
+        List<ResourceLocation> before = List.copyOf(documents);
+        List<ResourceLocation> after = StoryMigrations.rename(before, StoryMigrations.Kind.DOCUMENTS, renames);
+        if (after.equals(before)) {
+            return 0;
+        }
+        documents.clear();
+        documents.addAll(after);
+        return 1;
     }
 
     /** In the order they were added. */

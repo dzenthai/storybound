@@ -1,12 +1,13 @@
-package dev.dzenthai.storybound.client.dev;
+package dev.dzenthai.storybound.core.story;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.dzenthai.storybound.Storybound;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.Edge;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.NodeKey;
+import dev.dzenthai.storybound.client.dev.ClientDevStore;
+import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
@@ -17,15 +18,15 @@ class StoryFlowTest {
         return new NodeKey(type, Storybound.id(id));
     }
 
-    private static final NodeKey WOLVES = key(ClientDevStore.TYPE_QUEST, "wolves");
-    private static final NodeKey ALPHA = key(ClientDevStore.TYPE_QUEST, "alpha");
-    private static final NodeKey FIRE = key(ClientDevStore.TYPE_QUEST, "fire");
-    private static final NodeKey ELDER = key(ClientDevStore.TYPE_NPC, "elder");
-    private static final NodeKey ELDER_TALK = key(ClientDevStore.TYPE_DIALOGUE, "elder_talk");
-    private static final NodeKey REPORT = key(ClientDevStore.TYPE_DIALOGUE, "report");
-    private static final NodeKey BURN = key(ClientDevStore.TYPE_SCRIPT, "burn");
-    private static final NodeKey DEN = key(ClientDevStore.TYPE_WAYPOINT, "den");
-    private static final NodeKey BEAST = key(ClientDevStore.TYPE_BOSS, "beast");
+    private static final NodeKey WOLVES = key(StoryLinks.QUEST, "wolves");
+    private static final NodeKey ALPHA = key(StoryLinks.QUEST, "alpha");
+    private static final NodeKey FIRE = key(StoryLinks.QUEST, "fire");
+    private static final NodeKey ELDER = key(StoryLinks.NPC, "elder");
+    private static final NodeKey ELDER_TALK = key(StoryLinks.DIALOGUE, "elder_talk");
+    private static final NodeKey REPORT = key(StoryLinks.DIALOGUE, "report");
+    private static final NodeKey BURN = key(StoryLinks.SCRIPT, "burn");
+    private static final NodeKey DEN = key(StoryLinks.WAYPOINT, "den");
+    private static final NodeKey BEAST = key(StoryLinks.BOSS, "beast");
 
     @Test
     void aQuestNamingTheNextLeadsStraightToIt() {
@@ -92,7 +93,7 @@ class StoryFlowTest {
 
     @Test
     void aConditionOnAnotherQuestIsALink() {
-        ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_QUEST, Map.of(
+        ClientDevStore.setSnapshot(Map.of(StoryLinks.QUEST, Map.of(
                 ALPHA.id(), """
                         {"start": {"conditions": [
                           {"type": "quest", "quest": "storybound:wolves", "state": "completed"},

@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.network;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.dev.ClientDevStore;
 import dev.dzenthai.storybound.core.dev.DevModeServer;
+import dev.dzenthai.storybound.core.state.QuestProgress;
 import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -122,6 +123,27 @@ public final class DevModePayloads {
         }
     }
 
+    /** A long text ({@code .sbt}) on its own: a Codex section, a boss's lore or tactics. */
+    public record SaveText(ResourceLocation textId, String language, String content) implements CustomPacketPayload {
+        public static final Type<SaveText> TYPE = new Type<>(Storybound.id("dev_save_text"));
+        public static final StreamCodec<ByteBuf, SaveText> STREAM_CODEC = StreamCodec.composite(
+                ResourceLocation.STREAM_CODEC, SaveText::textId,
+                ByteBufCodecs.STRING_UTF8, SaveText::language,
+                LONG_STRING, SaveText::content,
+                SaveText::new);
+
+        @Override
+        public Type<SaveText> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(SaveText payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.saveText(player, payload.textId(), payload.language(), payload.content());
+            }
+        }
+    }
+
     public record DeleteDefinition(ResourceLocation typeId, ResourceLocation id) implements CustomPacketPayload {
         public static final Type<DeleteDefinition> TYPE = new Type<>(Storybound.id("dev_delete_definition"));
         public static final StreamCodec<ByteBuf, DeleteDefinition> STREAM_CODEC = StreamCodec.composite(
@@ -157,6 +179,41 @@ public final class DevModePayloads {
             if (context.player() instanceof ServerPlayer player) {
                 DevModeServer.quickAction(player, payload.action(), payload.targetId());
             }
+        }
+    }
+
+    /** The editor asks where a player stands in the story, for the map's progress layer (see {@link Progress}). */
+    public record RequestProgress(String player) implements CustomPacketPayload {
+        public static final Type<RequestProgress> TYPE = new Type<>(Storybound.id("dev_request_progress"));
+        public static final StreamCodec<ByteBuf, RequestProgress> STREAM_CODEC = ByteBufCodecs.STRING_UTF8.map(RequestProgress::new, RequestProgress::player);
+
+        @Override
+        public Type<RequestProgress> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(RequestProgress payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.sendProgress(player, payload.player());
+            }
+        }
+    }
+
+    /** Every quest the player knows, with its state and stage; empty for a player who is not online. */
+    public record Progress(String player, Map<ResourceLocation, QuestProgress> quests) implements CustomPacketPayload {
+        public static final Type<Progress> TYPE = new Type<>(Storybound.id("dev_progress"));
+        public static final StreamCodec<ByteBuf, Progress> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, Progress::player,
+                ByteBufCodecs.map(HashMap::new, ResourceLocation.STREAM_CODEC, QuestProgress.STREAM_CODEC), Progress::quests,
+                Progress::new);
+
+        @Override
+        public Type<Progress> type() {
+            return TYPE;
+        }
+
+        public static void handleOnClient(Progress payload, IPayloadContext context) {
+            ClientDevStore.setProgress(payload.player(), payload.quests());
         }
     }
 

@@ -56,6 +56,9 @@ abstract class GraphView {
     /** The mouse wheel over the inspector: scrolls its form. */
     abstract void scrollInspector(double amount);
 
+    /** Every client tick while the view is shown. */
+    void tick(DevModeScreen screen) {}
+
     double worldX(double mouseX) {
         return (mouseX - DevUi.LEFT_PANEL_W - panX) / zoom;
     }

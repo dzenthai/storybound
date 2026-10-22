@@ -1,7 +1,7 @@
-package dev.dzenthai.storybound.client.dev;
+package dev.dzenthai.storybound.core.story;
 
-import dev.dzenthai.storybound.client.dev.ClientDevStore.Edge;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -16,10 +16,10 @@ import java.util.Set;
 /**
  * The story map's view of the links: which quest follows which, with the nodes between them folded into the arrow (a
  * quest starts a dialogue that starts the next quest: one arrow "through the dialogue"), and where a quest no other
- * quest leads to starts (an NPC's dialogue, a document found in the world). Works on {@link ClientDevStore#collectEdges}
+ * quest leads to starts (an NPC's dialogue, a document found in the world). Works on {@link StoryLinks#collect}
  * and nothing else, so it needs no game.
  */
-final class StoryFlow {
+public final class StoryFlow {
     /** How far a chain of nodes between two quests is followed. */
     private static final int MAX_VIA = 6;
     /** Links that say nothing about what comes next: a quest shows a waypoint, tracks a quest on the HUD. */
@@ -32,12 +32,12 @@ final class StoryFlow {
      *
      * @param via the nodes between them, in order; empty when the quest names the next one itself
      */
-    record Flow(NodeKey from, NodeKey to, List<NodeKey> via) {}
+    public record Flow(NodeKey from, NodeKey to, List<NodeKey> via) {}
 
     private StoryFlow() {}
 
     /** The links in the order things happen: from the cause to what it causes. */
-    static Map<NodeKey, List<NodeKey>> forward(Collection<Edge> edges) {
+    public static Map<NodeKey, List<NodeKey>> forward(Collection<Edge> edges) {
         Map<NodeKey, List<NodeKey>> next = new LinkedHashMap<>();
         for (Edge edge : edges) {
             if (NOT_FLOW.contains(edge.label()) || edge.from().equals(edge.to())) {
@@ -61,11 +61,11 @@ final class StoryFlow {
     }
 
     private static boolean isQuest(NodeKey key) {
-        return key.type().equals(ClientDevStore.TYPE_QUEST);
+        return key.type().equals(StoryLinks.QUEST);
     }
 
     /** Every quest that follows another, by the shortest chain of other nodes between them. */
-    static List<Flow> flows(Collection<Edge> edges) {
+    public static List<Flow> flows(Collection<Edge> edges) {
         Map<NodeKey, List<NodeKey>> next = forward(edges);
         Set<NodeKey> quests = new LinkedHashSet<>();
         next.forEach((cause, effects) -> {
@@ -114,7 +114,7 @@ final class StoryFlow {
      * found in the world, a story event) to the quest, that node first. Quests only other quests lead to, and quests
      * nothing starts, have none.
      */
-    static Map<NodeKey, List<NodeKey>> entries(Collection<Edge> edges) {
+    public static Map<NodeKey, List<NodeKey>> entries(Collection<Edge> edges) {
         Map<NodeKey, List<NodeKey>> previous = backward(forward(edges));
         Map<NodeKey, List<NodeKey>> entries = new LinkedHashMap<>();
         Set<NodeKey> quests = new LinkedHashSet<>();
@@ -137,7 +137,7 @@ final class StoryFlow {
                     depth.put(cause, d + 1);
                     towards.put(cause, node);
                     // An NPC is where the player starts talking, even when what it says depends on quests ("after").
-                    if (previous.getOrDefault(cause, List.of()).isEmpty() || cause.type().equals(ClientDevStore.TYPE_NPC)) {
+                    if (previous.getOrDefault(cause, List.of()).isEmpty() || cause.type().equals(StoryLinks.NPC)) {
                         root = cause;
                         break;
                     }
@@ -161,7 +161,7 @@ final class StoryFlow {
      * The map's columns: a quest stands one column after the farthest quest leading to it, so the story reads left to
      * right. A loop (a repeatable quest leading back) is cut where it closes.
      */
-    static Map<NodeKey, Integer> columns(Collection<NodeKey> quests, Collection<Flow> flows) {
+    public static Map<NodeKey, Integer> columns(Collection<NodeKey> quests, Collection<Flow> flows) {
         Map<NodeKey, Integer> columns = new LinkedHashMap<>();
         quests.forEach(quest -> columns.put(quest, 0));
         // Longest path by relaxation; more rounds than quests would only go round a loop.

@@ -43,6 +43,17 @@ class ScriptScannerTest {
     }
 
     @Test
+    void leadsToCommentsNameWhatTheCodeDoesNotShow() {
+        ScriptScanner.Result result = ScriptScanner.scan("""
+                // @storybound leads_to quest:calamity:ch1
+                /* @storybound leads_to dialogue:calamity:kairen_intro */
+                StoryboundEvents.registerActions(e => { e.add('calamity:prologue', ctx => {}) })
+                """);
+        assertEquals(List.of(new ScriptScanner.Lead("quest", "calamity:ch1"), new ScriptScanner.Lead("dialogue", "calamity:kairen_intro")), result.leadsTo());
+        assertFalse(result.ids().contains("calamity:ch1"), "a comment is not a mention");
+    }
+
+    @Test
     void newFilesRegisterTheirHandler() {
         ScriptScanner.Result action = ScriptScanner.scan(DevScripts.template(ResourceLocation.parse("mypack:burn"), DevScripts.Kind.ACTION));
         assertEquals(List.of("mypack:burn"), action.actions(), "the template's handler is found by reading it back");

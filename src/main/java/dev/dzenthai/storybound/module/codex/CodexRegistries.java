@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.module.codex;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.function.Supplier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
@@ -25,5 +26,6 @@ public final class CodexRegistries {
         ATTACHMENT_TYPES.register(modBus);
         CodexLogic.REGISTER_CONDITIONS.register(modBus);
         CodexLogic.REGISTER_ACTIONS.register(modBus);
+        StoryMigrations.registerPlayer((player, renames) -> player.getData(DATA).migrate(renames));
     }
 }

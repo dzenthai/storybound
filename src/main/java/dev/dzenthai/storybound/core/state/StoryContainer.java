@@ -100,6 +100,16 @@ public final class StoryContainer {
         onChange.run();
     }
 
+    /** Moves values and quests to renamed ids (see {@link StoryMigrations}); returns how many moved. */
+    int migrate(StoryMigrations.Renames renames) {
+        int moved = StoryMigrations.renameKeys(values, renames::valueKey, (key, value) -> value)
+                + StoryMigrations.renameKeys(quests, quest -> renames.id(StoryMigrations.Kind.QUESTS, quest), renames::progress);
+        if (moved > 0) {
+            onChange.run();
+        }
+        return moved;
+    }
+
     /** Called on every change; SavedData uses it to mark itself dirty. */
     void setOnChange(Runnable onChange) {
         this.onChange = onChange;

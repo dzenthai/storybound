@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "storybound/script.schema.json",
   "title": "Storybound script block",
-  "description": "config/storybound/scripts/<path>.json — a script block of the dev mode's story canvas: a KubeJS handler the story calls (the action or condition \"Script\" with its id), the file it is written in and what it leads to. The code stays in KubeJS; the game never reads script blocks.",
+  "description": "config/storybound/scripts/<path>.json — a script block of the dev mode's story canvas: a KubeJS handler the story calls (the action or condition \"Script\" with its id), the file it is written in and what it leads to. The code stays in KubeJS; the game never reads script blocks. Optional: every handler the scripts register shows on the canvas anyway; a block adds a title, a description and leads_to (also writable in the script as // @storybound leads_to quest:ns:id).",
   "type": "object",
   "additionalProperties": false,
   "properties": {

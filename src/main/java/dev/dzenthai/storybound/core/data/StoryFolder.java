@@ -33,7 +33,7 @@ public final class StoryFolder {
      */
     public static void createIfMissing() {
         Path root = ConfigStorySource.root();
-        if (Files.exists(root)) {
+        if (Files.exists(root) || ConfigStorySource.isElsewhere()) {
             return;
         }
         try {

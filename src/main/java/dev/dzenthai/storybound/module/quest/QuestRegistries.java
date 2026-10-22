@@ -5,10 +5,12 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -36,6 +38,26 @@ public final class QuestRegistries {
         QuestLogic.REGISTER_CONDITIONS.register(modBus);
         QuestLogic.REGISTER_ACTIONS.register(modBus);
         QuestLogic.REGISTER_TRIGGERS.register(modBus);
+        StoryMigrations.registerPlayer(QuestRegistries::migrate);
+    }
+
+    /** Renamed quests in the player's pins and waiting rewards. */
+    private static int migrate(ServerPlayer player, StoryMigrations.Renames renames) {
+        int moved = 0;
+        List<ResourceLocation> pinned = player.getData(TRACKED).quests();
+        List<ResourceLocation> renamed = StoryMigrations.rename(pinned, StoryMigrations.Kind.QUESTS, renames);
+        if (!renamed.equals(pinned)) {
+            player.setData(TRACKED, new TrackedQuest(renamed));
+            moved++;
+        }
+        List<QuestRewardData.Pending> pending = player.getData(REWARDS).pending();
+        List<QuestRewardData.Pending> next = pending.stream()
+                .map(waiting -> new QuestRewardData.Pending(renames.id(StoryMigrations.Kind.QUESTS, waiting.quest()), waiting.loot())).toList();
+        if (!next.stream().map(QuestRewardData.Pending::quest).toList().equals(pending.stream().map(QuestRewardData.Pending::quest).toList())) {
+            player.setData(REWARDS, new QuestRewardData(next));
+            moved++;
+        }
+        return moved;
     }
 
     /** @param quests pinned, the main one first (saves from before several could be pinned keep theirs as {@code quest}) */

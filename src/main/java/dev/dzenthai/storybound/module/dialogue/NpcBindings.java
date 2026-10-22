@@ -37,7 +37,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class NpcBindings {
     private static final int PROXIMITY_INTERVAL = 10;
-    private static final String ONCE_PREFIX = "npc_once/";
+    static final String ONCE_PREFIX = "npc_once/";
     /** Blocks beyond the player's interaction range still accepted for the talk key, like vanilla's leeway for clicks. */
     private static final double TALK_REACH_SLACK = 1.0;
 

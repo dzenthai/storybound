@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client;
 
+import dev.dzenthai.storybound.compat.jei.JeiQuests;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.module.quest.QuestHints;
 import dev.dzenthai.storybound.module.quest.QuestRewardData;
@@ -8,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.ModList;
 
 /** The local player's quests (from whatever scope each quest uses), pinned quests and waiting rewards, as last sent by the server. */
 public final class ClientQuests {
@@ -30,6 +32,9 @@ public final class ClientQuests {
         ClientQuests.pinned = List.copyOf(pinned);
         ClientQuests.rewards = List.copyOf(rewards);
         version++;
+        if (ModList.get().isLoaded("jei")) {
+            JeiQuests.refresh();
+        }
     }
 
     public static Map<ResourceLocation, QuestProgress> all() {

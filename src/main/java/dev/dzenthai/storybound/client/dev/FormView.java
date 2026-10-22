@@ -18,6 +18,7 @@ import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,12 +31,14 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.Nullable;
@@ -548,9 +551,11 @@ final class FormView {
         }
         labelRow(label);
         int rowY = rowY(LABEL_H + CONTROL_H) + LABEL_H;
-        Picker picker = kind == Kind.ID || kind == Kind.ID_LIST || kind == Kind.STRING ? picker(name, owner) : null;
+        boolean uuid = kind == Kind.STRING && Schemas.isUuid(node);
+        Picker picker = !uuid && (kind == Kind.ID || kind == Kind.ID_LIST || kind == Kind.STRING) ? picker(name, owner) : null;
         boolean here = kind == Kind.POSITION;
-        int boxW = w - (picker != null || here ? 20 : 0);
+        // A position has two buttons (where I stand, pick in the world); a picker or a uuid one.
+        int boxW = w - (here ? 40 : picker != null || uuid ? 20 : 0);
         EditBox box = new EditBox(screen.font(), x, rowY, boxW, CONTROL_H - 2, label);
         box.setMaxLength(4096);
         box.setValue(display(kind, value));
@@ -590,21 +595,47 @@ final class FormView {
                 }
                 host.changed();
             })).tooltip(Tooltip.create(DevUi.text("form.pick"))).bounds(x + w - 18, rowY - 1, 18, CONTROL_H).build());
+        } else if (uuid) {
+            screen.add(Button.builder(Component.literal("🎯"), b -> DevWorldPicker.pickEntity(screen, DevUi.text("picker.entity_prompt"), entity -> {
+                JsonObject target = ensureObject(path);
+                target.addProperty(name, entity.getUUID().toString());
+                // In an entity selector the type goes along, so the binding reads well and survives a typo in the uuid.
+                if (Schemas.properties(owner).containsKey("type") && !target.has("type")) {
+                    target.addProperty("type", BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+                }
+                host.changed();
+            })).tooltip(Tooltip.create(DevUi.text("form.pick_entity"))).bounds(x + w - 18, rowY - 1, 18, CONTROL_H).build());
         } else if (here) {
             screen.add(Button.builder(Component.literal("📍"), b -> {
                 Player player = Minecraft.getInstance().player;
                 if (player != null) {
-                    Node items = Schemas.items(node);
-                    boolean whole = items != null && "integer".equals(Schemas.resolve(items).json().has("type") ? Schemas.resolve(items).json().get("type").getAsString() : "");
-                    JsonArray pos = new JsonArray();
-                    for (double coordinate : new double[]{player.getX(), player.getY(), player.getZ()}) {
-                        pos.add(whole ? (Number) Math.round(coordinate) : (Number) (Math.round(coordinate * 10) / 10.0));
-                    }
-                    ensureObject(path).add(name, pos);
-                    host.changed();
+                    writePosition(path, name, node, owner, new double[]{player.getX(), player.getY(), player.getZ()},
+                            player.level().dimension().location());
                 }
-            }).tooltip(Tooltip.create(DevUi.text("form.here"))).bounds(x + w - 18, rowY - 1, 18, CONTROL_H).build());
+            }).tooltip(Tooltip.create(DevUi.text("form.here"))).bounds(x + w - 38, rowY - 1, 18, CONTROL_H).build());
+            screen.add(Button.builder(Component.literal("🎯"), b -> DevWorldPicker.pickBlock(screen, DevUi.text("picker.block_prompt"),
+                    (pos, dimension) -> writePosition(path, name, node, owner, new double[]{pos.getX(), pos.getY(), pos.getZ()}, dimension)))
+                    .tooltip(Tooltip.create(DevUi.text("form.pick_block"))).bounds(x + w - 18, rowY - 1, 18, CONTROL_H).build());
         }
+    }
+
+    /**
+     * Writes a position, whole or to a tenth as the schema wants; the dimension goes along when the object has a field
+     * for it (an area, a waypoint target, a place of an action).
+     */
+    private void writePosition(List<Object> path, String name, Node node, Node owner, double[] coordinates, ResourceLocation dimension) {
+        Node items = Schemas.items(node);
+        boolean whole = items != null && "integer".equals(Schemas.resolve(items).json().has("type") ? Schemas.resolve(items).json().get("type").getAsString() : "");
+        JsonArray pos = new JsonArray();
+        for (double coordinate : coordinates) {
+            pos.add(whole ? (Number) Math.round(coordinate) : (Number) (Math.round(coordinate * 10) / 10.0));
+        }
+        JsonObject target = ensureObject(path);
+        target.add(name, pos);
+        if (Schemas.properties(owner).containsKey("dimension")) {
+            target.addProperty("dimension", dimension.toString());
+        }
+        host.changed();
     }
 
     /** The held stack's count and components go to the fields next to the item, when the object has them. */
@@ -757,9 +788,8 @@ final class FormView {
         };
         screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> {
             if (logic != null) {
-                pickType(logic, type -> {
-                    JsonObject element = new JsonObject();
-                    element.addProperty("type", type);
+                pickType(logic, element -> {
+                    String type = element.get("type").getAsString();
                     ensureArray(path).add(element);
                     frames.push(new Frame(with(path, ensureArray(path).size() - 1), items, typeName(logic, type), false));
                     scroll = 0;
@@ -848,9 +878,7 @@ final class FormView {
         String type = object != null && object.has("type") && object.get("type").isJsonPrimitive() ? object.get("type").getAsString() : null;
         if (row(LABEL_H + CONTROL_H)) {
             labelRow(DevUi.text("form.type"));
-            screen.add(Button.builder(type != null ? Component.literal(typeName(logic, type)) : DevUi.text("form.pick_type"), b -> pickType(logic, picked -> {
-                JsonObject element = new JsonObject();
-                element.addProperty("type", picked);
+            screen.add(Button.builder(type != null ? Component.literal(typeName(logic, type)) : DevUi.text("form.pick_type"), b -> pickType(logic, element -> {
                 put(ensureParent(path), path, path.size() - 1, element);
                 host.changed();
             })).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
@@ -917,8 +945,18 @@ final class FormView {
 
     // --- type and value names
 
-    private void pickType(Logic logic, Consumer<String> picked) {
+    /**
+     * The list of types to add; ready-made lines first ({@link #quick}). {@code picked} gets the new element: just its
+     * type, or a ready-made one filled in.
+     */
+    private void pickType(Logic logic, Consumer<JsonObject> picked) {
         List<Entry> entries = new ArrayList<>();
+        Map<String, JsonObject> ready = new LinkedHashMap<>();
+        for (Quick line : quick(logic)) {
+            String id = "quick:" + ready.size();
+            ready.put(id, line.element());
+            entries.add(new Entry(id, line.label(), new ItemStack(line.icon())));
+        }
         for (String type : Schemas.logicTypes(logic)) {
             entries.add(new Entry(type, typeName(logic, type), new ItemStack(icon(logic))));
         }
@@ -930,8 +968,64 @@ final class FormView {
         // Types other mods and addons registered; they have no schema here, so their fields are JSON.
         registry.keySet().stream().filter(id -> !id.getNamespace().equals(Storybound.MOD_ID)).sorted().forEach(id ->
                 entries.add(new Entry(id.toString(), typeName(logic, id.toString()), new ItemStack(Items.COMMAND_BLOCK))));
-        screen.catalog().openList(DevUi.text("form.pick_type." + logic.name), entries, (kind, entry) -> picked.accept(entry.id()));
+        screen.catalog().openList(DevUi.text("form.pick_type." + logic.name), entries, (kind, entry) -> {
+            JsonObject element = ready.containsKey(entry.id()) ? ready.get(entry.id()).deepCopy() : new JsonObject();
+            if (!element.has("type")) {
+                element.addProperty("type", entry.id());
+            }
+            picked.accept(element);
+        });
         screen.rebuild();
+    }
+
+    /** A ready-made line: its label in the list and the element it adds. */
+    private record Quick(String label, Item icon, JsonObject element) {}
+
+    /**
+     * Ready-made lines: an NPC's schedule (by day, in the evening, at night) for conditions, and for every relationship
+     * scale ({@link #relationshipScales}) a change for actions and a threshold for conditions.
+     */
+    private static List<Quick> quick(Logic logic) {
+        List<Quick> lines = new ArrayList<>();
+        if (logic == Logic.CONDITION) {
+            for (String period : List.of("day", "sunset", "night")) {
+                JsonObject time = new JsonObject();
+                time.addProperty("type", "time");
+                time.addProperty("period", period);
+                lines.add(new Quick("🕒 " + DevUi.str("quick.time." + period), Items.CLOCK, time));
+            }
+        }
+        for (ResourceLocation scale : relationshipScales()) {
+            String name = scale.getPath().substring(RELATIONSHIP_PREFIX.length());
+            if (logic == Logic.ACTION) {
+                for (int amount : new int[]{10, -10}) {
+                    JsonObject change = new JsonObject();
+                    change.addProperty("type", "add_var");
+                    change.addProperty("key", scale.toString());
+                    change.addProperty("amount", amount);
+                    lines.add(new Quick("❤ " + DevUi.str("quick.relationship_change", name, (amount > 0 ? "+" : "") + amount), Items.POPPY, change));
+                }
+            } else if (logic == Logic.CONDITION) {
+                for (int threshold : new int[]{20, -20}) {
+                    JsonObject check = new JsonObject();
+                    check.addProperty("type", "var");
+                    check.addProperty("key", scale.toString());
+                    check.addProperty("op", threshold > 0 ? ">=" : "<=");
+                    check.addProperty("value", threshold);
+                    lines.add(new Quick("❤ " + DevUi.str("quick.relationship_check", name, (threshold > 0 ? "≥ " : "≤ ") + threshold), Items.POPPY, check));
+                }
+            }
+        }
+        return lines;
+    }
+
+    /** Where relationship scales live: declared number flags named {@code <ns>:rep/<who>}. */
+    static final String RELATIONSHIP_PREFIX = "rep/";
+
+    /** The story's relationship scales, by id. */
+    static List<ResourceLocation> relationshipScales() {
+        return ClientDevStore.byType(ClientDevStore.TYPE_FLAG).keySet().stream()
+                .filter(id -> id.getPath().startsWith(RELATIONSHIP_PREFIX)).sorted().toList();
     }
 
     private static net.minecraft.world.item.Item icon(Logic logic) {

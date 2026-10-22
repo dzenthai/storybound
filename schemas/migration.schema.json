@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/migration.schema.json",
+  "title": "Storybound migrations",
+  "description": "config/storybound/migrations/<path>.json — ids renamed since players' saves were made, old to new. Saved progress (flags, quests, pins, rewards, the Journal, the Codex, bosses, added waypoints, 'once' marks) moves to the new ids when the server starts, after /reload and when a player joins. A rename is ignored while the old id is still defined. Keep the files for as long as old saves may exist.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "flags": { "description": "Flags and variables, in every scope.", "$ref": "#/definitions/renames" },
+    "quests": { "description": "Quests: progress in every scope, pins, rewards waiting to be claimed.", "$ref": "#/definitions/renames" },
+    "events": { "description": "Story events: their 'once' marks.", "$ref": "#/definitions/renames" },
+    "dialogues": { "description": "Dialogues: options marked 'once', dialogues bound to an entity with /storybound npc.", "$ref": "#/definitions/renames" },
+    "npc_bindings": { "description": "NPC bindings: their 'once' proximity marks.", "$ref": "#/definitions/renames" },
+    "documents": { "description": "Documents: read marks, the Journal's archive, document items in players' inventories.", "$ref": "#/definitions/renames" },
+    "notes": { "description": "Journal notes written by journal_entry.", "$ref": "#/definitions/renames" },
+    "codex": { "description": "Codex entries: open sections and counters.", "$ref": "#/definitions/renames" },
+    "bosses": { "description": "Bosses: met, sections, victories.", "$ref": "#/definitions/renames" },
+    "waypoints": { "description": "Waypoints added by add_waypoint.", "$ref": "#/definitions/renames" },
+    "stages": { "description": "Stages inside a quest, named by the quest's new id: { \"mypack:hunt\": { \"old\": \"new\" } }. The current stage and the quest's log.", "$ref": "#/definitions/inside_quests" },
+    "objectives": { "description": "Objective ids inside a quest, named by the quest's new id; their counters move.", "$ref": "#/definitions/inside_quests" }
+  },
+  "definitions": {
+    "renames": {
+      "type": "object",
+      "propertyNames": { "$ref": "logic.schema.json#/definitions/id" },
+      "additionalProperties": { "$ref": "logic.schema.json#/definitions/id" }
+    },
+    "inside_quests": {
+      "type": "object",
+      "propertyNames": { "$ref": "logic.schema.json#/definitions/id" },
+      "additionalProperties": { "type": "object", "additionalProperties": { "type": "string" } }
+    }
+  }
+}

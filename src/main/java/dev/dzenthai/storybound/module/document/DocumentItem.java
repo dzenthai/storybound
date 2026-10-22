@@ -1,9 +1,12 @@
 package dev.dzenthai.storybound.module.document;
 
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -28,6 +31,19 @@ public class DocumentItem extends Item {
             Documents.read(serverPlayer, ref.id(), true);
         }
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
+    }
+
+    // A renamed document (migrations) is carried over in the inventory, so the item keeps working.
+    @Override
+    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+        StoryMigrations.Renames renames = StoryMigrations.current();
+        DocumentRef ref = stack.get(DocumentRegistries.DOCUMENT_COMPONENT.get());
+        if (!level.isClientSide() && !renames.isEmpty() && ref != null) {
+            ResourceLocation id = renames.id(StoryMigrations.Kind.DOCUMENTS, ref.id());
+            if (!id.equals(ref.id())) {
+                stack.set(DocumentRegistries.DOCUMENT_COMPONENT.get(), new DocumentRef(id));
+            }
+        }
     }
 
     @Override

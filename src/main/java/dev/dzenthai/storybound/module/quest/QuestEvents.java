@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.module.quest;
 
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
@@ -49,6 +50,7 @@ public final class QuestEvents {
         gameBus.addListener(QuestEvents::onServerTick);
         gameBus.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> QuestHints.forget(event.getEntity().getUUID()));
         gameBus.addListener((ServerStoppedEvent event) -> QuestHints.reset());
+        ChapterMap.register(gameBus);
         LogicOwners.register(QuestRegistries.QUESTS, QuestEvents::collectReferences);
         ValidationService.registerValidator(QuestEvents::validate);
     }
@@ -110,8 +112,10 @@ public final class QuestEvents {
     }
 
     private static void onServerTick(ServerTickEvent.Post event) {
-        if (event.getServer().getTickCount() % FAIL_CHECK_INTERVAL == 0) {
-            for (ServerPlayer player : List.copyOf(event.getServer().getPlayerList().getPlayers())) {
+        int tick = event.getServer().getTickCount();
+        for (ServerPlayer player : List.copyOf(event.getServer().getPlayerList().getPlayers())) {
+            // Each player on a tick of their own: a full server spreads the checks over the second instead of a spike.
+            if (Math.floorMod(tick + player.getId(), FAIL_CHECK_INTERVAL) == 0) {
                 Quests.checkFailures(player);
                 Quests.checkItems(player);
                 QuestHints.check(player);
@@ -167,6 +171,23 @@ public final class QuestEvents {
             }
         });
         LogicOwners.walkAll((owner, id) -> unknownQuests(owner, id, sink));
+        // Migrations rename stages and objectives inside a quest named by its new id.
+        CoreDefinitions.MIGRATIONS.serverStore().all().forEach((file, migration) -> {
+            migration.stages().forEach((quest, stages) -> {
+                QuestDefinition definition = type.serverStore().getOrNull(quest);
+                if (definition == null) {
+                    sink.accept(ValidationIssue.warning(CoreDefinitions.MIGRATIONS.id(), file, "stages of unknown quest " + quest + " (name it by its new id)"));
+                    return;
+                }
+                stages.forEach((from, to) -> {
+                    if (definition.stage(to).isEmpty()) {
+                        sink.accept(ValidationIssue.warning(CoreDefinitions.MIGRATIONS.id(), file, "stages " + quest + " " + from + " → " + to + ": the quest has no stage '" + to + "'"));
+                    }
+                });
+            });
+            migration.objectives().keySet().stream().filter(quest -> type.serverStore().getOrNull(quest) == null).forEach(quest ->
+                    sink.accept(ValidationIssue.warning(CoreDefinitions.MIGRATIONS.id(), file, "objectives of unknown quest " + quest + " (name it by its new id)")));
+        });
     }
 
     /** Walks every id a quest's logic refers to. */

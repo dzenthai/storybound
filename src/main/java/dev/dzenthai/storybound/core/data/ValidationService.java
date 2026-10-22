@@ -1,21 +1,33 @@
 package dev.dzenthai.storybound.core.data;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import dev.dzenthai.storybound.Storybound;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.fml.loading.FMLPaths;
+import org.jetbrains.annotations.Nullable;
 
 /** Combines load errors and cross-reference checks into a single report. */
 public final class ValidationService {
     private static final ResourceLocation VALIDATOR_SOURCE = Storybound.id("validator");
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    /** How the codecs report a missing required field: {@code No key title in MapLike[...]}. */
+    private static final Pattern MISSING_FIELD = Pattern.compile("No key (\\w+) in MapLike");
     private static final Map<ResourceLocation, List<ValidationIssue>> LOAD_ISSUES = new ConcurrentHashMap<>();
     private static final Map<ResourceLocation, List<ValidationIssue>> OTHER_LOAD_ISSUES = new ConcurrentHashMap<>();
     private static final List<Validator> VALIDATORS = new CopyOnWriteArrayList<>();
@@ -59,7 +71,7 @@ public final class ValidationService {
         return current;
     }
 
-    /** Writes the report to the log and to {@code logs/storybound-validation.txt}. */
+    /** Writes the report to the log, to {@code logs/storybound-validation.txt} and, for tools, {@code logs/storybound-validation.json}. */
     public static void publish(ValidationReport report) {
         Storybound.LOGGER.info("Storybound: {} definitions loaded, {} errors, {} warnings",
                 report.definitionCount(), report.errorCount(), report.warningCount());
@@ -71,6 +83,62 @@ public final class ValidationService {
             }
         }
         writeReportFile(report);
+        writeJson(report, FMLPaths.GAMEDIR.get().resolve("logs").resolve("storybound-validation.json"));
+    }
+
+    /**
+     * The report as JSON, for CI and tools: counts and every issue with its severity, type, id, message and, when
+     * known, the file (the story folder's if it is there, else the datapack path it would have) and the missing field.
+     */
+    public static void writeJson(ValidationReport report, Path file) {
+        JsonObject root = new JsonObject();
+        root.addProperty("generated", LocalDateTime.now().toString());
+        root.addProperty("story_folder", ConfigStorySource.root().toAbsolutePath().normalize().toString().replace('\\', '/'));
+        root.addProperty("definitions", report.definitionCount());
+        root.addProperty("errors", report.errorCount());
+        root.addProperty("warnings", report.warningCount());
+        JsonArray issues = new JsonArray();
+        for (ValidationIssue issue : report.issues()) {
+            JsonObject json = new JsonObject();
+            json.addProperty("severity", issue.severity().name().toLowerCase(Locale.ROOT));
+            json.addProperty("type", issue.type().toString());
+            if (issue.entry() != null) {
+                json.addProperty("id", issue.entry().toString());
+            }
+            String path = fileOf(issue);
+            if (path != null) {
+                json.addProperty("file", path);
+            }
+            Matcher missing = MISSING_FIELD.matcher(issue.message());
+            if (missing.find()) {
+                json.addProperty("field", missing.group(1));
+            }
+            json.addProperty("message", issue.message());
+            issues.add(json);
+        }
+        root.add("issues", issues);
+        try {
+            Files.createDirectories(file.toAbsolutePath().getParent());
+            Files.writeString(file, GSON.toJson(root) + "\n", StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Storybound.LOGGER.warn("Storybound: could not write {}", file, e);
+        }
+    }
+
+    private static @Nullable String fileOf(ValidationIssue issue) {
+        DefinitionType<?> type = DefinitionTypes.get(issue.type());
+        if (type == null || issue.entry() == null) {
+            return null;
+        }
+        try {
+            Path inFolder = ConfigStorySource.fileFor(ConfigStorySource.root(), type, issue.entry());
+            if (Files.isRegularFile(inFolder)) {
+                return inFolder.toAbsolutePath().normalize().toString().replace('\\', '/');
+            }
+        } catch (IllegalArgumentException e) {
+            // Not a path inside the story folder: it came from a datapack.
+        }
+        return "data/" + issue.entry().getNamespace() + "/" + type.directory() + "/" + issue.entry().getPath() + ".json";
     }
 
     private static void writeReportFile(ValidationReport report) {

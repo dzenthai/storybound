@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.dzenthai.storybound.Storybound;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;

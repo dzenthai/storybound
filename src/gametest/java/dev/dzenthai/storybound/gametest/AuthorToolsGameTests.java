@@ -5,6 +5,11 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.StoryException;
+import dev.dzenthai.storybound.core.data.ConfigStorySource;
+import dev.dzenthai.storybound.core.data.ValidationIssue;
+import dev.dzenthai.storybound.core.data.ValidationReport;
+import dev.dzenthai.storybound.core.data.ValidationService;
+import dev.dzenthai.storybound.core.dev.LangExtract;
 import dev.dzenthai.storybound.core.dev.StoryCaptures;
 import dev.dzenthai.storybound.core.dev.StoryDump;
 import dev.dzenthai.storybound.core.dev.StoryExport;
@@ -19,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -89,6 +95,45 @@ public final class AuthorToolsGameTests {
                     "stages with their objectives: " + stages);
             helper.assertTrue(export.has("kubejs") && export.has("flags") && export.has("flags_undeclared"), "scripts and flags");
         });
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void validationReportAsJsonNamesFileAndField(GameTestHelper helper) {
+        ValidationReport report = new ValidationReport(1, List.of(
+                ValidationIssue.error(QuestRegistries.QUESTS.id(), ResourceLocation.fromNamespaceAndPath("gametest", "report/broken"), "No key title in MapLike[{}]"),
+                ValidationIssue.warning(Storybound.id("validator"), null, "something general")));
+        Path file = io(() -> Files.createTempFile("storybound-validation", ".json"));
+        try {
+            ValidationService.writeJson(report, file);
+            JsonObject json = JsonParser.parseString(io(() -> Files.readString(file, StandardCharsets.UTF_8))).getAsJsonObject();
+            helper.assertTrue(json.get("errors").getAsInt() == 1 && json.get("warnings").getAsInt() == 1, "counts: " + json);
+            JsonObject broken = json.getAsJsonArray("issues").get(0).getAsJsonObject();
+            helper.assertTrue(broken.get("severity").getAsString().equals("error") && broken.get("id").getAsString().equals("gametest:report/broken")
+                    && broken.get("file").getAsString().equals("data/gametest/storybound/quests/report/broken.json")
+                    && broken.get("field").getAsString().equals("title"), "an issue with its file and the missing field: " + broken);
+            JsonObject general = json.getAsJsonArray("issues").get(1).getAsJsonObject();
+            helper.assertTrue(!general.has("file") && !general.has("id"), "an issue of no definition has no file: " + general);
+        } finally {
+            io(() -> Files.deleteIfExists(file));
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void langPreviewFindsTextsWrittenInTheJson(GameTestHelper helper) {
+        Path file = ConfigStorySource.root().resolve("quests").resolve("gametest").resolve("lang_preview.json");
+        String json = "{ \"title\": { \"literal\": \"Written in the JSON\" }, \"stages\": [ { \"id\": \"a\" } ] }\n";
+        try {
+            io(() -> Files.createDirectories(file.getParent()));
+            io(() -> Files.writeString(file, json, StandardCharsets.UTF_8));
+            LangExtract.Result result = io(() -> LangExtract.run("zz_zz", false));
+            helper.assertTrue(result.moved() >= 1 && result.files().contains("quests/gametest/lang_preview.json"), "the file with a literal: " + result);
+            helper.assertTrue(io(() -> Files.readString(file, StandardCharsets.UTF_8)).equals(json), "a preview writes nothing");
+            helper.assertFalse(Files.exists(ConfigStorySource.root().resolve("lang").resolve("zz_zz.json")), "nor a lang file");
+        } finally {
+            io(() -> Files.deleteIfExists(file));
+        }
         helper.succeed();
     }
 

@@ -5,6 +5,7 @@ import dev.dzenthai.storybound.command.StoryboundCommands;
 import dev.dzenthai.storybound.compat.cutscene.Cutscenes;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.CoreDefinitions;
+import dev.dzenthai.storybound.core.data.HeadlessValidation;
 import dev.dzenthai.storybound.core.data.StoryFolder;
 import dev.dzenthai.storybound.core.data.StoryboundDataEvents;
 import dev.dzenthai.storybound.core.logic.LogicEvents;
@@ -57,6 +58,7 @@ public final class Storybound {
 
         modBus.addListener(StoryboundNetwork::register);
         StoryboundDataEvents.register(NeoForge.EVENT_BUS);
+        HeadlessValidation.register(NeoForge.EVENT_BUS);
         StateEvents.register(NeoForge.EVENT_BUS);
         LogicEvents.register(NeoForge.EVENT_BUS);
         DocumentEvents.register(NeoForge.EVENT_BUS);

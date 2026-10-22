@@ -37,6 +37,8 @@ public class DocumentScreen extends Screen {
 
     private final ResourceLocation documentId;
     private final @Nullable Screen parent;
+    /** The text to show instead of the document's own: the editor's preview of a text not saved yet. */
+    private final @Nullable String source;
     private @Nullable DocumentDefinition definition;
     private DocumentStyle style = DocumentStyle.FALLBACK;
     private List<SbtLayout.Page> pages = List.of();
@@ -50,9 +52,15 @@ public class DocumentScreen extends Screen {
 
     /** @param parent shown again on close, e.g. the Journal; null returns to the game */
     public DocumentScreen(ResourceLocation documentId, @Nullable Screen parent) {
+        this(documentId, parent, null);
+    }
+
+    /** @param source the text to lay out instead of the document's own (a preview); null for the document's */
+    public DocumentScreen(ResourceLocation documentId, @Nullable Screen parent, @Nullable String source) {
         super(Component.empty());
         this.documentId = documentId;
         this.parent = parent;
+        this.source = source;
     }
 
     @Override
@@ -76,7 +84,7 @@ public class DocumentScreen extends Screen {
 
     private void layout() {
         Component title = definition.title().asComponent();
-        String source = DocumentTexts.load(definition.contentId(documentId))
+        String source = this.source != null ? this.source : DocumentTexts.load(definition.contentId(documentId))
                 .orElseGet(() -> "{color:#aa0000}" + Component.translatable("storybound.document.missing_text", definition.contentId(documentId).toString()).getString() + "{/}");
         List<SbtBlock> blocks = new ArrayList<>();
         if (style.showTitle()) {

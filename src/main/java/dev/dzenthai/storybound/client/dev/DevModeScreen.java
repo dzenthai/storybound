@@ -1,7 +1,10 @@
 package dev.dzenthai.storybound.client.dev;
 
+import dev.dzenthai.storybound.client.document.DocumentScreen;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
+import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -9,6 +12,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -35,6 +39,7 @@ public class DevModeScreen extends Screen {
     // Kept between openings, like the canvas position in FTB Quests.
     private static final StoryView STORY = new StoryView();
     private static final DialogueView DIALOGUE = new DialogueView();
+    private static final QuestView QUEST = new QuestView();
     private static final DevHistory HISTORY = new DevHistory();
     private static boolean inspectorCollapsed;
 
@@ -51,6 +56,7 @@ public class DevModeScreen extends Screen {
 
     private final @Nullable Screen parent;
     private final Catalog catalog = new Catalog();
+    private final TextEditor textEditor = new TextEditor();
     private Component statusText = Component.empty();
     private int statusColor = DevUi.OK;
     private List<MenuItem> menu = List.of();
@@ -66,7 +72,7 @@ public class DevModeScreen extends Screen {
     }
 
     private GraphView view() {
-        return DIALOGUE.isOpen() ? DIALOGUE : STORY;
+        return DIALOGUE.isOpen() ? DIALOGUE : QUEST.isOpen() ? QUEST : STORY;
     }
 
     @Override
@@ -91,6 +97,9 @@ public class DevModeScreen extends Screen {
             return;
         }
         STORY.reload();
+        if (QUEST.isOpen()) {
+            QUEST.reload();
+        }
         if (DIALOGUE.isOpen()) {
             DIALOGUE.reload();
             if (!DIALOGUE.isOpen()) {
@@ -125,6 +134,10 @@ public class DevModeScreen extends Screen {
             catalog.addWidgets(this);
             return;
         }
+        if (textEditor.isOpen()) {
+            textEditor.addWidgets(this);
+            return;
+        }
         if (languageOpen) {
             addLanguageWidgets();
             return;
@@ -142,6 +155,10 @@ public class DevModeScreen extends Screen {
     void remember(String label, Runnable undo, Runnable redo) {
         HISTORY.push(label, undo, redo);
         rebuild();
+    }
+
+    TextEditor textEditor() {
+        return textEditor;
     }
 
     Catalog catalog() {
@@ -174,6 +191,35 @@ public class DevModeScreen extends Screen {
         DevRequests.quickAction(action, target);
     }
 
+    /** Shows a document with a text not saved yet on its real reading screen; closing it comes back here, the text window still open. */
+    void preview(ResourceLocation document, String text) {
+        if (DocumentRegistries.DOCUMENTS.clientStore().getOrNull(document) == null) {
+            status(DevUi.text("status.preview_unsaved"), DevUi.WARN);
+            return;
+        }
+        minecraft.setScreen(new DocumentScreen(document, this, text));
+    }
+
+    /** Opens "inside the quest": its stages and what each one touches. */
+    void openQuest(ResourceLocation quest) {
+        STORY.saveEdits(this);
+        QUEST.open(quest);
+        rebuild();
+        status(DevUi.text("status.inside_quest", quest.getPath()), DevUi.OK);
+    }
+
+    void closeQuest() {
+        QUEST.close();
+        STORY.reload();
+        rebuild();
+        status(DevUi.text("status.back_to_story"), DevUi.NEUTRAL);
+    }
+
+    /** Shows the node selected on the "All links" canvas. */
+    void revealAmongLinks(NodeKey key) {
+        STORY.reveal(this, StoryView.Tab.ALL, key);
+    }
+
     void openDialogue(ResourceLocation dialogue) {
         STORY.saveEdits(this);
         DIALOGUE.open(dialogue, this);
@@ -185,6 +231,9 @@ public class DevModeScreen extends Screen {
     void closeDialogue() {
         DIALOGUE.close(this);
         STORY.reload();
+        if (QUEST.isOpen()) {
+            QUEST.reload();
+        }
         rebuild();
         status(DevUi.text("status.back_to_story"), DevUi.NEUTRAL);
     }
@@ -317,6 +366,9 @@ public class DevModeScreen extends Screen {
         ClientDevStore.setActiveLanguage(language);
         ClientConfigTexts.setPreviewLanguage(language);
         STORY.reload();
+        if (QUEST.isOpen()) {
+            QUEST.reload();
+        }
         if (DIALOGUE.isOpen()) {
             DIALOGUE.reload();
         }
@@ -397,12 +449,14 @@ public class DevModeScreen extends Screen {
         }
         renderTopBar(graphics);
 
-        boolean modal = catalog.isOpen() || languageOpen;
+        boolean modal = catalog.isOpen() || languageOpen || textEditor.isOpen();
         if (modal) {
             graphics.pose().pushPose();
             graphics.pose().translate(0, 0, 250);
             if (catalog.isOpen()) {
                 catalog.render(this, graphics, mouseX, mouseY);
+            } else if (textEditor.isOpen()) {
+                textEditor.render(this, graphics);
             } else {
                 renderLanguageWindow(graphics);
             }
@@ -454,6 +508,10 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (textEditor.isOpen()) {
+            super.mouseClicked(mouseX, mouseY, button);
+            return true;
+        }
         if (catalog.isOpen()) {
             return super.mouseClicked(mouseX, mouseY, button) || catalog.mouseClicked(this, mouseX, mouseY);
         }
@@ -488,7 +546,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY) || catalog.isOpen() || languageOpen) {
+        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY) || catalog.isOpen() || languageOpen || textEditor.isOpen()) {
             return true;
         }
         return view().mouseDragged(this, mouseX, mouseY);
@@ -496,7 +554,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (catalog.isOpen() || languageOpen) {
+        if (catalog.isOpen() || languageOpen || textEditor.isOpen()) {
             return super.mouseReleased(mouseX, mouseY, button);
         }
         if (view().mouseReleased(this, mouseX, mouseY)) {
@@ -507,6 +565,9 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (textEditor.isOpen()) {
+            return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        }
         if (catalog.isOpen()) {
             catalog.scroll(scrollY);
             return true;
@@ -526,6 +587,10 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (textEditor.isOpen()) {
+            // Enter, Ctrl+Z and the rest belong to the text being written.
+            return keyCode == GLFW.GLFW_KEY_ESCAPE ? textEditor.escape(this) : super.keyPressed(keyCode, scanCode, modifiers);
+        }
         if (catalog.isOpen()) {
             return catalog.keyPressed(this, keyCode) || super.keyPressed(keyCode, scanCode, modifiers);
         }
@@ -575,12 +640,17 @@ public class DevModeScreen extends Screen {
                 return true;
             }
         }
-        return getFocused() instanceof EditBox;
+        return getFocused() instanceof EditBox || getFocused() instanceof MultiLineEditBox;
     }
 
     @Override
     public void onClose() {
         minecraft.setScreen(parent);
+    }
+
+    @Override
+    public void tick() {
+        view().tick(this);
     }
 
     @Override

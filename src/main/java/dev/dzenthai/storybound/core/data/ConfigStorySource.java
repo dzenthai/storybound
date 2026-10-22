@@ -32,8 +32,17 @@ public final class ConfigStorySource {
 
     private ConfigStorySource() {}
 
+    /** {@code -Dstorybound.folder=<path>}: another story folder, e.g. a pack's repository checked by CI. */
+    public static final String FOLDER_PROPERTY = "storybound.folder";
+
     public static Path root() {
-        return FMLPaths.CONFIGDIR.get().resolve("storybound");
+        String folder = System.getProperty(FOLDER_PROPERTY, "");
+        return folder.isBlank() ? FMLPaths.CONFIGDIR.get().resolve("storybound") : FMLPaths.GAMEDIR.get().resolve(folder);
+    }
+
+    /** Whether {@link #FOLDER_PROPERTY} points elsewhere; such a folder is never filled with starter files. */
+    public static boolean isElsewhere() {
+        return !System.getProperty(FOLDER_PROPERTY, "").isBlank();
     }
 
     /** The type's folder name inside the story folder, e.g. {@code quests}. */

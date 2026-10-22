@@ -6,8 +6,10 @@ import com.google.gson.JsonPrimitive;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.compat.jei.QuestRecipe;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
+import dev.dzenthai.storybound.core.data.ChapterDefinition;
 import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
@@ -26,6 +28,7 @@ import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.WorldStoryData;
+import dev.dzenthai.storybound.module.quest.ChapterMap;
 import dev.dzenthai.storybound.module.quest.DifficultyScale;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestHints;
@@ -446,6 +449,67 @@ public final class QuestGameTests {
             }
         });
         QuestEvents.rebuild();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void chapterMapPlacesQuestsAndLinksTheOnesThatFollow(GameTestHelper helper) {
+        ResourceLocation first = key("map_first");
+        ResourceLocation second = key("map_second");
+        ResourceLocation loose = key("map_loose");
+        ResourceLocation chapter = key("map_chapter");
+        install(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(
+                first, """
+                        { "title": "gametest.quest.map_first", "stages": [ { "id": "a" } ],
+                          "on_complete": { "type": "set_quest_state", "quest": "gametest:map_second", "state": "active" } }
+                        """,
+                second, "{ \"title\": \"gametest.quest.map_second\", \"stages\": [ { \"id\": \"a\" } ], \"map_visibility\": \"secret\" }",
+                loose, "{ \"title\": \"gametest.quest.map_loose\", \"stages\": [ { \"id\": \"a\" } ] }"));
+        install(helper, CoreDefinitions.CHAPTERS.serverStore(), ChapterDefinition.CODEC, Map.of(chapter, """
+                { "title": { "literal": "Act I" }, "order": -1000,
+                  "nodes": [ { "type": "quest", "id": "gametest:map_first", "x": 0, "y": 0 }, { "type": "quest", "id": "gametest:map_second", "x": 200, "y": 40 } ] }
+                """));
+        try {
+            ChapterMap map = ChapterMap.assemble(helper.getLevel().getServer());
+            ChapterMap.Chapter act = map.chapters().stream().filter(candidate -> candidate.id().equals(chapter)).findFirst().orElse(null);
+            helper.assertTrue(act != null && act.nodes().equals(List.of(new ChapterMap.Node(first, 0, 0), new ChapterMap.Node(second, 200, 40))),
+                    "the chapter's quests where the author placed them: " + act);
+            helper.assertTrue(map.links().contains(new ChapterMap.Link(first, second)) && map.before(second).contains(first),
+                    "an arrow to the quest that follows: " + map.links());
+            ChapterMap.Chapter other = map.chapters().stream().filter(candidate -> candidate.id().equals(ChapterMap.OTHER)).findFirst().orElse(null);
+            helper.assertTrue(other != null && other.nodes().stream().anyMatch(node -> node.quest().equals(loose))
+                    && other.nodes().stream().noneMatch(node -> node.quest().equals(first)), "a quest in no chapter goes to the last one");
+            expect(helper, QuestRegistries.QUESTS.serverStore().getOrNull(second).visibility(), QuestDefinition.Visibility.SECRET, "map_visibility");
+            ChapterMap decoded = ChapterMap.CODEC.parse(JsonOps.INSTANCE, ChapterMap.CODEC.encodeStart(JsonOps.INSTANCE, map).getOrThrow()).getOrThrow();
+            expect(helper, decoded, map, "the map survives its codec");
+        } finally {
+            forget(first);
+            forget(second);
+            forget(loose);
+            Map<ResourceLocation, ChapterDefinition> chapters = new LinkedHashMap<>(CoreDefinitions.CHAPTERS.serverStore().all());
+            chapters.remove(chapter);
+            CoreDefinitions.CHAPTERS.serverStore().replace(chapters);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void jeiRecipesShowWhatAQuestAsksForAndGives(GameTestHelper helper) {
+        QuestDefinition quest = QuestDefinition.CODEC.parse(ops(helper), JsonParser.parseString("""
+                { "title": "gametest.quest.jei",
+                  "stages": [ { "id": "a", "objectives": [
+                    { "items": { "item": "minecraft:emerald", "consume": true }, "count": 12 },
+                    { "items": { "tag": "minecraft:logs" }, "count": 4 } ] } ],
+                  "rewards": { "items": [ { "item": "minecraft:iron_ingot", "count": 3 } ], "choice": [ "minecraft:bow", "minecraft:shield" ] } }
+                """)).getOrThrow(GameTestAssertException::new);
+        List<QuestRecipe> recipes = QuestRecipe.of(key("jei"), quest);
+        helper.assertTrue(recipes.stream().map(QuestRecipe::kind).toList().equals(List.of(QuestRecipe.Kind.HAND_IN, QuestRecipe.Kind.BRING,
+                QuestRecipe.Kind.REWARD, QuestRecipe.Kind.CHOICE)), "asked for, then given: " + recipes.stream().map(QuestRecipe::kind).toList());
+        helper.assertTrue(recipes.getFirst().count() == 12 && recipes.getFirst().slots().getFirst().getFirst().is(Items.EMERALD), "the emeralds to hand in");
+        helper.assertTrue(recipes.get(1).slots().getFirst().size() > 1, "a tag cycles through its items");
+        ItemStack iron = recipes.get(2).slots().getFirst().getFirst();
+        helper.assertTrue(iron.is(Items.IRON_INGOT) && iron.getCount() == 3, "the reward with its count");
+        helper.assertTrue(recipes.get(3).slots().size() == 2, "one slot per item to choose from");
         helper.succeed();
     }
 

@@ -11,7 +11,8 @@ import java.util.regex.Pattern;
  * Reads a KubeJS script's text for what concerns the story, without running it: the handlers it registers with
  * {@code StoryboundEvents.registerActions} / {@code registerConditions} ({@code e.add('id', ...)}), the story events it
  * listens to ({@code StoryboundEvents.questStateChanged('mypack:hunt', ...)}), and every namespaced id it mentions
- * ({@code Storybound.quests(player).start('mypack:hunt')}). A reading, not a parse: enough to draw the arrows.
+ * ({@code Storybound.quests(player).start('mypack:hunt')}). A reading, not a parse: enough to draw the arrows. A comment
+ * {@code // @storybound leads_to quest:mypack:chapter_2} names what the file leads to that its code does not show.
  */
 public final class ScriptScanner {
     private static final Pattern EVENT = Pattern.compile("StoryboundEvents\\s*\\.\\s*(\\w+)\\s*\\(");
@@ -20,16 +21,21 @@ public final class ScriptScanner {
     private static final Pattern ID = Pattern.compile("['\"`]([a-z0-9_.-]+:[a-z0-9_./-]+)['\"`]");
     private static final Pattern LINE_COMMENT = Pattern.compile("//[^\\n]*");
     private static final Pattern BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
+    private static final Pattern LEADS_TO = Pattern.compile("@storybound\\s+leads_to\\s+([a-z_]+):([a-z0-9_.-]+:[a-z0-9_./-]+)");
 
     /** A story event the script listens to, with its first argument (the quest, dialogue, trigger id...). */
     public record Listener(String event, String id) {}
+
+    /** What a {@code @storybound leads_to <type>:<id>} comment names: {@code type} as in a script block's {@code leads_to}. */
+    public record Lead(String type, String id) {}
 
     /**
      * @param actions    handlers registered as actions
      * @param conditions handlers registered as conditions
      * @param ids        every namespaced id the script mentions, handlers and listened ids included
+     * @param leadsTo    what its {@code @storybound leads_to} comments name
      */
-    public record Result(List<String> actions, List<String> conditions, List<Listener> listeners, List<String> ids) {}
+    public record Result(List<String> actions, List<String> conditions, List<Listener> listeners, List<String> ids, List<Lead> leadsTo) {}
 
     private ScriptScanner() {}
 
@@ -68,6 +74,11 @@ public final class ScriptScanner {
         while (id.find()) {
             ids.add(id.group(1));
         }
-        return new Result(List.copyOf(actions), List.copyOf(conditions), List.copyOf(listeners), List.copyOf(ids));
+        Set<Lead> leadsTo = new LinkedHashSet<>();
+        Matcher lead = LEADS_TO.matcher(source);
+        while (lead.find()) {
+            leadsTo.add(new Lead(lead.group(1), lead.group(2)));
+        }
+        return new Result(List.copyOf(actions), List.copyOf(conditions), List.copyOf(listeners), List.copyOf(ids), List.copyOf(leadsTo));
     }
 }

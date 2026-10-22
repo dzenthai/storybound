@@ -302,7 +302,7 @@ public final class Quests {
     }
 
     /** Fails active quests whose time limit is up or whose {@code fail_when} now holds for this player. */
-    static void checkFailures(ServerPlayer player) {
+    public static void checkFailures(ServerPlayer player) {
         if (!isEnabled()) {
             return;
         }
@@ -372,10 +372,15 @@ public final class Quests {
 
     /** Every known quest of the player, each from its own scope, plus the tracked one. */
     public static void sync(ServerPlayer player) {
+        StoryboundNetwork.sendToPlayer(player, new QuestSyncPayload(known(player), pinned(player), DifficultyScale.current(), QuestRewardData.of(player).pending()));
+    }
+
+    /** Every quest the player knows, each read from its own scope. */
+    public static Map<ResourceLocation, QuestProgress> known(ServerPlayer player) {
         Map<ResourceLocation, QuestProgress> quests = new LinkedHashMap<>();
         QuestRegistries.QUESTS.serverStore().all().forEach((quest, definition) ->
                 StoryState.getQuest(player, definition.scope(), quest).ifPresent(progress -> quests.put(quest, progress)));
-        StoryboundNetwork.sendToPlayer(player, new QuestSyncPayload(quests, pinned(player), DifficultyScale.current(), QuestRewardData.of(player).pending()));
+        return quests;
     }
 
     private static void write(ServerPlayer player, ResourceLocation quest, QuestDefinition definition, Optional<QuestProgress> old, @Nullable QuestProgress next) {

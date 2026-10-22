@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.core.logic;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerEvents;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
@@ -14,6 +15,7 @@ public final class LogicEvents {
         // HIGH: subscriptions must be in place before anything reacts to the finished reload.
         gameBus.addListener(EventPriority.HIGH, LogicEvents::onTagsUpdated);
         TriggerEvents.register(gameBus);
+        StoryMigrations.registerKeyPrefix(StoryEvents.ONCE_PREFIX, StoryMigrations.Kind.EVENTS, 0);
         ScheduledActions.register(gameBus);
         LogicOwners.register(CoreDefinitions.EVENTS, StoryEvents::collectReferences);
         ValidationService.registerValidator(StoryEvents::validate);

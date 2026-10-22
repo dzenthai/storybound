@@ -1,6 +1,5 @@
 package dev.dzenthai.storybound.client.dev;
 
-import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import net.minecraft.client.DeltaTracker;
@@ -9,6 +8,8 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
@@ -21,58 +22,65 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.InputEvent;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Picking a place or an entity in the world for a field of the editor: the editor steps aside, the author aims and
+ * clicks (either mouse button), and the editor comes back — the same screen, so nothing typed is lost — with the value
+ * written into the field. ESC gives up and returns. The pick happens on the client, from what it sees: an entity's
+ * type, uuid and name, a block's position and the dimension.
+ */
 public final class DevWorldPicker {
-    private static @Nullable String promptText;
-    private static @Nullable Consumer<Entity> entityCallback;
-    private static @Nullable BiConsumer<BlockPos, ResourceLocation> blockCallback;
-    private static int cooldownTicks;
+    private static final double ENTITY_RANGE = 48;
+    private static final double BLOCK_RANGE = 64;
+    /** Ticks after starting during which a click is ignored: the click on the editor's button is still going on. */
+    private static final int COOLDOWN = 4;
+
+    private static @Nullable Component prompt;
+    private static @Nullable Consumer<Entity> onEntity;
+    private static @Nullable BiConsumer<BlockPos, ResourceLocation> onBlock;
+    private static @Nullable DevModeScreen returnTo;
+    private static int cooldown;
 
     private DevWorldPicker() {}
 
     public static boolean isActive() {
-        return entityCallback != null || blockCallback != null;
+        return onEntity != null || onBlock != null;
     }
 
-    public static void startEntityPick(String prompt, Consumer<Entity> onEntityPicked) {
-        promptText = prompt;
-        entityCallback = onEntityPicked;
-        blockCallback = null;
-        cooldownTicks = 4;
-        Minecraft mc = Minecraft.getInstance();
-        mc.setScreen(null);
+    /** Aim at an entity; {@code picked} runs once the editor is back. */
+    public static void pickEntity(DevModeScreen screen, Component what, Consumer<Entity> picked) {
+        start(screen, what);
+        onEntity = picked;
     }
 
-    public static void startBlockPick(String prompt, BiConsumer<BlockPos, ResourceLocation> onBlockPicked) {
-        promptText = prompt;
-        entityCallback = null;
-        blockCallback = onBlockPicked;
-        cooldownTicks = 4;
-        Minecraft mc = Minecraft.getInstance();
-        mc.setScreen(null);
+    /** Aim at a block (the place above the face looked at); {@code picked} runs once the editor is back. */
+    public static void pickBlock(DevModeScreen screen, Component what, BiConsumer<BlockPos, ResourceLocation> picked) {
+        start(screen, what);
+        onBlock = picked;
     }
 
-    public static void startEntityOrBlockPick(String prompt, Consumer<Entity> onEntityPicked, BiConsumer<BlockPos, ResourceLocation> onBlockPicked) {
-        promptText = prompt;
-        entityCallback = onEntityPicked;
-        blockCallback = onBlockPicked;
-        cooldownTicks = 4;
-        Minecraft mc = Minecraft.getInstance();
-        mc.setScreen(null);
+    private static void start(DevModeScreen screen, Component what) {
+        clear();
+        prompt = what;
+        returnTo = screen;
+        cooldown = COOLDOWN;
+        Minecraft.getInstance().setScreen(null);
     }
 
     public static void clear() {
-        promptText = null;
-        entityCallback = null;
-        blockCallback = null;
-        cooldownTicks = 0;
+        prompt = null;
+        onEntity = null;
+        onBlock = null;
+        returnTo = null;
+        cooldown = 0;
     }
 
+    /** ESC opens the pause screen: give up and go back to the editor. */
     public static void tick() {
         if (!isActive()) {
             return;
         }
-        if (cooldownTicks > 0) {
-            cooldownTicks--;
+        if (cooldown > 0) {
+            cooldown--;
         }
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) {
@@ -80,8 +88,9 @@ public final class DevWorldPicker {
             return;
         }
         if (mc.screen instanceof PauseScreen) {
+            DevModeScreen screen = returnTo;
             clear();
-            mc.setScreen(new DevModeScreen(null));
+            mc.setScreen(screen != null ? screen : new DevModeScreen(null));
         }
     }
 
@@ -89,43 +98,45 @@ public final class DevWorldPicker {
         if (!isActive()) {
             return;
         }
+        // While picking, a click picks: it neither hits nor uses anything.
         event.setCanceled(true);
         event.setSwingHand(false);
-        if (cooldownTicks > 0) {
-            return;
-        }
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.level == null) {
-            clear();
+        if (cooldown > 0 || mc.player == null || mc.level == null) {
             return;
         }
-
-        if (entityCallback != null) {
-            Entity target = raycastEntity(mc, 48.0);
-            if (target != null) {
-                Consumer<Entity> cb = entityCallback;
-                clear();
-                cb.accept(target);
-                mc.execute(() -> mc.setScreen(new DevModeScreen(null)));
+        Consumer<Entity> entityPicked = onEntity;
+        BiConsumer<BlockPos, ResourceLocation> blockPicked = onBlock;
+        DevModeScreen screen = returnTo;
+        if (entityPicked != null) {
+            Entity target = aimedEntity(mc);
+            if (target == null) {
                 return;
             }
-        }
-
-        if (blockCallback != null) {
-            BlockPos pos = raycastBlock(mc, 64.0);
-            if (pos != null) {
-                BiConsumer<BlockPos, ResourceLocation> cb = blockCallback;
-                ResourceLocation dim = mc.level.dimension().location();
-                clear();
-                cb.accept(pos, dim);
-                mc.execute(() -> mc.setScreen(new DevModeScreen(null)));
+            clear();
+            back(mc, screen, () -> entityPicked.accept(target));
+        } else if (blockPicked != null) {
+            BlockPos pos = aimedBlock(mc);
+            if (pos == null) {
+                return;
             }
+            ResourceLocation dimension = mc.level.dimension().location();
+            clear();
+            back(mc, screen, () -> blockPicked.accept(pos, dimension));
         }
     }
 
-    private static @Nullable Entity raycastEntity(Minecraft mc, double range) {
-        if (mc.hitResult instanceof EntityHitResult ehr) {
-            return ehr.getEntity();
+    /** The editor first (its view reloads), then the value: written into what the editor shows now. */
+    private static void back(Minecraft mc, @Nullable DevModeScreen screen, Runnable write) {
+        mc.execute(() -> {
+            mc.setScreen(screen != null ? screen : new DevModeScreen(null));
+            write.run();
+        });
+    }
+
+    private static @Nullable Entity aimedEntity(Minecraft mc) {
+        if (mc.hitResult instanceof EntityHitResult hit) {
+            return hit.getEntity();
         }
         Entity camera = mc.getCameraEntity();
         if (camera == null) {
@@ -133,74 +144,65 @@ public final class DevWorldPicker {
         }
         Vec3 eye = camera.getEyePosition(1.0f);
         Vec3 look = camera.getViewVector(1.0f);
-        Vec3 end = eye.add(look.scale(range));
-        AABB box = camera.getBoundingBox().expandTowards(look.scale(range)).inflate(1.0);
-        EntityHitResult result = ProjectileUtil.getEntityHitResult(
-                camera, eye, end, box, e -> !e.isSpectator() && e.isPickable(), range * range);
+        AABB box = camera.getBoundingBox().expandTowards(look.scale(ENTITY_RANGE)).inflate(1.0);
+        EntityHitResult result = ProjectileUtil.getEntityHitResult(camera, eye, eye.add(look.scale(ENTITY_RANGE)), box,
+                entity -> !entity.isSpectator() && entity.isPickable(), ENTITY_RANGE * ENTITY_RANGE);
         return result != null ? result.getEntity() : null;
     }
 
-    private static @Nullable BlockPos raycastBlock(Minecraft mc, double range) {
+    private static @Nullable BlockPos aimedBlock(Minecraft mc) {
         Entity camera = mc.getCameraEntity();
         if (camera == null || mc.level == null) {
             return null;
         }
         Vec3 eye = camera.getEyePosition(1.0f);
-        Vec3 look = camera.getViewVector(1.0f);
-        Vec3 end = eye.add(look.scale(range));
+        Vec3 end = eye.add(camera.getViewVector(1.0f).scale(BLOCK_RANGE));
         BlockHitResult hit = mc.level.clip(new ClipContext(eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, camera));
-        if (hit.getType() == HitResult.Type.BLOCK) {
-            return hit.getBlockPos().above();
-        }
-        return mc.player != null ? mc.player.blockPosition() : null;
+        return hit.getType() == HitResult.Type.BLOCK ? hit.getBlockPos().relative(hit.getDirection()) : null;
     }
 
+    /** What is being picked and what is aimed at, above the crosshair, and a frame around it. */
     public static void renderHud(GuiGraphics graphics, DeltaTracker deltaTracker) {
-        if (!isActive() || promptText == null) {
+        Component what = prompt;
+        if (!isActive() || what == null) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
         Font font = mc.font;
         int w = graphics.guiWidth();
         int h = graphics.guiHeight();
-
-        Entity hoveredEntity = entityCallback != null ? raycastEntity(mc, 48.0) : null;
-        BlockPos hoveredBlock = hoveredEntity == null && blockCallback != null ? raycastBlock(mc, 64.0) : null;
-
-        String line1 = "🎯 World Picker Mode: " + promptText;
-        String line2;
-        int line2Color;
-        if (hoveredEntity != null) {
-            String typeId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(hoveredEntity.getType()).toString();
-            line2 = "Targeting mob: " + hoveredEntity.getName().getString() + " (" + typeId + ") — Click LMB / RMB!";
-            line2Color = 0xFF69F0AE;
-        } else if (hoveredBlock != null) {
-            line2 = "Targeting pos: [" + hoveredBlock.getX() + ", " + hoveredBlock.getY() + ", " + hoveredBlock.getZ() + "] — Click LMB / RMB!";
-            line2Color = 0xFF4FC3F7;
+        Entity entity = onEntity != null ? aimedEntity(mc) : null;
+        BlockPos block = onBlock != null ? aimedBlock(mc) : null;
+        Component aimed;
+        int color;
+        if (entity != null) {
+            aimed = DevUi.text("picker.entity", entity.getName(), BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+            color = DevUi.GOOD;
+        } else if (block != null) {
+            aimed = DevUi.text("picker.block", block.getX(), block.getY(), block.getZ());
+            color = DevUi.DETAIL;
         } else {
-            line2 = "Aim crosshair at target and click LMB / RMB (ESC to cancel)";
-            line2Color = 0xFFFFD54F;
+            aimed = DevUi.text("picker.aim");
+            color = DevUi.WARN;
         }
-
-        int boxW = Math.max(font.width(line1), font.width(line2)) + 24;
+        Component title = Component.literal("🎯 ").append(what);
+        int boxW = Math.max(font.width(title), font.width(aimed)) + 24;
         int boxX = (w - boxW) / 2;
         int boxY = 18;
-        graphics.fill(boxX - 1, boxY - 1, boxX + boxW + 1, boxY + 31, 0xFFE8C66A);
+        graphics.fill(boxX - 1, boxY - 1, boxX + boxW + 1, boxY + 31, DevUi.ACCENT);
         graphics.fill(boxX, boxY, boxX + boxW, boxY + 30, 0xEE16191F);
-        graphics.drawString(font, line1, (w - font.width(line1)) / 2, boxY + 5, 0xFFF5F5F5, false);
-        graphics.drawString(font, line2, (w - font.width(line2)) / 2, boxY + 17, line2Color, false);
-
+        graphics.drawString(font, title, (w - font.width(title)) / 2, boxY + 5, DevUi.TEXT, false);
+        graphics.drawString(font, aimed, (w - font.width(aimed)) / 2, boxY + 17, color, false);
         int cx = w / 2;
         int cy = h / 2;
-        int ringCol = hoveredEntity != null ? 0xFF69F0AE : hoveredBlock != null ? 0xFF4FC3F7 : 0xFFE8C66A;
-        graphics.fill(cx - 8, cy - 8, cx - 3, cy - 7, ringCol);
-        graphics.fill(cx - 8, cy - 8, cx - 7, cy - 3, ringCol);
-        graphics.fill(cx + 4, cy - 8, cx + 9, cy - 7, ringCol);
-        graphics.fill(cx + 8, cy - 8, cx + 9, cy - 3, ringCol);
-        graphics.fill(cx - 8, cy + 8, cx - 3, cy + 9, ringCol);
-        graphics.fill(cx - 8, cy + 4, cx - 7, cy + 9, ringCol);
-        graphics.fill(cx + 4, cy + 8, cx + 9, cy + 9, ringCol);
-        graphics.fill(cx + 8, cy + 4, cx + 9, cy + 9, ringCol);
+        // Corners of a frame around the crosshair, in the colour of what is aimed at.
+        graphics.fill(cx - 8, cy - 8, cx - 3, cy - 7, color);
+        graphics.fill(cx - 8, cy - 8, cx - 7, cy - 3, color);
+        graphics.fill(cx + 4, cy - 8, cx + 9, cy - 7, color);
+        graphics.fill(cx + 8, cy - 8, cx + 9, cy - 3, color);
+        graphics.fill(cx - 8, cy + 8, cx - 3, cy + 9, color);
+        graphics.fill(cx - 8, cy + 4, cx - 7, cy + 9, color);
+        graphics.fill(cx + 4, cy + 8, cx + 9, cy + 9, color);
+        graphics.fill(cx + 8, cy + 4, cx + 9, cy + 9, color);
     }
 }
-

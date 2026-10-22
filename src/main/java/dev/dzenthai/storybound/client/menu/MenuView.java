@@ -46,6 +46,14 @@ public abstract class MenuView {
         return false;
     }
 
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        return false;
+    }
+
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        return false;
+    }
+
     protected MenuTheme theme() {
         return MenuThemes.INSTANCE.theme();
     }

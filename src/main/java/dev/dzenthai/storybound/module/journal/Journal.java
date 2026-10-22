@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.module.journal;
 
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.config.StoryboundConfig;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import dev.dzenthai.storybound.network.JournalSyncPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import java.util.List;
@@ -25,6 +26,7 @@ public final class Journal {
 
     public static void register(IEventBus modBus) {
         ATTACHMENT_TYPES.register(modBus);
+        StoryMigrations.registerPlayer((player, renames) -> player.getData(DATA).migrate(renames));
     }
 
     /** {@code modules.journal}; a disabled Journal still tracks reading, it just keeps no archive. */

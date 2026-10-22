@@ -6,7 +6,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
-import dev.dzenthai.storybound.core.data.StoryIds;
+import dev.dzenthai.storybound.core.state.QuestProgress;
+import dev.dzenthai.storybound.core.story.StoryLinks;
+import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryLinks.ScriptFile;
+import dev.dzenthai.storybound.core.story.StoryLinks.ScriptListener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -25,18 +30,18 @@ import org.jetbrains.annotations.Nullable;
  * types), the validator's issues, the story's languages, and texts typed in the editor but not yet sent.
  */
 public final class ClientDevStore {
-    public static final ResourceLocation TYPE_QUEST = Storybound.id("quest");
-    public static final ResourceLocation TYPE_DIALOGUE = Storybound.id("dialogue");
-    public static final ResourceLocation TYPE_NPC = Storybound.id("npc_binding");
-    public static final ResourceLocation TYPE_DOCUMENT = Storybound.id("document");
-    public static final ResourceLocation TYPE_WAYPOINT = Storybound.id("waypoint");
-    public static final ResourceLocation TYPE_BOSS = Storybound.id("boss");
-    public static final ResourceLocation TYPE_CODEX = Storybound.id("codex");
-    public static final ResourceLocation TYPE_EVENT = Storybound.id("event");
+    public static final ResourceLocation TYPE_QUEST = StoryLinks.QUEST;
+    public static final ResourceLocation TYPE_DIALOGUE = StoryLinks.DIALOGUE;
+    public static final ResourceLocation TYPE_NPC = StoryLinks.NPC;
+    public static final ResourceLocation TYPE_DOCUMENT = StoryLinks.DOCUMENT;
+    public static final ResourceLocation TYPE_WAYPOINT = StoryLinks.WAYPOINT;
+    public static final ResourceLocation TYPE_BOSS = StoryLinks.BOSS;
+    public static final ResourceLocation TYPE_CODEX = StoryLinks.CODEX;
+    public static final ResourceLocation TYPE_EVENT = StoryLinks.EVENT;
     public static final ResourceLocation TYPE_FLAG = Storybound.id("flag");
     public static final ResourceLocation TYPE_CHAPTER = Storybound.id("chapter");
     public static final ResourceLocation TYPE_DIALOGUE_LAYOUT = Storybound.id("dialogue_layout");
-    public static final ResourceLocation TYPE_SCRIPT = Storybound.id("script");
+    public static final ResourceLocation TYPE_SCRIPT = StoryLinks.SCRIPT;
 
     private static volatile Map<ResourceLocation, Map<ResourceLocation, String>> definitions = Map.of();
     private static volatile List<String> issues = List.of();
@@ -52,6 +57,7 @@ public final class ClientDevStore {
         Map<ResourceLocation, Map<ResourceLocation, String>> copy = new LinkedHashMap<>();
         newDefinitions.forEach((type, map) -> copy.put(type, Collections.unmodifiableMap(new LinkedHashMap<>(map))));
         definitions = Collections.unmodifiableMap(copy);
+        refreshDerivedScripts();
         issues = List.copyOf(newIssues);
         sourceLanguage = srcLang;
         languages = List.copyOf(langs);
@@ -101,8 +107,9 @@ public final class ClientDevStore {
         return definitions;
     }
 
+    /** Script blocks include those derived from the server's scripts (see {@link #isDerivedScript}). */
     public static Map<ResourceLocation, String> byType(ResourceLocation type) {
-        return definitions.getOrDefault(type, Map.of());
+        return type.equals(TYPE_SCRIPT) ? scriptBlocks : definitions.getOrDefault(type, Map.of());
     }
 
     public static @Nullable String getJson(ResourceLocation type, ResourceLocation id) {
@@ -116,6 +123,7 @@ public final class ClientDevStore {
         Map<ResourceLocation, Map<ResourceLocation, String>> immutable = new LinkedHashMap<>();
         copy.forEach((t, map) -> immutable.put(t, Collections.unmodifiableMap(map)));
         definitions = Collections.unmodifiableMap(immutable);
+        refreshDerivedScripts();
     }
 
     public static List<String> issues() {
@@ -340,12 +348,27 @@ public final class ClientDevStore {
         return true;
     }
 
+    // --- a player's progress, for the map's progress layer
+
+    private static volatile String progressPlayer = "";
+    private static volatile Map<ResourceLocation, QuestProgress> progress = Map.of();
+
+    public static void setProgress(String player, Map<ResourceLocation, QuestProgress> quests) {
+        progressPlayer = player;
+        progress = Map.copyOf(quests);
+    }
+
+    /** Whether the server answered for that player yet. */
+    static boolean hasProgress(String player) {
+        return player.equals(progressPlayer);
+    }
+
+    /** The player's progress in the quest; null when they do not know it. */
+    static @Nullable QuestProgress progress(String player, ResourceLocation quest) {
+        return player.equals(progressPlayer) ? progress.get(quest) : null;
+    }
+
     // --- KubeJS scripts on the server
-
-    /** A script file as the server read it: the handlers it registers, the story events it listens to, the ids it mentions. */
-    public record ScriptFile(String path, List<String> actions, List<String> conditions, List<ScriptListener> listeners, List<String> ids) {}
-
-    public record ScriptListener(String event, String id) {}
 
     /**
      * The server's scripts, from the last answer to a request.
@@ -376,12 +399,19 @@ public final class ClientDevStore {
                     file.getAsJsonArray("listeners").forEach(listener -> listeners.add(new ScriptListener(
                             listener.getAsJsonObject().get("event").getAsString(), listener.getAsJsonObject().get("id").getAsString())));
                 }
+                // @storybound leads_to comments, as (type, id) pairs.
+                List<ScriptListener> leadsTo = new ArrayList<>();
+                if (file.has("leads_to")) {
+                    file.getAsJsonArray("leads_to").forEach(lead -> leadsTo.add(new ScriptListener(
+                            lead.getAsJsonObject().get("type").getAsString(), lead.getAsJsonObject().get("id").getAsString())));
+                }
                 String path = file.get("path").getAsString();
-                files.put(path, new ScriptFile(path, strings(file, "actions"), strings(file, "conditions"), listeners, strings(file, "ids")));
+                files.put(path, new ScriptFile(path, strings(file, "actions"), strings(file, "conditions"), listeners, strings(file, "ids"), leadsTo));
             }
         }
         scripts = new Scripts(true, root.has("kubejs") && root.get("kubejs").getAsBoolean(), root.has("folder") ? root.get("folder").getAsString() : "",
                 Set.copyOf(strings(root, "actions")), Set.copyOf(strings(root, "conditions")), files);
+        refreshDerivedScripts();
         Runnable callback = listener;
         if (callback != null) {
             callback.run();
@@ -394,6 +424,46 @@ public final class ClientDevStore {
             object.getAsJsonArray(field).forEach(value -> values.add(value.getAsString()));
         }
         return values;
+    }
+
+    /** Script blocks: those with a file and those derived from the scripts. */
+    private static volatile Map<ResourceLocation, String> scriptBlocks = Map.of();
+    private static volatile Set<ResourceLocation> derivedScripts = Set.of();
+
+    /**
+     * A block without a file of its own, standing for a handler the server's scripts register that no block stands
+     * for, so every handler shows on the canvas without writing a block. Saving it (a title, {@code leads_to}) writes
+     * its file; deleting it means deleting the handler from the script.
+     */
+    public static boolean isDerivedScript(ResourceLocation id) {
+        return derivedScripts.contains(id);
+    }
+
+    private static void refreshDerivedScripts() {
+        Map<ResourceLocation, String> blocks = definitions.getOrDefault(TYPE_SCRIPT, Map.of());
+        Set<String> covered = new LinkedHashSet<>();
+        blocks.forEach((id, raw) -> {
+            JsonObject json = parseObject(raw);
+            ResourceLocation hook = json.has("hook") && json.get("hook").isJsonPrimitive() ? ResourceLocation.tryParse(json.get("hook").getAsString()) : null;
+            covered.add((hook != null ? hook : id).toString());
+        });
+        Map<ResourceLocation, String> merged = new LinkedHashMap<>(blocks);
+        Set<ResourceLocation> derived = new LinkedHashSet<>();
+        for (ScriptFile file : scripts.files().values()) {
+            List<String> handlers = new ArrayList<>(file.actions());
+            handlers.addAll(file.conditions());
+            for (String handler : handlers) {
+                ResourceLocation id = ResourceLocation.tryParse(handler);
+                if (id != null && covered.add(handler) && !merged.containsKey(id)) {
+                    JsonObject json = new JsonObject();
+                    json.addProperty("file", file.path());
+                    merged.put(id, json.toString());
+                    derived.add(id);
+                }
+            }
+        }
+        scriptBlocks = Collections.unmodifiableMap(merged);
+        derivedScripts = Set.copyOf(derived);
     }
 
     /** The handler a script block stands for: its {@code hook}, or the block's own id. */
@@ -427,213 +497,19 @@ public final class ClientDevStore {
         return known.actions().contains(hook) || known.conditions().contains(hook) ? ScriptState.READY : ScriptState.NOT_REGISTERED;
     }
 
-    /** What reading a script shows: the events it listens to (arrows into it) and the story ids it mentions (arrows out). */
-    private static void scriptEdges(NodeKey script, JsonObject json, Set<Edge> edges) {
-        if (json.has("leads_to") && json.get("leads_to").isJsonArray()) {
-            for (JsonElement element : json.getAsJsonArray("leads_to")) {
-                if (element.isJsonObject() && element.getAsJsonObject().has("type") && element.getAsJsonObject().has("id")) {
-                    ResourceLocation type = StoryIds.parse(element.getAsJsonObject().get("type").getAsString());
-                    Optional<ResourceLocation> id = parseId(element.getAsJsonObject().get("id").getAsString());
-                    if (type != null && id.isPresent()) {
-                        edges.add(new Edge(script, new NodeKey(type, id.get()), "leads"));
-                    }
-                }
-            }
-        }
-        String path = scriptFile(script.id());
-        ScriptFile file = path != null ? scripts.files().get(path) : null;
-        if (file == null) {
-            return;
-        }
-        Set<String> skip = new LinkedHashSet<>(file.actions());
-        skip.addAll(file.conditions());
-        for (ScriptListener listener : file.listeners()) {
-            ResourceLocation type = switch (listener.event()) {
-                case "questStateChanged", "questStageChanged" -> TYPE_QUEST;
-                case "dialogueStarted", "dialogueEnded" -> TYPE_DIALOGUE;
-                case "codexUnlocked" -> TYPE_CODEX;
-                case "bossDefeated" -> TYPE_BOSS;
-                case "npcInteract" -> TYPE_NPC;
-                default -> null;
-            };
-            Optional<ResourceLocation> id = parseId(listener.id());
-            if (type != null && id.isPresent() && getJson(type, id.get()) != null) {
-                edges.add(new Edge(new NodeKey(type, id.get()), script, "event"));
-                skip.add(listener.id());
-            }
-        }
-        for (String mentioned : file.ids()) {
-            Optional<ResourceLocation> id = parseId(mentioned);
-            if (skip.contains(mentioned) || id.isEmpty()) {
-                continue;
-            }
-            for (ResourceLocation type : List.of(TYPE_QUEST, TYPE_DIALOGUE, TYPE_DOCUMENT, TYPE_WAYPOINT, TYPE_BOSS, TYPE_CODEX)) {
-                if (getJson(type, id.get()) != null) {
-                    edges.add(new Edge(script, new NodeKey(type, id.get()), "uses"));
-                }
-            }
-        }
-    }
-
+    /** Every link between the definitions, the server's scripts included (see {@link StoryLinks}). */
     public static List<Edge> collectEdges() {
-        Set<Edge> edges = new LinkedHashSet<>();
-        Map<String, NodeKey> hooks = new LinkedHashMap<>();
-        byType(TYPE_SCRIPT).keySet().forEach(id -> hooks.putIfAbsent(scriptHook(id).toString(), new NodeKey(TYPE_SCRIPT, id)));
-        byType(TYPE_NPC).forEach((id, raw) -> {
-            NodeKey from = new NodeKey(TYPE_NPC, id);
-            JsonObject obj = parseObject(raw);
-            if (obj.has("dialogues") && obj.get("dialogues").isJsonArray()) {
-                for (JsonElement el : obj.getAsJsonArray("dialogues")) {
-                    if (el.isJsonObject() && el.getAsJsonObject().has("dialogue")) {
-                        parseId(el.getAsJsonObject().get("dialogue").getAsString())
-                                .ifPresent(target -> edges.add(new Edge(from, new NodeKey(TYPE_DIALOGUE, target), "talk")));
-                    }
-                }
+        return StoryLinks.collect(new StoryLinks.Source() {
+            @Override
+            public Map<ResourceLocation, String> byType(ResourceLocation type) {
+                return ClientDevStore.byType(type);
+            }
+
+            @Override
+            public @Nullable ScriptFile scriptFile(String path) {
+                return scripts.files().get(path);
             }
         });
-        byType(TYPE_DIALOGUE).forEach((id, raw) -> {
-            NodeKey from = new NodeKey(TYPE_DIALOGUE, id);
-            JsonObject obj = parseObject(raw);
-            collectLogicEdges(from, obj, edges, hooks);
-        });
-        byType(TYPE_DOCUMENT).forEach((id, raw) -> {
-            NodeKey from = new NodeKey(TYPE_DOCUMENT, id);
-            JsonObject obj = parseObject(raw);
-            if (obj.has("contract") && obj.get("contract").isJsonObject()) {
-                JsonObject contract = obj.getAsJsonObject("contract");
-                if (contract.has("quest") && contract.get("quest").isJsonPrimitive()) {
-                    parseId(contract.get("quest").getAsString())
-                            .ifPresent(quest -> edges.add(new Edge(from, new NodeKey(TYPE_QUEST, quest), "contract")));
-                }
-            }
-            collectLogicEdges(from, obj, edges, hooks);
-        });
-        byType(TYPE_QUEST).forEach((id, raw) -> {
-            NodeKey from = new NodeKey(TYPE_QUEST, id);
-            JsonObject obj = parseObject(raw);
-            if (obj.has("stages") && obj.get("stages").isJsonArray()) {
-                for (JsonElement stageEl : obj.getAsJsonArray("stages")) {
-                    if (!stageEl.isJsonObject()) {
-                        continue;
-                    }
-                    JsonObject stage = stageEl.getAsJsonObject();
-                    if (stage.has("waypoints") && stage.get("waypoints").isJsonArray()) {
-                        for (JsonElement wpEl : stage.getAsJsonArray("waypoints")) {
-                            if (wpEl.isJsonPrimitive()) {
-                                parseId(wpEl.getAsString())
-                                        .ifPresent(wp -> edges.add(new Edge(from, new NodeKey(TYPE_WAYPOINT, wp), "stage")));
-                            }
-                        }
-                    }
-                }
-            }
-            collectLogicEdges(from, obj, edges, hooks);
-        });
-        byType(TYPE_WAYPOINT).forEach((id, raw) -> {
-            NodeKey wpKey = new NodeKey(TYPE_WAYPOINT, id);
-            JsonObject obj = parseObject(raw);
-            if (obj.has("quest") && obj.get("quest").isJsonPrimitive()) {
-                parseId(obj.get("quest").getAsString())
-                        .ifPresent(quest -> edges.add(new Edge(new NodeKey(TYPE_QUEST, quest), wpKey, "quest")));
-            }
-        });
-        byType(TYPE_EVENT).forEach((id, raw) -> {
-            NodeKey from = new NodeKey(TYPE_EVENT, id);
-            JsonObject obj = parseObject(raw);
-            collectLogicEdges(from, obj, edges, hooks);
-        });
-        for (ResourceLocation type : List.of(TYPE_NPC, TYPE_BOSS, TYPE_CODEX)) {
-            byType(type).forEach((id, raw) -> collectLogicEdges(new NodeKey(type, id), parseObject(raw), edges, hooks));
-        }
-        byType(TYPE_SCRIPT).forEach((id, raw) -> scriptEdges(new NodeKey(TYPE_SCRIPT, id), parseObject(raw), edges));
-        return new ArrayList<>(edges);
     }
-
-    private static void collectLogicEdges(NodeKey owner, JsonElement element, Set<Edge> edges, Map<String, NodeKey> hooks) {
-        if (element.isJsonArray()) {
-            JsonArray arr = element.getAsJsonArray();
-            for (JsonElement child : arr) {
-                collectLogicEdges(owner, child, edges, hooks);
-            }
-            return;
-        }
-        if (!element.isJsonObject()) {
-            return;
-        }
-        JsonObject obj = element.getAsJsonObject();
-        if (obj.has("type") && obj.get("type").isJsonPrimitive()) {
-            String type = parseId(obj.get("type").getAsString()).map(ResourceLocation::getPath).orElse("");
-            switch (type) {
-                case "set_quest_state", "set_quest_stage", "track_quest" -> {
-                    if (obj.has("quest") && obj.get("quest").isJsonPrimitive()) {
-                        parseId(obj.get("quest").getAsString())
-                                .ifPresent(q -> edges.add(new Edge(owner, new NodeKey(TYPE_QUEST, q), type)));
-                    }
-                }
-                case "quest", "quest_state_changed", "quest_stage_changed" -> {
-                    // A condition or trigger waiting for another quest: that quest comes first.
-                    if (obj.has("quest") && obj.get("quest").isJsonPrimitive()) {
-                        parseId(obj.get("quest").getAsString()).map(q -> new NodeKey(TYPE_QUEST, q)).filter(q -> !q.equals(owner))
-                                .ifPresent(q -> edges.add(new Edge(q, owner, "after")));
-                    }
-                }
-                case "start_dialogue" -> {
-                    if (obj.has("dialogue") && obj.get("dialogue").isJsonPrimitive()) {
-                        parseId(obj.get("dialogue").getAsString())
-                                .ifPresent(d -> edges.add(new Edge(owner, new NodeKey(TYPE_DIALOGUE, d), "start")));
-                    }
-                }
-                case "give_document" -> {
-                    if (obj.has("document") && obj.get("document").isJsonPrimitive()) {
-                        parseId(obj.get("document").getAsString())
-                                .ifPresent(d -> edges.add(new Edge(owner, new NodeKey(TYPE_DOCUMENT, d), "give")));
-                    }
-                }
-                case "document_read" -> {
-                    if (obj.has("document") && obj.get("document").isJsonPrimitive()) {
-                        parseId(obj.get("document").getAsString())
-                                .ifPresent(d -> edges.add(new Edge(new NodeKey(TYPE_DOCUMENT, d), owner, "read")));
-                    }
-                }
-                case "dialogue_ended" -> {
-                    if (obj.has("dialogue") && obj.get("dialogue").isJsonPrimitive()) {
-                        parseId(obj.get("dialogue").getAsString())
-                                .ifPresent(d -> edges.add(new Edge(new NodeKey(TYPE_DIALOGUE, d), owner, "ended")));
-                    }
-                }
-                case "boss_killed", "unlock_boss_section" -> {
-                    if (obj.has("boss") && obj.get("boss").isJsonPrimitive()) {
-                        parseId(obj.get("boss").getAsString())
-                                .ifPresent(b -> edges.add(new Edge(owner, new NodeKey(TYPE_BOSS, b), type)));
-                    }
-                }
-                case "unlock_codex", "codex_unlocked" -> {
-                    if (obj.has("entry") && obj.get("entry").isJsonPrimitive()) {
-                        parseId(obj.get("entry").getAsString())
-                                .ifPresent(c -> edges.add(new Edge(owner, new NodeKey(TYPE_CODEX, c), type)));
-                    }
-                }
-                case "kubejs" -> {
-                    // The action or condition "Script": an arrow to the script block of that handler.
-                    NodeKey script = obj.has("id") && obj.get("id").isJsonPrimitive() ? hooks.get(obj.get("id").getAsString()) : null;
-                    if (script != null && !script.equals(owner)) {
-                        edges.add(new Edge(owner, script, "script"));
-                    }
-                }
-                default -> {}
-            }
-        }
-        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
-            collectLogicEdges(owner, entry.getValue(), edges, hooks);
-        }
-    }
-
-    private static Optional<ResourceLocation> parseId(String raw) {
-        return Optional.ofNullable(ResourceLocation.tryParse(raw));
-    }
-
-    public record NodeKey(ResourceLocation type, ResourceLocation id) {}
-
-    public record Edge(NodeKey from, NodeKey to, String label) {}
 }
 
