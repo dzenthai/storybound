@@ -166,6 +166,18 @@ public class AdventureMenuScreen extends Screen {
     }
 
     @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        return current != null && view(current).mouseDragged(mouseX, mouseY, button, dragX, dragY)
+                || super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        boolean handled = current != null && view(current).mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(mouseX, mouseY, button) || handled;
+    }
+
+    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (StoryboundClient.OPEN_MENU.matches(keyCode, scanCode)) {
             onClose();

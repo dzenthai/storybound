@@ -9,6 +9,7 @@ import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.condition.LogicConditions;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -107,7 +108,8 @@ public record NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean i
 
         NpcBinding toBinding(Entity entity) {
             return new NpcBinding(EntitySelector.of(entity.getUUID()),
-                    List.of(new Entry(dialogue, LogicConditions.ALWAYS, 0)), interact,
+                    // Attached to the entity, so never rewritten: a renamed dialogue is looked up by its new id.
+                    List.of(new Entry(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue), LogicConditions.ALWAYS, 0)), interact,
                     proximity ? Optional.of(Proximity.DEFAULT) : Optional.empty(), false);
         }
     }

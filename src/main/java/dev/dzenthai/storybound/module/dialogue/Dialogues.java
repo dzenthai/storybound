@@ -60,7 +60,7 @@ public final class Dialogues {
     public static final double BUBBLE_RANGE = 16;
     /** Invisible nodes in a row before the server gives up; stops condition and jump loops. */
     private static final int MAX_STEPS = 64;
-    private static final String ONCE_PREFIX = "dialogue_once/";
+    static final String ONCE_PREFIX = "dialogue_once/";
 
     private static final Map<UUID, DialogueSession> SESSIONS = new HashMap<>();
     /** NPC → the player it spoke its last line to; it turns to face them. */
@@ -215,8 +215,8 @@ public final class Dialogues {
                 .toList();
     }
 
-    /** Timed lines, choice timers, the NPC walking off or dying. Every tick. */
-    static void tick(MinecraftServer server) {
+    /** Timed lines, choice timers, the NPC walking off or dying. Every tick. Public for tests. */
+    public static void tick(MinecraftServer server) {
         if (SESSIONS.isEmpty()) {
             return;
         }

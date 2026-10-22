@@ -36,6 +36,7 @@ waypoint = validator("waypoint.schema.json")
 chapter = validator("chapter.schema.json")
 dialogue_layout = validator("dialogue_layout.schema.json")
 script = validator("script.schema.json")
+migration = validator("migration.schema.json")
 marker_style = validator("waypoint_style.schema.json")
 failures = 0
 
@@ -130,6 +131,8 @@ expect(quest, {"title": "q", "stages": [{"id": "a", "objectives": [{"items": {"i
 expect(quest, {"title": "q", "repeatable": {"cooldown": 1200, "times": 5}, "difficulty": "hard", "time_limit": 600}, True, "quest: repeatable, difficulty, time limit")
 expect(quest, {"title": "q", "repeatable": True, "difficulty": 3}, True, "quest: repeatable true, stars")
 expect(quest, {"title": "q", "difficulty": 6}, False, "quest: at most 5 stars")
+expect(quest, {"title": "q", "map_visibility": "secret"}, True, "quest: secret on the chapter map")
+expect(quest, {"title": "q", "map_visibility": "hidden"}, False, "quest: unknown visibility")
 expect(quest, {"title": "q", "repeatable": False}, False, "quest: repeatable false")
 expect(quest, {"title": "q", "rewards": {"items": [{"item": "minecraft:emerald", "count": 5}], "choice": [{"item": "minecraft:iron_sword"}, {"id": "minecraft:bow"}], "loot": "minecraft:chests/village/village_weaponsmith", "xp": 50, "actions": {"type": "set_flag", "key": "a:b"}}}, True, "quest: rewards object")
 expect(quest, {"title": "q", "rewards": [{"type": "give_item", "item": "minecraft:emerald"}]}, True, "quest: rewards as actions")
@@ -141,6 +144,7 @@ expect(project, {"difficulty": {"style": "stars", "max": 10}}, False, "project: 
 expect(project, {"difficulty": {"levels": [{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}, {"id": "e"}, {"id": "f"}]}}, False, "project: at most 5 levels")
 expect(project, {"difficulty": {"levels": [{"id": "trivial", "color": "#AAAAAA", "name": "Пустяк"}, {"id": "doom", "color": "8B1A1A"}]}}, True, "project: own levels")
 expect(project, {"difficulty": {"style": "hearts"}}, False, "project: unknown style")
+expect(project, {"chapter_map": True}, True, "project: chapter map on")
 expect(quest, {"title": "q", "scope": "guild"}, False, "quest: bad scope")
 expect(quest, {"title": "q", "stages": [{"id": "@x"}]}, False, "quest: stage id starting with @")
 expect(quest, {"title": "q", "stages": [{"id": "a", "objectives": [{"text": "t"}]}]}, False, "quest: objective without trigger")
@@ -236,6 +240,22 @@ expect(event, {"trigger": custom, "actions": [{"type": "add_waypoint", "id": "a:
 expect(event, {"trigger": custom, "actions": {"type": "add_waypoint", "id": "a:b"}}, False, "event: add_waypoint without name")
 expect(event, {"trigger": custom, "actions": {"type": "add_waypoint", "id": "a:b", "name": "n", "structure": "#minecraft:village", "search_radius": 32}}, True, "event: add_waypoint at a structure")
 expect(event, {"trigger": custom, "actions": {"type": "add_waypoint", "id": "a:b", "name": "n", "structure": "minecraft:stronghold", "search_radius": 0}}, False, "event: add_waypoint search radius zero")
+
+expect(migration, {"quests": {"mypack:hunt": "mypack:wolf_hunt"}, "stages": {"mypack:wolf_hunt": {"start": "tracks"}}, "flags": {"mypack:a": "mypack:b"}}, True, "migration: quests, stages, flags")
+expect(migration, {"quests": {"mypack:hunt": "Wolf Hunt"}}, False, "migration: a new id must be an id")
+expect(migration, {"spells": {"a:b": "a:c"}}, False, "migration: unknown kind")
+
+# The guide's examples: a ```json block starting with "// config/storybound/<kind>/..." must be valid.
+import re  # noqa: E402
+
+guide_kinds = {"quests": quest, "dialogues": dialogue, "documents": document, "codex": codex, "bosses": boss,
+               "waypoints": waypoint, "npc_bindings": binding, "events": event, "migrations": migration, "flags": flag}
+for page in sorted((root / "guide").glob("*.md")):
+    for block in re.findall(r"```json\n(.*?)```", page.read_text(encoding="utf-8"), re.S):
+        kind = re.match(r"// config/storybound/(\w+)/", block)
+        if kind and kind.group(1) in guide_kinds:
+            body = "\n".join(line for line in block.splitlines() if not line.strip().startswith("//"))
+            expect(guide_kinds[kind.group(1)], json.loads(body), True, f"guide: {page.name} {kind.group(1)}")
 
 print("failures:", failures)
 sys.exit(1 if failures else 0)

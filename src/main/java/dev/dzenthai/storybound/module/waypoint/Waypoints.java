@@ -243,14 +243,14 @@ public final class Waypoints {
 
     static void tick(MinecraftServer server) {
         int tick = server.getTickCount();
-        if (tick % RECHECK_INTERVAL == 0) {
-            refreshAll(server);
-        } else if (tick % FOLLOW_INTERVAL == 0) {
-            // Only players who see a waypoint that follows an entity; the others cannot have moved targets.
-            for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
-                if (followsSomething(player)) {
-                    refresh(player);
-                }
+        for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
+            // Each player on ticks of their own, so a full server spreads the work instead of a spike.
+            int own = tick + player.getId();
+            if (Math.floorMod(own, RECHECK_INTERVAL) == 0) {
+                refresh(player);
+            } else if (Math.floorMod(own, FOLLOW_INTERVAL) == 0 && followsSomething(player)) {
+                // Only players who see a waypoint that follows an entity; the others cannot have moved targets.
+                refresh(player);
             }
         }
     }

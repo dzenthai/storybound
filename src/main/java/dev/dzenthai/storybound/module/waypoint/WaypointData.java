@@ -5,6 +5,7 @@ import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.ColorCodec;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.ArrayList;
@@ -55,6 +56,29 @@ public final class WaypointData extends SavedData {
             setDirty();
         }
         return removed;
+    }
+
+    /** Renamed waypoints (see {@link StoryMigrations}); one already there under the new id stays. */
+    int migrate(StoryMigrations.Renames renames) {
+        int moved = 0;
+        List<Added> next = new ArrayList<>();
+        for (Added waypoint : waypoints) {
+            ResourceLocation id = renames.id(StoryMigrations.Kind.WAYPOINTS, waypoint.id());
+            if (id.equals(waypoint.id())) {
+                next.add(waypoint);
+                continue;
+            }
+            moved++;
+            if (waypoints.stream().noneMatch(other -> other.sameSlot(id, waypoint.scope(), waypoint.owner().orElse(null)))) {
+                next.add(new Added(id, waypoint.name(), waypoint.target(), waypoint.color(), waypoint.radius(), waypoint.scope(), waypoint.owner(), waypoint.style()));
+            }
+        }
+        if (moved > 0) {
+            waypoints.clear();
+            waypoints.addAll(next);
+            setDirty();
+        }
+        return moved;
     }
 
     private static WaypointData load(CompoundTag tag, HolderLookup.Provider registries) {

@@ -30,6 +30,7 @@ import dev.dzenthai.storybound.module.dialogue.NpcBindings;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.document.Documents;
+import dev.dzenthai.storybound.module.quest.ChapterMap;
 import dev.dzenthai.storybound.module.quest.QuestEvents;
 import dev.dzenthai.storybound.module.quest.Quests;
 import dev.dzenthai.storybound.module.waypoint.Waypoints;
@@ -173,6 +174,37 @@ public final class DevModeServer {
         sendSnapshot(player);
     }
 
+    /** Where an online player stands: every quest they know, for the editor's progress layer. */
+    public static void sendProgress(ServerPlayer requester, String name) {
+        if (!requester.hasPermissions(2)) {
+            return;
+        }
+        ServerPlayer player = requester.server.getPlayerList().getPlayerByName(name);
+        StoryboundNetwork.sendToPlayer(requester, new DevModePayloads.Progress(name, player != null ? Quests.known(player) : Map.of()));
+    }
+
+    /** Writes one long text of the story folder (a Codex section, a boss's lore) and sends the texts to everyone. */
+    public static void saveText(ServerPlayer player, ResourceLocation textId, String language, String content) {
+        if (!player.hasPermissions(2)) {
+            return;
+        }
+        if (!ConfigStorySource.isLanguageCode(language)) {
+            player.sendSystemMessage(Component.literal("Not a language code: " + language).withStyle(ChatFormatting.RED));
+            return;
+        }
+        try {
+            ConfigStorySource.sbtFileFor(ConfigStorySource.root(), language, textId);
+        } catch (IllegalArgumentException e) {
+            player.sendSystemMessage(Component.literal(e.getMessage()).withStyle(ChatFormatting.RED));
+            return;
+        }
+        writeSbt(textId, language, content);
+        ConfigTexts.reload();
+        for (ServerPlayer online : player.server.getPlayerList().getPlayers()) {
+            StoryboundNetwork.sendToPlayer(online, new ConfigTextsPayload(ConfigTexts.current()));
+        }
+    }
+
     public static void saveTranslations(ServerPlayer player, String language, Map<String, String> translations) {
         if (!player.hasPermissions(2)) {
             return;
@@ -196,8 +228,32 @@ public final class DevModeServer {
      * @param language already checked with {@link ConfigStorySource#isLanguageCode}
      */
     private static boolean writeTranslations(ServerPlayer player, String language, Map<String, String> newTranslations) {
-        Path langDir = ConfigStorySource.root().resolve("lang");
-        Path file = langDir.resolve(language + ".json");
+        Path file = langFile(language);
+        Map<String, String> map;
+        try {
+            map = readLang(file);
+        } catch (IOException e) {
+            player.sendSystemMessage(Component.literal("config/storybound/lang/" + language + ".json is broken (" + e.getMessage()
+                    + "); fix it first, translations were not saved").withStyle(ChatFormatting.RED));
+            return false;
+        }
+        map.putAll(newTranslations);
+        try {
+            writeLang(file, map);
+            return true;
+        } catch (IOException e) {
+            Storybound.LOGGER.warn("Storybound: could not write translations to {}: {}", file, e.getMessage());
+            player.sendSystemMessage(Component.literal("Could not write " + file.getFileName() + ": " + e.getMessage()).withStyle(ChatFormatting.RED));
+            return false;
+        }
+    }
+
+    static Path langFile(String language) {
+        return ConfigStorySource.root().resolve("lang").resolve(language + ".json");
+    }
+
+    /** A lang file's keys and texts, sorted; empty when there is none. Throws when it is there but does not parse. */
+    static Map<String, String> readLang(Path file) throws IOException {
         Map<String, String> map = new TreeMap<>();
         if (Files.isRegularFile(file)) {
             try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
@@ -207,26 +263,19 @@ public final class DevModeServer {
                         map.put(entry.getKey(), entry.getValue().getAsString());
                     }
                 }
-            } catch (IOException | JsonParseException | IllegalStateException e) {
-                player.sendSystemMessage(Component.literal("config/storybound/lang/" + language + ".json is broken (" + e.getMessage()
-                        + "); fix it first, translations were not saved").withStyle(ChatFormatting.RED));
-                return false;
+            } catch (JsonParseException | IllegalStateException e) {
+                throw new IOException(e.getMessage(), e);
             }
         }
-        map.putAll(newTranslations);
+        return map;
+    }
+
+    /** Writes a lang file, keys sorted. */
+    static void writeLang(Path file, Map<String, String> translations) throws IOException {
         JsonObject output = new JsonObject();
-        for (Map.Entry<String, String> entry : map.entrySet()) {
-            output.addProperty(entry.getKey(), entry.getValue());
-        }
-        try {
-            Files.createDirectories(langDir);
-            Files.writeString(file, GSON.toJson(output) + "\n", StandardCharsets.UTF_8);
-            return true;
-        } catch (IOException e) {
-            Storybound.LOGGER.warn("Storybound: could not write translations to {}: {}", file, e.getMessage());
-            player.sendSystemMessage(Component.literal("Could not write " + file.getFileName() + ": " + e.getMessage()).withStyle(ChatFormatting.RED));
-            return false;
-        }
+        new TreeMap<>(translations).forEach(output::addProperty);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, GSON.toJson(output) + "\n", StandardCharsets.UTF_8);
     }
 
     private static <T> void parseAndStore(DefinitionType<T> type, ResourceLocation id, String rawJson, HolderLookup.Provider registries) throws IOException {
@@ -414,6 +463,8 @@ public final class DevModeServer {
             StoryboundNetwork.sendToPlayer(online, new ConfigTextsPayload(ConfigTexts.current()));
             Waypoints.syncFull(online);
         }
+        // After the definitions: the map refers to them.
+        ChapterMap.refresh(server);
     }
 
     private static DefinitionType<?> findType(ResourceLocation typeId) {

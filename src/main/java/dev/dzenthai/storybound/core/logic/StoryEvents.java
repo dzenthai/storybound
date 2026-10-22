@@ -21,7 +21,7 @@ import net.neoforged.fml.ModList;
 /** Subscribes loaded story events to their triggers and runs them. */
 public final class StoryEvents {
     private static final String SOURCE = Storybound.id("events").toString();
-    private static final String ONCE_PREFIX = "once/";
+    static final String ONCE_PREFIX = "once/";
 
     private StoryEvents() {}
 

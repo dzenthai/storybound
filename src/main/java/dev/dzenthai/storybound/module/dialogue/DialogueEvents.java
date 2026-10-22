@@ -7,6 +7,7 @@ import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
 import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition.Node;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -46,6 +47,9 @@ public final class DialogueEvents {
         // LOWEST: a story event may have started the dialogue from this very click.
         gameBus.addListener(EventPriority.LOWEST, DialogueEvents::onEntityInteract);
         gameBus.addListener(DialogueEvents::onServerStopped);
+        // "Once" marks: per dialogue option (node and option follow the id), per NPC binding.
+        StoryMigrations.registerKeyPrefix(Dialogues.ONCE_PREFIX, StoryMigrations.Kind.DIALOGUES, 2);
+        StoryMigrations.registerKeyPrefix(NpcBindings.ONCE_PREFIX, StoryMigrations.Kind.NPC_BINDINGS, 0);
         LogicOwners.register(DialogueRegistries.DIALOGUES, DialogueEvents::collectReferences);
         LogicOwners.register(DialogueRegistries.NPC_BINDINGS, (binding, references) -> {
             binding.dialogues().forEach(entry -> {

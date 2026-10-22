@@ -25,6 +25,11 @@ final class DevRequests {
         PacketDistributor.sendToServer(new DevModePayloads.SaveDefinition(type, id, json, text, ClientDevStore.activeLanguage(), Map.of()));
     }
 
+    /** A long text on its own, in the active language (a Codex section, a boss's lore); documents go with their definition. */
+    static void saveText(ResourceLocation textId, String text) {
+        PacketDistributor.sendToServer(new DevModePayloads.SaveText(textId, ClientDevStore.activeLanguage(), text));
+    }
+
     static void delete(ResourceLocation type, ResourceLocation id) {
         PacketDistributor.sendToServer(new DevModePayloads.DeleteDefinition(type, id));
     }
@@ -40,6 +45,10 @@ final class DevRequests {
     /** The server's KubeJS scripts, for script blocks; the answer goes to {@link ClientDevStore#setScripts}. */
     static void requestScripts() {
         PacketDistributor.sendToServer(new DevModePayloads.RequestScripts());
+    }
+
+    static void requestProgress(String player) {
+        PacketDistributor.sendToServer(new DevModePayloads.RequestProgress(player));
     }
 
     /** A new script file registering the handler; the server reloads and sends the scripts again. */

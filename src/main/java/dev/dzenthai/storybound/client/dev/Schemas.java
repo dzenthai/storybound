@@ -226,6 +226,12 @@ final class Schemas {
         return variants;
     }
 
+    /** A text field holding an entity's uuid (the schemas give it the uuid pattern). */
+    static boolean isUuid(Node node) {
+        JsonObject json = resolve(node).json();
+        return json.has("pattern") && json.get("pattern").getAsString().startsWith("^[0-9a-fA-F]{8}-");
+    }
+
     /** The node of a list's items. */
     static @Nullable Node items(Node node) {
         JsonObject json = resolve(node).json();

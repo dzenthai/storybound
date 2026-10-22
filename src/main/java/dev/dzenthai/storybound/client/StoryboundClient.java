@@ -15,6 +15,8 @@ import dev.dzenthai.storybound.client.journal.JournalView;
 import dev.dzenthai.storybound.client.menu.AdventureMenu;
 import dev.dzenthai.storybound.client.menu.MenuTab;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
+import dev.dzenthai.storybound.client.quest.ChapterMapView;
+import dev.dzenthai.storybound.client.quest.ClientChapterMap;
 import dev.dzenthai.storybound.client.quest.QuestHud;
 import dev.dzenthai.storybound.client.quest.QuestsView;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
@@ -101,6 +103,8 @@ public final class StoryboundClient {
             });
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.QUESTS, Component.translatable("storybound.quests.title"), 100,
                     () -> ClientModules.isEnabled("quests"), QuestsView::hasUnseen, QuestsView::new));
+            AdventureMenu.registerTab(new MenuTab(AdventureMenu.MAP, Component.translatable("storybound.map.title"), 150,
+                    () -> ClientModules.isEnabled("quests") && ChapterMapView.available(), () -> false, ChapterMapView::new));
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.JOURNAL, Component.translatable("storybound.journal.title"), 200,
                     () -> ClientModules.isEnabled("journal") && ClientJournal.isEnabled(), JournalView::hasUnseen, JournalView::new));
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.CODEX, Component.translatable("storybound.codex.title"), 300,
@@ -180,6 +184,7 @@ public final class StoryboundClient {
         ClientStoryState.clear();
         ClientJournal.clear();
         ClientQuests.clear();
+        ClientChapterMap.clear();
         ClientCodex.clear();
         ClientBosses.clear();
         ClientWaypoints.clear();

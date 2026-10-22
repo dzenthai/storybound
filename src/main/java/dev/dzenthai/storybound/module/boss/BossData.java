@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.module.boss;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,12 @@ public final class BossData {
 
     void put(Record record) {
         records.put(record.boss(), record);
+    }
+
+    /** Renamed bosses (see {@link StoryMigrations}); returns how many moved. */
+    int migrate(StoryMigrations.Renames renames) {
+        return StoryMigrations.renameKeys(records, boss -> renames.id(StoryMigrations.Kind.BOSSES, boss), (boss, record) -> record.boss().equals(boss)
+                ? record : new Record(boss, record.encountered(), record.sections(), record.victories(), record.firstVictory(), record.bestTicks(), record.seen()));
     }
 
     boolean remove(ResourceLocation boss) {

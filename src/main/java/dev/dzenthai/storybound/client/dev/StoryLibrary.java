@@ -1,8 +1,8 @@
 package dev.dzenthai.storybound.client.dev;
 
 import com.google.gson.JsonObject;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.Edge;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import dev.dzenthai.storybound.client.dev.DevModeScreen.MenuItem;
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -13,6 +13,10 @@
       "url": "./schemas/script.schema.json"
     },
     {
+      "fileMatch": ["**/data/*/storybound/migrations/**/*.json", "**/config/storybound/migrations/**/*.json"],
+      "url": "./schemas/migration.schema.json"
+    },
+    {
       "fileMatch": ["**/data/*/storybound/flags/**/*.json", "**/config/storybound/flags/**/*.json"],
       "url": "./schemas/flag.schema.json"
     },

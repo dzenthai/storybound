@@ -12,7 +12,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.Storybound;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryFlow;
+import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryLinks;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,6 +70,11 @@ class DevEditsTest {
         assertEquals(Schemas.Kind.ID_LIST, Schemas.kind(Schemas.properties(killed).get("entity")));
         Schemas.Node waypoint = Schemas.typed(Schemas.logic("action"), "add_waypoint");
         assertEquals(Schemas.Kind.POSITION, Schemas.kind(Schemas.properties(waypoint).get("pos")));
+        // A uuid gets "point at an entity in the world" instead of the mob catalog.
+        Map<String, Schemas.Node> selector = Schemas.properties(Schemas.properties(Schemas.definition(ClientDevStore.TYPE_NPC)).get("entity"));
+        assertTrue(Schemas.isUuid(selector.get("uuid")));
+        assertFalse(Schemas.isUuid(selector.get("type")));
+        assertFalse(Schemas.isUuid(selector.get("tag")));
         assertTrue(Schemas.logicTypes(Schemas.Logic.CONDITION).containsAll(List.of("flag", "time", "kubejs")));
         assertTrue(Schemas.logicTypes(Schemas.Logic.TRIGGER).contains("custom"));
         assertNull(Schemas.typed(Schemas.logic("action"), "othermod:dance"), "another mod's type has no schema here");
@@ -209,6 +217,28 @@ class DevEditsTest {
     }
 
     @Test
+    void handlersWithoutABlockShowAsBlocksFromTheScript() {
+        ResourceLocation block = Storybound.id("burn_block");
+        ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_SCRIPT, Map.of(block, "{ \"hook\": \"mypack:burn_village\" }"),
+                ClientDevStore.TYPE_QUEST, Map.of(QUEST, "{}")), List.of(), "en_us", List.of("en_us"));
+        ClientDevStore.setScripts("""
+                { "kubejs": true, "actions": ["mypack:burn_village", "mypack:ring_bell"], "files": [
+                  { "path": "storybound/mypack/village.js", "actions": ["mypack:burn_village", "mypack:ring_bell"], "conditions": ["mypack:is_night"],
+                    "listeners": [], "ids": [], "leads_to": [ { "type": "quest", "id": "storybound:hunt" } ] } ] }
+                """);
+        ResourceLocation bell = ResourceLocation.parse("mypack:ring_bell");
+        assertEquals(Set.of(block, bell, ResourceLocation.parse("mypack:is_night")), ClientDevStore.byType(ClientDevStore.TYPE_SCRIPT).keySet(),
+                "a handler a block stands for is not shown twice; the others are");
+        assertTrue(ClientDevStore.isDerivedScript(bell) && !ClientDevStore.isDerivedScript(block));
+        assertEquals("storybound/mypack/village.js", ClientDevStore.scriptFile(bell));
+        assertEquals(ClientDevStore.ScriptState.READY, ClientDevStore.scriptState(bell));
+        assertTrue(ClientDevStore.collectEdges().contains(new Edge(new NodeKey(ClientDevStore.TYPE_SCRIPT, bell), new NodeKey(ClientDevStore.TYPE_QUEST, QUEST), "leads")),
+                "a leads_to comment in the file draws an arrow");
+        ClientDevStore.setScripts("{}");
+        ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
+    }
+
+    @Test
     void aQuestStartContinuesTheConversationInsteadOfCuttingIt() {
         JsonObject dialogue = json("""
                 { "start": "greet", "nodes": {
@@ -257,7 +287,7 @@ class DevEditsTest {
         ClientDevStore.setSnapshot(Map.of(
                 ClientDevStore.TYPE_DIALOGUE, Map.of(offer, ClientDevStore.getJson(ClientDevStore.TYPE_DIALOGUE, offer)),
                 ClientDevStore.TYPE_NPC, Map.of(Storybound.id("npc_6"), DevUi.GSON.toJson(binding))), List.of(), "en_us", List.of("en_us"));
-        List<ClientDevStore.Edge> edges = ClientDevStore.collectEdges();
+        List<StoryLinks.Edge> edges = ClientDevStore.collectEdges();
         assertEquals(List.of(new NodeKey(ClientDevStore.TYPE_NPC, Storybound.id("npc_6")), new NodeKey(ClientDevStore.TYPE_DIALOGUE, offer)),
                 StoryFlow.entries(edges).get(new NodeKey(ClientDevStore.TYPE_QUEST, quest)));
         ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));

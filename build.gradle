@@ -59,6 +59,17 @@ repositories {
             includeGroup 'dev.latvian.mods'
         }
     }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'BlameJared'
+                url = 'https://maven.blamejared.com'
+            }
+        }
+        filter {
+            includeGroup 'mezz.jei'
+        }
+    }
 }
 
 var withKubeJS = project.dev_with_kubejs.toBoolean()
@@ -109,6 +120,17 @@ neoForge {
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
+        // ./gradlew runValidate [-PstoryFolder=<path>]: a server loads the story, writes
+        // run/server/logs/storybound-validation.json and exits, failing the task when there are errors.
+        validate {
+            server()
+            gameDirectory = project.file('run/server')
+            programArgument '--nogui'
+            systemProperty 'storybound.validate', 'true'
+            if (project.hasProperty('storyFolder')) {
+                systemProperty 'storybound.folder', project.file(project.property('storyFolder')).absolutePath
+            }
+        }
         gameTestServer {
             type = 'gameTestServer'
             // Otherwise tests would run inside run/world, which is kept for manual testing.
@@ -116,7 +138,8 @@ neoForge {
             // KubeJS breaks GameTest mock players (it sends unguarded packets on login),
             // so with KubeJS installed only the integration tests run.
             // With Easy NPC installed, its integration test runs alongside the rest.
-            systemProperty 'neoforge.enabledGameTestNamespaces', withKubeJS ? "${mod_id}_kubejs"
+            // -PloadTest=true: only the load test (LoadGameTests), which measures the story's tick handlers.
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.hasProperty('loadTest') ? "${mod_id}_load" : withKubeJS ? "${mod_id}_kubejs"
                     : (project.dev_with_easynpc.toBoolean() ? "${mod_id},${mod_id}_easynpc" : project.mod_id)
         }
         configureEach {
@@ -163,6 +186,13 @@ dependencies {
         cameraModArtifacts[mod].each { localRuntime(it) { transitive = false } }
     }
 
+    // JEI: items quests ask for and give, as recipes of a "Storybound quests" category.
+    compileOnly("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}") { transitive = false }
+    compileOnly("mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}") { transitive = false }
+    if (project.dev_with_jei.toBoolean()) {
+        localRuntime("mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}") { transitive = false }
+    }
+
     // Cutscene API: play_cutscene, cutscene_finished and in_cutscene go through its server API when it is installed.
     compileOnly("maven.modrinth:cutscene-api:${cutscene_api_version}") { transitive = false }
     if (project.dev_with_cutscenes.toBoolean()) {
@@ -194,9 +224,12 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             mod_version            : mod_version,
             mod_authors            : mod_authors,
             mod_description        : mod_description,
+            mod_url                : mod_url,
+            mod_issues_url         : mod_issues_url,
             xaero_minimap_version_range: xaero_minimap_version_range,
             kubejs_version_range   : kubejs_version_range,
-            cutscene_api_version_range: cutscene_api_version_range
+            cutscene_api_version_range: cutscene_api_version_range,
+            jei_version_range      : jei_version_range
     ]
     inputs.properties replaceProperties
     expand replaceProperties
@@ -209,6 +242,11 @@ neoForge.ideSyncTask generateModMetadata
 // The example story inside the jar, outside data/ and assets/ so nothing loads it by itself:
 // /storybound example install copies it into config/storybound/.
 processResources {
+    // The license and the notices travel with the jar (GPL-3.0).
+    from(['LICENSE', 'NOTICE']) {
+        into 'META-INF'
+        rename { "${it}_${mod_id}" }
+    }
     from('examples/storybound_example') {
         into 'storybound_example'
         exclude 'pack.mcmeta'

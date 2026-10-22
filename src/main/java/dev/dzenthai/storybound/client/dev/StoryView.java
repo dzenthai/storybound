@@ -2,8 +2,10 @@ package dev.dzenthai.storybound.client.dev;
 
 import com.google.gson.JsonObject;
 import dev.dzenthai.storybound.Storybound;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.Edge;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.NodeKey;
+import dev.dzenthai.storybound.core.state.QuestProgress;
+import dev.dzenthai.storybound.core.story.StoryFlow;
+import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import dev.dzenthai.storybound.client.dev.DevModeScreen.MenuItem;
 import dev.dzenthai.storybound.client.dev.NodeTemplates.Template;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
@@ -24,6 +26,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
@@ -50,6 +53,8 @@ final class StoryView extends GraphView {
     static final int NODE_W = 136;
     static final int NODE_H = 42;
     private static final long DOUBLE_CLICK_MS = 350;
+    /** How often the shown player's progress is asked for again, in ticks. */
+    private static final int PROGRESS_REFRESH = 40;
     /** The kinds of definitions, in the order "All links" puts them in columns, left to right. */
     static final List<ResourceLocation> KINDS = List.of(ClientDevStore.TYPE_NPC, ClientDevStore.TYPE_DIALOGUE,
             ClientDevStore.TYPE_SCRIPT, ClientDevStore.TYPE_DOCUMENT, ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_WAYPOINT, ClientDevStore.TYPE_BOSS,
@@ -509,6 +514,7 @@ final class StoryView extends GraphView {
         dirty = false;
         ClientDevStore.putLocal(target.type(), target.id(), after);
         DevRequests.save(target.type(), target.id(), after, afterText);
+        inspector.textSaved();
         // A script block's handler changed: what ran the old one runs the new one, in the same undoable step.
         List<Unlinked> renamed = new ArrayList<>();
         if (target.type().equals(ClientDevStore.TYPE_SCRIPT) && before != null) {
@@ -773,6 +779,10 @@ final class StoryView extends GraphView {
         Set<NodeKey> targets = new LinkedHashSet<>(selection);
         if (selected != null) {
             targets.add(selected);
+        }
+        // A block derived from a script has no file to delete: it is gone when its handler is gone from the code.
+        if (targets.removeIf(key -> key.type().equals(ClientDevStore.TYPE_SCRIPT) && ClientDevStore.isDerivedScript(key.id()))) {
+            screen.status(DevUi.text("status.derived_script"), DevUi.BAD);
         }
         if (targets.isEmpty()) {
             return;
@@ -1061,11 +1071,77 @@ final class StoryView extends GraphView {
 
     // --- widgets and drawing
 
+    // --- the progress layer: where a player stands, on the map
+
+    /** The player whose progress the map shows; null when the layer is off. Kept while the game runs. */
+    private @Nullable String progressOf;
+    private int progressTicks;
+
+    /** Off, then each online player (the author first), then off again. */
+    private void nextProgressPlayer(DevModeScreen screen) {
+        List<String> names = new ArrayList<>();
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            names.add(minecraft.player.getGameProfile().getName());
+        }
+        if (minecraft.getConnection() != null) {
+            minecraft.getConnection().getOnlinePlayers().stream().map(info -> info.getProfile().getName()).sorted()
+                    .filter(name -> !names.contains(name)).forEach(names::add);
+        }
+        int at = progressOf == null ? -1 : names.indexOf(progressOf);
+        progressOf = at + 1 < names.size() ? names.get(at + 1) : null;
+        if (progressOf != null) {
+            DevRequests.requestProgress(progressOf);
+        }
+        progressTicks = 0;
+        screen.rebuild();
+    }
+
+    @Override
+    void tick(DevModeScreen screen) {
+        if (progressOf != null && tab == Tab.STORY && ++progressTicks % PROGRESS_REFRESH == 0) {
+            DevRequests.requestProgress(progressOf);
+        }
+    }
+
+    /** A quest card's mark on the progress layer: dimmed while the player does not know it, else its state and stage. */
+    private void renderProgress(GuiGraphics graphics, Font font, Card card) {
+        String player = progressOf;
+        if (player == null || !card.key().type().equals(ClientDevStore.TYPE_QUEST) || !ClientDevStore.hasProgress(player)) {
+            return;
+        }
+        QuestProgress progress = ClientDevStore.progress(player, card.key().id());
+        if (progress == null) {
+            graphics.fill(card.x(), card.y(), card.x() + NODE_W, card.y() + NODE_H, 0x99000000);
+            return;
+        }
+        String mark = switch (progress.status()) {
+            case COMPLETED -> "✔";
+            case FAILED -> "✘";
+            case ACTIVE -> "▶ " + progress.stage().orElse("");
+        };
+        int color = switch (progress.status()) {
+            case COMPLETED -> DevUi.GOOD;
+            case FAILED -> DevUi.ERROR;
+            case ACTIVE -> DevUi.ACCENT;
+        };
+        String shown = font.plainSubstrByWidth(mark, NODE_W - 8);
+        int width = font.width(shown) + 6;
+        int x = card.x() + NODE_W - width;
+        int y = card.y() - 11;
+        graphics.fill(x, y, x + width, y + 10, color);
+        graphics.drawString(font, shown, x + 3, y + 1, DevUi.DARK_TEXT, false);
+    }
+
     @Override
     void addWidgets(DevModeScreen screen) {
         if (tab == Tab.STORY) {
             screen.add(Button.builder(DevUi.text("chapter.new"), b -> createChapter(screen))
                     .bounds(6, screen.height - 46, DevUi.LEFT_PANEL_W - 12, 18).build());
+            Component who = progressOf == null ? DevUi.text("progress.off") : Component.literal(progressOf);
+            screen.add(Button.builder(Component.literal("👤 ").append(who), b -> nextProgressPlayer(screen))
+                    .tooltip(Tooltip.create(DevUi.text("progress.tooltip")))
+                    .bounds(6, screen.height - 68, DevUi.LEFT_PANEL_W - 12, 18).build());
         }
         screen.add(Button.builder(Component.literal("📥 ").append(DevUi.text("example.install")), b -> {
             DevRequests.quickAction("install_example", Storybound.id("example"));
@@ -1122,6 +1198,9 @@ final class StoryView extends GraphView {
             int border = card.hasError() ? DevUi.ERROR : primary ? 0xFFFFE082 : multi ? 0xFF4FC3F7 : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
             DevUi.card(graphics, font, card.x(), card.y(), NODE_W, NODE_H, border, primary || multi, card.color(), card.badge(),
                     card.missingTranslation(), card.icon(), card.title(), card.subtitle());
+            if (tab == Tab.STORY) {
+                renderProgress(graphics, font, card);
+            }
         }
         if (boxSelecting) {
             int x1 = (int) Math.min(boxStartX, boxEndX);
@@ -1300,6 +1379,11 @@ final class StoryView extends GraphView {
             screen.openDialogue(key.id());
             return;
         }
+        if (key.equals(lastClicked) && now - lastClickTime < DOUBLE_CLICK_MS && key.type().equals(ClientDevStore.TYPE_QUEST)) {
+            lastClicked = null;
+            screen.openQuest(key.id());
+            return;
+        }
         lastClickTime = now;
         lastClicked = key;
         screen.showInspector();
@@ -1366,6 +1450,7 @@ final class StoryView extends GraphView {
             }
         } else if (target.type().equals(ClientDevStore.TYPE_QUEST)) {
             items.add(MenuItem.of(Component.literal("📜 ").append(DevUi.text("menu.show_on_map")), () -> reveal(screen, Tab.STORY, target)));
+            items.add(MenuItem.of(Component.literal("🔎 ").append(DevUi.text("menu.inside_quest")), () -> screen.openQuest(target.id())));
         }
         ResourceLocation type = target.type();
         if (type.equals(ClientDevStore.TYPE_NPC)) {

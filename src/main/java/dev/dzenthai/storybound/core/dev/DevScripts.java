@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.logic.ScriptHooks;
+import dev.dzenthai.storybound.core.story.StoryLinks;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -14,6 +15,7 @@ import java.util.stream.Stream;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.fml.ModList;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The server's KubeJS scripts as the dev mode sees them: the files in {@code kubejs/server_scripts/} read with
@@ -35,7 +37,7 @@ public final class DevScripts {
 
     /**
      * Everything the editor needs, as JSON: {@code kubejs} (installed), {@code folder} (for showing where files are),
-     * {@code actions} / {@code conditions} (registered now), {@code files} (path, handlers, listeners, ids).
+     * {@code actions} / {@code conditions} (registered now), {@code files} (path, handlers, listeners, ids, {@code @storybound leads_to} comments).
      */
     public static JsonObject describe(MinecraftServer server) {
         JsonObject out = new JsonObject();
@@ -59,6 +61,23 @@ public final class DevScripts {
         return out;
     }
 
+    /** A script under {@code kubejs/server_scripts/} as read, for {@link StoryLinks}; {@code null} when it is not there or not readable. */
+    public static @Nullable StoryLinks.ScriptFile read(MinecraftServer server, String path) {
+        Path folder = folder(server).toAbsolutePath().normalize();
+        Path file = folder.resolve(path).normalize();
+        try {
+            if (!file.startsWith(folder) || !Files.isRegularFile(file) || Files.size(file) > MAX_SIZE) {
+                return null;
+            }
+            ScriptScanner.Result result = ScriptScanner.scan(Files.readString(file, StandardCharsets.UTF_8));
+            return new StoryLinks.ScriptFile(path, result.actions(), result.conditions(),
+                    result.listeners().stream().map(listener -> new StoryLinks.ScriptListener(listener.event(), listener.id())).toList(),
+                    result.ids(), result.leadsTo().stream().map(lead -> new StoryLinks.ScriptListener(lead.type(), lead.id())).toList());
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     private static JsonObject describeFile(Path folder, Path file) {
         JsonObject out = new JsonObject();
         out.addProperty("path", folder.relativize(file).toString().replace('\\', '/'));
@@ -76,6 +95,14 @@ public final class DevScripts {
                 }
                 out.add("listeners", listeners);
                 out.add("ids", strings(result.ids()));
+                JsonArray leadsTo = new JsonArray();
+                for (ScriptScanner.Lead lead : result.leadsTo()) {
+                    JsonObject entry = new JsonObject();
+                    entry.addProperty("type", lead.type());
+                    entry.addProperty("id", lead.id());
+                    leadsTo.add(entry);
+                }
+                out.add("leads_to", leadsTo);
             }
         } catch (IOException | RuntimeException e) {
             out.addProperty("error", e.getMessage());

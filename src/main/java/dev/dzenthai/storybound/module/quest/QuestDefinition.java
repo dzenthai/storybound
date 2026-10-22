@@ -1,8 +1,10 @@
 package dev.dzenthai.storybound.module.quest;
 
 import com.mojang.datafixers.util.Either;
+import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.StoryIds;
@@ -19,6 +21,7 @@ import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.StringRepresentable;
 
 /**
  * {@code data/<ns>/storybound/quests/<path>.json}: a story record with a status and stages.
@@ -29,15 +32,18 @@ import net.minecraft.resources.ResourceLocation;
  * @param repeatable the quest may be started again after it ends
  * @param difficulty shown in the Journal, on the scale the modpack picks in {@code project.json}
  * @param timeLimit  seconds of game time from the start; then the quest fails
+ * @param visibility how the players' chapter map shows it before it is known
  */
 public record QuestDefinition(ResourceLocation category, StoryScope scope, StoryText title, Optional<StoryText> description,
                               Texts text, Optional<Start> start, List<Stage> stages, Optional<Condition> failWhen,
                               List<Action> onStart, List<Action> onComplete, List<Action> onFailed, QuestRewards.Rewards rewards,
-                              boolean announce, Optional<Repeatable> repeatable, Optional<Difficulty> difficulty, Optional<Double> timeLimit) {
+                              boolean announce, Optional<Repeatable> repeatable, Optional<Difficulty> difficulty, Optional<Double> timeLimit,
+                              Visibility visibility) {
     public static final String COMPLETE = "@complete";
     public static final String FAIL = "@fail";
 
-    public static final Codec<QuestDefinition> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+    // A record codec takes at most 16 fields: the rest is paired with it.
+    private static final MapCodec<QuestDefinition> FIELDS = RecordCodecBuilder.mapCodec(instance -> instance.group(
             StoryIds.CODEC.optionalFieldOf("category", Storybound.id("side")).forGetter(QuestDefinition::category),
             StoryScope.CODEC.optionalFieldOf("scope", StoryScope.PLAYER).forGetter(QuestDefinition::scope),
             StoryText.CODEC.fieldOf("title").forGetter(QuestDefinition::title),
@@ -54,7 +60,12 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
             Repeatable.CODEC.optionalFieldOf("repeatable").forGetter(QuestDefinition::repeatable),
             Difficulty.CODEC.optionalFieldOf("difficulty").forGetter(QuestDefinition::difficulty),
             Codec.doubleRange(1, 10_000_000).optionalFieldOf("time_limit").forGetter(QuestDefinition::timeLimit)
-    ).apply(instance, QuestDefinition::new));
+    ).apply(instance, (category, scope, title, description, text, start, stages, failWhen, onStart, onComplete, onFailed, rewards,
+            announce, repeatable, difficulty, timeLimit) -> new QuestDefinition(category, scope, title, description, text, start, stages,
+            failWhen, onStart, onComplete, onFailed, rewards, announce, repeatable, difficulty, timeLimit, Visibility.VISIBLE)));
+
+    public static final Codec<QuestDefinition> CODEC = Codec.mapPair(FIELDS, Visibility.CODEC.optionalFieldOf("map_visibility", Visibility.VISIBLE))
+            .xmap(pair -> pair.getFirst().withVisibility(pair.getSecond()), quest -> Pair.of(quest, quest.visibility())).codec();
 
     public Optional<Stage> stage(String id) {
         return stages.stream().filter(stage -> stage.id().equals(id)).findFirst();
@@ -77,7 +88,35 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
     QuestDefinition clientView() {
         return new QuestDefinition(category, scope, title, description, text, Optional.empty(),
                 stages.stream().map(Stage::clientView).toList(), Optional.empty(), List.of(), List.of(), List.of(), rewards.clientView(), announce,
-                repeatable, difficulty, timeLimit);
+                repeatable, difficulty, timeLimit, visibility);
+    }
+
+    QuestDefinition withVisibility(Visibility visibility) {
+        return new QuestDefinition(category, scope, title, description, text, start, stages, failWhen, onStart, onComplete, onFailed, rewards,
+                announce, repeatable, difficulty, timeLimit, visibility);
+    }
+
+    /**
+     * How the players' chapter map shows a quest the player does not know yet: {@code visible} as it is, {@code secret}
+     * as "???" until every quest before it is completed, {@code invisible} not at all until it starts.
+     */
+    public enum Visibility implements StringRepresentable {
+        VISIBLE("visible"),
+        SECRET("secret"),
+        INVISIBLE("invisible");
+
+        public static final Codec<Visibility> CODEC = StringRepresentable.fromEnum(Visibility::values);
+
+        private final String name;
+
+        Visibility(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getSerializedName() {
+            return name;
+        }
     }
 
     /**
@@ -206,7 +245,8 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
         }
 
         Objective clientView() {
-            return new Objective(id, Optional.empty(), LogicConditions.ALWAYS, count, text, hidden, optional, hint, Optional.empty(),
+            // The items stay: the Journal and JEI show what the objective asks for.
+            return new Objective(id, Optional.empty(), LogicConditions.ALWAYS, count, text, hidden, optional, hint, items,
                     hints.stream().map(Hint::clientView).toList());
         }
     }

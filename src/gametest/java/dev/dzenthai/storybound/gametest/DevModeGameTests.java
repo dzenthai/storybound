@@ -8,6 +8,7 @@ import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.dev.DevModeServer;
 import dev.dzenthai.storybound.core.dev.DevScripts;
+import dev.dzenthai.storybound.core.text.ConfigTexts;
 import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
@@ -148,6 +149,37 @@ public final class DevModeGameTests {
             players.getOps().remove(author.getGameProfile());
             cleanUp(DialogueRegistries.DIALOGUES.serverStore(), id, dialogueFile);
             cleanUp(CoreDefinitions.DIALOGUE_LAYOUTS.serverStore(), id, layoutFile);
+        }
+        players.remove(author);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void longTextsAreSavedInsideTheStoryFolderOnly(GameTestHelper helper) {
+        ServerPlayer author = helper.makeMockServerPlayerInLevel();
+        PlayerList players = helper.getLevel().getServer().getPlayerList();
+        ResourceLocation section = ResourceLocation.fromNamespaceAndPath("gametest", "codex/dev_text/base");
+        Path root = ConfigStorySource.root();
+        Path file = ConfigStorySource.sbtFileFor(root, "en_us", section);
+        try {
+            DevModeServer.saveText(author, section, "en_us", "Seen at **night**.");
+            helper.assertFalse(Files.exists(file), "nothing without permission level 2");
+            players.getOps().add(new ServerOpListEntry(author.getGameProfile(), 4, false));
+            DevModeServer.saveText(author, section, "en_us", "Seen at **night**.\nNever by day.");
+            helper.assertTrue(Files.isRegularFile(file) && read(file).equals("Seen at **night**.\nNever by day."), "the section's text, lines kept");
+            helper.assertTrue(ConfigTexts.current().documents().get("en_us").get(section).startsWith("Seen at"), "and loaded for everyone");
+            DevModeServer.saveText(author, ResourceLocation.fromNamespaceAndPath("gametest", "../../../escape"), "en_us", "x");
+            helper.assertFalse(Files.exists(root.resolve("..").resolve("escape.sbt").normalize()), "no file outside the story folder");
+            DevModeServer.saveText(author, section, "../en_us", "x");
+            helper.assertTrue(read(file).startsWith("Seen at"), "not a language code: refused");
+        } finally {
+            players.getOps().remove(author.getGameProfile());
+            try {
+                Files.deleteIfExists(file);
+            } catch (IOException e) {
+                throw new GameTestAssertException(e.getMessage());
+            }
+            ConfigTexts.reload();
         }
         players.remove(author);
         helper.succeed();

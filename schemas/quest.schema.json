@@ -102,6 +102,11 @@
       "description": "Seconds of game time from the start; then the quest fails (on_failed runs). Shown as a clock in the Journal and on the HUD.",
       "type": "number",
       "minimum": 1
+    },
+    "map_visibility": {
+      "description": "How the players' chapter map (project.json chapter_map) shows the quest before the player starts it: visible as it is; secret as ??? until every quest before it is completed; invisible not at all until it starts.",
+      "enum": ["visible", "secret", "invisible"],
+      "default": "visible"
     }
   },
   "definitions": {

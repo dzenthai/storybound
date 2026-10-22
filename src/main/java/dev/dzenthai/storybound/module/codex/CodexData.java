@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.module.codex;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -94,6 +95,11 @@ public final class CodexData {
         List<String> sections = progress.sections().stream().filter(id -> !id.equals(section)).toList();
         entries.put(entry, new Progress(entry, sections, progress.seen(), progress.kills()));
         return sections.size() != progress.sections().size();
+    }
+
+    /** Renamed entries (see {@link StoryMigrations}); returns how many moved. */
+    int migrate(StoryMigrations.Renames renames) {
+        return StoryMigrations.renameKeys(entries, StoryMigrations.Kind.CODEX, renames);
     }
 
     private Progress get(ResourceLocation entry) {

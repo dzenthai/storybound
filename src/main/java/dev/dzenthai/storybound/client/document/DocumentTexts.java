@@ -29,6 +29,11 @@ public final class DocumentTexts {
         return ClientConfigTexts.document(content, FALLBACK_LANGUAGE).or(() -> read(content, FALLBACK_LANGUAGE));
     }
 
+    /** The text in exactly this language (the story folder's, else a resource pack's), without falling back: for the editor. */
+    public static Optional<String> load(ResourceLocation content, String language) {
+        return ClientConfigTexts.document(content, language).or(() -> read(content, language));
+    }
+
     private static Optional<String> read(ResourceLocation content, String language) {
         ResourceLocation file = ResourceLocation.fromNamespaceAndPath(content.getNamespace(),
                 "storybound/texts/" + language + "/" + content.getPath() + ".sbt");

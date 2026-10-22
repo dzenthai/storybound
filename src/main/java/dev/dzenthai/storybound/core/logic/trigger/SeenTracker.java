@@ -32,16 +32,17 @@ public final class SeenTracker {
     private SeenTracker() {}
 
     static void tick(MinecraftServer server) {
-        if (server.getTickCount() % INTERVAL != 0) {
-            return;
-        }
         if (!TriggerDispatcher.hasSubscribers(BuiltinTriggers.ENTITY_SEEN.get())) {
             IN_VIEW.clear();
             REPORTED.clear();
             return;
         }
+        int tick = server.getTickCount();
         for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
-            check(player);
+            // Every INTERVAL ticks for each player, on a tick of their own, so a full server has no spike.
+            if (Math.floorMod(tick + player.getId(), INTERVAL) == 0) {
+                check(player);
+            }
         }
     }
 

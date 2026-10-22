@@ -2,6 +2,8 @@ package dev.dzenthai.storybound.client.quest;
 
 import dev.dzenthai.storybound.client.ClientQuests;
 import dev.dzenthai.storybound.client.SeenMarks;
+import dev.dzenthai.storybound.client.menu.AdventureMenu;
+import dev.dzenthai.storybound.client.menu.AdventureMenuScreen;
 import dev.dzenthai.storybound.client.menu.ListDetailView;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.core.state.QuestProgress;
@@ -43,6 +45,8 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
     /** The reward chosen for {@link #chosenFor}; -1 while none is. */
     private int chosen = -1;
     private @Nullable ResourceLocation chosenFor;
+    /** The quest to select when the tab opens next. */
+    private static @Nullable ResourceLocation focus;
 
     /** True while some quest changed since the player last looked at it. */
     public static boolean hasUnseen() {
@@ -66,6 +70,16 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
                 .bounds(left + width - 184, buttonY(), 90, 18)
                 .build());
         super.init();
+        if (focus != null) {
+            selectKey(focus.toString());
+            focus = null;
+        }
+    }
+
+    /** Opens the Quests tab of the open menu on that quest (from the chapter map). */
+    public static void show(AdventureMenuScreen screen, ResourceLocation quest) {
+        focus = quest;
+        screen.showTab(AdventureMenu.QUESTS);
     }
 
     @Override

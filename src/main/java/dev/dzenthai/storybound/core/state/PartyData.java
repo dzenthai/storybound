@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,6 +61,11 @@ public final class PartyData extends SavedData {
 
     StoryContainer container(UUID owner) {
         return containers.computeIfAbsent(owner, key -> track(new StoryContainer()));
+    }
+
+    /** Every saved party scope (and solo players' party scope), for migrations. */
+    Collection<StoryContainer> containers() {
+        return List.copyOf(containers.values());
     }
 
     /** The leader brings their solo progress into the new party. */

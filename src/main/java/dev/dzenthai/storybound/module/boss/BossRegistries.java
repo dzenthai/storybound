@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.module.boss;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.function.Supplier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
@@ -26,5 +27,6 @@ public final class BossRegistries {
         BossLogic.REGISTER_CONDITIONS.register(modBus);
         BossLogic.REGISTER_ACTIONS.register(modBus);
         BossLogic.REGISTER_TRIGGERS.register(modBus);
+        StoryMigrations.registerPlayer((player, renames) -> player.getData(DATA).migrate(renames));
     }
 }

@@ -1,16 +1,22 @@
 package dev.dzenthai.storybound.client.dev;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.dzenthai.storybound.client.dev.ClientDevStore.NodeKey;
-import dev.dzenthai.storybound.client.text.ClientConfigTexts;
+import com.google.gson.JsonPrimitive;
+import dev.dzenthai.storybound.client.document.DocumentTexts;
 import dev.dzenthai.storybound.core.dev.DevScripts;
+import dev.dzenthai.storybound.core.story.StoryLinks;
+import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.Util;
@@ -18,7 +24,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -34,7 +39,6 @@ import org.jetbrains.annotations.Nullable;
  */
 final class StoryInspector {
     /** Newlines of a document's text, shown in the one-line box as this sign and turned back on saving. */
-    private static final String NEWLINE = "¶";
     private static final int LINK_H = 12;
     private static final int MAX_LINKS = 4;
 
@@ -54,9 +58,15 @@ final class StoryInspector {
     private @Nullable DevModeScreen screen;
     /** The node the form shows; another one starts the form from its first page. */
     private @Nullable NodeKey shown;
-    private @Nullable EditBox textBox;
-    /** Whether the document's text was edited; only then is it sent, so a save never rewrites a text it did not show. */
-    private boolean textEdited;
+    /**
+     * The document's text as edited in the text window, for {@link #pendingFor}; null while untouched, so a save never
+     * rewrites a text it did not show. Kept here, not in a widget, so rebuilding the panel loses nothing.
+     */
+    private @Nullable String pendingText;
+    private @Nullable NodeKey pendingFor;
+    /** The label above the long texts' buttons and where it is drawn; null without long texts. */
+    private @Nullable Component textLabel;
+    private int textLabelY;
     private final List<Link> links = new ArrayList<>();
     private int linksTop;
     /** The script block's state line, drawn where its panel starts; null for other nodes. */
@@ -96,7 +106,12 @@ final class StoryInspector {
 
     /** The document's text as edited, or empty when it was not touched. */
     Optional<String> documentText() {
-        return textBox != null && textEdited ? Optional.of(textBox.getValue().replace(NEWLINE, "\n")) : Optional.empty();
+        return pendingText != null && pendingFor != null && pendingFor.equals(view.selected) ? Optional.of(pendingText) : Optional.empty();
+    }
+
+    /** The edited text went with the definition. */
+    void textSaved() {
+        pendingText = null;
     }
 
     void scroll(double amount) {
@@ -113,13 +128,16 @@ final class StoryInspector {
 
     void addWidgets(DevModeScreen screen) {
         this.screen = screen;
-        textBox = null;
-        textEdited = false;
         JsonObject json = view.editing;
         NodeKey key = view.selected;
         if (json == null || key == null) {
             return;
         }
+        if (!key.equals(pendingFor)) {
+            pendingFor = key;
+            pendingText = null;
+        }
+        textLabel = null;
         if (!key.equals(shown)) {
             shown = key;
             form.reset(Schemas.definition(key.type()), key.id().getPath(), hidden(key.type()));
@@ -134,7 +152,10 @@ final class StoryInspector {
             y = giver(screen, key, x, y, w);
         }
         if (key.type().equals(ClientDevStore.TYPE_DOCUMENT)) {
-            y = documentText(screen, key, x, y + 10, w);
+            y = documentText(screen, key, json, x, y + 10, w);
+        }
+        if (key.type().equals(ClientDevStore.TYPE_CODEX) || key.type().equals(ClientDevStore.TYPE_BOSS)) {
+            y = sectionTexts(screen, key, json, x, y + 6, w);
         }
         scriptState = null;
         if (key.type().equals(ClientDevStore.TYPE_SCRIPT)) {
@@ -164,6 +185,8 @@ final class StoryInspector {
             buttons.add(test(screen, "🎒 ", "document.give", "document_give", key));
         } else if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
             buttons.add(test(screen, "⚡ ", "waypoint.teleport", "waypoint_tp", key));
+        } else if (type.equals(ClientDevStore.TYPE_NPC)) {
+            buttons.add(relationship(screen, key));
         }
         if (buttons.isEmpty()) {
             return y;
@@ -177,28 +200,135 @@ final class StoryInspector {
         return y + 24;
     }
 
+    /**
+     * The NPC's relationship scale: a number flag {@code <ns>:rep/<npc>} per player, starting at 0. Once made, the
+     * lists of actions and conditions offer "+10 / -10" and "at least 20 / at most -20" for it.
+     */
+    private static Button relationship(DevModeScreen screen, NodeKey npc) {
+        ResourceLocation scale = ResourceLocation.fromNamespaceAndPath(npc.id().getNamespace(), FormView.RELATIONSHIP_PREFIX + npc.id().getPath());
+        boolean exists = ClientDevStore.getJson(ClientDevStore.TYPE_FLAG, scale) != null;
+        Component label = Component.literal("❤ ").append(DevUi.text(exists ? "relationship.exists" : "relationship.create"));
+        return Button.builder(label, b -> {
+            if (ClientDevStore.getJson(ClientDevStore.TYPE_FLAG, scale) != null) {
+                screen.status(DevUi.text("relationship.hint", scale.toString()), DevUi.NEUTRAL);
+                return;
+            }
+            JsonObject flag = new JsonObject();
+            flag.addProperty("type", "int");
+            flag.addProperty("default", 0);
+            flag.addProperty("scope", "player");
+            flag.addProperty("sync", true);
+            flag.addProperty("description", DevUi.str("relationship.description", npc.id().getPath()));
+            String json = DevUi.GSON.toJson(flag);
+            ClientDevStore.putLocal(ClientDevStore.TYPE_FLAG, scale, json);
+            DevRequests.save(ClientDevStore.TYPE_FLAG, scale, json, Optional.empty());
+            screen.status(DevUi.text("relationship.created", scale.toString()), DevUi.OK);
+            screen.rebuild();
+        }).tooltip(Tooltip.create(DevUi.text("relationship.tooltip", scale.toString()))).build();
+    }
+
     private static Button test(DevModeScreen screen, String icon, String label, String action, NodeKey key) {
         return Button.builder(Component.literal(icon).append(DevUi.text(label)), b -> screen.playtest(action, key.id()))
                 .tooltip(Tooltip.create(DevUi.text(label))).build();
     }
 
-    /** The document's long text: not part of the definition's JSON, so outside the form. */
-    private int documentText(DevModeScreen screen, NodeKey key, int x, int y, int w) {
-        textBox = new EditBox(screen.font(), x, y, w, 16, DevUi.text("document.text"));
-        textBox.setMaxLength(65536);
-        Optional<String> current = StoryView.documentText(key.id());
-        textBox.setValue(current.orElse("").replace("\r", "").replace("\n", NEWLINE));
-        if (current.isEmpty()) {
-            textBox.setHint(DevUi.text("document.text_hint"));
-        } else if (!ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage())) {
-            textBox.setHint(Component.literal(ClientConfigTexts.document(key.id(), ClientDevStore.sourceLanguage()).orElse("").replace("\n", NEWLINE)));
+    /**
+     * The document's long text: not part of the definition's JSON, so outside the form. A button with its first line
+     * opens the text window; the text goes with the definition when it is saved, as one undoable step.
+     */
+    private int documentText(DevModeScreen screen, NodeKey key, JsonObject json, int x, int y, int w) {
+        ResourceLocation textId = documentTextId(key.id(), json);
+        textLabel = DevUi.text("document.text");
+        textLabelY = y - 10;
+        String current = pendingText != null ? pendingText : text(textId, ClientDevStore.activeLanguage()).orElse("");
+        screen.add(textButton(screen, current, DevUi.text("document.text_hint"), () -> screen.textEditor().open(
+                DevUi.text("text.title_document", key.id().toString()), current, hint(textId),
+                text -> {
+                    pendingFor = key;
+                    pendingText = text;
+                    view.dirty = true;
+                    view.save(screen);
+                },
+                text -> screen.preview(key.id(), text)))
+                .tooltip(Tooltip.create(DevUi.text("text.edit_tooltip", textId.toString()))).bounds(x, y, w, 18).build());
+        return y + 24;
+    }
+
+    /** A Codex entry's sections or a boss's lore and tactics: a row each, saved on their own. */
+    private int sectionTexts(DevModeScreen screen, NodeKey key, JsonObject json, int x, int y, int w) {
+        Map<String, ResourceLocation> texts = new LinkedHashMap<>();
+        textLabel = DevUi.text("text.sections");
+        textLabelY = y;
+        y += 10;
+        if (key.type().equals(ClientDevStore.TYPE_CODEX)) {
+            if (json.get("sections") instanceof JsonArray sections) {
+                for (JsonElement element : sections) {
+                    if (element instanceof JsonObject section && section.get("id") instanceof JsonPrimitive id) {
+                        texts.put(id.getAsString(), ownText(section).orElse(ResourceLocation.fromNamespaceAndPath(key.id().getNamespace(),
+                                "codex/" + key.id().getPath() + "/" + id.getAsString())));
+                    }
+                }
+            }
+        } else {
+            for (String section : List.of("lore", "tactics")) {
+                texts.put(section, (json.get(section) instanceof JsonObject object ? ownText(object) : Optional.<ResourceLocation>empty())
+                        .orElse(ResourceLocation.fromNamespaceAndPath(key.id().getNamespace(), "bosses/" + key.id().getPath() + "/" + section)));
+            }
         }
-        textBox.setResponder(value -> {
-            textEdited = true;
-            view.dirty = true;
-        });
-        screen.add(textBox);
-        return y + 22;
+        for (Map.Entry<String, ResourceLocation> entry : texts.entrySet()) {
+            ResourceLocation textId = entry.getValue();
+            String current = text(textId, ClientDevStore.activeLanguage()).orElse("");
+            String first = firstLine(current);
+            Component label = Component.literal(entry.getKey() + ": ").append(first.isEmpty() ? DevUi.text("text.empty") : Component.literal(first));
+            screen.add(textButton(screen, label, () -> screen.textEditor().open(
+                    DevUi.text("text.title_section", key.id().toString(), entry.getKey()), current, hint(textId),
+                    text -> DevRequests.saveText(textId, text), null))
+                    .tooltip(Tooltip.create(DevUi.text("text.edit_tooltip", textId.toString()))).bounds(x, y, w, 18).build());
+            y += 20;
+        }
+        return y + 4;
+    }
+
+    /** A button "✎ <the text's first line>", or the hint while there is none. */
+    private static Button.Builder textButton(DevModeScreen screen, String text, Component empty, Runnable open) {
+        String first = firstLine(text);
+        return textButton(screen, first.isEmpty() ? empty : Component.literal(first), open);
+    }
+
+    private static Button.Builder textButton(DevModeScreen screen, Component label, Runnable open) {
+        String shown = screen.font().plainSubstrByWidth("✎ " + label.getString(), DevUi.RIGHT_PANEL_W - 30);
+        return Button.builder(Component.literal(shown), b -> open.run());
+    }
+
+    private static String firstLine(String text) {
+        return text.lines().filter(line -> !line.isBlank()).findFirst().orElse("");
+    }
+
+    /** What the window shows while the text is empty: the source language's text when another language is edited. */
+    private static Component hint(ResourceLocation textId) {
+        String source = ClientDevStore.sourceLanguage();
+        if (!ClientDevStore.activeLanguage().equalsIgnoreCase(source)) {
+            Optional<String> original = text(textId, source);
+            if (original.isPresent()) {
+                return Component.literal(original.get());
+            }
+        }
+        return DevUi.text("text.hint");
+    }
+
+    /** A text as the story folder has it, else a resource pack, in exactly that language. */
+    private static Optional<String> text(ResourceLocation textId, String language) {
+        return DocumentTexts.load(textId, language);
+    }
+
+    private static Optional<ResourceLocation> ownText(JsonObject object) {
+        return object.get("text") instanceof JsonPrimitive text ? Optional.ofNullable(ResourceLocation.tryParse(text.getAsString())) : Optional.empty();
+    }
+
+    /** A document's text file: its {@code content}, else the document's own id. */
+    static ResourceLocation documentTextId(ResourceLocation document, JsonObject json) {
+        ResourceLocation content = json.get("content") instanceof JsonPrimitive text ? ResourceLocation.tryParse(text.getAsString()) : null;
+        return content != null ? content : document;
     }
 
     // --- the quest giver
@@ -251,7 +381,7 @@ final class StoryInspector {
         ClientDevStore.ScriptState state = ClientDevStore.scriptState(key.id());
         scriptState = state;
         scriptStateY = y;
-        y += 12;
+        y += ClientDevStore.isDerivedScript(key.id()) ? 24 : 12;
         int third = (w - 4) / 3;
         screen.add(Button.builder(Component.literal("📂 ").append(DevUi.text("script.pick_file")), b -> pickScriptFile(screen, json))
                 .tooltip(Tooltip.create(DevUi.text("script.pick_file_tooltip"))).bounds(x, y, third, 18).build());
@@ -275,14 +405,14 @@ final class StoryInspector {
 
     private void pickScriptFile(DevModeScreen screen, JsonObject json) {
         List<Catalog.Entry> entries = new ArrayList<>();
-        for (ClientDevStore.ScriptFile file : ClientDevStore.scripts().files().values()) {
+        for (StoryLinks.ScriptFile file : ClientDevStore.scripts().files().values()) {
             int handlers = file.actions().size() + file.conditions().size();
             entries.add(new Catalog.Entry(file.path(), handlers > 0 ? DevUi.str("script.file_handlers", file.path(), handlers) : file.path(),
                     new ItemStack(Items.PAPER)));
         }
         screen.catalog().openList(DevUi.text("script.pick_file_title"), entries, (kind, entry) -> {
             json.addProperty("file", entry.id());
-            ClientDevStore.ScriptFile file = ClientDevStore.scripts().files().get(entry.id());
+            StoryLinks.ScriptFile file = ClientDevStore.scripts().files().get(entry.id());
             List<String> handlers = new ArrayList<>();
             if (file != null) {
                 handlers.addAll(file.actions());
@@ -354,6 +484,10 @@ final class StoryInspector {
         };
         String line = DevUi.str("script.state." + scriptState.name().toLowerCase(Locale.ROOT), hook);
         graphics.drawString(font, font.plainSubstrByWidth(line, DevUi.RIGHT_PANEL_W - 16), left + 8, scriptStateY + 1, color, false);
+        if (key != null && ClientDevStore.isDerivedScript(key.id())) {
+            // No block file: the block comes from the script itself.
+            graphics.drawString(font, font.plainSubstrByWidth(DevUi.str("script.derived"), DevUi.RIGHT_PANEL_W - 16), left + 8, scriptStateY + 13, DevUi.LABEL, false);
+        }
     }
 
     // --- links
@@ -362,7 +496,7 @@ final class StoryInspector {
     private void addLinks(DevModeScreen screen, NodeKey key, JsonObject json, int x, int w) {
         links.clear();
         Set<String> listed = new HashSet<>();
-        for (ClientDevStore.Edge edge : ClientDevStore.collectEdges()) {
+        for (StoryLinks.Edge edge : ClientDevStore.collectEdges()) {
             boolean outgoing = edge.from().equals(key);
             if (!outgoing && !edge.to().equals(key)) {
                 continue;
@@ -422,8 +556,8 @@ final class StoryInspector {
         String second = issues.isEmpty() ? key.id().toString() : "⚠ " + issues.getFirst();
         graphics.drawString(font, font.plainSubstrByWidth(second, DevUi.RIGHT_PANEL_W - 16), left + 8, DevUi.TOP_BAR_H + 18,
                 issues.isEmpty() ? DevUi.MUTED : DevUi.BAD, false);
-        if (textBox != null) {
-            graphics.drawString(font, DevUi.text("document.text"), left + 8, textBox.getY() - 10, DevUi.LABEL, false);
+        if (textLabel != null) {
+            graphics.drawString(font, textLabel, left + 8, textLabelY, DevUi.LABEL, false);
         }
         renderScriptState(font, graphics, left);
         renderGiver(font, graphics, left);

@@ -8,6 +8,8 @@ import dev.dzenthai.storybound.core.data.DialogueLayout;
 import dev.dzenthai.storybound.core.data.ScriptDefinition;
 import dev.dzenthai.storybound.core.logic.StoryEvent;
 import dev.dzenthai.storybound.core.state.FlagDeclaration;
+import dev.dzenthai.storybound.core.state.Migration;
+import dev.dzenthai.storybound.core.state.StoryMigrations;
 
 public final class CoreDefinitions {
     /** Only declarations with {@code "sync": true} reach the client; the rest would be spoilers. */
@@ -29,6 +31,10 @@ public final class CoreDefinitions {
     /** Dev mode only: where a dialogue's nodes are drawn, under the dialogue's id. */
     public static final DefinitionType<DialogueLayout> DIALOGUE_LAYOUTS = DefinitionTypes.register(
             DefinitionType.serverOnly(Storybound.id("dialogue_layout"), "storybound/dialogue_layouts", DialogueLayout.CODEC));
+
+    /** Ids renamed since saves were made, carried over into saved progress (see {@link StoryMigrations}). */
+    public static final DefinitionType<Migration> MIGRATIONS = DefinitionTypes.register(
+            DefinitionType.serverOnly(Storybound.id("migration"), "storybound/migrations", Migration.CODEC));
 
     private CoreDefinitions() {}
 

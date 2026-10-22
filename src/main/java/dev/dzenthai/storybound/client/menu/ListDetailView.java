@@ -95,6 +95,11 @@ public abstract class ListDetailView<E> extends MenuView {
         selectionChanged();
     }
 
+    /** Selects the entry with that key when the rows have it, e.g. when another tab opens this one on it. */
+    protected final void selectKey(String key) {
+        rows.stream().map(Row::entry).filter(Objects::nonNull).filter(entry -> key(entry).equals(key)).findFirst().ifPresent(this::select);
+    }
+
     /** Builds the detail again after the view's own state changed (a choice), and updates the buttons. */
     protected final void refreshDetail() {
         rebuildDetail();

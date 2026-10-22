@@ -10,6 +10,7 @@ public final class StateEvents {
     public static void register(IEventBus gameBus) {
         // LOW: the client must receive flag declarations before their values.
         gameBus.addListener(EventPriority.LOW, StateEvents::onDatapackSync);
+        StoryMigrations.register(gameBus);
     }
 
     // On login only to that player, after /reload to everyone: the set of sync flags may have changed.
