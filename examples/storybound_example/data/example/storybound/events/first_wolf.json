@@ -1,6 +1,0 @@
-{
-  "trigger": { "type": "entity_killed", "entity": "minecraft:wolf" },
-  "conditions": { "type": "quest", "quest": "example:wolf_hunt", "stage": "hunt" },
-  "actions": { "type": "start_dialogue", "dialogue": "example:first_wolf" },
-  "once": "player"
-}

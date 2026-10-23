@@ -37,6 +37,7 @@
     "custom": { "description": "Right-click posts the KubeJS npcInteract event; the script decides.", "type": "boolean", "default": false },
     "override_interact": { "description": "Right-click starts the dialogue and cancels the entity's vanilla interaction (e.g. villager trade menu).", "type": "boolean", "default": false },
     "exclusive": { "description": "While the NPC talks with one player, others cannot start its dialogues (they get busy_dialogue, or nothing). Off: several players talk with it at once.", "type": "boolean", "default": false },
-    "busy_dialogue": { "description": "What others get while an exclusive NPC talks: e.g. a bubble \"Wait, I am busy\".", "$ref": "logic.schema.json#/definitions/id" }
+    "busy_dialogue": { "description": "What others get while an exclusive NPC talks: e.g. a bubble \"Wait, I am busy\".", "$ref": "logic.schema.json#/definitions/id" },
+    "respawn": { "description": "When the NPC dies or disappears, the same NPC (its name, look, trades and uuid) comes back where it was 5 seconds later. It drops nothing when it dies.", "type": "boolean", "default": false }
   }
 }

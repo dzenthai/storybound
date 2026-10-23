@@ -1,0 +1,7 @@
+{
+  "type": "int",
+  "default": 0,
+  "scope": "player",
+  "sync": true,
+  "description": "Relationship with Elder Miron: dialogue options raise or lower it; his greeting and one quest depend on it."
+}

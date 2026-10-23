@@ -1,0 +1,374 @@
+{
+  "participants": {
+    "elder": {
+      "type": "bound",
+      "name": "demo.npc.elder"
+    },
+    "narrator": {
+      "type": "virtual",
+      "name": "demo.dialogue.elder.participants.narrator.name"
+    }
+  },
+  "start": "greet",
+  "nodes": {
+    "greet": {
+      "type": "condition",
+      "conditions": {
+        "type": "var",
+        "key": "demo:rep/elder",
+        "op": ">=",
+        "value": 20
+      },
+      "then": "friend",
+      "else": "stranger"
+    },
+    "friend": {
+      "type": "line",
+      "speaker": "elder",
+      "text": {
+        "key": "demo.dialogue.elder.node.friend.text",
+        "args": [
+          "{player}"
+        ]
+      },
+      "next": "hub"
+    },
+    "stranger": {
+      "type": "random",
+      "options": [
+        {
+          "next": "what"
+        },
+        {
+          "next": "again"
+        },
+        {
+          "next": "quiet"
+        }
+      ]
+    },
+    "what": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.what.text",
+      "next": "hub"
+    },
+    "again": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.again.text",
+      "next": "hub"
+    },
+    "quiet": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.quiet.text",
+      "next": "hub"
+    },
+    "hub": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "reaper_offer",
+          "text": "demo.dialogue.elder.node.hub.options.reaper_offer.text",
+          "conditions": {
+            "type": "quest",
+            "quest": "demo:night_watch",
+            "state": "unknown"
+          },
+          "next": "offer_again"
+        },
+        {
+          "id": "reaper_report",
+          "text": "demo.dialogue.elder.node.hub.options.reaper_report.text",
+          "conditions": {
+            "type": "quest",
+            "quest": "demo:night_watch",
+            "stage": "report"
+          },
+          "next": "reported"
+        },
+        {
+          "id": "reaper_lost",
+          "text": "demo.dialogue.elder.node.hub.options.reaper_lost.text",
+          "conditions": {
+            "type": "quest",
+            "quest": "demo:night_watch",
+            "stage": "fight"
+          },
+          "next": "lost"
+        },
+        {
+          "id": "harvest",
+          "text": "demo.dialogue.elder.node.hub.options.harvest.text",
+          "conditions": {
+            "type": "quest",
+            "quest": "demo:harvest",
+            "state": "active"
+          },
+          "next": "harvest"
+        },
+        {
+          "id": "murka_back",
+          "text": "demo.dialogue.elder.node.hub.options.murka_back.text",
+          "conditions": {
+            "type": "quest",
+            "quest": "demo:murka",
+            "stage": "return"
+          },
+          "next": "murka_back"
+        },
+        {
+          "id": "more_work",
+          "text": "demo.dialogue.elder.node.hub.options.more_work.text",
+          "conditions": [
+            {
+              "type": "quest",
+              "quest": "demo:night_watch",
+              "state": "completed"
+            },
+            {
+              "type": "var",
+              "key": "demo:rep/elder",
+              "op": ">=",
+              "value": 10
+            }
+          ],
+          "locked": "show",
+          "locked_text": "demo.dialogue.elder.node.hub.options.more_work.locked_text",
+          "next": "more_work"
+        },
+        {
+          "id": "ford",
+          "text": "demo.dialogue.elder.node.hub.options.ford.text",
+          "next": "ford"
+        },
+        {
+          "id": "us",
+          "text": "demo.dialogue.elder.node.hub.options.us.text",
+          "next": "us"
+        },
+        {
+          "id": "trade",
+          "text": "demo.dialogue.elder.node.hub.options.trade.text",
+          "next": "trade"
+        },
+        {
+          "id": "bye",
+          "text": "demo.dialogue.elder.node.hub.options.bye.text",
+          "next": "bye"
+        }
+      ]
+    },
+    "offer_again": {
+      "type": "jump",
+      "dialogue": "demo:elder_meeting",
+      "node": "offer"
+    },
+    "reported": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.reported.text",
+      "next": "reward",
+      "shot": "close_up"
+    },
+    "reward": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.reward.text",
+      "shot": "two_shot",
+      "transition": "ease"
+    },
+    "lost": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.lost.text",
+      "next": "call_reaper"
+    },
+    "call_reaper": {
+      "type": "jump",
+      "dialogue": "demo:elder_night",
+      "node": "summon"
+    },
+    "harvest": {
+      "type": "condition",
+      "conditions": {
+        "type": "has_item",
+        "item": "minecraft:wheat",
+        "count": 12
+      },
+      "then": "harvest_paid",
+      "else": "harvest_short"
+    },
+    "harvest_paid": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.harvest_paid.text"
+    },
+    "harvest_short": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.harvest_short.text",
+      "next": "hub"
+    },
+    "murka_back": {
+      "type": "line",
+      "speaker": "elder",
+      "text": {
+        "key": "demo.dialogue.elder.node.murka_back.text",
+        "args": [
+          "{player}"
+        ]
+      },
+      "shot": "close_up"
+    },
+    "more_work": {
+      "type": "condition",
+      "conditions": {
+        "type": "any",
+        "conditions": [
+          {
+            "type": "quest",
+            "quest": "demo:murka",
+            "state": "unknown"
+          },
+          {
+            "type": "quest",
+            "quest": "demo:murka",
+            "state": "failed"
+          }
+        ]
+      },
+      "then": "murka",
+      "else": "no_work"
+    },
+    "murka": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.murka.text",
+      "next": "fish"
+    },
+    "fish": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.fish.text",
+      "next": "give_fish"
+    },
+    "give_fish": {
+      "type": "end",
+      "actions": [
+        {
+          "type": "give_item",
+          "item": "minecraft:cod",
+          "count": 2
+        },
+        {
+          "type": "set_quest_state",
+          "quest": "demo:murka",
+          "state": "active"
+        }
+      ]
+    },
+    "no_work": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.no_work.text",
+      "next": "hub"
+    },
+    "ford": {
+      "type": "random",
+      "options": [
+        {
+          "next": "river"
+        },
+        {
+          "next": "bell"
+        },
+        {
+          "next": "mines"
+        }
+      ]
+    },
+    "river": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.river.text",
+      "next": "hub"
+    },
+    "bell": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.bell.text",
+      "next": "hub"
+    },
+    "mines": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.mines.text",
+      "next": "hub",
+      "shot": "close_up"
+    },
+    "us": {
+      "type": "condition",
+      "conditions": {
+        "type": "var",
+        "key": "demo:rep/elder",
+        "op": ">=",
+        "value": 20
+      },
+      "then": "trusted",
+      "else": "us_low"
+    },
+    "us_low": {
+      "type": "condition",
+      "conditions": {
+        "type": "var",
+        "key": "demo:rep/elder",
+        "op": "<",
+        "value": 0
+      },
+      "then": "distrust",
+      "else": "neutral"
+    },
+    "trusted": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.trusted.text",
+      "next": "standing"
+    },
+    "neutral": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.neutral.text",
+      "next": "standing"
+    },
+    "distrust": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.distrust.text",
+      "next": "standing"
+    },
+    "standing": {
+      "type": "line",
+      "speaker": "narrator",
+      "text": {
+        "key": "demo.dialogue.elder.node.standing.text",
+        "args": [
+          "{var:demo:rep/elder}"
+        ]
+      },
+      "next": "hub"
+    },
+    "trade": {
+      "type": "action",
+      "actions": {
+        "type": "open_trade"
+      }
+    },
+    "bye": {
+      "type": "call",
+      "dialogue": "demo:farewell",
+      "next": "@end"
+    }
+  }
+}

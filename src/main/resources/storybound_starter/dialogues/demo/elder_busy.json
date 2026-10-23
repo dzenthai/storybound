@@ -1,0 +1,17 @@
+{
+  "participants": {
+    "elder": {
+      "type": "bound",
+      "name": "demo.npc.elder"
+    }
+  },
+  "presentation": "bubble",
+  "start": "busy",
+  "nodes": {
+    "busy": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_busy.node.busy.text"
+    }
+  }
+}

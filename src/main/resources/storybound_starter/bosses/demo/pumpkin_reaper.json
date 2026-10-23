@@ -1,0 +1,41 @@
+{
+  "entity": {
+    "type": "minecraft:zombie",
+    "tag": "demo_reaper"
+  },
+  "title": "demo.boss.pumpkin_reaper.title",
+  "lore": {},
+  "tactics": {
+    "unlock": {
+      "on": [
+        "killed",
+        "read:demo:watchman_journal"
+      ]
+    }
+  },
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:emerald",
+        "count": 5
+      },
+      "minecraft:jack_o_lantern"
+    ]
+  },
+  "on_first_kill": [
+    {
+      "type": "title",
+      "title": "demo.boss.pumpkin_reaper.on_first_kill.0.title",
+      "subtitle": "demo.boss.pumpkin_reaper.on_first_kill.0.subtitle"
+    },
+    {
+      "type": "play_sound",
+      "sound": "minecraft:ui.toast.challenge_complete"
+    },
+    {
+      "type": "unlock_codex",
+      "entry": "demo:zombie",
+      "target": "party"
+    }
+  ]
+}

@@ -1,0 +1,150 @@
+{
+  "category": "side",
+  "difficulty": 1,
+  "time_limit": 900,
+  "map_visibility": "secret",
+  "title": "demo.quest.murka.title",
+  "text": {
+    "active": "demo.quest.murka.text.active",
+    "completed": "demo.quest.murka.text.completed",
+    "failed": "demo.quest.murka.text.failed"
+  },
+  "on_start": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:cat",
+      "tag": [
+        "demo_murka",
+        "demo_new"
+      ],
+      "name": "demo.npc.murka",
+      "nbt": {
+        "variant": "minecraft:red",
+        "CustomNameVisible": true
+      }
+    },
+    {
+      "type": "run_command",
+      "command": "spreadplayers ~ ~ 1 40 false @e[tag=demo_new,distance=..3]"
+    },
+    {
+      "type": "run_command",
+      "command": "tag @e[tag=demo_new] remove demo_new"
+    }
+  ],
+  "stages": [
+    {
+      "id": "search",
+      "log": "demo.quest.murka.stages.search.log",
+      "objectives": [
+        {
+          "id": "find",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "demo:murka"
+          },
+          "text": "demo.quest.murka.stages.search.objectives.find.text",
+          "hints": [
+            {
+              "text": "demo.quest.murka.stages.search.objectives.find.hints.0.text",
+              "after": 45
+            }
+          ]
+        }
+      ],
+      "waypoints": [
+        "demo:murka"
+      ]
+    },
+    {
+      "id": "return",
+      "log": "demo.quest.murka.stages.return.log",
+      "on_enter": [
+        {
+          "type": "run_command",
+          "command": "data modify entity @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] Owner set from entity @s UUID"
+        },
+        {
+          "type": "run_command",
+          "command": "execute at @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] run particle minecraft:heart ~ ~0.6 ~ 0.3 0.3 0.3 0 6"
+        },
+        {
+          "type": "run_command",
+          "command": "execute at @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] run playsound minecraft:entity.cat.purreow neutral @a ~ ~ ~"
+        }
+      ],
+      "objectives": [
+        {
+          "id": "talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "demo:elder",
+            "node": "murka_back"
+          },
+          "text": "demo.quest.murka.stages.return.objectives.talk.text",
+          "hints": [
+            {
+              "text": "demo.quest.murka.stages.return.objectives.talk.hints.0.text",
+              "after": 30
+            }
+          ]
+        }
+      ],
+      "waypoints": [
+        "demo:elder"
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "add_var",
+      "key": "demo:rep/elder",
+      "amount": 10
+    },
+    {
+      "type": "journal_entry",
+      "id": "demo:murka",
+      "title": "demo.npc.murka",
+      "text": "demo.quest.murka.on_complete.demo:murka.text"
+    },
+    {
+      "type": "run_command",
+      "command": "execute as @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] run data merge entity @s {Sitting:1b}"
+    },
+    {
+      "type": "run_command",
+      "command": "tag @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] remove demo_murka"
+    }
+  ],
+  "on_failed": [
+    {
+      "type": "add_var",
+      "key": "demo:rep/elder",
+      "amount": -5
+    },
+    {
+      "type": "run_command",
+      "command": "tp @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] @e[type=minecraft:villager,tag=demo_elder,limit=1,sort=nearest]"
+    },
+    {
+      "type": "run_command",
+      "command": "execute as @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] run data merge entity @s {Sitting:1b}"
+    },
+    {
+      "type": "run_command",
+      "command": "tag @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] remove demo_murka"
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 2
+      },
+      {
+        "item": "minecraft:lead"
+      }
+    ],
+    "xp": 15
+  }
+}

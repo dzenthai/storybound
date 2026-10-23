@@ -26,9 +26,10 @@ import org.jetbrains.annotations.Nullable;
  * @param custom    right-click posts {@code npcInteract} to scripts, which decide what happens
  * @param exclusive while the NPC talks with one player, others cannot start its dialogues (parallel talks are the default)
  * @param busyDialogue what others get meanwhile, e.g. a bubble "Wait, I am busy"; without it, nothing
+ * @param respawn   the NPC comes back where it died or disappeared (see {@link NpcRespawns})
  */
 public record NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity,
-                         boolean custom, boolean overrideInteract, boolean exclusive, Optional<ResourceLocation> busyDialogue) {
+                         boolean custom, boolean overrideInteract, boolean exclusive, Optional<ResourceLocation> busyDialogue, boolean respawn) {
     public static final Codec<NpcBinding> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             EntitySelector.CODEC.fieldOf("entity").forGetter(NpcBinding::entity),
             Entry.CODEC.listOf().optionalFieldOf("dialogues", List.of()).forGetter(NpcBinding::dialogues),
@@ -37,11 +38,12 @@ public record NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean i
             Codec.BOOL.optionalFieldOf("custom", false).forGetter(NpcBinding::custom),
             Codec.BOOL.optionalFieldOf("override_interact", false).forGetter(NpcBinding::overrideInteract),
             Codec.BOOL.optionalFieldOf("exclusive", false).forGetter(NpcBinding::exclusive),
-            ResourceLocation.CODEC.optionalFieldOf("busy_dialogue").forGetter(NpcBinding::busyDialogue)
+            ResourceLocation.CODEC.optionalFieldOf("busy_dialogue").forGetter(NpcBinding::busyDialogue),
+            Codec.BOOL.optionalFieldOf("respawn", false).forGetter(NpcBinding::respawn)
     ).apply(instance, NpcBinding::new));
 
     public NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity, boolean custom) {
-        this(entity, dialogues, interact, proximity, custom, false, false, Optional.empty());
+        this(entity, dialogues, interact, proximity, custom, false, false, Optional.empty(), false);
     }
 
     /** The dialogue to start for this player, if any entry's conditions pass. */

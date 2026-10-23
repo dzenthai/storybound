@@ -1,0 +1,186 @@
+{
+  "participants": {
+    "elder": {
+      "type": "bound",
+      "name": "demo.npc.elder"
+    }
+  },
+  "start": "hello",
+  "nodes": {
+    "hello": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.hello.text",
+      "next": "ringing",
+      "shot": "two_shot",
+      "transition": "ease"
+    },
+    "ringing": {
+      "type": "line",
+      "speaker": "player",
+      "text": "demo.dialogue.elder_meeting.node.ringing.text",
+      "next": "topics"
+    },
+    "topics": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "who",
+          "text": "demo.dialogue.elder_meeting.node.topics.options.who.text",
+          "next": "who"
+        },
+        {
+          "id": "smoke",
+          "text": "demo.dialogue.elder_meeting.node.topics.options.smoke.text",
+          "next": "smoke"
+        },
+        {
+          "id": "bread",
+          "text": "demo.dialogue.elder_meeting.node.topics.options.bread.text",
+          "conditions": {
+            "type": "has_item",
+            "item": "minecraft:bread",
+            "count": 3
+          },
+          "locked": "show",
+          "locked_text": "demo.dialogue.elder_meeting.node.topics.options.bread.locked_text",
+          "once": true,
+          "actions": [
+            {
+              "type": "take_item",
+              "item": "minecraft:bread",
+              "count": 3
+            },
+            {
+              "type": "add_var",
+              "key": "demo:rep/elder",
+              "amount": 10
+            }
+          ],
+          "next": "bread"
+        }
+      ]
+    },
+    "who": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.who.text",
+      "next": "work"
+    },
+    "work": {
+      "type": "line",
+      "speaker": "player",
+      "text": "demo.dialogue.elder_meeting.node.work.text",
+      "next": "work_reply"
+    },
+    "work_reply": {
+      "type": "random",
+      "options": [
+        {
+          "weight": 2,
+          "next": "few_hands"
+        },
+        {
+          "next": "cat"
+        }
+      ]
+    },
+    "few_hands": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.few_hands.text",
+      "next": "topics"
+    },
+    "cat": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.cat.text",
+      "next": "topics"
+    },
+    "bread": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.bread.text",
+      "next": "topics"
+    },
+    "smoke": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.smoke.text",
+      "next": "tikhon",
+      "shot": "close_up"
+    },
+    "tikhon": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.tikhon.text",
+      "next": "offer"
+    },
+    "offer": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "help",
+          "text": "demo.dialogue.elder_meeting.node.offer.options.help.text",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "demo:night_watch",
+              "state": "active"
+            },
+            {
+              "type": "add_var",
+              "key": "demo:rep/elder",
+              "amount": 5
+            }
+          ],
+          "next": "accepted"
+        },
+        {
+          "id": "pay",
+          "text": "demo.dialogue.elder_meeting.node.offer.options.pay.text",
+          "once": true,
+          "think": 3,
+          "next": "pay"
+        },
+        {
+          "id": "refuse",
+          "text": "demo.dialogue.elder_meeting.node.offer.options.refuse.text",
+          "actions": {
+            "type": "add_var",
+            "key": "demo:rep/elder",
+            "amount": -10
+          },
+          "next": "refused"
+        }
+      ]
+    },
+    "pay": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.pay.text",
+      "next": "offer"
+    },
+    "accepted": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.accepted.text",
+      "next": "nod",
+      "shot": "two_shot",
+      "transition": "ease"
+    },
+    "refused": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_meeting.node.refused.text",
+      "next": "nod"
+    },
+    "nod": {
+      "type": "action",
+      "actions": {
+        "type": "play_sound",
+        "sound": "minecraft:entity.villager.yes"
+      }
+    }
+  }
+}

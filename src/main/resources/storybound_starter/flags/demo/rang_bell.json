@@ -1,0 +1,5 @@
+{
+  "type": "bool",
+  "scope": "player",
+  "description": "The player rang the alarm bell on the night of the Pumpkin Reaper."
+}

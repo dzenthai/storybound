@@ -1,4 +1,0 @@
-{
-  "name": "example.waypoint.nearest_zombie",
-  "target": { "nearest": "minecraft:zombie", "range": 64 }
-}

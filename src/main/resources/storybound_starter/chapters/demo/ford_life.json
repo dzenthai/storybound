@@ -1,0 +1,25 @@
+{
+  "title": "demo.chapter.ford_life.title",
+  "order": 2,
+  "icon": "minecraft:wheat",
+  "nodes": [
+    {
+      "type": "quest",
+      "id": "demo:harvest",
+      "x": 40,
+      "y": -20
+    },
+    {
+      "type": "quest",
+      "id": "demo:murka",
+      "x": 40,
+      "y": 100
+    },
+    {
+      "type": "quest",
+      "id": "demo:festival",
+      "x": 280,
+      "y": 40
+    }
+  ]
+}

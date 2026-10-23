@@ -1,0 +1,211 @@
+{
+  "participants": {
+    "elder": {
+      "type": "bound",
+      "name": "demo.npc.elder"
+    }
+  },
+  "closable": false,
+  "start": "silence",
+  "nodes": {
+    "silence": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_night.node.silence.text",
+      "next": "omen",
+      "shot": "close_up"
+    },
+    "omen": {
+      "type": "action",
+      "on_fail": "continue",
+      "actions": [
+        {
+          "type": "play_sound",
+          "sound": "minecraft:entity.zombie.ambient",
+          "pitch": 0.6
+        },
+        {
+          "type": "run_command",
+          "command": "weather thunder 6000"
+        }
+      ],
+      "next": "here"
+    },
+    "here": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_night.node.here.text",
+      "next": "act"
+    },
+    "act": {
+      "type": "choice",
+      "timeout": {
+        "seconds": 8,
+        "next": "frozen"
+      },
+      "options": [
+        {
+          "id": "bell",
+          "text": "demo.dialogue.elder_night.node.act.options.bell.text",
+          "actions": [
+            {
+              "type": "set_flag",
+              "key": "demo:rang_bell"
+            },
+            {
+              "type": "add_var",
+              "key": "demo:rep/elder",
+              "amount": 5
+            }
+          ],
+          "next": "bell"
+        },
+        {
+          "id": "torch",
+          "text": "demo.dialogue.elder_night.node.act.options.torch.text",
+          "next": "brave"
+        },
+        {
+          "id": "hide",
+          "text": "demo.dialogue.elder_night.node.act.options.hide.text",
+          "actions": {
+            "type": "add_var",
+            "key": "demo:rep/elder",
+            "amount": -5
+          },
+          "next": "coward"
+        }
+      ]
+    },
+    "bell": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "sound_at",
+          "sound": "minecraft:block.bell.use",
+          "volume": 3.0
+        },
+        {
+          "type": "wait",
+          "seconds": 0.6
+        },
+        {
+          "type": "sound_at",
+          "sound": "minecraft:block.bell.use",
+          "volume": 3.0
+        },
+        {
+          "type": "wait",
+          "seconds": 0.6
+        },
+        {
+          "type": "sound_at",
+          "sound": "minecraft:block.bell.use",
+          "volume": 3.0
+        }
+      ],
+      "next": "bolted"
+    },
+    "bolted": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_night.node.bolted.text",
+      "next": "summon"
+    },
+    "brave": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_night.node.brave.text",
+      "next": "summon"
+    },
+    "coward": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_night.node.coward.text",
+      "next": "summon"
+    },
+    "frozen": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder_night.node.frozen.text",
+      "next": "summon"
+    },
+    "summon": {
+      "type": "action",
+      "on_fail": "continue",
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:zombie",
+          "tag": [
+            "demo_reaper",
+            "demo_new"
+          ],
+          "name": "demo.boss.pumpkin_reaper.title",
+          "nbt": {
+            "ArmorItems": [
+              {},
+              {},
+              {},
+              {
+                "id": "minecraft:jack_o_lantern",
+                "count": 1
+              }
+            ],
+            "HandItems": [
+              {
+                "id": "minecraft:iron_hoe",
+                "count": 1
+              },
+              {}
+            ],
+            "attributes": [
+              {
+                "id": "minecraft:generic.max_health",
+                "base": 60
+              },
+              {
+                "id": "minecraft:generic.attack_damage",
+                "base": 5
+              }
+            ],
+            "Health": 60,
+            "CustomNameVisible": true,
+            "CanBreakDoors": true
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:zombie",
+          "count": 3,
+          "tag": [
+            "demo_horde",
+            "demo_new"
+          ],
+          "persistent": false
+        },
+        {
+          "type": "run_command",
+          "command": "spreadplayers ~ ~ 1 14 false @e[tag=demo_new,distance=..3]"
+        },
+        {
+          "type": "run_command",
+          "command": "tag @e[tag=demo_new] remove demo_new"
+        },
+        {
+          "type": "sound_at",
+          "sound": "minecraft:entity.ravager.roar",
+          "pitch": 0.8
+        },
+        {
+          "type": "title",
+          "title": "demo.boss.pumpkin_reaper.title",
+          "subtitle": "demo.dialogue.elder_night.node.summon.actions.5.subtitle",
+          "fade_in": 5,
+          "stay": 50,
+          "fade_out": 20
+        }
+      ]
+    }
+  }
+}

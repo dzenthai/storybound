@@ -1,0 +1,178 @@
+{
+  "category": "main",
+  "difficulty": 2,
+  "title": "demo.quest.night_watch.title",
+  "text": {
+    "active": "demo.quest.night_watch.text.active",
+    "completed": "demo.quest.night_watch.text.completed"
+  },
+  "stages": [
+    {
+      "id": "prepare",
+      "log": "demo.quest.night_watch.stages.prepare.log",
+      "on_enter": {
+        "type": "give_document",
+        "document": "demo:watchman_journal"
+      },
+      "objectives": [
+        {
+          "id": "torches",
+          "items": {
+            "item": "minecraft:torch"
+          },
+          "count": 8,
+          "text": "demo.quest.night_watch.stages.prepare.objectives.torches.text",
+          "hints": [
+            {
+              "text": "demo.quest.night_watch.stages.prepare.objectives.torches.hints.0.text",
+              "after": 90
+            }
+          ]
+        },
+        {
+          "id": "journal",
+          "trigger": {
+            "type": "document_read",
+            "document": "demo:watchman_journal"
+          },
+          "text": "demo.quest.night_watch.stages.prepare.objectives.journal.text",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "dusk",
+      "log": "demo.quest.night_watch.stages.dusk.log",
+      "objectives": [
+        {
+          "id": "talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "demo:elder_night"
+          },
+          "text": "demo.quest.night_watch.stages.dusk.objectives.talk.text",
+          "hints": [
+            {
+              "text": "demo.quest.night_watch.stages.dusk.objectives.talk.hints.0.text",
+              "conditions": {
+                "type": "time",
+                "period": "day"
+              }
+            },
+            {
+              "text": "demo.quest.night_watch.stages.dusk.objectives.talk.hints.1.text",
+              "conditions": {
+                "type": "any",
+                "conditions": [
+                  {
+                    "type": "time",
+                    "period": "sunset"
+                  },
+                  {
+                    "type": "time",
+                    "period": "night"
+                  }
+                ]
+              },
+              "after": 20
+            }
+          ]
+        }
+      ],
+      "waypoints": [
+        "demo:elder"
+      ]
+    },
+    {
+      "id": "fight",
+      "log": "demo.quest.night_watch.stages.fight.log",
+      "objectives": [
+        {
+          "id": "reaper",
+          "trigger": {
+            "type": "boss_killed",
+            "boss": "demo:pumpkin_reaper"
+          },
+          "text": "demo.quest.night_watch.stages.fight.objectives.reaper.text",
+          "hints": [
+            {
+              "text": "demo.quest.night_watch.stages.fight.objectives.reaper.hints.0.text",
+              "after": 120
+            },
+            {
+              "text": "demo.quest.night_watch.stages.fight.objectives.reaper.hints.1.text",
+              "after": 300
+            }
+          ]
+        },
+        {
+          "id": "horde",
+          "trigger": {
+            "type": "entity_killed",
+            "entity": "minecraft:zombie"
+          },
+          "count": 3,
+          "text": "demo.quest.night_watch.stages.fight.objectives.horde.text",
+          "optional": true
+        }
+      ],
+      "waypoints": [
+        "demo:reaper"
+      ]
+    },
+    {
+      "id": "report",
+      "log": "demo.quest.night_watch.stages.report.log",
+      "objectives": [
+        {
+          "id": "talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "demo:elder",
+            "node": "reward"
+          },
+          "text": "demo.quest.night_watch.stages.report.objectives.talk.text"
+        }
+      ],
+      "waypoints": [
+        "demo:elder"
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "add_var",
+      "key": "demo:rep/elder",
+      "amount": 15
+    },
+    {
+      "type": "give_document",
+      "document": "demo:harvest_notice"
+    },
+    {
+      "type": "run_command",
+      "command": "weather clear"
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 5
+      }
+    ],
+    "choice": [
+      {
+        "item": "minecraft:iron_sword"
+      },
+      {
+        "item": "minecraft:crossbow"
+      },
+      {
+        "item": "minecraft:shield"
+      }
+    ],
+    "loot": "minecraft:chests/village/village_armorer",
+    "xp": 50
+  }
+}

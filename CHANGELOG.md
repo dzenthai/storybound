@@ -6,12 +6,18 @@ Storybound is a data-driven story engine for NeoForge 1.21.1 modpacks. Stories a
 `config/storybound/` (or in datapacks) with JSON schemas for VS Code, or are built in the in-game editor.
 Required on both client and server.
 
+### The demo story
+- A new story folder comes with a short demo story in the nearest village: five quests in two chapters, an elder
+  with a relationship scale and day and night lines, a boss, a cat to find, a festival with fireworks. It starts
+  when a player joins; change it or delete it (`/storybound demo install` brings it back).
+
 ### Story logic
 - Story flags and variables in player, party and world scopes; parties with shared progress.
 - One "when / if / then" language for everything: triggers (kills, items, places, structures, biomes, dialogues,
   advancements, dimensions, levels, statistics, entities seen...), conditions and typed actions (spawn an entity,
   teleport, effects, titles, sounds, waypoints, documents...).
 - Story events, delays and schedules that survive a restart, KubeJS handlers with arguments (`ctx.args`).
+- `logged_in` trigger: when a player joins (or only on their first visit).
 
 ### Quests
 - Stages, objectives (triggers or items to have or hand in), a Witcher-style log, failure conditions and time limits.

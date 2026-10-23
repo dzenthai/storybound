@@ -15,7 +15,6 @@ import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
-import dev.dzenthai.storybound.core.data.StoryFolder;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationReport;
 import dev.dzenthai.storybound.core.data.ValidationService;
@@ -419,15 +418,6 @@ public final class DevModeServer {
                             .withStyle(ChatFormatting.YELLOW));
                     case NOT_FOUND -> player.sendSystemMessage(Component.literal("Waypoint target not found (or out of range): " + targetId).withStyle(ChatFormatting.YELLOW));
                     case DONE -> {}
-                }
-            }
-            case "install_example" -> {
-                try {
-                    StoryFolder.installExample(ConfigStorySource.root());
-                    player.server.getCommands().performPrefixedCommand(player.createCommandSourceStack(), "reload");
-                    sendSnapshot(player);
-                } catch (IOException e) {
-                    player.sendSystemMessage(Component.literal("Could not install example: " + e.getMessage()).withStyle(ChatFormatting.RED));
                 }
             }
             default -> {

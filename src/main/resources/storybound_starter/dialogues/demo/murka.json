@@ -1,0 +1,30 @@
+{
+  "participants": {
+    "murka": {
+      "type": "bound",
+      "name": "demo.npc.murka"
+    }
+  },
+  "presentation": "bubble",
+  "start": "mrr",
+  "nodes": {
+    "mrr": {
+      "type": "line",
+      "speaker": "murka",
+      "text": "demo.dialogue.murka.node.mrr.text",
+      "next": "found"
+    },
+    "found": {
+      "type": "line",
+      "speaker": "player",
+      "text": "demo.dialogue.murka.node.found.text",
+      "next": "purr"
+    },
+    "purr": {
+      "type": "line",
+      "speaker": "murka",
+      "text": "demo.dialogue.murka.node.purr.text",
+      "duration": 2
+    }
+  }
+}

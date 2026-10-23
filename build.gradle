@@ -135,6 +135,8 @@ neoForge {
             type = 'gameTestServer'
             // Otherwise tests would run inside run/world, which is kept for manual testing.
             gameDirectory = project.file('run/gametest')
+            // A fresh story folder every run: the starter files with the demo story, as a new install has them.
+            systemProperty 'storybound.folder', project.file('build/gametest-story').absolutePath
             // KubeJS breaks GameTest mock players (it sends unguarded packets on login),
             // so with KubeJS installed only the integration tests run.
             // With Easy NPC installed, its integration test runs alongside the rest.
@@ -158,6 +160,12 @@ neoForge {
     addModdingDependenciesTo(sourceSets.test)
     addModdingDependenciesTo(sourceSets.gametest)
 }
+
+def prepareGameTestStory = tasks.register('prepareGameTestStory', Sync) {
+    from 'src/main/resources/storybound_starter'
+    into 'build/gametest-story'
+}
+tasks.matching { it.name == 'runGameTestServer' }.configureEach { dependsOn prepareGameTestStory }
 
 dependencies {
     gametestImplementation sourceSets.main.output
@@ -239,21 +247,11 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
 sourceSets.main.resources.srcDir generateModMetadata
 neoForge.ideSyncTask generateModMetadata
 
-// The example story inside the jar, outside data/ and assets/ so nothing loads it by itself:
-// /storybound example install copies it into config/storybound/.
 processResources {
     // The license and the notices travel with the jar (GPL-3.0).
     from(['LICENSE', 'NOTICE']) {
         into 'META-INF'
         rename { "${it}_${mod_id}" }
-    }
-    from('examples/storybound_example') {
-        into 'storybound_example'
-        exclude 'pack.mcmeta'
-    }
-    from('examples/storybound_example_resources') {
-        into 'storybound_example'
-        exclude 'pack.mcmeta'
     }
     // The dev mode builds its forms from the same JSON schemas authors use in VS Code.
     from('schemas') {

@@ -1,0 +1,19 @@
+{
+  "participants": {},
+  "presentation": "hud",
+  "broadcast": false,
+  "start": "there",
+  "nodes": {
+    "there": {
+      "type": "line",
+      "speaker": "player",
+      "text": "demo.dialogue.reaper_sighted.node.there.text",
+      "next": "promise"
+    },
+    "promise": {
+      "type": "line",
+      "speaker": "player",
+      "text": "demo.dialogue.reaper_sighted.node.promise.text"
+    }
+  }
+}

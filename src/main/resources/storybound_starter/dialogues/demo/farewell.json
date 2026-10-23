@@ -1,0 +1,43 @@
+{
+  "participants": {
+    "elder": {
+      "type": "bound",
+      "name": "demo.npc.elder"
+    }
+  },
+  "start": "pick",
+  "nodes": {
+    "pick": {
+      "type": "random",
+      "options": [
+        {
+          "next": "peace"
+        },
+        {
+          "next": "care"
+        },
+        {
+          "next": "bell"
+        }
+      ]
+    },
+    "peace": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.farewell.node.peace.text",
+      "duration": 2.5
+    },
+    "care": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.farewell.node.care.text",
+      "duration": 2.5
+    },
+    "bell": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.farewell.node.bell.text",
+      "duration": 2.5
+    }
+  }
+}

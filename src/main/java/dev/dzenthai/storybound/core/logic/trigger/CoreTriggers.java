@@ -252,6 +252,24 @@ public final class CoreTriggers {
         }
     }
 
+    /**
+     * {@code { "type": "logged_in" }}: the player joined the server (in singleplayer, opened the world); with
+     * {@code first_time}, only on their first visit to this world. The payload says whether it is the first.
+     */
+    public record LoggedIn(boolean firstTime) implements Trigger<Boolean> {
+        public static final MapCodec<LoggedIn> CODEC = Codec.BOOL.optionalFieldOf("first_time", false).xmap(LoggedIn::new, LoggedIn::firstTime);
+
+        @Override
+        public TriggerType<?, Boolean> type() {
+            return BuiltinTriggers.LOGGED_IN.get();
+        }
+
+        @Override
+        public boolean matches(StoryContext context, Boolean first) {
+            return !firstTime || first;
+        }
+    }
+
     /** {@code { "type": "custom", "id": "mypack:bell_rung" }}: fired by a command, a script or another mod. */
     public record Custom(ResourceLocation id) implements Trigger<ResourceLocation> {
         public static final MapCodec<Custom> CODEC = ResourceLocation.CODEC.fieldOf("id").xmap(Custom::new, Custom::id);

@@ -1,0 +1,19 @@
+{
+  "title": "demo.chapter.road.title",
+  "order": 1,
+  "icon": "minecraft:bell",
+  "nodes": [
+    {
+      "type": "quest",
+      "id": "demo:smoke_on_the_horizon",
+      "x": 40,
+      "y": 40
+    },
+    {
+      "type": "quest",
+      "id": "demo:night_watch",
+      "x": 260,
+      "y": 40
+    }
+  ]
+}
