@@ -38,6 +38,8 @@ public final class BuiltinTriggers {
             REGISTER.register("party_joined", () -> new TriggerType<>(CoreTriggers.PartyJoined.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.PartyLeft, PartyEvent.Left>> PARTY_LEFT =
             REGISTER.register("party_left", () -> new TriggerType<>(CoreTriggers.PartyLeft.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.LoggedIn, Boolean>> LOGGED_IN =
+            REGISTER.register("logged_in", () -> new TriggerType<>(CoreTriggers.LoggedIn.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.Custom, ResourceLocation>> CUSTOM =
             REGISTER.register("custom", () -> new TriggerType<>(CoreTriggers.Custom.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<ProgressTriggers.AdvancementEarned, AdvancementHolder>> ADVANCEMENT_EARNED =

@@ -18,11 +18,35 @@ Adventure Menu (**J**), on the HUD and in dialogue screens. The mod is needed on
 ## Getting started
 
 1. Install Storybound on the server and every client (NeoForge 1.21.1). Start the game once: the **story folder**
-   `config/storybound/` is created, with a folder per kind of definition and four blank documents.
-2. Try the example: `/storybound example install` copies a small story (a wolf hunt, a restless dead, a village to
-   find) into the story folder and reloads.
+   `config/storybound/` is created, with a folder per kind of definition, four blank documents and the demo story
+   (below).
+2. Join a world: the demo starts by itself. Play it, then open it in the editor (Adventure Menu, **J** → Dev Mode).
 3. Write your own files in the story folder and run `/reload`. Problems are listed in the log, in
    `logs/storybound-validation.txt` and by `/storybound validate`.
+
+## The demo story
+
+A new story folder comes with a short story set in whatever village is nearest, so every part of Storybound can be
+seen working before writing anything. It is ordinary story data in the namespace `demo`: change it, build on it or
+delete it.
+
+| Quest | What it shows |
+| --- | --- |
+| Smoke on the Horizon | a scene on joining (`logged_in`), a waypoint on the nearest village, a scene on arrival that spawns the elder, who starts talking when you come close |
+| Night Watch | items to gather, a book that unlocks a Codex section, an NPC who says other things by day and by night, a choice against the clock, a scripted ambush and a boss, rewards to choose in the Journal |
+| Our Daily Bread | a contract notice, wheat handed in by talking, repeatable every day |
+| Skittish Murka | a time limit, a search area around a cat, a cat you talk to, a Journal note |
+| Festival by the Bell | a quest waiting for two others, a letter, fireworks, a book for authors about the demo itself |
+
+Every kind of dialogue node is used (lines, choices with locked and one-time options, conditions, actions, random,
+jump and call), in all three presentations (screen, subtitles, bubbles), with camera shots and a relationship scale
+(`demo:rep/elder`). The editor shows the quests in two chapters, and players get the chapter map
+(`"chapter_map": true` in `project.json`).
+
+- **Remove it:** delete the `demo` folders inside the story folder's type folders and `texts/<language>/`, and the
+  `demo.` keys in `lang/`; then `/reload`.
+- **Bring it back:** `/storybound demo install` copies its files again (your own files and keys stay) and reloads.
+- **On a server:** the demo starts for every player who joins. Remove it before players arrive unless you mean to keep it.
 
 ## Where files go
 

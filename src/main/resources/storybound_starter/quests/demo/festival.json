@@ -1,0 +1,151 @@
+{
+  "category": "main",
+  "difficulty": 1,
+  "map_visibility": "secret",
+  "title": "demo.quest.festival.title",
+  "text": {
+    "active": "demo.quest.festival.text.active",
+    "completed": "demo.quest.festival.text.completed"
+  },
+  "start": {
+    "trigger": {
+      "type": "quest_state_changed",
+      "state": "completed"
+    },
+    "conditions": [
+      {
+        "type": "quest",
+        "quest": "demo:night_watch",
+        "state": "completed"
+      },
+      {
+        "type": "quest",
+        "quest": "demo:murka",
+        "state": "completed"
+      }
+    ]
+  },
+  "on_start": {
+    "type": "give_document",
+    "document": "demo:festival_invite"
+  },
+  "stages": [
+    {
+      "id": "invite",
+      "log": "demo.quest.festival.stages.invite.log",
+      "objectives": [
+        {
+          "id": "read",
+          "trigger": {
+            "type": "document_read",
+            "document": "demo:festival_invite"
+          },
+          "text": "demo.quest.festival.stages.invite.objectives.read.text"
+        }
+      ]
+    },
+    {
+      "id": "bell",
+      "log": "demo.quest.festival.stages.bell.log",
+      "objectives": [
+        {
+          "id": "bell",
+          "trigger": {
+            "type": "poi_entered",
+            "poi": "minecraft:meeting",
+            "radius": 6
+          },
+          "conditions": {
+            "type": "any",
+            "conditions": [
+              {
+                "type": "time",
+                "period": "sunset"
+              },
+              {
+                "type": "time",
+                "period": "night"
+              }
+            ]
+          },
+          "text": "demo.quest.festival.stages.bell.objectives.bell.text",
+          "hints": [
+            {
+              "text": "demo.quest.festival.stages.bell.objectives.bell.hints.0.text",
+              "conditions": {
+                "type": "time",
+                "period": "day"
+              }
+            },
+            {
+              "text": "demo.quest.festival.stages.bell.objectives.bell.hints.1.text",
+              "conditions": {
+                "type": "any",
+                "conditions": [
+                  {
+                    "type": "time",
+                    "period": "sunset"
+                  },
+                  {
+                    "type": "time",
+                    "period": "night"
+                  }
+                ]
+              },
+              "after": 60
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "title",
+      "title": {
+        "key": "demo.quest.festival.on_complete.0.title",
+        "args": [
+          "{player}"
+        ]
+      },
+      "subtitle": "demo.quest.festival.on_complete.0.subtitle",
+      "stay": 90
+    },
+    {
+      "type": "run_command",
+      "command": "summon minecraft:firework_rocket ~2 ~1 ~ {LifeTime:28,FireworksItem:{id:\"minecraft:firework_rocket\",count:1,components:{\"minecraft:fireworks\":{flight_duration:1b,explosions:[{shape:\"large_ball\",colors:[I;16766976,16711680],has_trail:1b,has_twinkle:1b}]}}}}"
+    },
+    {
+      "type": "wait",
+      "seconds": 0.7
+    },
+    {
+      "type": "run_command",
+      "command": "summon minecraft:firework_rocket ~-2 ~1 ~ {LifeTime:28,FireworksItem:{id:\"minecraft:firework_rocket\",count:1,components:{\"minecraft:fireworks\":{flight_duration:1b,explosions:[{shape:\"large_ball\",colors:[I;65535,16777215],has_trail:1b,has_twinkle:1b}]}}}}"
+    },
+    {
+      "type": "wait",
+      "seconds": 0.7
+    },
+    {
+      "type": "run_command",
+      "command": "summon minecraft:firework_rocket ~0 ~1 ~ {LifeTime:28,FireworksItem:{id:\"minecraft:firework_rocket\",count:1,components:{\"minecraft:fireworks\":{flight_duration:1b,explosions:[{shape:\"large_ball\",colors:[I;16753920,8388736],has_trail:1b,has_twinkle:1b}]}}}}"
+    },
+    {
+      "type": "play_sound",
+      "sound": "minecraft:ui.toast.challenge_complete"
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:cake"
+      }
+    ],
+    "xp": 30,
+    "actions": {
+      "type": "give_document",
+      "document": "demo:chronicle"
+    }
+  }
+}

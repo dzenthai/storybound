@@ -1,1 +1,0 @@
-The hunters of Brightwater swear their oath "by the river and by the stones on the hill". The old ones say the wolves were here first, and that the oath is a promise to them as much as to the village: take only what you need, and leave no wound unanswered.

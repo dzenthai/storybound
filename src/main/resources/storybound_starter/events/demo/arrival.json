@@ -1,0 +1,79 @@
+{
+  "trigger": {
+    "type": "quest_stage_changed",
+    "quest": "demo:smoke_on_the_horizon",
+    "stage": "meeting"
+  },
+  "actions": [
+    {
+      "type": "title",
+      "title": "demo.event.arrival.actions.0.title",
+      "subtitle": "demo.event.arrival.actions.0.subtitle",
+      "fade_in": 15,
+      "stay": 60,
+      "fade_out": 25
+    },
+    {
+      "type": "sound_at",
+      "sound": "minecraft:block.bell.use",
+      "volume": 3.0,
+      "offset": [
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "type": "wait",
+      "seconds": 0.8
+    },
+    {
+      "type": "sound_at",
+      "sound": "minecraft:block.bell.use",
+      "volume": 3.0,
+      "offset": [
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "type": "wait",
+      "seconds": 0.8
+    },
+    {
+      "type": "sound_at",
+      "sound": "minecraft:block.bell.use",
+      "volume": 3.0,
+      "offset": [
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "type": "wait",
+      "seconds": 1.5
+    },
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "demo_elder",
+      "name": "demo.npc.elder",
+      "nbt": {
+        "VillagerData": {
+          "profession": "minecraft:librarian",
+          "level": 2,
+          "type": "minecraft:plains"
+        },
+        "Xp": 10,
+        "Invulnerable": true,
+        "CustomNameVisible": true
+      }
+    },
+    {
+      "type": "sound_at",
+      "sound": "minecraft:entity.villager.celebrate"
+    }
+  ]
+}

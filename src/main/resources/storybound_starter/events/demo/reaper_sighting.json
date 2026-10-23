@@ -1,0 +1,17 @@
+{
+  "trigger": {
+    "type": "quest_stage_changed",
+    "quest": "demo:night_watch",
+    "stage": "fight"
+  },
+  "actions": [
+    {
+      "type": "wait",
+      "seconds": 2.5
+    },
+    {
+      "type": "start_dialogue",
+      "dialogue": "demo:reaper_sighted"
+    }
+  ]
+}

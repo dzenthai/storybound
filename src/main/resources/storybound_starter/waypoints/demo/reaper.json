@@ -1,0 +1,11 @@
+{
+  "name": "demo.boss.pumpkin_reaper.title",
+  "target": {
+    "nearest": {
+      "type": "minecraft:zombie",
+      "tag": "demo_reaper"
+    },
+    "range": 160
+  },
+  "color": "#D35400"
+}

@@ -56,6 +56,7 @@ always works.
 | `poi_entered` | `poi`, `radius?` (12), `fire_on_login?` | the player comes near such a point of interest (a village bell is `minecraft:meeting`, job sites, beds) |
 | `item_obtained` | `item` or `tag` | picked up or crafted |
 | `party_joined` / `party_left` | — | the player joined / left a party |
+| `logged_in` | `first_time?` | the player joins the server or opens the world (`first_time`: only their first visit) |
 | `custom` | `id` | fired by `/storybound trigger fire`, a script or a mod |
 | `document_read` | `document?`, `first_time?` | the player reads a document (`first_time`: only the first time) |
 | `quest_state_changed` | `quest?`, `state?` | a quest starts, completes, fails or is reset (`unknown`) |

@@ -9,6 +9,10 @@ import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.data.StoryFolder;
+import java.util.List;
+import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
+import dev.dzenthai.storybound.core.data.ValidationIssue;
+import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.Actions;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
@@ -77,19 +81,47 @@ public final class DocumentGameTests {
         helper.succeed();
     }
 
-    /** Into a folder of its own: the installed example must not reach the data the other tests run with. */
+    /**
+     * A new story folder has the demo story (the GameTest server gets a fresh copy of the starter files every run): all of
+     * it loads, in English and Russian, and the validator says nothing about it.
+     */
     @GameTest(template = "empty")
-    public static void exampleInstallsInTheStoryFolderLayout(GameTestHelper helper) {
+    public static void theDemoStoryLoadsWithoutIssues(GameTestHelper helper) {
+        helper.assertTrue(QuestRegistries.QUESTS.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath(StoryFolder.DEMO, "night_watch")) != null,
+                "the demo's quests are loaded");
+        helper.assertTrue(DialogueRegistries.DIALOGUES.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath(StoryFolder.DEMO, "elder")) != null,
+                "and its dialogues");
+        List<String> issues = ValidationService.validate().issues().stream()
+                .filter(issue -> issue.entry() != null && issue.entry().getNamespace().equals(StoryFolder.DEMO))
+                .map(ValidationIssue::describe)
+                .toList();
+        helper.assertTrue(issues.isEmpty(), "no issues about the demo: " + issues);
+        ConfigTexts.Texts texts = ConfigTexts.current();
+        for (String language : new String[] {"en_us", "ru_ru"}) {
+            helper.assertTrue(texts.translations().getOrDefault(language, Map.of()).containsKey("demo.quest.night_watch.title"), "its titles in " + language);
+            helper.assertTrue(texts.documents().getOrDefault(language, Map.of()).containsKey(ResourceLocation.fromNamespaceAndPath(StoryFolder.DEMO, "watchman_journal")),
+                    "its book in " + language);
+        }
+        helper.succeed();
+    }
+
+    /** Into a folder of its own: the installed demo must not reach the data the other tests run with. */
+    @GameTest(template = "empty")
+    public static void demoInstallsBesideTheAuthorsOwnFiles(GameTestHelper helper) {
         try {
-            Path root = Files.createTempDirectory("storybound-example");
-            int written = StoryFolder.installExample(root);
-            helper.assertTrue(written > 20, "the example's files are written, got " + written);
-            helper.assertTrue(Files.isRegularFile(root.resolve("quests/example/wolf_hunt.json")), "a quest under quests/<namespace>/");
-            helper.assertTrue(Files.isRegularFile(root.resolve("texts/en_us/example/elder_letter.sbt")), "texts under texts/<language>/<namespace>/");
-            helper.assertTrue(Files.readString(root.resolve("lang/ru_ru.json")).contains("example.quest.wolf_hunt.title"), "translations merged into lang/");
-            helper.assertFalse(Files.exists(root.resolve("pack.mcmeta")), "no pack files");
-            StoryFolder.installExample(root);
-            helper.assertTrue(Files.readString(root.resolve("lang/en_us.json")).contains("example.quest.wolf_hunt.title"), "installing again keeps a valid lang file");
+            Path root = Files.createTempDirectory("storybound-demo");
+            Files.createDirectories(root.resolve("lang"));
+            Files.writeString(root.resolve("lang/en_us.json"), "{ \"mypack.quest.hunt.title\": \"Hunt\", \"starter.document.book.title\": \"My own book\" }");
+            int written = StoryFolder.installDemo(root);
+            helper.assertTrue(written > 40, "the demo's files are written, got " + written);
+            helper.assertTrue(Files.isRegularFile(root.resolve("quests/demo/night_watch.json")), "a quest under quests/demo/");
+            helper.assertTrue(Files.isRegularFile(root.resolve("texts/ru_ru/demo/watchman_journal.sbt")), "texts under texts/<language>/demo/");
+            String english = Files.readString(root.resolve("lang/en_us.json"));
+            helper.assertTrue(english.contains("demo.quest.night_watch.title"), "its translations merged into lang/");
+            helper.assertTrue(english.contains("mypack.quest.hunt.title") && english.contains("My own book"), "the author's translations stay, a starter key too");
+            helper.assertFalse(Files.exists(root.resolve("documents/book.json")) || Files.exists(root.resolve("README.txt")), "only the demo's files");
+            StoryFolder.installDemo(root);
+            helper.assertTrue(Files.readString(root.resolve("lang/en_us.json")).contains("demo.quest.night_watch.title"), "installing again keeps a valid lang file");
         } catch (IOException e) {
             throw new GameTestAssertException("Install failed: " + e);
         }

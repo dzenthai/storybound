@@ -1,0 +1,6 @@
+{
+  "source_language": "en_us",
+  "languages": ["en_us", "ru_ru"],
+  "chapter_map": true,
+  "difficulty": { "style": "stars" }
+}

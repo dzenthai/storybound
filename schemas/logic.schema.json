@@ -735,6 +735,14 @@
           "additionalProperties": false
         },
         {
+          "description": "The player joined the server (in singleplayer, opened the world); first_time: only on their first visit to this world.",
+          "properties": {
+            "type": { "enum": ["logged_in", "storybound:logged_in"] },
+            "first_time": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        {
           "properties": {
             "type": { "enum": ["custom", "storybound:custom"] },
             "id": { "$ref": "#/definitions/id" }

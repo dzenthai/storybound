@@ -1,0 +1,60 @@
+{
+  "entity": {
+    "type": "minecraft:villager",
+    "tag": "demo_elder"
+  },
+  "dialogues": [
+    {
+      "dialogue": "demo:elder_meeting",
+      "priority": 50,
+      "conditions": {
+        "type": "quest",
+        "quest": "demo:smoke_on_the_horizon",
+        "stage": "meeting"
+      }
+    },
+    {
+      "dialogue": "demo:elder_night",
+      "priority": 45,
+      "conditions": [
+        {
+          "type": "quest",
+          "quest": "demo:night_watch",
+          "stage": "dusk"
+        },
+        {
+          "type": "any",
+          "conditions": [
+            {
+              "type": "time",
+              "period": "sunset"
+            },
+            {
+              "type": "time",
+              "period": "night"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dialogue": "demo:elder_not_yet",
+      "priority": 44,
+      "conditions": {
+        "type": "quest",
+        "quest": "demo:night_watch",
+        "stage": "dusk"
+      }
+    },
+    {
+      "dialogue": "demo:elder"
+    }
+  ],
+  "proximity": {
+    "radius": 6,
+    "once": true
+  },
+  "override_interact": true,
+  "exclusive": true,
+  "busy_dialogue": "demo:elder_busy"
+}

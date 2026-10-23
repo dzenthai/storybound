@@ -8,6 +8,7 @@ import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.state.StoryState;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.stats.Stats;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.bus.api.IEventBus;
@@ -105,6 +106,11 @@ public final class TriggerEvents {
 
     private static void onLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         TriggerDispatcher.loggedIn(event.getEntity().getUUID());
+        if (event.getEntity() instanceof ServerPlayer player && TriggerDispatcher.hasSubscribers(BuiltinTriggers.LOGGED_IN.get())) {
+            // The game counts leaving, so a player who never left is here for the first time.
+            boolean first = player.getStats().getValue(Stats.CUSTOM.get(Stats.LEAVE_GAME)) == 0;
+            TriggerDispatcher.fire(BuiltinTriggers.LOGGED_IN.get(), StoryContext.of(player), first);
+        }
     }
 
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {

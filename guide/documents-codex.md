@@ -105,8 +105,8 @@ A boss entry records the fights with a particular mob: met, defeated, how many t
 - **Who wins:** every player who dealt at least `participation` of the boss's health, the killer, and their party
   members nearby. `on_first_kill` runs on each one's first victory, `on_kill` on every victory.
 
-Try it with the example's "Old White":
+The demo's Pumpkin Reaper (`demo:pumpkin_reaper`) appears in its Night Watch quest; to fight it at once:
 
 ```
-/summon minecraft:wolf ~ ~ ~ {Tags:["white_wolf"],CustomName:'"Old White"',variant:"minecraft:snowy",attributes:[{id:"minecraft:generic.max_health",base:60}],Health:60f}
+/summon minecraft:zombie ~ ~ ~ {Tags:["demo_reaper"],CustomName:'"Pumpkin Reaper"',ArmorItems:[{},{},{},{id:"minecraft:jack_o_lantern",count:1}],attributes:[{id:"minecraft:generic.max_health",base:60}],Health:60f}
 ```

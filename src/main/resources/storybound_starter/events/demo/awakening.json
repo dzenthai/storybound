@@ -1,0 +1,34 @@
+{
+  "trigger": {
+    "type": "logged_in"
+  },
+  "actions": [
+    {
+      "type": "wait",
+      "seconds": 3
+    },
+    {
+      "type": "title",
+      "title": "demo.event.awakening.actions.1.title",
+      "subtitle": "demo.event.awakening.actions.1.subtitle",
+      "fade_in": 20,
+      "stay": 80,
+      "fade_out": 30
+    },
+    {
+      "type": "play_sound",
+      "sound": "minecraft:block.bell.resonate",
+      "volume": 0.6,
+      "pitch": 0.8
+    },
+    {
+      "type": "wait",
+      "seconds": 4
+    },
+    {
+      "type": "start_dialogue",
+      "dialogue": "demo:awakening"
+    }
+  ],
+  "once": "player"
+}

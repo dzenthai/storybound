@@ -1,0 +1,11 @@
+{
+  "name": "demo.npc.elder",
+  "target": {
+    "nearest": {
+      "type": "minecraft:villager",
+      "tag": "demo_elder"
+    },
+    "range": 256
+  },
+  "style": "storybound:npc"
+}

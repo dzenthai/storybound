@@ -1,0 +1,34 @@
+{
+  "category": "monsters",
+  "entity": "minecraft:zombie",
+  "title": "demo.codex.zombie.title",
+  "sections": [
+    {
+      "id": "base",
+      "unlock": {
+        "on": [
+          "seen"
+        ]
+      }
+    },
+    {
+      "id": "habits",
+      "title": "demo.codex.zombie.sections.habits.title",
+      "unlock": {
+        "on": [
+          "killed"
+        ],
+        "count": 5
+      }
+    },
+    {
+      "id": "notes",
+      "title": "demo.codex.zombie.sections.notes.title",
+      "unlock": {
+        "on": [
+          "read:demo:watchman_journal"
+        ]
+      }
+    }
+  ]
+}

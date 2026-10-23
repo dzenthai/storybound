@@ -77,6 +77,11 @@ public final class NpcBindings {
         return Optional.empty();
     }
 
+    /** Whether a binding file that matches the entity says it comes back (an entity's own binding never does). */
+    public static boolean respawns(Entity entity) {
+        return files.stream().anyMatch(entry -> entry.getValue().respawn() && entry.getValue().entity().matches(entity));
+    }
+
     /**
      * The talk key, from a client: the entity must be in the player's level, alive and within reach, as for a
      * right-click; a spectator cannot talk. Anything else is dropped.

@@ -1,0 +1,63 @@
+{
+  "category": "contract",
+  "difficulty": 1,
+  "repeatable": {
+    "cooldown": 1200
+  },
+  "title": "demo.quest.harvest.title",
+  "start": {
+    "trigger": {
+      "type": "document_read",
+      "document": "demo:harvest_notice"
+    }
+  },
+  "text": {
+    "active": "demo.quest.harvest.text.active",
+    "completed": "demo.quest.harvest.text.completed"
+  },
+  "stages": [
+    {
+      "id": "deliver",
+      "log": "demo.quest.harvest.stages.deliver.log",
+      "objectives": [
+        {
+          "id": "wheat",
+          "items": {
+            "item": "minecraft:wheat",
+            "consume": true
+          },
+          "count": 12,
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "demo:elder",
+            "node": "harvest_paid"
+          },
+          "text": "demo.quest.harvest.stages.deliver.objectives.wheat.text",
+          "hints": [
+            {
+              "text": "demo.quest.harvest.stages.deliver.objectives.wheat.hints.0.text",
+              "after": 60
+            }
+          ]
+        }
+      ],
+      "waypoints": [
+        "demo:elder"
+      ]
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 3
+      }
+    ],
+    "actions": {
+      "type": "add_var",
+      "key": "demo:rep/elder",
+      "amount": 3
+    },
+    "claim": false
+  }
+}

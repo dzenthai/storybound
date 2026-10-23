@@ -1,4 +1,4 @@
-"""Validates the example data and good/bad cases against the Storybound JSON schemas.
+"""Validates the starter story folder (with the demo story) and good/bad cases against the Storybound JSON schemas.
 
 Usage: python check_schemas.py <repository root>   (needs: pip install jsonschema)
 """
@@ -39,6 +39,8 @@ script = validator("script.schema.json")
 migration = validator("migration.schema.json")
 marker_style = validator("waypoint_style.schema.json")
 failures = 0
+# The story folder a new install gets: blank documents and the demo story, in the story folder's layout.
+STARTER = root / "src/main/resources/storybound_starter"
 
 
 def expect(v, doc, ok, label):
@@ -51,13 +53,13 @@ def expect(v, doc, ok, label):
         print("ok  ", label)
 
 
-for path in (root / "examples").rglob("storybound/flags/*.json"):
-    expect(flag, json.loads(path.read_text(encoding="utf-8")), True, f"example {path.name}")
-for path in (root / "examples").rglob("storybound/events/*.json"):
-    expect(event, json.loads(path.read_text(encoding="utf-8")), True, f"example {path.name}")
+for path in (STARTER / "flags").rglob("*.json"):
+    expect(flag, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
+for path in (STARTER / "events").rglob("*.json"):
+    expect(event, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
 
-for path in (root / "examples").rglob("storybound/documents/*.json"):
-    expect(document, json.loads(path.read_text(encoding="utf-8")), True, f"example {path.name}")
+for path in (STARTER / "documents").rglob("*.json"):
+    expect(document, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
 for path in (root / "src/main/resources/assets").rglob("storybound/styles/*.json"):
     expect(style, json.loads(path.read_text(encoding="utf-8")), True, f"style {path.name}")
 
@@ -103,22 +105,22 @@ expect(event, {"trigger": {"type": "structure_entered", "structure": "#minecraft
 expect(event, {"trigger": {"type": "biome_entered", "biome": "#minecraft:is_forest"}, "actions": []}, True, "event: biome_entered")
 expect(event, {"trigger": {"type": "poi_entered", "poi": "minecraft:meeting", "radius": 16}, "actions": []}, True, "event: poi_entered at a village bell")
 expect(event, {"trigger": {"type": "poi_entered", "poi": "minecraft:meeting", "radius": 500}, "actions": []}, False, "event: poi_entered radius too large")
-expect(chapter, {"title": "Act I", "order": 1, "icon": "minecraft:map", "nodes": [{"type": "storybound:quest", "id": "example:wolf_hunt", "x": 10, "y": -20}]}, True, "chapter: nodes on the canvas")
-expect(chapter, {"title": "Act I", "nodes": [{"type": "quest", "id": "example:wolf_hunt", "x": 1.5, "y": 0}]}, False, "chapter: positions are whole numbers")
+expect(chapter, {"title": "Act I", "order": 1, "icon": "minecraft:map", "nodes": [{"type": "storybound:quest", "id": "mypack:wolf_hunt", "x": 10, "y": -20}]}, True, "chapter: nodes on the canvas")
+expect(chapter, {"title": "Act I", "nodes": [{"type": "quest", "id": "mypack:wolf_hunt", "x": 1.5, "y": 0}]}, False, "chapter: positions are whole numbers")
 expect(chapter, {"order": 1}, False, "chapter: no title")
 expect(dialogue_layout, {"nodes": {"greet": {"x": 40, "y": 40}, "ask": {"x": 260, "y": -36}}}, True, "dialogue layout: node positions")
 expect(dialogue_layout, {"nodes": {"greet": {"x": 40}}}, False, "dialogue layout: a position needs x and y")
 expect(dialogue_layout, {"greet": {"x": 40, "y": 40}}, False, "dialogue layout: positions go under nodes")
-expect(script, {"title": "example.script.burn", "file": "storybound/example/burn.js", "hook": "example:burn_village", "leads_to": [{"type": "quest", "id": "example:wolf_hunt"}]}, True, "script block: file, handler and what it leads to")
+expect(script, {"title": "mypack.script.burn", "file": "storybound/mypack/burn.js", "hook": "mypack:burn_village", "leads_to": [{"type": "quest", "id": "mypack:wolf_hunt"}]}, True, "script block: file, handler and what it leads to")
 expect(script, {}, True, "script block: everything is optional")
-expect(script, {"leads_to": [{"type": "flag", "id": "example:x"}]}, False, "script block: leads only to story nodes")
+expect(script, {"leads_to": [{"type": "flag", "id": "mypack:x"}]}, False, "script block: leads only to story nodes")
 expect(event, {"trigger": {"type": "structure_entered"}, "actions": []}, False, "event: structure_entered without structure")
 expect(event, {"trigger": {"type": "custom", "id": "a:b"}, "conditions": {"type": "location", "structure": "minecraft:stronghold", "dimension": "minecraft:overworld"}, "actions": []}, True, "event: location in a structure")
 expect(event, {"trigger": {"type": "custom", "id": "a:b"}, "conditions": {"type": "location", "structure": "Not An Id"}, "actions": []}, False, "event: location with a bad structure id")
 expect(event, {"trigger": custom, "actions": [], "on_fail": "retry"}, False, "event: bad on_fail")
 
-for path in (root / "examples").rglob("storybound/quests/*.json"):
-    expect(quest, json.loads(path.read_text(encoding="utf-8")), True, f"example {path.name}")
+for path in (STARTER / "quests").rglob("*.json"):
+    expect(quest, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
 for path in (root / "src/main/resources/assets").rglob("storybound/menu/theme.json"):
     expect(theme, json.loads(path.read_text(encoding="utf-8")), True, f"theme {path.name}")
 
@@ -145,6 +147,11 @@ expect(project, {"difficulty": {"levels": [{"id": "a"}, {"id": "b"}, {"id": "c"}
 expect(project, {"difficulty": {"levels": [{"id": "trivial", "color": "#AAAAAA", "name": "Пустяк"}, {"id": "doom", "color": "8B1A1A"}]}}, True, "project: own levels")
 expect(project, {"difficulty": {"style": "hearts"}}, False, "project: unknown style")
 expect(project, {"chapter_map": True}, True, "project: chapter map on")
+expect(project, json.loads((STARTER / "project.json").read_text(encoding="utf-8")), True, "starter project.json")
+for path in (STARTER / "chapters").rglob("*.json"):
+    expect(chapter, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
+expect(event, {"trigger": {"type": "logged_in", "first_time": True}, "actions": []}, True, "event: logged_in, first visit only")
+expect(event, {"trigger": {"type": "logged_in", "player": "Steve"}, "actions": []}, False, "event: logged_in has no player field")
 expect(quest, {"title": "q", "scope": "guild"}, False, "quest: bad scope")
 expect(quest, {"title": "q", "stages": [{"id": "@x"}]}, False, "quest: stage id starting with @")
 expect(quest, {"title": "q", "stages": [{"id": "a", "objectives": [{"text": "t"}]}]}, False, "quest: objective without trigger")
@@ -157,10 +164,10 @@ expect(event, {"trigger": custom, "actions": {"type": "set_quest_state", "quest"
 expect(theme, {"ink": "#12345"}, False, "theme: bad colour")
 expect(theme, {"hud_background": "#80000000", "panel": "mypack:gui/panel"}, True, "theme: alpha colour and own sprite")
 
-for path in (root / "examples").rglob("storybound/dialogues/*.json"):
-    expect(dialogue, json.loads(path.read_text(encoding="utf-8")), True, f"example {path.name}")
-for path in (root / "examples").rglob("storybound/npc_bindings/*.json"):
-    expect(binding, json.loads(path.read_text(encoding="utf-8")), True, f"example binding {path.name}")
+for path in (STARTER / "dialogues").rglob("*.json"):
+    expect(dialogue, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
+for path in (STARTER / "npc_bindings").rglob("*.json"):
+    expect(binding, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
 
 line = {"type": "line", "speaker": "npc", "text": "t"}
 expect(dialogue, {"start": "a", "nodes": {"a": line}}, True, "dialogue: one line")
@@ -187,10 +194,10 @@ expect(binding, {"entity": {"tag": "x"}, "proximity": {"radius": 0}}, False, "bi
 expect(event, {"trigger": {"type": "dialogue_ended", "dialogue": "a:b", "node": "bye"}, "actions": [{"type": "start_dialogue", "dialogue": "a:c"}, {"type": "end_dialogue"}]}, True, "event: dialogue trigger and actions")
 expect(event, {"trigger": custom, "actions": {"type": "start_dialogue"}}, False, "event: start_dialogue without dialogue")
 
-for path in (root / "examples").rglob("storybound/codex/*.json"):
-    expect(codex, json.loads(path.read_text(encoding="utf-8")), True, f"example codex {path.name}")
-for path in (root / "examples").rglob("storybound/bosses/*.json"):
-    expect(boss, json.loads(path.read_text(encoding="utf-8")), True, f"example boss {path.name}")
+for path in (STARTER / "codex").rglob("*.json"):
+    expect(codex, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
+for path in (STARTER / "bosses").rglob("*.json"):
+    expect(boss, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
 
 expect(codex, {"title": "t", "entity": "#minecraft:raiders", "sections": [{"id": "a", "unlock": {"on": ["seen", "killed"], "count": 5, "conditions": {"type": "flag", "key": "a:b"}}}]}, True, "codex: tag entity, count, conditions")
 expect(codex, {"title": "t", "sections": []}, False, "codex: no sections")
@@ -207,8 +214,8 @@ expect(event, {"trigger": custom, "actions": {"type": "unlock_boss_section", "bo
 expect(event, {"trigger": custom, "actions": [], "conditions": [{"type": "codex_unlocked", "entry": "a:b"}, {"type": "boss_killed", "boss": "a:c", "count": 2}]}, True, "event: codex and boss conditions")
 expect(event, {"trigger": {"type": "entity_seen", "shared": True}, "actions": []}, False, "event: shared only on entity_killed")
 
-for path in (root / "examples").rglob("storybound/waypoints/*.json"):
-    expect(waypoint, json.loads(path.read_text(encoding="utf-8")), True, f"example waypoint {path.name}")
+for path in (STARTER / "waypoints").rglob("*.json"):
+    expect(waypoint, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
 
 expect(waypoint, {"name": "w", "target": {"entity": "123e4567-e89b-12d3-a456-426614174000"}, "quest": "a:b", "stage": "s"}, True, "waypoint: follow an entity, stage binding")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "beam": True}, False, "waypoint: beams are gone")

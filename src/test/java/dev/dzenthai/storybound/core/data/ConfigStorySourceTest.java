@@ -96,12 +96,15 @@ class ConfigStorySourceTest {
     }
 
     @Test
-    void theExampleIsMovedIntoTheStoryFolderLayout() {
-        assertEquals(Optional.of("quests/example/wolf_hunt.json"), StoryFolder.examplePath("data/example/storybound/quests/wolf_hunt.json"));
-        assertEquals(Optional.of("lang/ru_ru.json"), StoryFolder.examplePath("assets/example/lang/ru_ru.json"));
-        assertEquals(Optional.of("texts/en_us/example/codex/wolf/base.sbt"), StoryFolder.examplePath("assets/example/storybound/texts/en_us/codex/wolf/base.sbt"));
-        assertFalse(StoryFolder.examplePath("pack.mcmeta").isPresent());
-        assertFalse(StoryFolder.examplePath("assets/example/textures/item/x.png").isPresent());
+    void theDemoIsItsNamespacesFiles() {
+        assertTrue(StoryFolder.isDemo("quests/demo/night_watch.json"));
+        assertTrue(StoryFolder.isDemo("flags/demo/rep/elder.json"));
+        assertTrue(StoryFolder.isDemo("texts/ru_ru/demo/codex/zombie/base.sbt"));
+        assertFalse(StoryFolder.isDemo("documents/book.json"), "a starter file of its own");
+        assertFalse(StoryFolder.isDemo("texts/en_us/book.sbt"));
+        assertFalse(StoryFolder.isDemo("quests/mypack/demo/x.json"), "demo is a namespace, not any folder");
+        assertFalse(StoryFolder.isDemo("lang/en_us.json"));
+        assertFalse(StoryFolder.isDemo("README.txt"));
     }
 
     private void write(String relative, String content) throws IOException {

@@ -61,6 +61,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -390,6 +392,23 @@ public final class LogicGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void loggedInFiresOnJoiningAndFirstTimeOnlyOnTheFirstVisit(GameTestHelper helper) {
+        withEvents(helper, Map.of(
+                key("on_login"), "{ \"trigger\": { \"type\": \"logged_in\" }, \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:logins\", \"amount\": 1 } }",
+                key("on_first"), "{ \"trigger\": { \"type\": \"logged_in\", \"first_time\": true }, \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:first_logins\", \"amount\": 1 } }"), () -> {
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            expect(helper, stored(player, "logins"), Optional.of(new StoryValue.Int(1)), "joining fires it");
+            expect(helper, stored(player, "first_logins"), Optional.of(new StoryValue.Int(1)), "a player who never left is here for the first time");
+            player.awardStat(Stats.LEAVE_GAME);
+            NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerLoggedInEvent(player));
+            expect(helper, stored(player, "logins"), Optional.of(new StoryValue.Int(2)), "every time");
+            expect(helper, stored(player, "first_logins"), Optional.of(new StoryValue.Int(1)), "not after leaving once");
+            helper.getLevel().getServer().getPlayerList().remove(player);
+        });
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void progressTriggersAndConditions(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         MinecraftServer server = helper.getLevel().getServer();
@@ -441,14 +460,16 @@ public final class LogicGameTests {
                   { "type": "wait", "seconds": 0.5 },
                   { "type": "add_var", "key": "gametest:waited", "amount": 1 } ]
                 """)).getOrThrow(GameTestAssertException::new);
+        // The demo story's welcome scene waits for every new player too, so only this list's tasks are counted.
+        int before = ScheduledActions.pending(helper.getLevel().getServer(), player.getUUID());
         helper.assertTrue(Actions.runAll(actions, context, "gametest wait", OnFail.ABORT), "the list is done at once");
         expect(helper, stored(player, "waited"), Optional.of(new StoryValue.Int(1)), "before the wait, at once");
         expect(helper, stored(player, "scheduled"), Optional.of(new StoryValue.Int(10)), "schedule lets the list go on");
-        helper.assertTrue(ScheduledActions.pending(helper.getLevel().getServer(), player.getUUID()) == 2, "two tasks wait");
+        helper.assertTrue(ScheduledActions.pending(helper.getLevel().getServer(), player.getUUID()) == before + 2, "two tasks wait");
         helper.runAfterDelay(30, () -> {
             expect(helper, stored(player, "waited"), Optional.of(new StoryValue.Int(2)), "after the wait");
             expect(helper, stored(player, "scheduled"), Optional.of(new StoryValue.Int(11)), "the scheduled actions ran");
-            helper.assertTrue(ScheduledActions.pending(helper.getLevel().getServer(), player.getUUID()) == 0, "nothing waits");
+            helper.assertTrue(ScheduledActions.pending(helper.getLevel().getServer(), player.getUUID()) == before, "nothing of the list waits");
             helper.getLevel().getServer().getPlayerList().remove(player);
             helper.succeed();
         });

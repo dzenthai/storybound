@@ -1,0 +1,82 @@
+{
+  "category": "main",
+  "difficulty": 1,
+  "title": "demo.quest.smoke_on_the_horizon.title",
+  "text": {
+    "active": "demo.quest.smoke_on_the_horizon.text.active",
+    "completed": "demo.quest.smoke_on_the_horizon.text.completed"
+  },
+  "stages": [
+    {
+      "id": "road",
+      "log": "demo.quest.smoke_on_the_horizon.stages.road.log",
+      "objectives": [
+        {
+          "id": "village",
+          "trigger": {
+            "type": "structure_entered",
+            "structure": "#minecraft:village"
+          },
+          "text": "demo.quest.smoke_on_the_horizon.stages.road.objectives.village.text",
+          "hints": [
+            {
+              "text": "demo.quest.smoke_on_the_horizon.stages.road.objectives.village.hints.0.text",
+              "after": 240
+            },
+            {
+              "text": "demo.quest.smoke_on_the_horizon.stages.road.objectives.village.hints.1.text",
+              "conditions": {
+                "type": "time",
+                "period": "night"
+              }
+            },
+            {
+              "text": "demo.quest.smoke_on_the_horizon.stages.road.objectives.village.hints.2.text",
+              "conditions": {
+                "type": "location",
+                "structure": "#minecraft:village"
+              },
+              "after": 15
+            }
+          ]
+        }
+      ],
+      "waypoints": [
+        "demo:village"
+      ]
+    },
+    {
+      "id": "meeting",
+      "log": "demo.quest.smoke_on_the_horizon.stages.meeting.log",
+      "objectives": [
+        {
+          "id": "talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "demo:elder_meeting"
+          },
+          "text": "demo.quest.smoke_on_the_horizon.stages.meeting.objectives.talk.text",
+          "hints": [
+            {
+              "text": "demo.quest.smoke_on_the_horizon.stages.meeting.objectives.talk.hints.0.text",
+              "after": 20
+            }
+          ]
+        }
+      ],
+      "waypoints": [
+        "demo:elder"
+      ]
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:bread",
+        "count": 4
+      }
+    ],
+    "xp": 10,
+    "claim": false
+  }
+}

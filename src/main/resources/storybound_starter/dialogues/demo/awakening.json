@@ -1,0 +1,44 @@
+{
+  "participants": {
+    "whisper": {
+      "type": "virtual",
+      "name": "demo.dialogue.awakening.participants.whisper.name"
+    }
+  },
+  "presentation": "hud",
+  "broadcast": false,
+  "start": "whisper",
+  "nodes": {
+    "whisper": {
+      "type": "line",
+      "speaker": "whisper",
+      "text": "demo.dialogue.awakening.node.whisper.text",
+      "next": "where"
+    },
+    "where": {
+      "type": "line",
+      "speaker": "player",
+      "text": "demo.dialogue.awakening.node.where.text",
+      "next": "smoke"
+    },
+    "smoke": {
+      "type": "line",
+      "speaker": "player",
+      "text": "demo.dialogue.awakening.node.smoke.text",
+      "next": "begin"
+    },
+    "begin": {
+      "type": "end",
+      "actions": {
+        "type": "set_quest_state",
+        "quest": "demo:smoke_on_the_horizon",
+        "state": "active"
+      }
+    }
+  },
+  "on_abort": {
+    "type": "set_quest_state",
+    "quest": "demo:smoke_on_the_horizon",
+    "state": "active"
+  }
+}

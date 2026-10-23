@@ -65,7 +65,7 @@ All need permission level 2, except `party`.
 /storybound export
 /storybound capture pos <name> | entity <name> [entity]
 /storybound lang extract [language] | preview [language]
-/storybound example install
+/storybound demo install
 ```
 
 Commands work from command blocks, datapack functions and other mods' NPC actions, so a story needs no scripts.

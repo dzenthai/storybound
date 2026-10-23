@@ -1,7 +1,6 @@
 package dev.dzenthai.storybound.client.dev;
 
 import com.google.gson.JsonObject;
-import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.story.StoryFlow;
 import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
@@ -1137,16 +1136,12 @@ final class StoryView extends GraphView {
     void addWidgets(DevModeScreen screen) {
         if (tab == Tab.STORY) {
             screen.add(Button.builder(DevUi.text("chapter.new"), b -> createChapter(screen))
-                    .bounds(6, screen.height - 46, DevUi.LEFT_PANEL_W - 12, 18).build());
+                    .bounds(6, screen.height - 24, DevUi.LEFT_PANEL_W - 12, 18).build());
             Component who = progressOf == null ? DevUi.text("progress.off") : Component.literal(progressOf);
             screen.add(Button.builder(Component.literal("👤 ").append(who), b -> nextProgressPlayer(screen))
                     .tooltip(Tooltip.create(DevUi.text("progress.tooltip")))
-                    .bounds(6, screen.height - 68, DevUi.LEFT_PANEL_W - 12, 18).build());
+                    .bounds(6, screen.height - 46, DevUi.LEFT_PANEL_W - 12, 18).build());
         }
-        screen.add(Button.builder(Component.literal("📥 ").append(DevUi.text("example.install")), b -> {
-            DevRequests.quickAction("install_example", Storybound.id("example"));
-            screen.status(DevUi.text("status.example_installed"), DevUi.OK);
-        }).bounds(6, screen.height - 24, DevUi.LEFT_PANEL_W - 12, 18).build());
         if (tab == Tab.LIBRARY) {
             library.addWidgets(screen);
         }

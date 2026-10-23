@@ -1,0 +1,17 @@
+{
+  "entity": {
+    "type": "minecraft:cat",
+    "tag": "demo_murka"
+  },
+  "dialogues": [
+    {
+      "dialogue": "demo:murka",
+      "conditions": {
+        "type": "quest",
+        "quest": "demo:murka",
+        "stage": "search"
+      }
+    }
+  ],
+  "override_interact": true
+}

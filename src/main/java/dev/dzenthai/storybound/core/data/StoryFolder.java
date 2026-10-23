@@ -17,19 +17,20 @@ import java.util.stream.Stream;
 import net.neoforged.fml.ModList;
 
 /**
- * Sets up the story folder ({@link ConfigStorySource}): the starter files on first run, and the example story on
- * request. Both are bundled in the mod: {@code storybound_starter/} in the story folder's own layout, and
- * {@code storybound_example/} as the example datapack and resource pack (from {@code examples/}), turned into the
- * story folder's layout while copying.
+ * Sets up the story folder ({@link ConfigStorySource}) from the starter files bundled in the mod
+ * ({@code storybound_starter/}, in the story folder's own layout): all of them on first run, the demo story again on
+ * request.
  */
 public final class StoryFolder {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    /** The demo story's namespace: its files, texts and translation keys. */
+    public static final String DEMO = "demo";
 
     private StoryFolder() {}
 
     /**
-     * Creates the story folder with a folder per definition type, a README and four blank documents, unless it
-     * exists: deleting it brings the starter files back, changing them never does.
+     * Creates the story folder with a folder per definition type, a README, four blank documents and the demo story,
+     * unless it exists: deleting it brings the starter files back, changing them never does.
      */
     public static void createIfMissing() {
         Path root = ConfigStorySource.root();
@@ -56,23 +57,24 @@ public final class StoryFolder {
     }
 
     /**
-     * Copies the example story into the story folder, replacing earlier copies of its files; its translations are
-     * merged into the folder's lang files. Returns how many files were written. {@code root} is the story folder;
-     * tests pass another.
+     * Copies the demo story from the starter files into the story folder, replacing earlier copies of its files; its
+     * translations ({@code demo.*}) are merged into the folder's lang files, and the starter's own files are left
+     * alone. For a story folder made before, or one the demo was deleted from. Returns how many files were written.
+     * {@code root} is the story folder; tests pass another.
      */
-    public static int installExample(Path root) throws IOException {
-        Path source = bundled("storybound_example").orElseThrow(() -> new IOException("The example is not bundled in this build"));
+    public static int installDemo(Path root) throws IOException {
+        Path source = bundled("storybound_starter").orElseThrow(() -> new IOException("The starter files are not bundled in this build"));
         int written = 0;
         for (Path file : files(source)) {
             String relative = relative(source, file);
-            Optional<String> target = examplePath(relative);
-            if (target.isEmpty()) {
+            boolean translations = relative.startsWith("lang/") && relative.endsWith(".json");
+            if (!translations && !isDemo(relative)) {
                 continue;
             }
-            Path destination = root.resolve(target.get());
+            Path destination = root.resolve(relative);
             Files.createDirectories(destination.getParent());
-            if (target.get().startsWith("lang/")) {
-                mergeTranslations(file, destination);
+            if (translations) {
+                mergeTranslations(file, destination, DEMO + ".");
             } else {
                 Files.copy(file, destination, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -82,29 +84,17 @@ public final class StoryFolder {
     }
 
     /**
-     * Where a file of the example's datapack or resource pack goes in the story folder, or empty for files it does
-     * not need ({@code pack.mcmeta}):
-     * {@code data/<ns>/storybound/<type>/<path>.json} to {@code <type>/<ns>/<path>.json},
-     * {@code assets/<ns>/lang/<language>.json} to {@code lang/<language>.json} (merged),
-     * {@code assets/<ns>/storybound/texts/<language>/<path>.sbt} to {@code texts/<language>/<ns>/<path>.sbt}.
-     * Public for tests.
+     * Whether a starter file belongs to the demo: its namespace folder is {@code demo}, right inside a type's folder
+     * ({@code quests/demo/...}) or a language's ({@code texts/en_us/demo/...}). Public for tests.
      */
-    public static Optional<String> examplePath(String relative) {
+    public static boolean isDemo(String relative) {
         String[] parts = relative.split("/");
-        if (parts.length >= 5 && parts[0].equals("data") && parts[2].equals("storybound") && relative.endsWith(".json")) {
-            return Optional.of(parts[3] + "/" + parts[1] + "/" + String.join("/", List.of(parts).subList(4, parts.length)));
-        }
-        if (parts.length == 4 && parts[0].equals("assets") && parts[2].equals("lang") && relative.endsWith(".json")) {
-            return Optional.of("lang/" + parts[3]);
-        }
-        if (parts.length >= 6 && parts[0].equals("assets") && parts[2].equals("storybound") && parts[3].equals("texts") && relative.endsWith(".sbt")) {
-            return Optional.of("texts/" + parts[4] + "/" + parts[1] + "/" + String.join("/", List.of(parts).subList(5, parts.length)));
-        }
-        return Optional.empty();
+        int namespace = parts[0].equals("texts") ? 2 : 1;
+        return parts.length > namespace + 1 && parts[namespace].equals(DEMO);
     }
 
-    /** Adds the file's translations to the lang file at {@code destination}, replacing the same keys. */
-    private static void mergeTranslations(Path file, Path destination) throws IOException {
+    /** Adds the file's translations starting with {@code prefix} to the lang file at {@code destination}, replacing the same keys. */
+    private static void mergeTranslations(Path file, Path destination, String prefix) throws IOException {
         JsonObject merged = new JsonObject();
         if (Files.exists(destination)) {
             try {
@@ -115,7 +105,9 @@ public final class StoryFolder {
         }
         JsonObject added = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
         for (var entry : added.entrySet()) {
-            merged.add(entry.getKey(), entry.getValue());
+            if (entry.getKey().startsWith(prefix)) {
+                merged.add(entry.getKey(), entry.getValue());
+            }
         }
         Files.writeString(destination, GSON.toJson(merged) + "\n", StandardCharsets.UTF_8);
     }

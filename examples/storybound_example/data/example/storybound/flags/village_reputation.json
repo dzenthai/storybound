@@ -1,7 +1,0 @@
-{
-  "type": "int",
-  "default": 0,
-  "scope": "party",
-  "sync": true,
-  "description": "Party reputation in the village; shown in the UI, so it is synced to clients."
-}

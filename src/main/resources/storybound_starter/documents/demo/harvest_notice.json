@@ -1,0 +1,10 @@
+{
+  "kind": "contract",
+  "title": "demo.document.harvest_notice.title",
+  "contract": {
+    "quest": "demo:harvest",
+    "conditions": "demo.document.harvest_notice.contract.conditions",
+    "reward": "demo.document.harvest_notice.contract.reward",
+    "hint": "demo.document.harvest_notice.contract.hint"
+  }
+}

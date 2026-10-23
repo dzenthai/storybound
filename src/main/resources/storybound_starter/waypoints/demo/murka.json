@@ -1,0 +1,12 @@
+{
+  "name": "demo.waypoint.murka.name",
+  "target": {
+    "nearest": {
+      "type": "minecraft:cat",
+      "tag": "demo_murka"
+    },
+    "range": 160
+  },
+  "radius": 8,
+  "color": "#E67E22"
+}
