@@ -89,6 +89,35 @@ final class Schemas {
         });
     }
 
+    /** Translated descriptions by language: {@code descriptions.<language>.json} beside the schemas, English text → translation. */
+    private static final Map<String, Map<String, String>> DESCRIPTIONS = new HashMap<>();
+
+    /**
+     * A schema description in that language, else as written (English). Keyed by the English text, so a description
+     * changed since it was translated shows in English rather than an outdated translation.
+     */
+    static String localized(String english, String language) {
+        if (english.isEmpty()) {
+            return english;
+        }
+        return DESCRIPTIONS.computeIfAbsent(language, Schemas::descriptions).getOrDefault(english, english);
+    }
+
+    private static Map<String, String> descriptions(String language) {
+        try (InputStream in = Schemas.class.getResourceAsStream(FOLDER + "descriptions." + language + ".json")) {
+            if (in == null) {
+                return Map.of();
+            }
+            Map<String, String> map = new HashMap<>();
+            JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject().entrySet()
+                    .forEach(entry -> map.put(entry.getKey(), entry.getValue().getAsString()));
+            return map;
+        } catch (IOException | RuntimeException e) {
+            Storybound.LOGGER.warn("Storybound: cannot read the schema descriptions for {}: {}", language, e.getMessage());
+            return Map.of();
+        }
+    }
+
     /** The schema of a definition type ({@code storybound:quest}...), or null for types without one. */
     static @Nullable Node definition(ResourceLocation type) {
         String name = switch (type.getPath()) {

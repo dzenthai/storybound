@@ -40,6 +40,11 @@ Required on both client and server.
   (`-Dstorybound.validate`, JSON report, exit code); `/storybound lang extract` to move texts written in JSON into
   language files.
 - Migrations (`migrations/*.json`) that carry players' progress over when a quest, flag or dialogue is renamed.
+- Editor: places and entities picked in the world, long texts (documents with a preview, Codex sections, boss lore)
+  in a text window, a view inside each quest, a player's progress on the quest map, relationship scales and NPC
+  schedules, field tooltips in the game's language.
+- `/storybound debug [player]`: a live panel of a player's story — dialogue, quests, and why the last conditions failed.
+- `/storybound_client validate`: missing translations, long texts and document styles in the game's language.
 
 ### Integrations (all optional)
 KubeJS, JEI (what quests ask for and give), Cutscene API, Xaero's Minimap and World Map, JourneyMap, Shoulder Surfing,

@@ -111,6 +111,7 @@ A binding says which entities start which dialogue (`npc_bindings/<ns>/<name>.js
   When none passes, the click does what it normally does (trading).
 - **How:** `interact` (the Talk key), `proximity` (coming within `radius`; `cooldown` seconds; `once` per player),
   `custom` (a script decides, see [Integrations](integrations.md#kubejs)).
+- **Schedules and relationships:** entries with a `time` condition give an NPC a day (shop open), an evening (the tavern) and a night ("Come back in the morning"); a `var` condition on a relationship number (`mypack:rep/elder`, changed with `add_var`) opens warmer lines to players the NPC likes.
 - **Busy NPCs:** `"exclusive": true` lets the NPC talk with one player at a time; `busy_dialogue` is what others hear
   meanwhile ("Wait, I am busy").
 - **Merchants:** `"override_interact": true` makes right-click talk instead of opening trades, for dialogues with

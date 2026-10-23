@@ -257,5 +257,32 @@ for page in sorted((root / "guide").glob("*.md")):
             body = "\n".join(line for line in block.splitlines() if not line.strip().startswith("//"))
             expect(guide_kinds[kind.group(1)], json.loads(body), True, f"guide: {page.name} {kind.group(1)}")
 
+# Every description has its translation in each descriptions.<language>.json (the editor's tooltips), and nothing stale.
+descriptions = set()
+
+
+def collect(node):
+    if isinstance(node, dict):
+        if isinstance(node.get("description"), str):
+            descriptions.add(node["description"])
+        for value in node.values():
+            collect(value)
+    elif isinstance(node, list):
+        for value in node:
+            collect(value)
+
+
+for schema in schemas.values():
+    collect(schema)
+for path in sorted((root / "schemas").glob("descriptions.*.json")):
+    translated = json.loads(path.read_text(encoding="utf-8"))
+    missing = sorted(descriptions - translated.keys())
+    stale = sorted(translated.keys() - descriptions)
+    if missing or stale:
+        failures += 1
+        print("FAIL", path.name, "missing:", missing[:3], "stale:", stale[:3])
+    else:
+        print("ok  ", path.name, len(translated), "descriptions")
+
 print("failures:", failures)
 sys.exit(1 if failures else 0)

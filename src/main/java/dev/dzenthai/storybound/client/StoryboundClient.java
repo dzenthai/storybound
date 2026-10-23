@@ -139,6 +139,7 @@ public final class StoryboundClient {
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, Storybound.id("quest_tracker"), QuestHud::render);
         event.registerBelow(VanillaGuiLayers.CHAT, Storybound.id("dialogue_subtitles"), DialogueHud::render);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("dev_world_picker"), dev.dzenthai.storybound.client.dev.DevWorldPicker::renderHud);
+        event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("story_debug"), DebugOverlay::render);
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
@@ -185,6 +186,7 @@ public final class StoryboundClient {
         ClientJournal.clear();
         ClientQuests.clear();
         ClientChapterMap.clear();
+        DebugOverlay.clear();
         ClientCodex.clear();
         ClientBosses.clear();
         ClientWaypoints.clear();

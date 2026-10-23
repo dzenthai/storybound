@@ -17,6 +17,7 @@ Quests' edit mode, writing the story folder's files.
   Positions take 📍 (where you stand) or 🎯 (click a place in the world); uuid fields take 🎯 (click an entity).
   Quick tests: start or complete a quest, start a dialogue, give a document, teleport to a waypoint.
 - **Long texts** — documents, Codex sections, boss lore and tactics open in a text window with the markup at hand; a document can be previewed on its real reading screen before saving.
+- **Relationships and schedules** — "❤ Relationship scale" on an NPC makes a number per player (`<ns>:rep/<npc>`); then adding an action offers "+10 / -10" and adding a condition "at least 20 / at most -20". Conditions also offer "by day / in the evening / at night" for an NPC's schedule.
 - **Inside a quest** — double-click a quest: what starts it, a column per stage with its objectives and everything the stage touches (dialogues, documents, waypoints, scripts, NPC lines, story events), and what follows. A click goes to the thing.
 - **Dialogues** open as graphs of their own.
 - **Quest givers** — a quest an NPC gives shows the NPC's dialogue before, during and after the quest, with "+ New" to
@@ -59,6 +60,7 @@ All need permission level 2, except `party`.
 /storybound party create [name]|invite <player>|accept|leave|kick <player>|disband|info
 /storybound validate
 /storybound trace on [players] | off | status
+/storybound debug [player] | off
 /storybound dump <player>
 /storybound export
 /storybound capture pos <name> | entity <name> [entity]
@@ -74,6 +76,8 @@ Commands work from command blocks, datapack functions and other mods' NPC action
 line: which trigger fired, which condition failed and why ("flag mypack:gate is unset, wanted true", "has 2, wanted
 5"), which action ran or failed, quest and objective changes, dialogues started and ended, and why an NPC did not talk.
 `/storybound trace off` stops it.
+
+**`/storybound debug [player]`** shows a player's story live in a panel on your screen: the dialogue and node they are at, their active quests with stages and counts, and the last things the logic did for them — which trigger fired, which condition failed and why, which action ran. `/storybound debug off` hides it.
 
 **Files to read instead of watching the game:**
 
@@ -92,6 +96,8 @@ and bosses wherever they are named, dialogue graphs (unreachable nodes, missing 
 flags, script handlers nobody registers, and more. The report goes to the log, `logs/storybound-validation.txt` and
 `logs/storybound-validation.json` (each issue with its file and, when known, the missing field). Operators with errors
 pending get a chat line on joining; `/storybound validate` checks again.
+
+**In your language.** `/storybound_client validate` (on a client) lists every translation missing in the language the game runs in, texts still written into the JSON, long texts only in English, and document styles no resource pack has. All of them go to `logs/storybound-client-validation.txt`.
 
 **Without playing, for CI.** Start the pack's server with `-Dstorybound.validate`: it loads the story with every mod of
 the pack, writes `logs/storybound-validation.json` (or the file named: `-Dstorybound.validate=report.json`) and stops

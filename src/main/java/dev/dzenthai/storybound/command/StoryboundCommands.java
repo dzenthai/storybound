@@ -28,6 +28,7 @@ public final class StoryboundCommands {
                 .then(DumpCommands.export())
                 .then(CaptureCommands.capture())
                 .then(LangCommands.lang())
+                .then(DebugCommands.debug())
                 .then(DocumentCommands.document())
                 .then(QuestCommands.quest())
                 .then(DialogueCommands.dialogue())

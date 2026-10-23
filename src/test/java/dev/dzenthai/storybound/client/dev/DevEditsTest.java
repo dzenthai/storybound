@@ -217,6 +217,27 @@ class DevEditsTest {
     }
 
     @Test
+    void descriptionsComeInTheGamesLanguage() {
+        assertEquals("Первый узел.", Schemas.localized("The first node.", "ru_ru"));
+        assertEquals("The first node.", Schemas.localized("The first node.", "de_de"), "a language without translations shows English");
+        assertEquals("Written since.", Schemas.localized("Written since.", "ru_ru"), "a description not translated yet shows as written");
+    }
+
+    @Test
+    void readyMadeLinesForSchedulesAndRelationships() {
+        ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_FLAG, Map.of(ResourceLocation.parse("mypack:rep/elder"), "{ \"type\": \"int\" }",
+                ResourceLocation.parse("mypack:gold"), "{ \"type\": \"int\" }")), List.of(), "en_us", List.of("en_us"));
+        assertEquals(List.of(ResourceLocation.parse("mypack:rep/elder")), FormView.relationshipScales(), "only rep/ flags are scales");
+        List<String> actions = FormView.quick(Schemas.Logic.ACTION).stream().map(line -> line.element().toString()).toList();
+        assertEquals(List.of("{\"type\":\"add_var\",\"key\":\"mypack:rep/elder\",\"amount\":10}", "{\"type\":\"add_var\",\"key\":\"mypack:rep/elder\",\"amount\":-10}"), actions);
+        List<String> conditions = FormView.quick(Schemas.Logic.CONDITION).stream().map(line -> line.element().toString()).toList();
+        assertTrue(conditions.contains("{\"type\":\"time\",\"period\":\"night\"}"), "an NPC's schedule: " + conditions);
+        assertTrue(conditions.contains("{\"type\":\"var\",\"key\":\"mypack:rep/elder\",\"op\":\">=\",\"value\":20}"));
+        assertTrue(FormView.quick(Schemas.Logic.TRIGGER).isEmpty());
+        ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
+    }
+
+    @Test
     void handlersWithoutABlockShowAsBlocksFromTheScript() {
         ResourceLocation block = Storybound.id("burn_block");
         ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_SCRIPT, Map.of(block, "{ \"hook\": \"mypack:burn_village\" }"),

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -38,7 +39,6 @@ import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.Nullable;
@@ -381,7 +381,7 @@ final class FormView {
         JsonElement value = object != null ? object.get(name) : null;
         Component label = fieldLabel(name, required);
         Tooltip tooltip = node.description().isEmpty() && Schemas.resolve(node).description().isEmpty() ? null
-                : Tooltip.create(Component.literal(!node.description().isEmpty() ? node.description() : Schemas.resolve(node).description()));
+                : Tooltip.create(Component.literal(described(!node.description().isEmpty() ? node.description() : Schemas.resolve(node).description())));
         if (name.equals("difficulty") && path.isEmpty()) {
             difficultyField(name, value, label);
             return;
@@ -955,7 +955,7 @@ final class FormView {
         for (Quick line : quick(logic)) {
             String id = "quick:" + ready.size();
             ready.put(id, line.element());
-            entries.add(new Entry(id, line.label(), new ItemStack(line.icon())));
+            entries.add(new Entry(id, line.label(), line.icon().get()));
         }
         for (String type : Schemas.logicTypes(logic)) {
             entries.add(new Entry(type, typeName(logic, type), new ItemStack(icon(logic))));
@@ -978,21 +978,21 @@ final class FormView {
         screen.rebuild();
     }
 
-    /** A ready-made line: its label in the list and the element it adds. */
-    private record Quick(String label, Item icon, JsonObject element) {}
+    /** A ready-made line: its label in the list, its icon (made only when shown) and the element it adds. */
+    record Quick(String label, Supplier<ItemStack> icon, JsonObject element) {}
 
     /**
      * Ready-made lines: an NPC's schedule (by day, in the evening, at night) for conditions, and for every relationship
      * scale ({@link #relationshipScales}) a change for actions and a threshold for conditions.
      */
-    private static List<Quick> quick(Logic logic) {
+    static List<Quick> quick(Logic logic) {
         List<Quick> lines = new ArrayList<>();
         if (logic == Logic.CONDITION) {
             for (String period : List.of("day", "sunset", "night")) {
                 JsonObject time = new JsonObject();
                 time.addProperty("type", "time");
                 time.addProperty("period", period);
-                lines.add(new Quick("🕒 " + DevUi.str("quick.time." + period), Items.CLOCK, time));
+                lines.add(new Quick("🕒 " + DevUi.str("quick.time." + period), () -> new ItemStack(Items.CLOCK), time));
             }
         }
         for (ResourceLocation scale : relationshipScales()) {
@@ -1003,7 +1003,7 @@ final class FormView {
                     change.addProperty("type", "add_var");
                     change.addProperty("key", scale.toString());
                     change.addProperty("amount", amount);
-                    lines.add(new Quick("❤ " + DevUi.str("quick.relationship_change", name, (amount > 0 ? "+" : "") + amount), Items.POPPY, change));
+                    lines.add(new Quick("❤ " + DevUi.str("quick.relationship_change", name, (amount > 0 ? "+" : "") + amount), () -> new ItemStack(Items.POPPY), change));
                 }
             } else if (logic == Logic.CONDITION) {
                 for (int threshold : new int[]{20, -20}) {
@@ -1012,7 +1012,7 @@ final class FormView {
                     check.addProperty("key", scale.toString());
                     check.addProperty("op", threshold > 0 ? ">=" : "<=");
                     check.addProperty("value", threshold);
-                    lines.add(new Quick("❤ " + DevUi.str("quick.relationship_check", name, (threshold > 0 ? "≥ " : "≤ ") + threshold), Items.POPPY, check));
+                    lines.add(new Quick("❤ " + DevUi.str("quick.relationship_check", name, (threshold > 0 ? "≥ " : "≤ ") + threshold), () -> new ItemStack(Items.POPPY), check));
                 }
             }
         }
@@ -1047,9 +1047,14 @@ final class FormView {
                 ? DevUi.humanize(id.getPath()) + " (" + id.getNamespace() + ")" : DevUi.humanize(shortType);
     }
 
+    /** A schema description in the game's language (see {@link Schemas#localized}). */
+    private static String described(String english) {
+        return Schemas.localized(english, Minecraft.getInstance().getLanguageManager().getSelected());
+    }
+
     private static String typeHelp(Logic logic, String type, Node variant) {
         String key = "storybound.dev.help." + logic.name + "." + DevUi.shortId(type);
-        return Language.getInstance().has(key) ? Component.translatable(key).getString() : variant.description();
+        return Language.getInstance().has(key) ? Component.translatable(key).getString() : described(variant.description());
     }
 
     static Component fieldLabel(String name, boolean required) {

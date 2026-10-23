@@ -1,9 +1,11 @@
 package dev.dzenthai.storybound.gametest;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.ClientValidation;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
@@ -11,11 +13,15 @@ import dev.dzenthai.storybound.core.data.ValidationReport;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.dev.LangExtract;
 import dev.dzenthai.storybound.core.dev.StoryCaptures;
+import dev.dzenthai.storybound.core.dev.StoryDebug;
 import dev.dzenthai.storybound.core.dev.StoryDump;
 import dev.dzenthai.storybound.core.dev.StoryExport;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
+import dev.dzenthai.storybound.module.document.DocumentDefinition;
+import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.module.quest.Quests;
@@ -26,6 +32,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -133,6 +140,77 @@ public final class AuthorToolsGameTests {
             helper.assertFalse(Files.exists(ConfigStorySource.root().resolve("lang").resolve("zz_zz.json")), "nor a lang file");
         } finally {
             io(() -> Files.deleteIfExists(file));
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void debugPanelSeesTheWatchedPlayersLogicWithoutTheFileTrace(GameTestHelper helper) {
+        ServerPlayer viewer = helper.makeMockServerPlayerInLevel();
+        ServerPlayer target = helper.makeMockServerPlayerInLevel();
+        try {
+            StoryTrace.note(target, "gametest", "before");
+            helper.assertTrue(StoryDebug.recent(target.getUUID()).isEmpty(), "nothing while nobody watches");
+            StoryDebug.watch(viewer, target);
+            StoryTrace.note(target, "gametest", "hello");
+            StoryTrace.event(target, "quest", "quest", "gametest:x", "from", "unknown", "to", "active");
+            StoryTrace.note(viewer, "gametest", "not watched");
+            helper.assertTrue(StoryDebug.recent(target.getUUID()).equals(List.of("· gametest: hello", "📜 gametest:x: unknown → active")),
+                    "the watched player's lines, in a few words: " + StoryDebug.recent(target.getUUID()));
+            JsonObject failed = JsonParser.parseString("""
+                    { "kind": "conditions", "source": "story event mypack:gate", "passed": false,
+                      "failed": [ { "path": ".", "condition": { "type": "storybound:flag" }, "why": "flag mypack:gate (player) is unset, wanted true" } ] }
+                    """).getAsJsonObject();
+            helper.assertTrue(StoryDebug.summary(failed).equals("✘ story event mypack:gate: flag mypack:gate (player) is unset, wanted true"),
+                    "why a condition failed: " + StoryDebug.summary(failed));
+        } finally {
+            StoryDebug.watch(viewer, null);
+        }
+        StoryTrace.note(target, "gametest", "after");
+        helper.assertFalse(StoryDebug.recent(target.getUUID()).contains("· gametest: after"), "nothing once nobody watches");
+        helper.getLevel().getServer().getPlayerList().remove(viewer);
+        helper.getLevel().getServer().getPlayerList().remove(target);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void clientValidationFindsMissingTranslationsTextsAndStyles(GameTestHelper helper) {
+        RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        ResourceLocation questId = ResourceLocation.fromNamespaceAndPath("gametest", "cv_quest");
+        ResourceLocation documentId = ResourceLocation.fromNamespaceAndPath("gametest", "cv_doc");
+        QuestDefinition quest = QuestDefinition.CODEC.parse(ops, JsonParser.parseString("""
+                { "title": "gametest.cv.known", "stages": [ { "id": "a", "log": { "literal": "Draft" },
+                  "objectives": [ { "id": "o", "text": "gametest.cv.missing", "trigger": { "type": "custom", "id": "gametest:x" } } ] } ] }
+                """)).getOrThrow(GameTestAssertException::new);
+        DocumentDefinition document = DocumentDefinition.CODEC.parse(ops, JsonParser.parseString("""
+                { "kind": "letter", "title": { "key": "gametest.cv.untranslated", "fallback": "A letter" }, "style": "storybound:nope" }
+                """)).getOrThrow(GameTestAssertException::new);
+        // The client stores are not used by a server: the test fills them and puts them back.
+        Map<ResourceLocation, QuestDefinition> quests = QuestRegistries.QUESTS.clientStore().all();
+        Map<ResourceLocation, DocumentDefinition> documents = DocumentRegistries.DOCUMENTS.clientStore().all();
+        QuestRegistries.QUESTS.clientStore().replace(Map.of(questId, quest));
+        DocumentRegistries.DOCUMENTS.clientStore().replace(Map.of(documentId, document));
+        try {
+            List<String> issues = ClientValidation.check("gametest.cv.known"::equals, new ClientValidation.Sources() {
+                @Override
+                public Optional<String> text(ResourceLocation textId, String language) {
+                    return textId.equals(documentId) && language.equals("en_us") ? Optional.of("Dear friend") : Optional.empty();
+                }
+
+                @Override
+                public boolean style(ResourceLocation style) {
+                    return false;
+                }
+            }, "ru_ru").stream().map(ClientValidation.Issue::describe).toList();
+            helper.assertTrue(issues.contains("quest gametest:cv_quest stage a objective o: no translation for gametest.cv.missing"), "a missing key: " + issues);
+            helper.assertTrue(issues.stream().anyMatch(issue -> issue.startsWith("quest gametest:cv_quest stage a log: written into the JSON")), "a literal");
+            helper.assertTrue(issues.contains("document gametest:cv_doc: no ru_ru text gametest:cv_doc (en_us shows)"), "a text only in English");
+            helper.assertTrue(issues.stream().anyMatch(issue -> issue.startsWith("document gametest:cv_doc: no style storybound:nope")), "an unknown style");
+            helper.assertTrue(issues.stream().noneMatch(issue -> issue.contains("gametest.cv.known") || issue.contains("untranslated")),
+                    "a translated key and a key with a fallback pass: " + issues);
+        } finally {
+            QuestRegistries.QUESTS.clientStore().replace(quests);
+            DocumentRegistries.DOCUMENTS.clientStore().replace(documents);
         }
         helper.succeed();
     }
