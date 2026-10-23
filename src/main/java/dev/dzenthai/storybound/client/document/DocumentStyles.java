@@ -22,6 +22,11 @@ public final class DocumentStyles extends SimpleJsonResourceReloadListener {
         super(new GsonBuilder().create(), "storybound/styles");
     }
 
+    /** Whether a resource pack defines the style (a missing one falls back to the parchment). */
+    public boolean has(ResourceLocation id) {
+        return styles.containsKey(id);
+    }
+
     /** The named style, else the default parchment, else a built-in fallback. */
     public DocumentStyle get(ResourceLocation id) {
         DocumentStyle style = styles.get(id);

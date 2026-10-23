@@ -22,6 +22,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
@@ -45,8 +47,25 @@ public final class StoryTrace {
     private static @Nullable Path file;
     private static @Nullable BufferedWriter writer;
     private static @Nullable MinecraftServer server;
+    /** Players someone watches live ({@code /storybound debug}): their lines also go to {@link #tap}, file or not. */
+    private static Predicate<UUID> watched = player -> false;
+    private static BiConsumer<UUID, JsonObject> tap = (player, line) -> {};
 
     private StoryTrace() {}
+
+    /**
+     * Lets another part of the mod see the lines of the players it watches, whether the file trace is on or not: the
+     * debug overlay. {@code sink} gets each line as written (without time and tick).
+     */
+    public static void tap(Predicate<UUID> watching, BiConsumer<UUID, JsonObject> sink) {
+        watched = watching;
+        tap = sink;
+    }
+
+    /** The server whose registries write conditions and actions as JSON; set by tracing or by the overlay. */
+    public static void useServer(MinecraftServer minecraft) {
+        server = minecraft;
+    }
 
     public static Path file(MinecraftServer server) {
         return server.getServerDirectory().resolve("logs").resolve("storybound-trace.log");
@@ -88,8 +107,23 @@ public final class StoryTrace {
         return Set.copyOf(players);
     }
 
+    /** Whether anything is written for the player: the file trace, or someone watching them live. */
     public static boolean active(ServerPlayer player) {
+        return toFile(player) || watched.test(player.getUUID());
+    }
+
+    private static boolean toFile(ServerPlayer player) {
         return enabled && (players.isEmpty() || players.contains(player.getUUID()));
+    }
+
+    /** A player's line: to the file when it traces them, to the overlay when someone watches them. */
+    private static void emit(ServerPlayer player, JsonObject line) {
+        if (watched.test(player.getUUID())) {
+            tap.accept(player.getUUID(), line.deepCopy());
+        }
+        if (toFile(player)) {
+            write(line);
+        }
     }
 
     /** A trigger matched and its owner is about to run. */
@@ -99,7 +133,7 @@ public final class StoryTrace {
         }
         JsonObject line = line(context, "trigger", source);
         line.addProperty("type", String.valueOf(LogicRegistries.TRIGGER_TYPES.getKey(type)));
-        write(line);
+        emit(context.player(), line);
     }
 
     /**
@@ -115,7 +149,7 @@ public final class StoryTrace {
             failed.forEach(parts::add);
             line.add("failed", parts);
         }
-        write(line);
+        emit(context.player(), line);
     }
 
     /**
@@ -135,7 +169,7 @@ public final class StoryTrace {
         if (message != null) {
             line.addProperty("message", message);
         }
-        write(line);
+        emit(context.player(), line);
     }
 
     /** Something the story logic decided without a condition: a quest already started, a once event already run. */
@@ -145,7 +179,7 @@ public final class StoryTrace {
         }
         JsonObject line = line(StoryContext.of(player), "note", source);
         line.addProperty("message", message);
-        write(line);
+        emit(player, line);
     }
 
     /**
@@ -161,7 +195,7 @@ public final class StoryTrace {
         for (int i = 0; i + 1 < fields.length; i += 2) {
             line.addProperty(fields[i], fields[i + 1]);
         }
-        write(line);
+        emit(player, line);
     }
 
     /** The condition or action as it would be written in JSON; its type id when it does not encode. */

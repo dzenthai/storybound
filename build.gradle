@@ -259,6 +259,8 @@ processResources {
     from('schemas') {
         into 'storybound_schemas'
         include '*.schema.json'
+        // The descriptions' translations, for the forms' tooltips in the game's language.
+        include 'descriptions.*.json'
     }
 }
 
