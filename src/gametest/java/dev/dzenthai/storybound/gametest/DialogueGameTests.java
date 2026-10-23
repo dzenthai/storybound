@@ -26,6 +26,7 @@ import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
+import dev.dzenthai.storybound.module.dialogue.NpcRespawns;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,16 +43,23 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.Pig;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.inventory.MerchantMenu;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import org.jetbrains.annotations.Nullable;
 
 /** Dialogues on a real server: the node graph, reply checks, parallel sessions, interruptions, timers, NPC bindings, validation. */
 @SuppressWarnings("removal")
@@ -387,6 +395,64 @@ public final class DialogueGameTests {
         helper.succeed();
     }
 
+    /**
+     * An NPC whose binding says {@code respawn} comes back where it died or disappeared: the same one (uuid, name, tags),
+     * unhurt, without dropping what it carried; an entity no such binding matches stays gone.
+     */
+    @GameTest(template = "empty", timeoutTicks = 600)
+    public static void respawningNpcsComeBackWhereTheyWereGone(GameTestHelper helper) {
+        Map<ResourceLocation, NpcBinding> previous = DialogueRegistries.NPC_BINDINGS.serverStore().all();
+        installAll(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(key("respawning"),
+                "{ \"entity\": { \"tag\": \"gametest_respawn\" }, \"respawn\": true }"));
+        NpcBindings.rebuild();
+        Villager elder = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
+        elder.addTag("gametest_respawn");
+        // Truly without AI, so a copy that comes back stays where it is put (spawnWithNoFreeWill only clears goals).
+        elder.setNoAi(true);
+        elder.setCustomName(Component.literal("Miron"));
+        Vec3 diedAt = elder.position();
+        Villager wanderer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 3);
+        wanderer.addTag("gametest_respawn");
+        wanderer.setNoAi(true);
+        Vec3 goneAt = wanderer.position();
+        Zombie guard = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 1, 2, 3);
+        guard.addTag("gametest_respawn");
+        guard.setNoAi(true);
+        guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+        guard.setDropChance(EquipmentSlot.MAINHAND, 2.0f);
+        Villager stranger = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 1);
+        var level = helper.getLevel();
+        var ids = List.of(elder.getUUID(), wanderer.getUUID(), guard.getUUID(), stranger.getUUID());
+
+        // Each body is removed at once, as the end of the death animation does: GameTest chunks do not always tick
+        // entities, and a body that is never ticked never leaves.
+        for (var dying : List.of(elder, guard, stranger)) {
+            dying.kill();
+            dying.remove(net.minecraft.world.entity.Entity.RemovalReason.KILLED);
+        }
+        wanderer.discard();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(level.getEntity(ids.get(0)) instanceof Villager back && back.isAlive() && back.getHealth() == back.getMaxHealth()
+                            && back.getTags().contains("gametest_respawn") && "Miron".equals(back.getCustomName().getString())
+                            && horizontally(back.position(), diedAt) < 0.5,
+                    "the killed NPC is back where it died, whole, with its name and tags: " + describe(level.getEntity(ids.get(0))) + " vs " + diedAt);
+            helper.assertTrue(level.getEntity(ids.get(1)) instanceof Villager back && horizontally(back.position(), goneAt) < 0.5,
+                    "the discarded one is back where it disappeared: " + describe(level.getEntity(ids.get(1))) + " vs " + goneAt);
+            helper.assertTrue(level.getEntity(ids.get(2)) instanceof Zombie back && back.getMainHandItem().is(Items.IRON_SWORD),
+                    "the guard is back with its sword: " + describe(level.getEntity(ids.get(2))) + " holding " + (level.getEntity(ids.get(2)) instanceof Zombie z ? z.getMainHandItem() : "-"));
+            helper.assertTrue(level.getEntitiesOfClass(ItemEntity.class, new AABB(helper.absolutePos(BlockPos.ZERO)).inflate(8),
+                    item -> item.getItem().is(Items.IRON_SWORD)).isEmpty(), "and dropped nothing when it died");
+            helper.assertTrue(level.getEntity(ids.get(3)) == null, "an entity no respawning binding matches stays gone");
+            DialogueRegistries.NPC_BINDINGS.serverStore().replace(previous);
+            NpcBindings.rebuild();
+            ids.forEach(id -> {
+                if (level.getEntity(id) != null) {
+                    level.getEntity(id).discard();
+                }
+            });
+        });
+    }
+
     @GameTest(template = "empty")
     public static void openTradeOpensTheMerchantScreen(GameTestHelper helper) {
         ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 2, 2, 2);
@@ -612,6 +678,19 @@ public final class DialogueGameTests {
         } finally {
             store.replace(previous);
         }
+    }
+
+    /** Apart on the ground, not counting a fall: a respawned NPC may drop from where it was to the floor. */
+    private static double horizontally(Vec3 a, Vec3 b) {
+        return Math.hypot(a.x - b.x, a.z - b.z);
+    }
+
+    private static String describe(@Nullable net.minecraft.world.entity.Entity entity) {
+        if (entity == null) {
+            return "gone";
+        }
+        String health = entity instanceof net.minecraft.world.entity.LivingEntity living ? living.getHealth() + "/" + living.getMaxHealth() : "-";
+        return entity + " alive=" + entity.isAlive() + " health=" + health + " tags=" + entity.getTags() + " name=" + entity.getCustomName();
     }
 
     private static <T> void installAll(GameTestHelper helper, DefinitionStore<T> store, Codec<T> codec, Map<ResourceLocation, String> definitions) {

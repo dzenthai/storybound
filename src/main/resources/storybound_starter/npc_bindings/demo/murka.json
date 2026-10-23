@@ -13,5 +13,6 @@
       }
     }
   ],
-  "override_interact": true
+  "override_interact": true,
+  "respawn": true
 }

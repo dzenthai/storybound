@@ -15,15 +15,17 @@ import net.minecraft.resources.ResourceLocation;
  * @param hook    the handler's id; the block's own id when absent
  * @param file    under {@code kubejs/server_scripts/}
  * @param leadsTo what the script goes on to (starts, gives), for what reading its file does not show
+ * @param hidden  not on the canvas: deleted while the scripts still register its handler, which would bring it back
  */
 public record ScriptDefinition(Optional<StoryText> title, Optional<String> description, Optional<String> file, Optional<ResourceLocation> hook,
-                               List<Target> leadsTo) {
+                               List<Target> leadsTo, boolean hidden) {
     public static final Codec<ScriptDefinition> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             StoryText.CODEC.optionalFieldOf("title").forGetter(ScriptDefinition::title),
             Codec.STRING.optionalFieldOf("description").forGetter(ScriptDefinition::description),
             Codec.STRING.optionalFieldOf("file").forGetter(ScriptDefinition::file),
             ResourceLocation.CODEC.optionalFieldOf("hook").forGetter(ScriptDefinition::hook),
-            Target.CODEC.listOf().optionalFieldOf("leads_to", List.of()).forGetter(ScriptDefinition::leadsTo)
+            Target.CODEC.listOf().optionalFieldOf("leads_to", List.of()).forGetter(ScriptDefinition::leadsTo),
+            Codec.BOOL.optionalFieldOf("hidden", false).forGetter(ScriptDefinition::hidden)
     ).apply(instance, ScriptDefinition::new));
 
     /** A definition by its type ({@code quest}, {@code dialogue}...; the namespace defaults to storybound) and id. */

@@ -32,6 +32,7 @@ Required on both client and server.
 - A cinematic camera (shot / reverse shot, walls respected), speech bubbles for players nearby, a "thinking" pause.
 - NPC bindings by type, tag or uuid; NPCs that talk to one player at a time; different lines before, during and
   after a quest.
+- NPCs that come back (`"respawn": true`): the same NPC returns where it died or disappeared, and drops nothing.
 
 ### Journal, Codex, bosses, waypoints
 - Readable documents (books, letters, notes, contracts) in their own markup, kept in the Journal.

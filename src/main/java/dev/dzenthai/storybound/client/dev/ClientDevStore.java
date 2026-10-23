@@ -442,12 +442,17 @@ public final class ClientDevStore {
     private static void refreshDerivedScripts() {
         Map<ResourceLocation, String> blocks = definitions.getOrDefault(TYPE_SCRIPT, Map.of());
         Set<String> covered = new LinkedHashSet<>();
+        Map<ResourceLocation, String> merged = new LinkedHashMap<>();
         blocks.forEach((id, raw) -> {
             JsonObject json = parseObject(raw);
             ResourceLocation hook = json.has("hook") && json.get("hook").isJsonPrimitive() ? ResourceLocation.tryParse(json.get("hook").getAsString()) : null;
+            // A hidden block still covers its handler, so no block is derived for it either.
             covered.add((hook != null ? hook : id).toString());
+            boolean hidden = json.has("hidden") && json.get("hidden").isJsonPrimitive() && json.get("hidden").getAsBoolean();
+            if (!hidden) {
+                merged.put(id, raw);
+            }
         });
-        Map<ResourceLocation, String> merged = new LinkedHashMap<>(blocks);
         Set<ResourceLocation> derived = new LinkedHashSet<>();
         for (ScriptFile file : scripts.files().values()) {
             List<String> handlers = new ArrayList<>(file.actions());
@@ -476,6 +481,12 @@ public final class ClientDevStore {
     public static @Nullable String scriptFile(ResourceLocation script) {
         JsonObject json = parseObject(getJson(TYPE_SCRIPT, script));
         return json.has("file") && json.get("file").isJsonPrimitive() && !json.get("file").getAsString().isBlank() ? json.get("file").getAsString() : null;
+    }
+
+    /** Whether the server's scripts register the block's handler now: deleting such a block only hides it. */
+    public static boolean scriptRegistered(ResourceLocation script) {
+        String hook = scriptHook(script).toString();
+        return scripts.actions().contains(hook) || scripts.conditions().contains(hook);
     }
 
     public static ScriptState scriptState(ResourceLocation script) {

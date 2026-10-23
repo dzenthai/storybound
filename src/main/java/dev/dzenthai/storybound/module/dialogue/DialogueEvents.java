@@ -47,6 +47,7 @@ public final class DialogueEvents {
         // LOWEST: a story event may have started the dialogue from this very click.
         gameBus.addListener(EventPriority.LOWEST, DialogueEvents::onEntityInteract);
         gameBus.addListener(DialogueEvents::onServerStopped);
+        NpcRespawns.register(gameBus);
         // "Once" marks: per dialogue option (node and option follow the id), per NPC binding.
         StoryMigrations.registerKeyPrefix(Dialogues.ONCE_PREFIX, StoryMigrations.Kind.DIALOGUES, 2);
         StoryMigrations.registerKeyPrefix(NpcBindings.ONCE_PREFIX, StoryMigrations.Kind.NPC_BINDINGS, 0);

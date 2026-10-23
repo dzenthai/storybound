@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.client.dev;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.story.StoryFlow;
 import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
@@ -774,14 +775,26 @@ final class StoryView extends GraphView {
         deleteSelection(screen);
     }
 
+    /**
+     * Deletes a node's definition. A script block whose handler the scripts still register would come straight back
+     * from the code, so it is hidden instead ({@code "hidden": true} in its file; the code stays in KubeJS); returns
+     * whether it was.
+     */
+    private static boolean removeNode(NodeKey key, @Nullable String json) {
+        if (json != null && key.type().equals(ClientDevStore.TYPE_SCRIPT) && ClientDevStore.scriptRegistered(key.id())) {
+            JsonObject hidden = JsonParser.parseString(json).getAsJsonObject();
+            hidden.addProperty("hidden", true);
+            DevRequests.restore(key.type(), key.id(), hidden.toString(), Optional.empty());
+            return true;
+        }
+        DevRequests.delete(key.type(), key.id());
+        return false;
+    }
+
     private void deleteSelection(DevModeScreen screen) {
         Set<NodeKey> targets = new LinkedHashSet<>(selection);
         if (selected != null) {
             targets.add(selected);
-        }
-        // A block derived from a script has no file to delete: it is gone when its handler is gone from the code.
-        if (targets.removeIf(key -> key.type().equals(ClientDevStore.TYPE_SCRIPT) && ClientDevStore.isDerivedScript(key.id()))) {
-            screen.status(DevUi.text("status.derived_script"), DevUi.BAD);
         }
         if (targets.isEmpty()) {
             return;
@@ -795,7 +808,9 @@ final class StoryView extends GraphView {
                 deleted.add(new Deleted(key, json, documentText(key.id()), pos != null ? pos.clone() : null));
             }
             positions.remove(key);
-            DevRequests.delete(key.type(), key.id());
+            if (removeNode(key, json)) {
+                screen.status(DevUi.text("status.script_hidden"), DevUi.OK);
+            }
         }
         selected = null;
         selection.clear();
@@ -821,7 +836,7 @@ final class StoryView extends GraphView {
                     () -> {
                         for (Deleted node : deleted) {
                             positions.remove(node.key());
-                            DevRequests.delete(node.key().type(), node.key().id());
+                            removeNode(node.key(), node.json());
                         }
                         unlinked.forEach(change -> restore(change.key(), change.after()));
                         rebuildCardsWithout(targets);

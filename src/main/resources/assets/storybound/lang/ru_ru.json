@@ -550,7 +550,7 @@
   "storybound.dev.script.handler_action": "действие: %s",
   "storybound.dev.script.handler_condition": "условие: %s",
   "storybound.dev.script.derived": "Из скрипта: файла блока нет («Сохранить» создаст)",
-  "storybound.dev.status.derived_script": "Блок из скрипта исчезнет, когда обработчик уберут из кода",
+  "storybound.dev.status.script_hidden": "Блок скрипта убран с холста; код остаётся в KubeJS",
   "storybound.dev.script.state.unknown": "Читаю скрипты сервера…",
   "storybound.dev.script.state.no_kubejs": "На сервере нет KubeJS",
   "storybound.dev.script.state.no_file": "Файла нет: выберите или создайте",

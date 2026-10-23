@@ -101,6 +101,7 @@
   "Needs quest: shown only while the quest is at this stage.": "Нужен quest: показывается, только пока квест на этом этапе.",
   "Never despawns (mobs).": "Никогда не исчезает (для мобов).",
   "Node id → its place on the dialogue's canvas. Nodes without a place are arranged automatically.": "id узла → его место на холсте диалога. Узлы без места расставляются сами.",
+  "Not shown on the canvas: the block was deleted while its handler is still in the scripts. The file keeps it from coming back; remove the file, or set this to false, to show the block again.": "Не показывается на холсте: блок удалили, а его обработчик ещё есть в скриптах. Файл не даёт ему вернуться; удалите файл или поставьте false, чтобы блок снова появился.",
   "Objective ids inside a quest, named by the quest's new id; their counters move.": "id целей внутри квеста, по новому id квеста; их счётчики переезжают.",
   "One action, or an array of actions run in order.": "Одно действие или массив действий, выполняемых по порядку.",
   "One condition, or an array of conditions that must all pass.": "Одно условие или массив условий, которые должны выполниться все.",

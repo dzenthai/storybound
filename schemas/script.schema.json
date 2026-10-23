@@ -10,6 +10,7 @@
     "description": { "description": "A note for the pack's authors: what the script does.", "type": "string" },
     "file": { "description": "The script, under kubejs/server_scripts/ on the server, e.g. storybound/mypack/burn_village.js.", "type": "string" },
     "hook": { "description": "The handler's id, as registered with StoryboundEvents.registerActions / registerConditions. The block's own id when absent.", "$ref": "logic.schema.json#/definitions/id" },
+    "hidden": { "description": "Not shown on the canvas: the block was deleted while its handler is still in the scripts. The file keeps it from coming back; remove the file, or set this to false, to show the block again.", "type": "boolean", "default": false },
     "leads_to": {
       "description": "What the script goes on to (a quest it starts, a dialogue it opens), for what reading its file does not show.",
       "type": "array",
