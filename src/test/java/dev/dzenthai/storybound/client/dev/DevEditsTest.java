@@ -260,6 +260,26 @@ class DevEditsTest {
     }
 
     @Test
+    void aDeletedBlockWhoseHandlerLivesOnStaysHidden() {
+        ResourceLocation block = Storybound.id("burn_block");
+        ResourceLocation bell = ResourceLocation.parse("mypack:ring_bell");
+        ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_SCRIPT, Map.of(
+                block, "{ \"hook\": \"mypack:burn_village\", \"hidden\": true }",
+                bell, "{ \"file\": \"storybound/mypack/village.js\", \"hidden\": true }")), List.of(), "en_us", List.of("en_us"));
+        ClientDevStore.setScripts("""
+                { "kubejs": true, "actions": ["mypack:burn_village", "mypack:ring_bell"], "files": [
+                  { "path": "storybound/mypack/village.js", "actions": ["mypack:burn_village", "mypack:ring_bell"], "conditions": [],
+                    "listeners": [], "ids": [], "leads_to": [] } ] }
+                """);
+        assertTrue(ClientDevStore.byType(ClientDevStore.TYPE_SCRIPT).isEmpty(),
+                "hidden blocks are off the canvas, and their handlers get no block from the script either");
+        ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
+        assertTrue(ClientDevStore.scriptRegistered(bell), "a block from the script stands for a live handler: deleting it hides it");
+        assertTrue(ClientDevStore.isDerivedScript(bell), "without its file the block comes back from the script");
+        ClientDevStore.setScripts("{}");
+    }
+
+    @Test
     void aQuestStartContinuesTheConversationInsteadOfCuttingIt() {
         JsonObject dialogue = json("""
                 { "start": "greet", "nodes": {

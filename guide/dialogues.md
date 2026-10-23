@@ -116,6 +116,9 @@ A binding says which entities start which dialogue (`npc_bindings/<ns>/<name>.js
   meanwhile ("Wait, I am busy").
 - **Merchants:** `"override_interact": true` makes right-click talk instead of opening trades, for dialogues with
   "Show me your wares" (`open_trade`). When no dialogue passes (the shop is closed at night), the click trades.
+- **Coming back:** `"respawn": true` brings the NPC back where it died or disappeared, 5 seconds later: the same
+  NPC (name, look, equipment, trades, uuid), unhurt. It drops nothing when it dies, so it cannot be farmed. To get rid
+  of such an NPC for good, turn `respawn` off first.
 - **One entity by command:** `/storybound npc bind <entity> <dialogue> [interact|proximity|both]`, `unbind`, `info`.
 
 Right-click is left to the game and other mods (villagers trade, Easy NPC opens its screens) unless the server sets

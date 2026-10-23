@@ -56,5 +56,6 @@
   },
   "override_interact": true,
   "exclusive": true,
-  "busy_dialogue": "demo:elder_busy"
+  "busy_dialogue": "demo:elder_busy",
+  "respawn": true
 }

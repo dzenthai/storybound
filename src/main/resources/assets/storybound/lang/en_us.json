@@ -550,7 +550,7 @@
   "storybound.dev.script.handler_action": "action: %s",
   "storybound.dev.script.handler_condition": "condition: %s",
   "storybound.dev.script.derived": "From the script: no block file (Save writes one)",
-  "storybound.dev.status.derived_script": "A block from a script is gone when its handler is gone from the code",
+  "storybound.dev.status.script_hidden": "Script block taken off the canvas; its code stays in KubeJS",
   "storybound.dev.script.state.unknown": "Reading the server's scripts…",
   "storybound.dev.script.state.no_kubejs": "KubeJS is not installed on the server",
   "storybound.dev.script.state.no_file": "No file yet: pick one or make a new one",

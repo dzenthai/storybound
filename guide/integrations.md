@@ -70,6 +70,8 @@ Storybound.waypoints(player).remove('mypack:camp', 'party')
 Changes made from scripts follow the same rules as from JSON: actions, rewards, triggers, toasts and syncing all
 happen. In the editor, every handler your scripts register shows as a script block; a comment
 `// @storybound leads_to quest:mypack:chapter_2` in a script draws an arrow to what the script leads to.
+Deleting a block whose handler is still in your scripts only takes it off the canvas (`"hidden": true` in its
+file); the code stays. Delete that file to show the block again.
 
 ## JEI
 
