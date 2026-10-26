@@ -218,7 +218,7 @@ class DevEditsTest {
 
     @Test
     void descriptionsComeInTheGamesLanguage() {
-        assertEquals("Первый узел.", Schemas.localized("The first node.", "ru_ru"));
+        assertEquals(dev.dzenthai.storybound.TestTranslations.russian("fixture.schema.first_node"), Schemas.localized("The first node.", "ru_ru"));
         assertEquals("The first node.", Schemas.localized("The first node.", "de_de"), "a language without translations shows English");
         assertEquals("Written since.", Schemas.localized("Written since.", "ru_ru"), "a description not translated yet shows as written");
     }

@@ -1,5 +1,9 @@
+.idea
 idea/
-docs/
+/docs/*
+!/docs/ui-kit/
+/docs/ui-kit/*
+!/docs/ui-kit/*.md
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/

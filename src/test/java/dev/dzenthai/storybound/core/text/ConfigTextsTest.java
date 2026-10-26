@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.dzenthai.storybound.core.data.ValidationIssue;
+import dev.dzenthai.storybound.TestTranslations;
 import io.netty.buffer.Unpooled;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,11 +24,15 @@ class ConfigTextsTest {
     @Test
     void readsTranslationsAndLongTextsPerLanguage() throws IOException {
         write("lang/en_us.json", "{ \"mypack.title\": \"The Letter\", \"mypack.nested\": { \"a\": 1 } }");
-        write("lang/ru_ru.json", "{ \"mypack.title\": \"Письмо\" }");
+        String translatedTitle = TestTranslations.russian("fixture.letter.title");
+        String translatedBody = TestTranslations.russian("fixture.letter.body");
+        var translated = new com.google.gson.JsonObject();
+        translated.addProperty("mypack.title", translatedTitle);
+        write("lang/ru_ru.json", translated.toString());
         write("lang/broken.json", "{ nope");
         write("texts/en_us/mypack/letter.sbt", "**Hello**");
         write("texts/en_us/note.sbt", "plain");
-        write("texts/ru_ru/mypack/letter.sbt", "**Привет**");
+        write("texts/ru_ru/mypack/letter.sbt", translatedBody);
         write("texts/en_us/Bad Name.sbt", "x");
         List<ValidationIssue> issues = new ArrayList<>();
 
@@ -35,10 +40,10 @@ class ConfigTextsTest {
 
         assertEquals("en_us", texts.sourceLanguage());
         assertEquals("The Letter", texts.translations().get("en_us").get("mypack.title"));
-        assertEquals("Письмо", texts.translations().get("ru_ru").get("mypack.title"));
+        assertEquals(translatedTitle, texts.translations().get("ru_ru").get("mypack.title"));
         assertEquals("**Hello**", texts.documents().get("en_us").get(ResourceLocation.fromNamespaceAndPath("mypack", "letter")));
         assertEquals("plain", texts.documents().get("en_us").get(ResourceLocation.fromNamespaceAndPath("storybound", "note")), "a file right in the language folder");
-        assertEquals("**Привет**", texts.documents().get("ru_ru").get(ResourceLocation.fromNamespaceAndPath("mypack", "letter")));
+        assertEquals(translatedBody, texts.documents().get("ru_ru").get(ResourceLocation.fromNamespaceAndPath("mypack", "letter")));
         assertEquals(3, issues.size(), "a value that is not text, a broken lang file, a bad file name: " + issues);
     }
 

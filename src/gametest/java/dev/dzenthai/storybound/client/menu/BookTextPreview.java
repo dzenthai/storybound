@@ -22,7 +22,8 @@ public final class BookTextPreview extends Screen {
         source.pose().scale((float) viewport.scale(), (float) viewport.scale(), 1);
         source.drawString(font, "Vanilla / corrected pairs", 90, 78, 0xFF725136, false);
         graphics.drawString(font, "Same X, same font and size", 343, 78, 0xFF725136, false);
-        String[] samples = {"Horizon Zombie", "Our Daily Bread", "Zombie rm Жизнь", "Horizon Zombie"};
+        String[] samples = {"Horizon Zombie", "Our Daily Bread",
+                net.minecraft.client.resources.language.I18n.get("storybound.preview.typography"), "Horizon Zombie"};
         for (int row = 0; row < samples.length; row++) {
             int y = 100 + row * 53;
             var sample = JournalSkin.heading(Component.literal(samples[row]));

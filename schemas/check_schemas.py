@@ -144,7 +144,7 @@ expect(quest, {"title": "q", "stages": [{"id": "a", "objectives": [{"trigger": k
 expect(project, {"source_language": "ru_ru", "languages": ["ru_ru", "en_us"], "difficulty": {"style": "stars"}}, True, "project: stars")
 expect(project, {"difficulty": {"style": "stars", "max": 10}}, False, "project: no max, always 5 stars")
 expect(project, {"difficulty": {"levels": [{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}, {"id": "e"}, {"id": "f"}]}}, False, "project: at most 5 levels")
-expect(project, {"difficulty": {"levels": [{"id": "trivial", "color": "#AAAAAA", "name": "Пустяк"}, {"id": "doom", "color": "8B1A1A"}]}}, True, "project: own levels")
+expect(project, {"difficulty": {"levels": [{"id": "trivial", "color": "#AAAAAA", "name": "Trivial"}, {"id": "doom", "color": "8B1A1A"}]}}, True, "project: own levels")
 expect(project, {"difficulty": {"style": "hearts"}}, False, "project: unknown style")
 expect(project, {"chapter_map": True}, True, "project: chapter map on")
 expect(project, json.loads((STARTER / "project.json").read_text(encoding="utf-8")), True, "starter project.json")

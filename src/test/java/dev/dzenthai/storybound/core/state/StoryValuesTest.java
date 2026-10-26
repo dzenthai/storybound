@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonParser;
+import dev.dzenthai.storybound.TestTranslations;
 import com.mojang.serialization.JsonOps;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -14,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 class StoryValuesTest {
     private static final List<StoryValue> SAMPLES = List.of(
-            new StoryValue.Bool(true), new StoryValue.Int(-42), new StoryValue.Str("Каэр Морхен"));
+            new StoryValue.Bool(true), new StoryValue.Int(-42), new StoryValue.Str(TestTranslations.russian("fixture.state.value")));
 
     @Test
     void nbtRoundTripKeepsType() {

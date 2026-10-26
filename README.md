@@ -28,6 +28,18 @@ Requires JDK 21.
 ./gradlew runValidate -PstoryFolder=...   # check a story folder without playing
 ```
 
+## UI kit
+
+The [Storybound UI kit](docs/ui-kit/README.md) documents the approved Adventure Menu
+palette, components, typography, artwork, layout and motion. Open
+[`ui-kit/preview.html`](ui-kit/preview.html) locally for the offline component gallery.
+
+## Project language
+
+Use English for source code, comments, documentation and development tools.
+Keep Russian text in localization resources only, including localized test
+fixtures. Code comments must not contain an em dash.
+
 ## License
 
 GPL-3.0-only, see [LICENSE](LICENSE) and [NOTICE](NOTICE).

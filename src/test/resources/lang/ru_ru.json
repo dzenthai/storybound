@@ -1,0 +1,6 @@
+{
+  "fixture.letter.title": "Письмо",
+  "fixture.letter.body": "**Привет**",
+  "fixture.state.value": "Каэр Морхен",
+  "fixture.schema.first_node": "Первый узел."
+}

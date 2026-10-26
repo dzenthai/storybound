@@ -1,0 +1,17 @@
+{
+  "storybound.preview.typography": "Zombie rm Жизнь",
+  "storybound.preview.quest.title": "Ночной дозор",
+  "storybound.preview.quest.description": "Осмотреть старую мельницу и вернуться к старосте до рассвета.",
+  "storybound.preview.document.title": "Письмо смотрителя",
+  "storybound.preview.note.body": "Староста просил осмотреть старую мельницу.\n\nПосле заката там снова видели огни. Следы ведут к лесу, но никто из жителей не решается идти дальше.\n\nНужно вернуться к нему до рассвета.",
+  "storybound.preview.note.title": "Ночной дозор",
+  "storybound.preview.note.long_title": "Очень длинное название записи о путешествии через северные земли и заброшенные поселения",
+  "storybound.preview.note.elder.title": "Слова старосты",
+  "storybound.preview.note.elder.body": "Короткая запись.",
+  "storybound.preview.note.tracks.title": "Следы у мельницы",
+  "storybound.preview.note.tracks.body": "Следы ведут к лесу.",
+  "storybound.preview.note.letter.body": "Текст письма.",
+  "storybound.preview.note.chronicle.title": "Старая хроника",
+  "storybound.preview.note.chronicle.body": "Запись из хроники.",
+  "storybound.preview.note.extra": "Запись "
+}

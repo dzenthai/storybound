@@ -174,14 +174,14 @@ public final class JournalPreview {
     private static void showQuest(Minecraft minecraft, boolean choices) {
         var id = Storybound.id("preview_quest");
         var json = com.google.gson.JsonParser.parseString("""
-                {"title":{"literal":"Ночной дозор"},
-                 "description":{"literal":"Осмотреть старую мельницу и вернуться к старосте до рассвета."},
+                {"title":{"literal":"Preview quest"},
+                 "description":{"literal":"Preview description"},
                  "difficulty":"easy","rewards":{"xp":10,"items":[{"item":"minecraft:bread","count":4}]}}
                 """);
-        if (minecraft.options.languageCode.equals("en_us")) {
+        {
             var object = json.getAsJsonObject();
-            object.getAsJsonObject("title").addProperty("literal", "Smoke on the Horizon");
-            object.getAsJsonObject("description").addProperty("literal", "Smoke rises beyond the pines. Find the village before nightfall.");
+            object.getAsJsonObject("title").addProperty("literal", previewText("quest.title"));
+            object.getAsJsonObject("description").addProperty("literal", previewText("quest.description"));
         }
         if (choices) {
             var object = json.getAsJsonObject();
@@ -206,7 +206,7 @@ public final class JournalPreview {
     private static void showDocument(Minecraft minecraft) {
         var id = Storybound.id("preview_letter");
         var json = com.google.gson.JsonParser.parseString("""
-                {"kind":"letter","title":{"literal":"Письмо смотрителя"}}
+                {"kind":"letter","title":"storybound.preview.document.title"}
                 """);
         var definition = dev.dzenthai.storybound.module.document.DocumentDefinition.CODEC
                 .parse(com.mojang.serialization.JsonOps.INSTANCE, json).getOrThrow();
@@ -217,24 +217,32 @@ public final class JournalPreview {
 
     private static void show(Minecraft minecraft, boolean longEntry) {
         List<JournalNote> notes = new ArrayList<>();
-        String body = "Староста просил осмотреть старую мельницу.\n\nПосле заката там снова видели огни. "
-                + "Следы ведут к лесу, но никто из жителей не решается идти дальше.\n\nНужно вернуться к нему до рассвета.";
-        String title = longEntry ? "Очень длинное название записи о путешествии через северные земли и заброшенные поселения" : "Ночной дозор";
-        notes.add(note("night", "Заметки", title, longEntry ? body.repeat(16) : body));
-        notes.add(note("elder", "Заметки", "Слова старосты", "Короткая запись."));
-        notes.add(note("tracks", "Заметки", "Следы у мельницы", "Следы ведут к лесу."));
-        notes.add(note("letter", "Документы", "Письмо смотрителя", "Текст письма."));
-        notes.add(note("chronicle", "Документы", "Старая хроника", "Запись из хроники."));
+        String body = previewText("note.body");
+        String title = previewText(longEntry ? "note.long_title" : "note.title");
+        notes.add(note("night", "notes", title, longEntry ? body.repeat(16) : body));
+        notes.add(note("elder", "notes", previewText("note.elder.title"), previewText("note.elder.body")));
+        notes.add(note("tracks", "notes", previewText("note.tracks.title"), previewText("note.tracks.body")));
+        notes.add(note("letter", "letters", previewText("document.title"), previewText("note.letter.body")));
+        notes.add(note("chronicle", "letters", previewText("note.chronicle.title"), previewText("note.chronicle.body")));
         if (longEntry) {
-            for (int i = 0; i < 40; i++) notes.add(note("extra_" + i, "Заметки", "Запись " + i, body));
+            for (int i = 0; i < 40; i++) notes.add(note("extra_" + i, "notes", previewText("note.extra") + i, body));
         }
         ClientJournal.apply(true, List.of(), notes);
         minecraft.setScreen(new AdventureMenuScreen(AdventureMenu.JOURNAL));
     }
 
     private static JournalNote note(String id, String category, String title, String body) {
-        ResourceLocation categoryId = Storybound.id(category.equals("Заметки") ? "notes" : "letters");
+        ResourceLocation categoryId = Storybound.id(category);
         return new JournalNote(Storybound.id(id), categoryId, ResolvedText.literal(title), ResolvedText.literal(body));
+    }
+
+    private static String previewText(String key) {
+        String translationKey = "storybound.preview." + key;
+        if (!net.minecraft.client.resources.language.I18n.exists(translationKey)
+                || !net.minecraft.client.resources.language.I18n.exists("storybound.journal.title")) {
+            throw new IllegalStateException("Preview and production language resources must both be available");
+        }
+        return net.minecraft.client.resources.language.I18n.get(translationKey);
     }
 
     private static void capture(Minecraft minecraft, String name) {
