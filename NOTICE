@@ -16,11 +16,58 @@ them is incorporated, their copyright and permission notices are reproduced here
 
 Active Storybound UI artwork
 ---------------------------
+The document icons in ui-kit/concepts/documents/*-16.png and the matching
+game textures are extracted from the user-supplied approved sheet
+ui-kit/assets/image.png. The source hash, crop rectangles and sampling
+rules are recorded in items16.json and build-icons.ps1. Earlier manually
+reconstructed variants were superseded. The book silhouette follows the
+vanilla Minecraft book; Minecraft-derived elements are not claimed as
+original Storybound intellectual property or relicensed under GPL.
+Minecraft content belongs to Mojang/Microsoft. No Pngtree or PIXTA files
+or third-party resource-pack icon files are included. See
+docs/ui-kit/documents.md for provenance and extraction details.
+
 textures/gui/journal/vanilla_book.png and traveler_corner.png are original
 assets generated for Storybound using the built-in OpenAI imagegen tool.
 Refinements used the project's own artwork. No third-party reference pixels
 were imported. The book's accepted material includes red leather, brass
 fittings, printed parchment ornaments and restrained dithering.
+
+textures/gui/document/book_leather.png is an original reading-book texture
+generated with the built-in imagegen tool. References were the project's
+own Adventure Menu background and item contact sheet. The reading version
+uses muted red leather and new printed angular ornaments without tabs,
+metal corners or protruding sheets. See docs/ui-kit/documents.md.
+
+textures/gui/document/scroll.png is a parchment-scroll reading texture
+generated with the built-in imagegen tool, using the project's current
+book texture and the user-approved item sheet as references. Its paper
+rolls, small printed ornaments and red tie are separate from live text.
+No third-party resource-pack textures or game artwork were imported.
+
+textures/gui/document/parchment.png is a letter-in-envelope reading texture
+generated with the built-in imagegen tool from the approved project mockup,
+followed by a silhouette-cleanup edit. The original letter used the accepted
+project scroll texture and user-approved item sheet as material references.
+It includes quiet paper, small printed corners, a folded corner, a dithered
+contact shadow and a lower-right wax seal on the envelope. No Pngtree pixels
+were imported. All letter text is rendered live from existing document content.
+
+textures/gui/document/note.png is an original note reading texture generated
+with the built-in imagegen tool. The initial references were the approved
+project item sheet and current letter material. A subsequent edit of that
+project texture replaces the turned corner with two offset cream notes and
+sparse edge dithering. The plain rear sheet extends to the right; the
+intermediate third layer and rear-sheet ink sketch were removed on review.
+All main-sheet note text is live. No external reference artwork was imported.
+The previous note_torn style remains available for explicit legacy overrides.
+
+textures/gui/document/contract.png is an original contract reading texture
+generated with the built-in imagegen tool. References were the approved
+project inventory sheet's fifth item and the current note material.
+It uses cream paper rolls, restrained brown side marks, sparse dithering
+and a crimson lower-right wax seal with short ribbons. Text, conditions,
+reward and hint remain live content. No external artwork was imported.
 
 BookmarkPixels, JournalSkin and ArchiveChrome draw original pixel emblems,
 cloth ribbons, reward glints, an XP orb, printed rules and button frames.

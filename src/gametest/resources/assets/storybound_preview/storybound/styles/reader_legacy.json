@@ -1,0 +1,12 @@
+{
+  "texture": "storybound:textures/gui/document/book_leather.png",
+  "width": 290,
+  "height": 186,
+  "texture_width": 1536,
+  "texture_height": 1024,
+  "padding": { "left": 29, "top": 26, "right": 14, "bottom": 44 },
+  "font": "minecraft:default",
+  "color": "#463626",
+  "line_height": 10,
+  "show_title": true
+}

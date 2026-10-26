@@ -12,9 +12,9 @@ public enum DocumentKind implements StringRepresentable {
     /** One long column with scrolling. */
     SCROLL("scroll", "scroll", "scrolls"),
     /** A single sheet; scrolls if the text does not fit. */
-    NOTE("note", "note_torn", "notes"),
+    NOTE("note", "note", "notes"),
     LETTER("letter", "parchment", "letters"),
-    CONTRACT("contract", "note_torn", "contracts");
+    CONTRACT("contract", "contract", "contracts");
 
     public static final Codec<DocumentKind> CODEC = StringRepresentable.fromEnum(DocumentKind::values);
 

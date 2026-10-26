@@ -38,9 +38,11 @@ public final class JournalSkin {
         graphics.pose().scale(fitted, fitted, 1);
         graphics.drawString(font, styled, 0, 0, color, false);
         graphics.pose().popPose();
-        int ruleY = y + 29;
+        titleRule(graphics, x, y + 29, width, MenuThemes.INSTANCE.theme().divider());
+    }
+
+    public static void titleRule(GuiGraphics graphics, int x, int ruleY, int width, int ink) {
         int center = x + width / 2;
-        int ink = MenuThemes.INSTANCE.theme().divider();
         rule(graphics, x, ruleY, center - 9 - x, ink);
         rule(graphics, center + 10, ruleY, x + width - center - 10, ink);
         for (int dy = -3; dy <= 3; dy++) {

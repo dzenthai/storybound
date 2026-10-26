@@ -1,0 +1,13 @@
+{
+  "texture": "storybound:textures/gui/document/contract.png",
+  "width": 288,
+  "height": 384,
+  "texture_width": 1086,
+  "texture_height": 1448,
+  "padding": { "left": 60, "top": 76, "right": 60, "bottom": 100 },
+  "font": "minecraft:default",
+  "color": "#463626",
+  "line_height": 13,
+  "show_title": true,
+  "open_sound": "minecraft:item.book.page_turn"
+}

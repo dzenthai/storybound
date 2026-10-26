@@ -8,10 +8,10 @@ import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 
 /** Keeps clipping and tooltip placement in the same space as book rendering. */
-final class BookGuiGraphics extends GuiGraphics {
+public final class BookGuiGraphics extends GuiGraphics {
     private final BookViewport viewport;
 
-    BookGuiGraphics(Minecraft minecraft, GuiGraphics source, BookViewport viewport) {
+    public BookGuiGraphics(Minecraft minecraft, GuiGraphics source, BookViewport viewport) {
         super(minecraft, source.bufferSource());
         this.viewport = viewport;
         pose().translate(viewport.x(), viewport.y(), 0);

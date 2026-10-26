@@ -1,4 +1,5 @@
 .idea
+*.iml
 idea/
 /docs/*
 !/docs/ui-kit/
