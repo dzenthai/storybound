@@ -2,6 +2,8 @@ package dev.dzenthai.storybound.client.codex;
 
 import dev.dzenthai.storybound.client.document.DocumentTexts;
 import dev.dzenthai.storybound.client.menu.ListDetailView;
+import dev.dzenthai.storybound.client.menu.JournalSkin;
+import dev.dzenthai.storybound.client.menu.MenuThemes;
 import dev.dzenthai.storybound.module.document.sbt.SbtLayout;
 import dev.dzenthai.storybound.module.document.sbt.SbtParser;
 import java.util.List;
@@ -24,7 +26,10 @@ final class SbtDetail {
             return;
         }
         var blocks = SbtParser.parse(source, key -> Language.getInstance().getOrDefault(key));
-        List<SbtLayout.Page> pages = SbtLayout.paginate(blocks, Style.EMPTY, detail.width(), Integer.MAX_VALUE, LINE_HEIGHT, detail.font()::split);
+        boolean book = MenuThemes.INSTANCE.journalBook();
+        Style style = book ? Style.EMPTY.withFont(JournalSkin.FONT) : Style.EMPTY;
+        List<SbtLayout.Page> pages = SbtLayout.paginate(blocks, style, detail.width(), Integer.MAX_VALUE,
+                book ? 13 : LINE_HEIGHT, detail.font()::split);
         for (SbtLayout.Page page : pages) {
             for (SbtLayout.Line line : page.lines()) {
                 switch (line) {

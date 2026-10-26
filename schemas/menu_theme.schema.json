@@ -6,6 +6,9 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "journal_book": { "type": "boolean", "default": false, "description": "Use the textured travel journal, illustrated bookmark buttons and serif font. Takes precedence over archive_chrome; omit to retain the previous layout." },
+    "chrome_palette": { "type": "string", "enum": ["archive", "parchment"], "default": "archive", "description": "Material palette for archive_chrome: dark archive or warm traveler's parchment. Set matching text colors below." },
+    "archive_chrome": { "type": "boolean", "default": false, "description": "Draw pixel-aligned charcoal archive panels and tabs instead of panel/tab sprites. Omit or disable to use resource-pack sprites. Text and accent colors still use this theme." },
     "panel": { "$ref": "logic.schema.json#/definitions/id", "default": "storybound:menu/panel" },
     "tab": { "$ref": "logic.schema.json#/definitions/id", "default": "storybound:menu/tab" },
     "tab_selected": { "$ref": "logic.schema.json#/definitions/id", "default": "storybound:menu/tab_selected" },

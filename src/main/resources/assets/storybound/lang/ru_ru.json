@@ -110,6 +110,7 @@
   "storybound.quests.rewards.times": "Ждут: %s раз",
   "storybound.quests.rewards.claim": "Забрать",
   "storybound.quests.rewards.choose": "Сначала выберите награду",
+  "storybound.quests.rewards.ready": "Выбрано. Нажмите «Забрать».",
   "storybound.quests.rewards.nothing": "У этого квеста нет ожидающих наград",
   "storybound.quests.rewards.no_room": "Освободите ещё слотов в инвентаре: %s",
   "storybound.quest.category.main": "Основные квесты",

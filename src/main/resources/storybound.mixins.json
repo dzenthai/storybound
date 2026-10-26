@@ -4,6 +4,7 @@
   "package": "dev.dzenthai.storybound.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "client.BookFontMixin",
     "client.CameraAccessor",
     "client.GameRendererMixin"
   ],

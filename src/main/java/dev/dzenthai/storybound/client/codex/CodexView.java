@@ -94,7 +94,7 @@ public class CodexView extends ListDetailView<CodexView.Entry> {
             graphics.fill(x, y, x + boxWidth, y + PORTRAIT_HEIGHT - 4, theme.selection());
             EntityPortraits.render(graphics, type, x, y, boxWidth, PORTRAIT_HEIGHT - 4, mouseX, mouseY);
         }));
-        detail.text(entry.title().copy().withStyle(ChatFormatting.BOLD), theme.title());
+        detail.heading(entry.title().copy().withStyle(ChatFormatting.BOLD), theme.title());
         detail.text(categoryName(entry.definition().category()), theme.muted());
         int kills = ClientCodex.kills(entry.id());
         if (entry.definition().showKills() && entry.definition().entity().isPresent() && kills > 0) {

@@ -7,6 +7,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.locale.Language;
 import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,6 +27,7 @@ public abstract class ListDetailView<E> extends MenuView {
     private int version = Integer.MIN_VALUE;
     private int listScroll;
     private int detailScroll;
+    private @Nullable Component rowTooltip;
 
     /** Changes whenever the data behind the rows may have changed. */
     protected abstract int dataVersion();
@@ -53,9 +55,18 @@ public abstract class ListDetailView<E> extends MenuView {
     /** Called after the selection or the data changed; update buttons here. */
     protected void selectionChanged() {}
 
+    /** The same metric is used for drawing, scrolling and row hit testing. */
+    protected int rowHeight() {
+        if (screen.bookLayout() != null) return 22;
+        return MenuThemes.INSTANCE.archiveChrome() ? 20 : ROW_HEIGHT;
+    }
+
     protected final @Nullable E selected() {
         return selected;
     }
+
+    /** A decoration may use spare space, but never displace or obscure the entry. */
+    protected void renderDetailRemainder(GuiGraphics graphics, int x, int y, int width, int height) {}
 
     @Override
     protected void init() {
@@ -117,44 +128,107 @@ public abstract class ListDetailView<E> extends MenuView {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         MenuTheme theme = theme();
-        graphics.fill(left + listWidth() + 4, top, left + listWidth() + 5, top + height, theme.divider());
+        if (screen.bookLayout() == null && MenuThemes.INSTANCE.archiveChrome()) {
+            graphics.fill(left - 5, top - 5, left + listWidth() + 1, top + height + 5, 0x30000000);
+            graphics.fill(left + listWidth() + 5, top - 5, left + listWidth() + 7, top + height + 5, 0x55000000);
+        }
+        if (screen.bookLayout() == null) {
+            graphics.fill(left + listWidth() + 4, top, left + listWidth() + 5, top + height, theme.divider());
+        }
         if (rows.isEmpty()) {
-            Component empty = emptyText();
-            graphics.drawString(font, empty, left + (width - font.width(empty)) / 2, top + height / 2 - 4, theme.ink(), false);
+            Component empty = JournalSkin.text(emptyText());
+            int emptyY = top;
+            for (var line : font.split(empty, detailWidth())) {
+                graphics.drawString(font, line, detailX(), emptyY, theme.ink(), false);
+                emptyY += 13;
+            }
             return;
         }
         renderList(graphics, theme, mouseX, mouseY);
         renderDetail(graphics, mouseX, mouseY, partialTick);
+        if (rowTooltip != null) graphics.renderTooltip(font, rowTooltip, mouseX, mouseY);
     }
 
     private void renderList(GuiGraphics graphics, MenuTheme theme, int mouseX, int mouseY) {
-        int visible = height / ROW_HEIGHT;
+        rowTooltip = null;
+        int rowHeight = rowHeight();
+        int visible = Math.max(1, height / rowHeight);
         listScroll = Math.max(0, Math.min(listScroll, Math.max(0, rows.size() - visible)));
         graphics.enableScissor(left, top, left + listWidth(), top + height);
         for (int i = listScroll; i < rows.size() && i < listScroll + visible; i++) {
             Row<E> row = rows.get(i);
-            int y = top + (i - listScroll) * ROW_HEIGHT;
-            if (row.entry() == null) {
-                graphics.drawString(font, row.text().copy().withStyle(ChatFormatting.BOLD), left, y + 1, row.color() != 0 ? row.color() : theme.accent(), false);
-                continue;
-            }
-            boolean hovered = mouseX >= left && mouseX < left + listWidth() && mouseY >= y && mouseY < y + ROW_HEIGHT;
-            boolean isSelected = row.entry() == selected;
-            if (isSelected || hovered) {
-                graphics.fill(left, y, left + listWidth(), y + ROW_HEIGHT, isSelected ? theme.selection() : theme.hover());
-            }
-            if (isUnseen(row.entry())) {
-                graphics.drawString(font, "•", left + 1, y + 1, theme.unseen(), false);
-            }
-            String text = font.plainSubstrByWidth(row.text().getString(), listWidth() - 8);
-            graphics.drawString(font, text, left + 6, y + 1, row.color() != 0 ? row.color() : theme.ink(), false);
+            int y = top + (i - listScroll) * rowHeight;
+            boolean hovered = mouseX >= left && mouseX < left + listWidth() && mouseY >= y && mouseY < y + rowHeight;
+            renderListRow(graphics, theme, row, y, row.entry() != null && row.entry() == selected, hovered);
         }
         graphics.disableScissor();
+        if (screen.bookLayout() != null && rows.size() > visible) {
+            int trackX = left + listWidth() + 2;
+            int thumbHeight = Math.max(6, height * visible / rows.size());
+            int thumbY = top + (height - thumbHeight) * listScroll / Math.max(1, rows.size() - visible);
+            graphics.fill(trackX, top, trackX + 1, top + height, (theme.divider() & 0xFFFFFF) | 0x50000000);
+            graphics.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, theme.divider());
+        }
+    }
+
+    /** Presentation hook; row selection and data handling remain in the common view. */
+    protected void renderListRow(GuiGraphics graphics, MenuTheme theme, Row<E> row, int y, boolean isSelected, boolean hovered) {
+        int textY = y + Math.max(1, (rowHeight() - (screen.bookLayout() != null ? 7 : font.lineHeight)) / 2);
+        if (screen.bookLayout() != null) {
+            Component text = row.entry() == null ? JournalSkin.heading(row.text()) : JournalSkin.text(row.text());
+            int inset = row.entry() == null ? 0 : entryTextInset(row.entry());
+            int available = Math.max(1, listWidth() - inset - 3);
+            if (hovered && font.width(text) > available) rowTooltip = text;
+            if (row.entry() == null) {
+                JournalSkin.rule(graphics, left, y + rowHeight() - 2, listWidth() - 3, theme.divider());
+            } else {
+                if (hovered) graphics.fill(left, y, left + listWidth(), y + rowHeight(), theme.hover());
+                if (isSelected) {
+                    graphics.fill(left, y + 1, left + listWidth(), y + rowHeight() - 1, theme.selection());
+                }
+                renderEntryMarker(graphics, row.entry(), left + 1, textY, isSelected);
+            }
+            int color = row.entry() == null ? theme.accent() : row.color() != 0 ? row.color() : theme.ink();
+            graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(text, available)), left + inset, textY, color, false);
+            return;
+        }
+        if (row.entry() == null) {
+            graphics.drawString(font, row.text().copy().withStyle(ChatFormatting.BOLD), left, textY, row.color() != 0 ? row.color() : theme.accent(), false);
+            if (MenuThemes.INSTANCE.archiveChrome()) {
+                graphics.fill(left, y + rowHeight() - 2, left + listWidth() - 4, y + rowHeight() - 1, 0x405E5145);
+            }
+            return;
+        }
+        if (isSelected || hovered) {
+            graphics.fill(left, y, left + listWidth(), y + rowHeight(), isSelected ? theme.selection() : theme.hover());
+            if (isSelected && MenuThemes.INSTANCE.archiveChrome()) {
+                graphics.fill(left, y + 3, left + 1, y + rowHeight() - 3, theme.accent());
+            }
+        }
+        if (isUnseen(row.entry())) {
+            graphics.drawString(font, "•", left + 1, textY, theme.unseen(), false);
+        }
+        String text = font.plainSubstrByWidth(row.text().getString(), listWidth() - 8);
+        graphics.drawString(font, text, left + 6, textY, row.color() != 0 ? row.color() : theme.ink(), false);
+    }
+
+    protected int entryTextInset(E entry) {
+        return 11;
+    }
+
+    protected void renderEntryMarker(GuiGraphics graphics, E entry, int x, int y, boolean selected) {
+        if (selected) {
+            graphics.fill(x + 1, y, x + 3, y + 7, 0xFF65883D);
+            graphics.fill(x + 3, y + 2, x + 5, y + 5, 0xFF65883D);
+        } else if (isUnseen(entry)) {
+            JournalSkin.star(graphics, x, y, theme().unseen());
+        }
     }
 
     private void renderDetail(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         int x = detailX();
-        int bottom = top + height - BUTTON_ROW;
+        int bottom = detailBottom();
+        int top = detailTop();
         int contentHeight = detail.stream().mapToInt(Line::height).sum();
         detailScroll = Math.max(0, Math.min(detailScroll, Math.max(0, contentHeight - (bottom - top))));
         graphics.enableScissor(x, top, x + detailWidth(), bottom);
@@ -167,19 +241,28 @@ public abstract class ListDetailView<E> extends MenuView {
                     graphics.fill(x - 2, y - 1, x + detailWidth(), y + line.height() - 1, theme().hover());
                 }
                 if (line.prefix() != null) {
-                    graphics.drawString(font, line.prefix(), x, y, line.color(), false);
+                    graphics.drawString(font, JournalSkin.text(Component.literal(line.prefix())), x, y, line.color(), false);
                 }
                 graphics.drawString(font, line.text(), x + line.indent(), y, line.color(), false);
             }
             y += line.height();
         }
+        if (contentHeight < bottom - top) {
+            renderDetailRemainder(graphics, x, top + contentHeight + 6, detailWidth(), bottom - top - contentHeight - 6);
+        }
         graphics.disableScissor();
+        if (screen.bookLayout() != null && contentHeight > bottom - top) {
+            int thumbHeight = Math.max(6, (bottom - top) * (bottom - top) / contentHeight);
+            int thumbY = top + (bottom - top - thumbHeight) * detailScroll / Math.max(1, contentHeight - (bottom - top));
+            graphics.fill(x + detailWidth() + 2, top, x + detailWidth() + 3, bottom, (theme().divider() & 0xFFFFFF) | 0x50000000);
+            graphics.fill(x + detailWidth() + 2, thumbY, x + detailWidth() + 4, thumbY + thumbHeight, theme().divider());
+        }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (mouseX >= detailX() && mouseX < detailX() + detailWidth() && mouseY >= top && mouseY < top + height - BUTTON_ROW) {
-            int y = top - detailScroll;
+        if (mouseX >= detailX() && mouseX < detailX() + detailWidth() && mouseY >= detailTop() && mouseY < detailBottom()) {
+            int y = detailTop() - detailScroll;
             for (Line line : detail) {
                 if (line.click() != null && mouseY >= y && mouseY < y + line.height()) {
                     line.click().run();
@@ -189,8 +272,9 @@ public abstract class ListDetailView<E> extends MenuView {
             }
         }
         if (mouseX >= left && mouseX < left + listWidth() && mouseY >= top && mouseY < top + height) {
-            int index = listScroll + (int) ((mouseY - top) / ROW_HEIGHT);
-            if (index >= 0 && index < rows.size() && rows.get(index).entry() != null) {
+            int index = listScroll + (int) ((mouseY - top) / rowHeight());
+            if (index >= listScroll && index < listScroll + Math.max(1, height / rowHeight())
+                    && index < rows.size() && rows.get(index).entry() != null) {
                 select(rows.get(index).entry());
                 return true;
             }
@@ -209,10 +293,12 @@ public abstract class ListDetailView<E> extends MenuView {
     }
 
     protected int listWidth() {
+        if (screen.bookLayout() != null) return screen.bookLayout().indexWidth();
         return Math.max(110, width * 3 / 8);
     }
 
     protected int detailX() {
+        if (screen.bookLayout() != null) return screen.bookLayout().detailLeft();
         return left + listWidth() + 10;
     }
 
@@ -220,9 +306,21 @@ public abstract class ListDetailView<E> extends MenuView {
         return left + width - detailX();
     }
 
+    protected int detailTop() {
+        return screen.bookLayout() == null ? top : screen.bookLayout().y() + screen.bookLayout().height() * 17 / 100;
+    }
+
+    protected int detailBottom() {
+        return top + height - buttonRowHeight();
+    }
+
     /** Bottom-right corner of the panel, for buttons. */
     protected int buttonY() {
-        return top + height - BUTTON_ROW + 4;
+        return top + height - buttonRowHeight() + 4;
+    }
+
+    protected int buttonRowHeight() {
+        return BUTTON_ROW;
     }
 
     /**
@@ -259,45 +357,91 @@ public abstract class ListDetailView<E> extends MenuView {
     public static final class Detail {
         private final Font font;
         private final int width;
+        private final int lineHeight;
         private final List<Line> lines = new ArrayList<>();
 
         Detail(Font font, int width) {
             this.font = font;
             this.width = width;
+            this.lineHeight = MenuThemes.INSTANCE.journalBook() ? 13 : MenuThemes.INSTANCE.archiveChrome() ? 13 : LINE_HEIGHT;
         }
 
         public Detail text(Component text, int color) {
-            for (FormattedCharSequence line : font.split(text, width)) {
-                lines.add(new Line(null, line, 0, color, LINE_HEIGHT));
+            for (FormattedCharSequence line : font.split(JournalSkin.text(text), width)) {
+                lines.add(new Line(null, line, 0, color, lineHeight));
             }
             return this;
         }
 
+        /** One reward row, with a live item icon and a single written quantity. */
+        public Detail reward(net.minecraft.world.item.ItemStack stack, int color) {
+            Component label = JournalSkin.text(Component.literal(stack.getCount() + " × ").append(stack.getHoverName()));
+            var wrapped = font.split(label, Math.max(1, width - 23));
+            return block(Math.max(20, wrapped.size() * lineHeight + 4), (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
+                graphics.renderItem(stack, x, y);
+                for (int i = 0; i < wrapped.size(); i++) {
+                    graphics.drawString(font, wrapped.get(i), x + 23, y + 4 + i * lineHeight, color, false);
+                }
+            });
+        }
+
+        public Detail experience(Component text, int color) {
+            var wrapped = font.split(JournalSkin.text(text), Math.max(1, width - 23));
+            return block(Math.max(20, wrapped.size() * lineHeight + 4), (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
+                JournalSkin.experienceOrb(graphics, x, y);
+                for (int i = 0; i < wrapped.size(); i++) graphics.drawString(font, wrapped.get(i), x + 23, y + 4 + i * lineHeight, color, false);
+            });
+        }
+
         /** A line with a prefix (a bullet, a checkbox) and the text wrapped beside it. */
         public Detail item(String prefix, Component text, int color) {
-            int indent = font.width(prefix + " ");
-            List<FormattedCharSequence> wrapped = font.split(text, width - indent);
+            int indent = font.width(JournalSkin.text(Component.literal(prefix + " ")));
+            List<FormattedCharSequence> wrapped = font.split(JournalSkin.text(text), Math.max(1, width - indent));
             for (int i = 0; i < wrapped.size(); i++) {
-                lines.add(new Line(i == 0 ? prefix : null, wrapped.get(i), indent, color, LINE_HEIGHT));
+                lines.add(new Line(i == 0 ? prefix : null, wrapped.get(i), indent, color, lineHeight));
             }
             return this;
         }
 
         /** An {@link #item} the player can click (a choice); it is highlighted under the mouse. */
         public Detail clickable(String prefix, Component text, int color, Runnable click) {
-            int indent = font.width(prefix + " ");
-            List<FormattedCharSequence> wrapped = font.split(text, width - indent);
+            int indent = font.width(JournalSkin.text(Component.literal(prefix + " ")));
+            List<FormattedCharSequence> wrapped = font.split(JournalSkin.text(text), Math.max(1, width - indent));
             for (int i = 0; i < wrapped.size(); i++) {
-                lines.add(new Line(i == 0 ? prefix : null, wrapped.get(i), indent, color, LINE_HEIGHT, null, click));
+                lines.add(new Line(i == 0 ? prefix : null, wrapped.get(i), indent, color, lineHeight, null, click));
             }
+            return this;
+        }
+
+        /** Stable-size reward choices share their visual bounds with the click target. */
+        public Detail rewardChoice(net.minecraft.world.item.ItemStack stack, boolean selected, int color, @Nullable Runnable click) {
+            var label = JournalSkin.text(Component.literal(stack.getCount() + " × ").append(stack.getHoverName()));
+            var wrapped = font.split(label, Math.max(1, width - 38));
+            int rowHeight = Math.max(26, wrapped.size() * lineHeight + 8);
+            Block draw = (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
+                var theme = MenuThemes.INSTANCE.theme();
+                boolean hovered = click != null && mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + rowHeight;
+                if (selected || hovered) graphics.fill(x, y + 1, x + width, y + rowHeight - 1, selected ? theme.selection() : theme.hover());
+                int cy = y + (rowHeight - 10) / 2;
+                int ink = theme.divider();
+                graphics.fill(x + 2, cy, x + 12, cy + 2, ink);
+                graphics.fill(x + 2, cy + 8, x + 12, cy + 10, ink);
+                graphics.fill(x + 2, cy + 2, x + 4, cy + 8, ink);
+                graphics.fill(x + 10, cy + 2, x + 12, cy + 8, ink);
+                if (selected) graphics.fill(x + 5, cy + 3, x + 9, cy + 7, theme.completed());
+                graphics.renderItem(stack, x + 17, y + (rowHeight - 16) / 2);
+                int textY = y + (rowHeight - (wrapped.size() - 1) * lineHeight - 7) / 2;
+                for (int i = 0; i < wrapped.size(); i++) graphics.drawString(font, wrapped.get(i), x + 38, textY + i * lineHeight, color, false);
+            };
+            lines.add(new Line(null, null, 0, color, rowHeight, draw, click));
             return this;
         }
 
         /** Text under an {@link #item} with the same prefix, aligned with that item's text. */
         public Detail note(String prefix, Component text, int color) {
-            int indent = font.width(prefix + " ");
-            for (FormattedCharSequence line : font.split(text, width - indent)) {
-                lines.add(new Line(null, line, indent, color, LINE_HEIGHT));
+            int indent = font.width(JournalSkin.text(Component.literal(prefix + " ")));
+            for (FormattedCharSequence line : font.split(JournalSkin.text(text), Math.max(1, width - indent))) {
+                lines.add(new Line(null, line, indent, color, lineHeight));
             }
             return this;
         }
@@ -323,6 +467,22 @@ public abstract class ListDetailView<E> extends MenuView {
 
         public Detail gap(int pixels) {
             lines.add(new Line(null, null, 0, 0, pixels));
+            return this;
+        }
+
+        /** Leave room for ascenders above the font baseline inside the scissor. */
+        public Detail heading(Component text, int color) {
+            if (!MenuThemes.INSTANCE.journalBook()) return text(text, color);
+            gap(3);
+            for (FormattedCharSequence line : font.split(JournalSkin.heading(text), Math.max(1, width / 2))) {
+                block(22, (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
+                    graphics.pose().pushPose();
+                    graphics.pose().translate(x, y, 0);
+                    graphics.pose().scale(2, 2, 1);
+                    graphics.drawString(font, line, 0, 0, color, false);
+                    graphics.pose().popPose();
+                });
+            }
             return this;
         }
     }

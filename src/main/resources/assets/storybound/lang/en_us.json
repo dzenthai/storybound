@@ -110,6 +110,7 @@
   "storybound.quests.rewards.times": "Waiting %s times",
   "storybound.quests.rewards.claim": "Claim",
   "storybound.quests.rewards.choose": "Choose a reward first",
+  "storybound.quests.rewards.ready": "Selected. Press Claim to collect.",
   "storybound.quests.rewards.nothing": "No rewards wait for this quest",
   "storybound.quests.rewards.no_room": "Free %s more inventory slots",
   "storybound.quest.category.main": "Main Quests",

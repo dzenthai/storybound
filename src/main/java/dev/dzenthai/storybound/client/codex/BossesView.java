@@ -25,7 +25,6 @@ import net.minecraft.world.item.ItemStack;
  * tactics and rewards the player has uncovered, and their statistics after the first victory.
  */
 public class BossesView extends ListDetailView<BossesView.Entry> {
-    private static final int ITEM_ROW = 20;
 
     public static boolean hasUnseen() {
         return entries().stream().anyMatch(entry -> !SeenMarks.isSeen(seenKey(entry)));
@@ -93,7 +92,7 @@ public class BossesView extends ListDetailView<BossesView.Entry> {
             graphics.fill(x, y, x + boxWidth, y + CodexView.PORTRAIT_HEIGHT - 4, theme.selection());
             EntityPortraits.render(graphics, type, x, y, boxWidth, CodexView.PORTRAIT_HEIGHT - 4, mouseX, mouseY);
         }));
-        detail.text(entry.title().copy().withStyle(ChatFormatting.BOLD), theme.title());
+        detail.heading(entry.title().copy().withStyle(ChatFormatting.BOLD), theme.title());
         detail.text(record.victories() > 0
                 ? Component.translatable("storybound.bosses.status.defeated", record.victories())
                 : Component.translatable("storybound.bosses.status.encountered"), record.victories() > 0 ? theme.completed() : theme.failed());
@@ -109,14 +108,8 @@ public class BossesView extends ListDetailView<BossesView.Entry> {
             }
             List<ItemStack> items = rewards.items();
             if (!items.isEmpty()) {
-                detail.block(ITEM_ROW, (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
-                    for (int i = 0; i < items.size() && (i + 1) * 18 <= width; i++) {
-                        graphics.renderItem(items.get(i), x + i * 18, y);
-                        graphics.renderItemDecorations(detail.font(), items.get(i), x + i * 18, y);
-                    }
-                });
                 for (ItemStack item : items) {
-                    detail.item("•", Component.literal(item.getCount() + " × ").append(item.getHoverName()), theme.ink());
+                    detail.reward(item, theme.ink());
                 }
             }
             rewards.text().ifPresent(text -> SbtDetail.append(detail, text, theme.ink()));

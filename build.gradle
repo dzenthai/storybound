@@ -102,6 +102,13 @@ neoForge {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
+        // Isolated visual checks with synthetic client data; no world or server is opened.
+        uiPreview {
+            client()
+            gameDirectory = project.file('run/ui-preview')
+            systemProperty 'storybound.uiPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '800'
+        }
         // More players for party and dialogue tests: other names (offline UUIDs come from the name) and their own folders.
         client2 {
             client()

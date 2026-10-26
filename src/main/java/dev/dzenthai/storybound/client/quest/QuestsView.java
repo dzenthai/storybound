@@ -3,9 +3,12 @@ package dev.dzenthai.storybound.client.quest;
 import dev.dzenthai.storybound.client.ClientQuests;
 import dev.dzenthai.storybound.client.SeenMarks;
 import dev.dzenthai.storybound.client.menu.AdventureMenu;
+import dev.dzenthai.storybound.client.menu.ArchiveChrome;
 import dev.dzenthai.storybound.client.menu.AdventureMenuScreen;
 import dev.dzenthai.storybound.client.menu.ListDetailView;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
+import dev.dzenthai.storybound.client.menu.JournalSkin;
+import dev.dzenthai.storybound.client.menu.MenuThemes;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.module.quest.DifficultyScale;
@@ -38,8 +41,6 @@ import org.jetbrains.annotations.Nullable;
  * quest's description, the log of passed stages and the current objectives.
  */
 public class QuestsView extends ListDetailView<QuestsView.Entry> {
-    private static final int ITEM_ROW = 18;
-
     private Button trackButton;
     private Button claimButton;
     /** The reward chosen for {@link #chosenFor}; -1 while none is. */
@@ -63,12 +64,13 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
 
     @Override
     protected void init() {
-        trackButton = addWidget(Button.builder(Component.empty(), button -> toggleTracking())
-                .bounds(left + width - 90, buttonY(), 90, 18)
-                .build());
-        claimButton = addWidget(Button.builder(Component.translatable("storybound.quests.rewards.claim"), button -> claim())
-                .bounds(left + width - 184, buttonY(), 90, 18)
-                .build());
+        boolean stacked = screen.bookLayout() != null && detailWidth() < 180;
+        int buttonWidth = stacked ? detailWidth() : Math.min(90, Math.max(36, (detailWidth() - 4) / 2));
+        trackButton = addWidget(new ArchiveChrome.ArchiveButton(left + width - buttonWidth,
+                buttonY() + (stacked ? 22 : 0), buttonWidth, 18, Component.empty(), button -> toggleTracking()).withPin());
+        claimButton = addWidget(new ArchiveChrome.ArchiveButton(left + width - buttonWidth,
+                trackButton.getY(), buttonWidth, 18, Component.translatable("storybound.quests.rewards.claim"), button -> claim())
+                .withReadyEffect(() -> chosen >= 0 && claimButton.visible && claimButton.active));
         super.init();
         if (focus != null) {
             selectKey(focus.toString());
@@ -155,8 +157,22 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         if (!entries.isEmpty()) {
             rows.add(new Row<>(Component.translatable(title), null, 0));
             // Rewards waiting to be claimed are marked, so the player comes back for them.
-            entries.forEach(entry -> rows.add(new Row<>(ClientQuests.waitingReward(entry.id()).isPresent()
+            entries.forEach(entry -> rows.add(new Row<>(!MenuThemes.INSTANCE.journalBook() && ClientQuests.waitingReward(entry.id()).isPresent()
                     ? Component.literal("✦ ").append(entry.title()) : entry.title(), entry, color)));
+        }
+    }
+
+    @Override
+    protected int entryTextInset(Entry entry) {
+        return ClientQuests.waitingReward(entry.id()).isPresent() ? 15 : super.entryTextInset(entry);
+    }
+
+    @Override
+    protected void renderEntryMarker(net.minecraft.client.gui.GuiGraphics graphics, Entry entry, int x, int y, boolean selected) {
+        if (ClientQuests.waitingReward(entry.id()).isPresent()) {
+            JournalSkin.rewardMark(graphics, x, y - 1);
+        } else {
+            super.renderEntryMarker(graphics, entry, x, y, selected);
         }
     }
 
@@ -208,11 +224,11 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         MenuTheme theme = theme();
         QuestDefinition definition = entry.definition();
         QuestProgress progress = entry.progress();
-        detail.text(entry.title().copy().withStyle(ChatFormatting.BOLD), theme.title());
+        detail.heading(entry.title().copy().withStyle(ChatFormatting.BOLD), theme.title());
         detail.text(Component.translatable("storybound.quests.status." + progress.status().name().toLowerCase(Locale.ROOT))
                 .append(" · ").append(categoryName(definition.category())), statusColor(theme, progress.status()));
         definition.difficulty().ifPresent(difficulty ->
-                detail.text(Component.translatable("storybound.quests.difficulty", DifficultyScale.current().render(difficulty)), theme.ink()));
+                detail.text(Component.translatable("storybound.quests.difficulty", difficultyLabel(difficulty)), theme.ink()));
         secondsLeft(definition, progress).ifPresent(left -> detail.text(Component.translatable("storybound.quests.time_left", clock(left)),
                 left < 60 ? 0xFFD9534F : theme.ink()));
         if (definition.repeatable().isPresent()) {
@@ -222,7 +238,12 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
                     : Component.translatable("storybound.quests.repeat_ready");
             detail.text(repeat, theme.ink());
         }
-        detail.gap(6);
+        if (screen.bookLayout() != null) {
+            detail.block(10, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
+                    JournalSkin.rule(graphics, x, y + 4, width, theme.divider()));
+        } else {
+            detail.gap(6);
+        }
 
         definition.text().forStatus(progress.status()).or(definition::description)
                 .ifPresent(text -> detail.text(text.asComponent(), theme.ink()).gap(6));
@@ -314,10 +335,10 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
             chosen = -1;
             chosenFor = entry != null ? entry.id() : null;
         }
-        trackButton.visible = entry != null && entry.progress().status() == QuestStatus.ACTIVE;
+        boolean waiting = entry != null && ClientQuests.waitingReward(entry.id()).isPresent();
+        trackButton.visible = entry != null && entry.progress().status() == QuestStatus.ACTIVE && !waiting;
         boolean pinned = entry != null && ClientQuests.isPinned(entry.id());
         trackButton.setMessage(Component.translatable(pinned ? "storybound.quests.untrack" : "storybound.quests.track"));
-        boolean waiting = entry != null && ClientQuests.waitingReward(entry.id()).isPresent();
         claimButton.visible = waiting;
         claimButton.active = waiting && (entry.definition().rewards().choice().isEmpty() || chosen >= 0);
         claimButton.setTooltip(claimButton.active ? null : Tooltip.create(Component.translatable("storybound.quests.rewards.choose")));
@@ -353,27 +374,39 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         rewards.items().forEach(item -> shown.add(item.stack()));
         waiting.ifPresent(pending -> shown.addAll(pending.loot()));
         if (!shown.isEmpty()) {
-            detail.block(ITEM_ROW, (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
-                for (int i = 0; i < shown.size() && (i + 1) * 18 <= width; i++) {
-                    graphics.renderItem(shown.get(i), x + i * 18, y);
-                    graphics.renderItemDecorations(detail.font(), shown.get(i), x + i * 18, y);
-                }
-            });
             for (ItemStack stack : shown) {
-                detail.item("•", Component.literal(stack.getCount() + " × ").append(stack.getHoverName()), theme.ink());
+                detail.reward(stack, theme.ink());
             }
         }
         if (rewards.loot().isPresent() && waiting.isEmpty()) {
             detail.item("•", Component.translatable("storybound.quests.rewards.loot"), theme.ink());
         }
         if (rewards.xp() > 0) {
-            detail.item("•", Component.translatable("storybound.quests.rewards.xp", rewards.xp()), theme.ink());
+            detail.experience(Component.translatable("storybound.quests.rewards.xp", rewards.xp()), theme.ink());
         }
         if (!rewards.choice().isEmpty()) {
             detail.gap(2).text(Component.translatable("storybound.quests.rewards.choice"), theme.ink());
+            if (screen.bookLayout() != null && waiting.isPresent()) {
+                var instruction = font.split(JournalSkin.text(Component.translatable(chosen >= 0
+                        ? "storybound.quests.rewards.ready" : "storybound.quests.rewards.choose")), detail.width());
+                int instructionHeight = Math.max(1, instruction.size()) * 13 + 2;
+                detail.block(instructionHeight, (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
+                    for (int line = 0; line < instruction.size(); line++) {
+                        graphics.drawString(font, instruction.get(line), x, y + line * 13, theme.accent(), false);
+                    }
+                });
+            }
             for (int i = 0; i < rewards.choice().size(); i++) {
                 ItemStack stack = rewards.choice().get(i).stack();
                 Component text = Component.literal(stack.getCount() + " × ").append(stack.getHoverName());
+                if (screen.bookLayout() != null) {
+                    int index = i;
+                    detail.rewardChoice(stack, index == chosen, theme.ink(), waiting.isPresent() ? () -> {
+                        chosen = index;
+                        refreshDetail();
+                    } : null);
+                    continue;
+                }
                 if (waiting.isPresent()) {
                     int index = i;
                     detail.clickable(index == chosen ? "◉" : "○", text, index == chosen ? theme.accent() : theme.ink(), () -> {
@@ -389,6 +422,24 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         if (times > 1) {
             detail.text(Component.translatable("storybound.quests.rewards.times", times), theme.muted());
         }
+    }
+
+    @Override
+    protected int detailBottom() {
+        return super.detailBottom() - (screen.bookLayout() != null ? 18 : 0);
+    }
+
+    @Override
+    protected int buttonRowHeight() {
+        return screen.bookLayout() != null && detailWidth() < 180 ? 44 : super.buttonRowHeight();
+    }
+
+    private Component difficultyLabel(QuestDefinition.Difficulty difficulty) {
+        Component label = DifficultyScale.current().render(difficulty);
+        if (screen.bookLayout() == null) return label;
+        int rank = DifficultyScale.current().stars(difficulty);
+        int ink = rank <= 1 ? 0x3A5F3A : rank == 2 ? 0x85612E : 0x8B4136;
+        return Component.literal(label.getString()).withColor(ink);
     }
 
     public record Entry(ResourceLocation id, QuestDefinition definition, QuestProgress progress) {
