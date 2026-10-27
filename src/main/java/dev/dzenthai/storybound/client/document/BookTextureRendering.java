@@ -38,10 +38,6 @@ public final class BookTextureRendering {
         ShaderInstance previous = RenderSystem.getShader();
         RenderSystem.setShaderTexture(0, style.texture());
         RenderSystem.setShader(() -> cutout);
-        boolean cleanContour = style.texture().equals(Storybound.id("textures/gui/document/parchment.png"))
-                || style.texture().equals(Storybound.id("textures/gui/document/note.png"))
-                || style.texture().equals(Storybound.id("textures/gui/document/contract.png"));
-        cutout.safeGetUniform("CleanSheetContour").set(cleanContour ? 1f : 0f);
         var matrix = graphics.pose().last().pose();
         var buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
         buffer.addVertex(matrix, 0, 0, 0).setUv(0, 0);

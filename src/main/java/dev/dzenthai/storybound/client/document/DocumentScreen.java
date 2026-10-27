@@ -278,7 +278,7 @@ public class DocumentScreen extends Screen {
             graphics.blitSprite(sprite, x, y, ARROW_WIDTH, ARROW_HEIGHT);
             return;
         }
-        int color = hover ? 0xFF493120 : 0xFF876052;
+        int color = hover ? 0xFF79533F : 0xFFAE7C53;
         int center = x + ARROW_WIDTH / 2;
         graphics.fill(center - 6, y + 6, center + 7, y + 8, color);
         for (int step = 0; step < 3; step++) {
@@ -339,7 +339,7 @@ public class DocumentScreen extends Screen {
                         line * 11, 0x493120, false);
             }
             sheet.pose().popPose();
-            JournalSkin.titleRule(sheet, x, textTop() - 12, pageWidth(), 0xFFB17143);
+            JournalSkin.titleRule(sheet, x, textTop() - 12, pageWidth(), 0xFFAE7C53);
             sheet.disableScissor();
         }
         sheet.enableScissor(x, textTop(), x + pageWidth(), textTop() + textHeight());
@@ -349,8 +349,8 @@ public class DocumentScreen extends Screen {
             int trackX = style.width() - style.padding().right() + 5;
             int thumbHeight = Math.max(12, textHeight() * textHeight() / page.height());
             int thumbY = textTop() + (textHeight() - thumbHeight) * scroll / maxScroll(page);
-            sheet.fill(trackX, textTop(), trackX + 2, textTop() + textHeight(), 0x30B17143);
-            sheet.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, 0xFFB17143);
+            sheet.fill(trackX, textTop(), trackX + 2, textTop() + textHeight(), 0x30AE7C53);
+            sheet.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, 0xFFAE7C53);
         }
         sheet.flush();
     }

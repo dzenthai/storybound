@@ -18,8 +18,8 @@ Active Storybound UI artwork
 ---------------------------
 The document icons in ui-kit/concepts/documents/*-16.png and the matching
 game textures are extracted from the user-supplied approved sheet
-ui-kit/assets/image.png. The source hash, crop rectangles and sampling
-rules are recorded in items16.json and build-icons.ps1. Earlier manually
+ui-kit/assets/image.png. The source hash, individual cell grids, reviewed silhouettes and sampling
+rules are recorded in items16.json and build-icons.ps1. Original colors are retained; no reader palette is applied to inventory icons. Earlier manually
 reconstructed variants were superseded. The book silhouette follows the
 vanilla Minecraft book; Minecraft-derived elements are not claimed as
 original Storybound intellectual property or relicensed under GPL.
@@ -94,3 +94,15 @@ they are not a standalone redistribution of Mojang fonts or game assets.
 See docs/ui-kit/graphics.md and docs/ui-kit/cleanup.md for the active inventory and
 retired experiment manifest. Storybound source and original project assets
 are distributed under the repository's GPL-3.0-only license.
+
+Approved document artwork, October 27, 2026
+-----------------------------------------
+The four selected reading-book, letter, note and contract PNGs are preserved
+byte for byte from their built-in imagegen outputs. The accepted original
+scroll is retained. References were only existing project artwork. The later
+reduced-grid/palette conversion was rejected and is not distributed.
+Original filenames and hashes are recorded in ui-kit/document-art.json;
+generation briefs are in ui-kit/concepts/documents/material-polish.txt.
+Inventory icons are independently reconstructed from the unchanged approved
+image.png with individually aligned grids and explicit silhouettes. Their
+colors and visible details are sampled only from that supplied source.

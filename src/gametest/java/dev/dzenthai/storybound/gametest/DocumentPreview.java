@@ -7,11 +7,19 @@ import dev.dzenthai.storybound.client.document.DocumentScreen;
 import dev.dzenthai.storybound.client.document.DocumentStyles;
 import dev.dzenthai.storybound.client.menu.BookViewport;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
+import dev.dzenthai.storybound.module.document.DocumentKind;
+import dev.dzenthai.storybound.module.document.DocumentRef;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -193,9 +201,52 @@ public final class DocumentPreview {
             if (captures != 39) throw new IllegalStateException("Missing contract captures");
             screen(minecraft).onClose();
             if (minecraft.screen instanceof DocumentScreen) throw new IllegalStateException("Contract did not close");
-            Storybound.LOGGER.info("Document preview passed: thirty-nine captures, all five reading surfaces, navigation, title wrapping and legacy styles");
+            showItems(minecraft);
+        }
+        if (ticks == 1340) capture(minecraft, "document-items.png");
+        if (ticks == 1360) {
+            if (captures != 40) throw new IllegalStateException("Missing inventory capture");
+            Storybound.LOGGER.info("Document preview passed: forty captures, five item models, all five reading surfaces, navigation, title wrapping and legacy styles");
             minecraft.stop();
         }
+    }
+
+    private static void showItems(Minecraft minecraft) {
+        minecraft.options.guiScale().set(2);
+        minecraft.resizeDisplay();
+        DocumentKind[] kinds = {DocumentKind.BOOK, DocumentKind.SCROLL, DocumentKind.LETTER, DocumentKind.NOTE, DocumentKind.CONTRACT};
+        Map<ResourceLocation, DocumentDefinition> definitions = new LinkedHashMap<>();
+        ItemStack[] items = new ItemStack[kinds.length];
+        for (int i = 0; i < kinds.length; i++) {
+            var id = Storybound.id("preview_item_" + kinds[i].getSerializedName());
+            var json = JsonParser.parseString("{\"kind\":\"" + kinds[i].getSerializedName()
+                    + "\",\"title\":{\"literal\":\"" + kinds[i].getSerializedName() + "\"}}");
+            definitions.put(id, DocumentDefinition.CODEC.parse(JsonOps.INSTANCE, json).getOrThrow());
+            items[i] = new ItemStack(DocumentRegistries.DOCUMENT_ITEM.get());
+            items[i].set(DocumentRegistries.DOCUMENT_COMPONENT.get(), new DocumentRef(id));
+        }
+        DocumentRegistries.DOCUMENTS.clientStore().replace(definitions);
+        minecraft.setScreen(new Screen(Component.literal("Document item material review")) {
+            @Override
+            public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+                graphics.fill(0, 0, width, height, 0xFF30342B);
+                graphics.drawCenteredString(font, "Document items / actual item models", width / 2, 36, 0xF3D8AF);
+                int left = (width - 500) / 2;
+                for (int i = 0; i < items.length; i++) {
+                    int center = left + i * 100 + 50;
+                    graphics.drawCenteredString(font, kinds[i].getSerializedName(), center, 78, 0xF3D8AF);
+                    graphics.pose().pushPose();
+                    graphics.pose().translate(center - 32, 106, 0);
+                    graphics.pose().scale(4, 4, 1);
+                    graphics.renderItem(items[i], 0, 0);
+                    graphics.pose().popPose();
+                    graphics.fill(center - 11, 215, center + 11, 237, 0xFF79533F);
+                    graphics.fill(center - 9, 217, center + 9, 235, 0xFFDFB88B);
+                    graphics.renderItem(items[i], center - 8, 218);
+                }
+                graphics.drawCenteredString(font, "4x detail above / inventory size below", width / 2, 274, 0xF3D8AF);
+            }
+        });
     }
 
     private static DocumentScreen screen(Minecraft minecraft) {
