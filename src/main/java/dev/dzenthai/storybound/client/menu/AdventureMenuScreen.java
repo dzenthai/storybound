@@ -54,7 +54,8 @@ public class AdventureMenuScreen extends Screen {
     protected void init() {
         var window = minecraft.getWindow();
         viewport = MenuThemes.INSTANCE.journalBook()
-                ? BookViewport.fit(window.getWidth(), window.getHeight(), window.getGuiScale()) : null;
+                ? BookViewport.wholePixels(window.getWidth(), window.getHeight(), window.getGuiScale(), JournalSkin.BOOK_WIDTH,
+                        JournalLayout.fit(BookViewport.WIDTH, BookViewport.HEIGHT)) : null;
         width = viewport == null ? window.getGuiScaledWidth() : BookViewport.WIDTH;
         height = viewport == null ? window.getGuiScaledHeight() : BookViewport.HEIGHT;
         bookTooltip = null;

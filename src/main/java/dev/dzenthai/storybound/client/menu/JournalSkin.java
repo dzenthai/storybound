@@ -14,6 +14,9 @@ public final class JournalSkin {
     public static final ResourceLocation FONT = ResourceLocation.withDefaultNamespace("default");
     public static final ResourceLocation HEADING_FONT = FONT;
     private static final ResourceLocation BOOK = Storybound.id("textures/gui/journal/vanilla_book.png");
+    /** The book texture's size in pixels. */
+    public static final int BOOK_WIDTH = 1536;
+    public static final int BOOK_HEIGHT = 1024;
     private JournalSkin() {}
 
     public static Component text(Component text) {
@@ -27,7 +30,7 @@ public final class JournalSkin {
 
     public static void book(GuiGraphics graphics, JournalLayout layout) {
         RenderSystem.enableBlend();
-        graphics.blit(BOOK, layout.x(), layout.y(), layout.width(), layout.height(), 0, 0, 1536, 1024, 1536, 1024);
+        graphics.blit(BOOK, layout.x(), layout.y(), layout.width(), layout.height(), 0, 0, BOOK_WIDTH, BOOK_HEIGHT, BOOK_WIDTH, BOOK_HEIGHT);
     }
 
     public static void title(GuiGraphics graphics, Font font, Component title, int x, int y, int width, float scale, int color) {
