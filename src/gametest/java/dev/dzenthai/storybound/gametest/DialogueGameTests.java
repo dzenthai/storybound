@@ -357,6 +357,29 @@ public final class DialogueGameTests {
         helper.succeed();
     }
 
+    /** A dialogue the game stopped in the middle of (a crash: no logout) has its on_abort run when the player joins again. */
+    @GameTest(template = "empty")
+    public static void aDialogueCutShortByACrashAbortsOnJoining(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        withDialogues(helper, "crash", true, () -> {
+            Dialogues.start(player, TALK, null);
+            expect(helper, player.getData(DialogueRegistries.OPEN_DIALOGUE), TALK.toString(), "kept with the player while it runs");
+            Dialogues.end(player);
+            expect(helper, player.getData(DialogueRegistries.OPEN_DIALOGUE), "", "and gone when it ends");
+
+            // As the player's data is after a crash in the middle of it: open, and no session (the server restarted).
+            player.setData(DialogueRegistries.OPEN_DIALOGUE, TALK.toString());
+            int aborts = world(helper, "crash_aborts");
+            Dialogues.recoverOpen(player);
+            expect(helper, world(helper, "crash_aborts"), aborts + 1, "its on_abort runs on joining");
+            expect(helper, player.getData(DialogueRegistries.OPEN_DIALOGUE), "", "once");
+            Dialogues.recoverOpen(player);
+            expect(helper, world(helper, "crash_aborts"), aborts + 1, "not again");
+        });
+        remove(helper, player);
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void timedLinesAndChoiceTimeoutsMoveOn(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();

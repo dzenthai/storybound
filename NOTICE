@@ -119,3 +119,13 @@ is ui-kit/build-dialogue-art.ps1. Provenance and SHA-256 are recorded in
 ui-kit/dialogue-art.json. The concept portrait is used only by the isolated
 client preview and is excluded from the published mod JAR. No external art
 or font was imported for the conversation screen.
+
+Conversation nebula, October 28, 2026
+------------------------------------
+Original background artwork generated using the built-in imagegen tool,
+then reduced to the approved four-color pixel grid. The accepted v9 local
+contour animation is exported unchanged from the retained interactive
+preview into 64 runtime cels. Sources and reproducible export instructions
+are in ui-kit/assets/dialogue-nebula-preview.html and
+ui-kit/build-dialogue-nebula.ps1. Relics was studied as a motion reference;
+no Relics code, textures or animation frames are included.
