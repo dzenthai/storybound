@@ -31,8 +31,9 @@ Required on both client and server.
   set come along; whoever skips a completed quest that way gets its rewards. Leaving keeps your own under the
   party's.
 - Changing a quest's `scope` (for example from `player` to `party`) keeps the progress players already have.
-- A finished quest made active again starts over (completed) or goes on where it failed (failed); a quest left at a
-  stage that was removed moves to the first stage instead of getting stuck.
+- A finished quest made active again starts over (completed) or goes on where it failed (failed; reset it first to
+  run its `on_start` again); a quest left at a stage that was removed moves to the first stage instead of getting
+  stuck.
 - Objectives and quest starts no longer wait for ever when what they wait for happened first: a trigger that
   announces a state (in a place, a document read, a quest completed, a level reached, ...) counts when that state
   already holds (`since_stage` asks for a new event); `once` story events run by their state too.

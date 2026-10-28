@@ -28,9 +28,12 @@ public final class StoryFolder {
     /**
      * The bundled demo's version: raise it whenever the demo's files change, so a story folder with an older copy is
      * told about it (see {@link #demoOutdated}). 2: the elder spawns once ({@code unique}), October 28, 2026; 3: Murka says she is
-     * each player's own ({@code "unique": false}), October 29, 2026.
+     * each player's own ({@code "unique": false}), October 29, 2026; 4: a retry of Murka after failing starts her search
+     * over (reset, then active), so a new Murka is spawned, October 29, 2026; 5: the Murka who came home after a failed
+     * search runs off again on a retry, instead of a second one being spawned ({@code unique}), October 29, 2026; 6: the
+     * elder answers "more work?" by where Murka is (out there, following, home) and gives fish again, October 29, 2026.
      */
-    public static final int DEMO_VERSION = 3;
+    public static final int DEMO_VERSION = 6;
     /** In the story folder: the version of the demo copied there. Missing for copies from before versions were kept (0). */
     static final String DEMO_VERSION_FILE = ".demo_version";
 

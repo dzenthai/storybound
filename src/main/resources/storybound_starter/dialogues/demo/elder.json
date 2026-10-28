@@ -240,7 +240,76 @@
         ]
       },
       "then": "murka",
+      "else": "murka_status"
+    },
+    "murka_status": {
+      "type": "condition",
+      "conditions": {
+        "type": "quest",
+        "quest": "demo:murka",
+        "stage": "search"
+      },
+      "then": "murka_fish",
+      "else": "murka_return"
+    },
+    "murka_fish": {
+      "type": "condition",
+      "conditions": {
+        "type": "any",
+        "conditions": [
+          {
+            "type": "has_item",
+            "item": "minecraft:cod",
+            "count": 1
+          },
+          {
+            "type": "has_item",
+            "item": "minecraft:salmon",
+            "count": 1
+          }
+        ]
+      },
+      "then": "murka_searching",
+      "else": "murka_fish_again"
+    },
+    "murka_searching": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.murka_searching.text",
+      "next": "hub"
+    },
+    "murka_fish_again": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.murka_fish_again.text",
+      "next": "give_fish_again"
+    },
+    "give_fish_again": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "give_item",
+          "item": "minecraft:cod",
+          "count": 2
+        }
+      ],
+      "next": "hub"
+    },
+    "murka_return": {
+      "type": "condition",
+      "conditions": {
+        "type": "quest",
+        "quest": "demo:murka",
+        "stage": "return"
+      },
+      "then": "murka_following",
       "else": "no_work"
+    },
+    "murka_following": {
+      "type": "line",
+      "speaker": "elder",
+      "text": "demo.dialogue.elder.node.murka_following.text",
+      "next": "hub"
     },
     "murka": {
       "type": "line",
@@ -261,6 +330,11 @@
           "type": "give_item",
           "item": "minecraft:cod",
           "count": 2
+        },
+        {
+          "type": "set_quest_state",
+          "quest": "demo:murka",
+          "state": "unknown"
         },
         {
           "type": "set_quest_state",

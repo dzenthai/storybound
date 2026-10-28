@@ -102,6 +102,17 @@ public final class NpcRespawns extends SavedData {
         return get(server).pending.size();
     }
 
+    /** NPCs carrying any of these scoreboard tags stop waiting: they will not come back. For tests and tools. */
+    public static int forget(MinecraftServer server, List<String> tags) {
+        NpcRespawns data = get(server);
+        int before = data.pending.size();
+        data.pending.removeIf(pending -> pending.entity().getList("Tags", Tag.TAG_STRING).stream().map(Tag::getAsString).anyMatch(tags::contains));
+        if (data.pending.size() != before) {
+            data.setDirty();
+        }
+        return before - data.pending.size();
+    }
+
     private static void onDeath(LivingDeathEvent event) {
         if (!event.isCanceled() && !event.getEntity().level().isClientSide() && NpcBindings.respawns(event.getEntity())) {
             AT_DEATH.put(event.getEntity(), snapshot(event.getEntity()));

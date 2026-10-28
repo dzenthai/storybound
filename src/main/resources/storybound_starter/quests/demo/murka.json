@@ -11,13 +11,26 @@
   },
   "on_start": [
     {
+      "type": "run_command",
+      "command": "execute as @e[type=minecraft:cat,tag=demo_murka_home] run data merge entity @s {Sitting:0b}"
+    },
+    {
+      "type": "run_command",
+      "command": "execute as @e[type=minecraft:cat,tag=demo_murka_home] run data remove entity @s Owner"
+    },
+    {
+      "type": "run_command",
+      "command": "tag @e[type=minecraft:cat,tag=demo_murka_home] add demo_murka"
+    },
+    {
+      "type": "run_command",
+      "command": "tag @e[type=minecraft:cat,tag=demo_murka] remove demo_murka_home"
+    },
+    {
       "type": "spawn_entity",
       "entity": "minecraft:cat",
-      "tag": [
-        "demo_murka",
-        "demo_new"
-      ],
-      "unique": false,
+      "tag": "demo_murka",
+      "unique": true,
       "name": "demo.npc.murka",
       "nbt": {
         "variant": "minecraft:red",
@@ -26,11 +39,7 @@
     },
     {
       "type": "run_command",
-      "command": "spreadplayers ~ ~ 1 40 false @e[tag=demo_new,distance=..3]"
-    },
-    {
-      "type": "run_command",
-      "command": "tag @e[tag=demo_new] remove demo_new"
+      "command": "spreadplayers ~ ~ 1 40 false @e[type=minecraft:cat,tag=demo_murka]"
     }
   ],
   "stages": [
@@ -130,6 +139,10 @@
     {
       "type": "run_command",
       "command": "execute as @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] run data merge entity @s {Sitting:1b}"
+    },
+    {
+      "type": "run_command",
+      "command": "tag @e[type=minecraft:cat,tag=demo_murka,limit=1,sort=nearest] add demo_murka_home"
     },
     {
       "type": "run_command",

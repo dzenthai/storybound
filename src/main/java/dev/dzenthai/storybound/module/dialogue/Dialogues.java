@@ -105,6 +105,15 @@ public final class Dialogues {
                 : Optional.of(new State(session.id, session.step, session.dialogueId, session.node, session.waiting == Waiting.CHOICE, session.shown.size(), session.camera));
     }
 
+    /** The ids of the options the player is shown, in their order; empty while no choice is shown. For tests and tools. */
+    public static List<String> shownOptionIds(ServerPlayer player) {
+        DialogueSession session = SESSIONS.get(player.getUUID());
+        if (session == null || session.waiting != Waiting.CHOICE || !(session.dialogue.nodes().get(session.node) instanceof Choice choice)) {
+            return List.of();
+        }
+        return session.shown.stream().map(choice::optionId).toList();
+    }
+
     /**
      * Starts a dialogue. {@code speaker} becomes the {@code bound} participant and the context entity of its logic.
      *
