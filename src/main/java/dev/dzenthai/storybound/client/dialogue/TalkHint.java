@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.client.ClientModules;
 import dev.dzenthai.storybound.client.StoryboundClient;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
+import dev.dzenthai.storybound.module.dialogue.DialogueDefinition.Presentation;
 import dev.dzenthai.storybound.network.TalkQueryPayload;
 import net.minecraft.Util;
 import net.minecraft.client.DeltaTracker;
@@ -66,8 +67,9 @@ public final class TalkHint {
 
     public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (talkable < 0 || minecraft.options.hideGui || minecraft.screen != null || ClientDialogue.isActive()
-                || StoryboundClient.TALK.isUnbound()) {
+        // Shown during a dialogue in subtitles (a monologue): talking to an NPC takes over from it.
+        if (talkable < 0 || minecraft.options.hideGui || minecraft.screen != null
+                || ClientDialogue.isActive() && ClientDialogue.presentation() == Presentation.SCREEN || StoryboundClient.TALK.isUnbound()) {
             return;
         }
         Entity target = target(minecraft);

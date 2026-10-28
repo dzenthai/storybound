@@ -26,7 +26,9 @@ import dev.dzenthai.storybound.network.DialogueClosePayload;
 import dev.dzenthai.storybound.network.DialogueLinePayload;
 import dev.dzenthai.storybound.network.SpeechBubblePayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -63,6 +65,13 @@ public final class Dialogues {
     static final String ONCE_PREFIX = "dialogue_once/";
 
     private static final Map<UUID, DialogueSession> SESSIONS = new HashMap<>();
+    /**
+     * Per player: dialogues an action asked for while they were talking, started in order once they are free (one a
+     * tick). A request waits at most {@link #QUEUE_WAIT_TICKS}; a player who logs out or dies loses theirs.
+     */
+    private static final Map<UUID, Deque<Queued>> QUEUED = new HashMap<>();
+    static final int QUEUE_WAIT_TICKS = 60 * 20;
+    private static final int QUEUE_MAX = 4;
     /** NPC → the player it spoke its last line to; it turns to face them. */
     private static final Map<UUID, UUID> ADDRESSED = new HashMap<>();
     private static int nextSession = 1;
@@ -116,6 +125,53 @@ public final class Dialogues {
         NeoForge.EVENT_BUS.post(new DialogueEvent.Started(player, dialogueId, speaker));
         proceed(session, dialogue.start());
         return true;
+    }
+
+    /**
+     * {@link #start}, or, while the player is talking, the same once they are free: for actions (a story event, a
+     * quest stage), whose dialogue would otherwise be lost because another one was on. The same dialogue is not queued
+     * twice. A speaker gone by then is left out.
+     *
+     * @return false if it could never start (unknown dialogue, the module disabled) or too many already wait
+     */
+    public static boolean startOrQueue(ServerPlayer player, ResourceLocation dialogueId, @Nullable Entity speaker) {
+        if (!SESSIONS.containsKey(player.getUUID()) || definition(dialogueId) == null || !isEnabled()) {
+            return start(player, dialogueId, speaker);
+        }
+        Deque<Queued> queue = QUEUED.computeIfAbsent(player.getUUID(), uuid -> new ArrayDeque<>());
+        if (queue.stream().anyMatch(waiting -> waiting.dialogue().equals(dialogueId))) {
+            return true;
+        }
+        if (queue.size() >= QUEUE_MAX) {
+            StoryTrace.note(player, "dialogue " + dialogueId, "not started: " + QUEUE_MAX + " dialogues already wait for this one to end");
+            return false;
+        }
+        queue.add(new Queued(dialogueId, speaker, player.server.getTickCount() + QUEUE_WAIT_TICKS));
+        StoryTrace.note(player, "dialogue " + dialogueId, "waits: the player is talking; it starts when that ends");
+        return true;
+    }
+
+    /** The dialogues waiting for the player to be free, in order; for tests and tools. */
+    public static List<ResourceLocation> queued(ServerPlayer player) {
+        return QUEUED.getOrDefault(player.getUUID(), new ArrayDeque<>()).stream().map(Queued::dialogue).toList();
+    }
+
+    /** Forgets what waited for the player (they logged out or died). */
+    public static void dropQueue(ServerPlayer player) {
+        Deque<Queued> queue = QUEUED.remove(player.getUUID());
+        if (queue != null && !queue.isEmpty()) {
+            StoryTrace.note(player, "dialogues", "dropped, as they can no longer wait: " + queue.stream().map(Queued::dialogue).toList());
+        }
+    }
+
+    /**
+     * Whether the player's dialogue takes over their screen: one on the dialogue screen, or a subtitle dialogue (HUD,
+     * bubbles) while it shows a choice. Only those stop the player: damage interrupts them, and the player cannot turn
+     * to an NPC meanwhile. Subtitles let the player go on walking, fighting and talking.
+     */
+    public static boolean holdsTheScreen(ServerPlayer player) {
+        DialogueSession session = SESSIONS.get(player.getUUID());
+        return session != null && (session.dialogue.presentation() == DialogueDefinition.Presentation.SCREEN || session.waiting == Waiting.CHOICE);
     }
 
     /** The player clicked past the line on screen. */
@@ -215,12 +271,13 @@ public final class Dialogues {
                 .toList();
     }
 
-    /** Timed lines, choice timers, the NPC walking off or dying. Every tick. Public for tests. */
+    /** Timed lines, choice timers, the NPC walking off or dying, dialogues waiting their turn. Every tick. Public for tests. */
     public static void tick(MinecraftServer server) {
+        long now = server.getTickCount();
+        startQueued(server, now);
         if (SESSIONS.isEmpty()) {
             return;
         }
-        long now = server.getTickCount();
         double maxDistance = StoryboundConfig.COMMON.dialogueMaxDistance.get();
         for (DialogueSession session : List.copyOf(SESSIONS.values())) {
             if (session.closed) {
@@ -242,6 +299,9 @@ public final class Dialogues {
                 }
                 holdStill(session, bound);
             }
+            if (session.closed) {
+                continue;
+            }
             if (session.deadline >= 0 && now >= session.deadline) {
                 session.deadline = -1;
                 if (session.waiting == Waiting.LINE) {
@@ -255,6 +315,37 @@ public final class Dialogues {
         }
     }
 
+    /** The next waiting dialogue of each player who is free; requests past their time are dropped. */
+    private static void startQueued(MinecraftServer server, long now) {
+        if (QUEUED.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<UUID, Deque<Queued>> entry : List.copyOf(QUEUED.entrySet())) {
+            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+            if (player == null) {
+                QUEUED.remove(entry.getKey());
+                continue;
+            }
+            if (SESSIONS.containsKey(entry.getKey())) {
+                continue;
+            }
+            Deque<Queued> queue = entry.getValue();
+            Queued next = queue.poll();
+            if (queue.isEmpty()) {
+                QUEUED.remove(entry.getKey());
+            }
+            if (next == null) {
+                continue;
+            }
+            if (now > next.expiresAt()) {
+                StoryTrace.note(player, "dialogue " + next.dialogue(), "not started: waited longer than " + QUEUE_WAIT_TICKS / 20 + " s for the player to be free");
+                continue;
+            }
+            Entity speaker = next.speaker() != null && next.speaker().isAlive() ? next.speaker() : null;
+            start(player, next.dialogue(), speaker);
+        }
+    }
+
     /** True while the player talks to this entity; their right-clicks on it do nothing else. */
     static boolean isTalkingTo(ServerPlayer player, Entity entity) {
         DialogueSession session = SESSIONS.get(player.getUUID());
@@ -264,7 +355,11 @@ public final class Dialogues {
     static void reset() {
         SESSIONS.clear();
         ADDRESSED.clear();
+        QUEUED.clear();
     }
+
+    /** A dialogue an action asked for while the player was talking. */
+    private record Queued(ResourceLocation dialogue, @Nullable Entity speaker, long expiresAt) {}
 
     /** Walks invisible nodes until something is shown or the dialogue ends. */
     private static void proceed(DialogueSession session, String start) {
@@ -364,6 +459,7 @@ public final class Dialogues {
 
     private static void showLine(DialogueSession session, Line line) {
         ServerPlayer player = session.player;
+        markOpen(session);
         Entity entity = null;
         Optional<ResolvedText> name = Optional.empty();
         Optional<ResourceLocation> portrait = Optional.empty();
@@ -411,6 +507,7 @@ public final class Dialogues {
     /** @return false when no option may be shown */
     private static boolean showChoice(DialogueSession session, Choice choice) {
         ServerPlayer player = session.player;
+        markOpen(session);
         StoryContext context = context(session);
         List<Integer> shown = new ArrayList<>();
         List<DialogueChoicesPayload.Shown> options = new ArrayList<>();
@@ -486,6 +583,7 @@ public final class Dialogues {
 
     private static void close(DialogueSession session) {
         session.closed = true;
+        session.player.setData(DialogueRegistries.OPEN_DIALOGUE, "");
         session.waiting = Waiting.NONE;
         session.deadline = -1;
         SESSIONS.remove(session.player.getUUID(), session);
@@ -493,6 +591,35 @@ public final class Dialogues {
             ADDRESSED.remove(session.bound.getUUID(), session.player.getUUID());
         }
         StoryboundNetwork.sendToPlayer(session.player, new DialogueClosePayload(session.id));
+    }
+
+    /** Saved with the player while something shows: the dialogue whose {@code on_abort} a crash must not skip. */
+    private static void markOpen(DialogueSession session) {
+        String base = session.baseId().toString();
+        if (!base.equals(session.player.getData(DialogueRegistries.OPEN_DIALOGUE))) {
+            session.player.setData(DialogueRegistries.OPEN_DIALOGUE, base);
+        }
+    }
+
+    /**
+     * On joining: a dialogue still open in the player's data never ended, as the game or the server stopped without
+     * them logging out (a crash, a killed process). Its {@code on_abort} runs now, as it would have at a logout, so
+     * whatever the story does when a dialogue is cut short (the demo's opening whisper starts the first quest) is not
+     * lost for good. Public for tests.
+     */
+    public static void recoverOpen(ServerPlayer player) {
+        String open = player.getData(DialogueRegistries.OPEN_DIALOGUE);
+        if (open.isEmpty() || SESSIONS.containsKey(player.getUUID())) {
+            return;
+        }
+        player.setData(DialogueRegistries.OPEN_DIALOGUE, "");
+        ResourceLocation id = ResourceLocation.tryParse(open);
+        DialogueDefinition dialogue = id == null ? null : definition(id);
+        Storybound.LOGGER.info("Storybound: {} was in dialogue {} when the game stopped; its on_abort runs now", player.getGameProfile().getName(), open);
+        StoryTrace.note(player, "dialogue " + open, "never ended (the game stopped mid-dialogue): on_abort runs on joining");
+        if (dialogue != null && !dialogue.onAbort().isEmpty()) {
+            Actions.runAll(dialogue.onAbort(), StoryContext.of(player), "dialogue " + open + " on_abort", OnFail.ABORT);
+        }
     }
 
     /** The session the reply refers to, if it is still the current one and waits for that kind of reply. */

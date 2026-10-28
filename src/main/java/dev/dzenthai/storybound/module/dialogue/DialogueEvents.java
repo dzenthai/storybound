@@ -70,6 +70,7 @@ public final class DialogueEvents {
 
     private static void onLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            Dialogues.recoverOpen(player);
             NpcBindings.loggedIn(player);
         }
     }
@@ -82,6 +83,7 @@ public final class DialogueEvents {
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             Dialogues.interrupt(player, EndReason.LOGGED_OUT);
+            Dialogues.dropQueue(player);
             NpcBindings.forget(player);
         }
     }
@@ -89,11 +91,14 @@ public final class DialogueEvents {
     private static void onDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             Dialogues.interrupt(player, EndReason.DIED);
+            Dialogues.dropQueue(player);
         }
     }
 
     private static void onDamage(LivingDamageEvent.Post event) {
-        if (event.getEntity() instanceof ServerPlayer player && event.getNewDamage() > 0 && StoryboundConfig.COMMON.dialogueInterruptOnDamage.get()) {
+        // Only a dialogue that holds the screen: subtitles (a monologue in a fight) let the player fight on.
+        if (event.getEntity() instanceof ServerPlayer player && event.getNewDamage() > 0 && StoryboundConfig.COMMON.dialogueInterruptOnDamage.get()
+                && Dialogues.holdsTheScreen(player)) {
             Dialogues.interrupt(player, EndReason.DAMAGED);
         }
     }

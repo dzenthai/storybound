@@ -53,6 +53,11 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
         return target.equals(END) || target.equals(EXIT);
     }
 
+    /** Whether one of its participants is the entity it is started with ({@code bound}); a monologue has none. */
+    public boolean hasBoundSpeaker() {
+        return participants.values().stream().anyMatch(participant -> participant.kind() == Participant.Kind.BOUND);
+    }
+
     public enum Camera implements StringRepresentable {
         /** Shot-reverse-shot on the dialogue screen, when the server and the player allow it. */
         AUTO("auto"),

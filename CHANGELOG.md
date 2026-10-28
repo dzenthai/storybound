@@ -39,6 +39,9 @@ Required on both client and server.
   with secret and invisible quests.
 
 ### Dialogues
+- Monologues in subtitles let the player fight and talk: a hit does not cut them, talking to an NPC takes over. A
+  dialogue started while the player talks waits its turn. NPCs greet a player standing near once they have something
+  to say.
 - Dialogue graphs with choices, conditions, one-time options, timers and calls into other dialogues.
 - A cinematic camera (shot / reverse shot, walls respected), speech bubbles for players nearby, a "thinking" pause.
 - NPC bindings by type, tag or uuid; NPCs that talk to one player at a time; different lines before, during and

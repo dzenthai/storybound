@@ -12,6 +12,9 @@ import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
+import dev.dzenthai.storybound.core.logic.Actions;
+import dev.dzenthai.storybound.core.logic.LogicCodecs;
+import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryEvent;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
@@ -39,6 +42,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.network.chat.Component;
@@ -270,6 +274,85 @@ public final class DialogueGameTests {
             expect(helper, Dialogues.state(player), Optional.empty(), "damage interrupts");
             expect(helper, world(helper, "damage_aborts"), 1, "on_abort ran");
         });
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * A monologue in subtitles lets the player fight and talk: damage does not stop it, a kill that starts it does not
+     * make the dead mob its speaker, talking to an NPC takes over from it. A dialogue an action asks for while the
+     * player talks waits its turn. An NPC greets a player standing near once it has something to say.
+     */
+    @GameTest(template = "empty")
+    public static void monologuesQueuesAndGreetingsGiveWayAsTheyShould(GameTestHelper helper) {
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 2, 2, 2);
+        Villager talker = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
+        talker.addTag("gametest_talker");
+        Villager greeter = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 3);
+        greeter.addTag("gametest_greeter");
+        ResourceLocation mono = key("mono");
+        withDialogues(helper, "giveway", true, () -> with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(mono, """
+                { "participants": { "voice": { "type": "virtual", "name": "gametest.voice" } }, "presentation": "hud",
+                  "on_abort": { "type": "add_var", "key": "gametest:mono_aborts", "scope": "world", "amount": 1 },
+                  "start": "a", "nodes": {
+                    "a": { "type": "line", "speaker": "voice", "text": "gametest.mono.a", "next": "b" },
+                    "b": { "type": "line", "speaker": "voice", "text": "gametest.mono.b" } } }
+                """), () -> with(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(
+                key("talker"), "{ \"entity\": { \"type\": \"minecraft:villager\", \"tag\": \"gametest_talker\" }, \"dialogues\": [ { \"dialogue\": \"" + TALK + "\" } ] }",
+                key("greeter"), "{ \"entity\": { \"type\": \"minecraft:villager\", \"tag\": \"gametest_greeter\" }, \"interact\": false,"
+                        + " \"dialogues\": [ { \"dialogue\": \"" + ASIDE + "\", \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:greet_ready\", \"scope\": \"world\" } } ],"
+                        + " \"proximity\": { \"radius\": 4, \"cooldown\": 0, \"line_of_sight\": false } }"), () -> {
+            NpcBindings.rebuild();
+            MinecraftServer server = helper.getLevel().getServer();
+            var ops = ops(helper);
+            var startMono = LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString("{ \"type\": \"start_dialogue\", \"dialogue\": \"gametest:mono\" }"))
+                    .getOrThrow(GameTestAssertException::new);
+
+            // Damage does not stop a monologue in subtitles; it still stops a dialogue on the screen (damageInterrupts).
+            Dialogues.start(player, mono, null);
+            player.hurt(player.damageSources().fellOutOfWorld(), 1f);
+            expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(mono), "a monologue goes on while the player is hit");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+
+            // Started by a kill: the dead mob is no speaker of a monologue.
+            Pig victim = helper.spawnWithNoFreeWill(EntityType.PIG, 4, 2, 4);
+            victim.kill();
+            Actions.runAll(startMono, new StoryContext(player, victim), "gametest", OnFail.ABORT);
+            Dialogues.tick(server);
+            expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(mono), "the monologue runs, not stopped as 'speaker gone'");
+            victim.discard();
+
+            // Talking to an NPC takes over from the monologue.
+            int aborts = world(helper, "mono_aborts");
+            NpcBindings.talk(player, talker);
+            expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(TALK), "the NPC's dialogue started");
+            expect(helper, world(helper, "mono_aborts"), aborts + 1, "the monologue gave way (its on_abort ran)");
+
+            // An action's dialogue while the player talks waits, then starts.
+            Actions.runAll(startMono, StoryContext.of(player), "gametest", OnFail.ABORT);
+            expect(helper, Dialogues.queued(player), List.of(mono), "waits its turn");
+            NpcBindings.talk(player, talker);
+            expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(TALK), "a dialogue on the screen is not left for another NPC");
+            Dialogues.end(player);
+            Dialogues.tick(server);
+            expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(mono), "started once the player was free");
+            expect(helper, Dialogues.queued(player), List.of(), "and no longer waits");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+
+            // Standing near an NPC with nothing to say yet: it greets once it has.
+            NpcBindings.checkProximity(player, server.getTickCount());
+            expect(helper, Dialogues.state(player), Optional.empty(), "nothing to say yet");
+            ok(() -> StoryState.set(player, StoryScope.WORLD, key("greet_ready"), new StoryValue.Bool(true)));
+            NpcBindings.checkProximity(player, server.getTickCount());
+            expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(ASIDE), "greets the player already standing near");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            NpcBindings.checkProximity(player, server.getTickCount());
+            expect(helper, Dialogues.state(player), Optional.empty(), "once per stay near");
+            ok(() -> StoryState.clear(player, StoryScope.WORLD, key("greet_ready")));
+        })));
+        NpcBindings.rebuild();
+        talker.discard();
+        greeter.discard();
         remove(helper, player);
         helper.succeed();
     }

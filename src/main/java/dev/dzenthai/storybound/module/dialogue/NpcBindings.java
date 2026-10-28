@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.compat.cutscene.Cutscenes;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.StoryException;
+import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.event.NpcInteractEvent;
 import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.StoryContext;
@@ -102,7 +103,7 @@ public final class NpcBindings {
      */
     public static boolean canTalk(ServerPlayer player, int entityId) {
         Entity target = reachable(player, entityId);
-        if (target == null || !Dialogues.isEnabled() || Dialogues.state(player).isPresent()) {
+        if (target == null || !Dialogues.isEnabled() || Dialogues.holdsTheScreen(player)) {
             return false;
         }
         Found found = find(target).orElse(null);
@@ -110,6 +111,11 @@ public final class NpcBindings {
             explainNoBinding(player, target);
             return false;
         }
+        return wouldTalk(player, target, found);
+    }
+
+    /** Whether talking to the NPC would do anything now (see {@link #canTalk}), asked without writing to the trace. */
+    private static boolean wouldTalk(ServerPlayer player, Entity target, Found found) {
         if (found.binding().interact() && busyWith(found, target, player) != null) {
             // A busy NPC offers its busy line, or nothing.
             return found.binding().busyDialogue().isPresent() || found.binding().custom() && found.id() != null;
@@ -137,9 +143,30 @@ public final class NpcBindings {
      * {@code interact} starts its dialogue, one with {@code custom} posts {@link NpcInteractEvent}. Public for tests.
      */
     public static void talk(ServerPlayer player, Entity target) {
-        if (Dialogues.isEnabled() && Dialogues.state(player).isEmpty()) {
+        if (Dialogues.isEnabled() && freeToTalk(player, target)) {
             find(target).ifPresentOrElse(found -> talk(player, target, found), () -> explainNoBinding(player, target));
         }
+    }
+
+    /**
+     * Whether the player may turn to this NPC: free, or in a dialogue of subtitles (a monologue) that gives way to the
+     * player's own choice to talk; it is interrupted ({@code on_abort} runs) only when the NPC has something to say.
+     * A dialogue on the screen, or one showing a choice, is never left this way.
+     */
+    private static boolean freeToTalk(ServerPlayer player, Entity target) {
+        if (Dialogues.state(player).isEmpty()) {
+            return true;
+        }
+        if (Dialogues.holdsTheScreen(player) || Dialogues.isTalkingTo(player, target)) {
+            return false;
+        }
+        Found found = find(target).orElse(null);
+        if (found == null || !wouldTalk(player, target, found)) {
+            return false;
+        }
+        StoryTrace.note(player, bindingName(found, target), "talk: the dialogue in subtitles gives way");
+        Dialogues.interrupt(player, DialogueEvent.EndReason.LEFT);
+        return true;
     }
 
     /**
@@ -150,11 +177,12 @@ public final class NpcBindings {
      *         and started a dialogue or posted {@link NpcInteractEvent}
      */
     public static boolean rightClick(ServerPlayer player, Entity target) {
-        if (!Dialogues.isEnabled() || Dialogues.state(player).isPresent()) {
+        if (!Dialogues.isEnabled()) {
             return false;
         }
         Found found = find(target).orElse(null);
-        if (found == null || !StoryboundConfig.COMMON.dialogueRightClickTalks.get() && !found.binding().overrideInteract()) {
+        if (found == null || !StoryboundConfig.COMMON.dialogueRightClickTalks.get() && !found.binding().overrideInteract()
+                || !freeToTalk(player, target)) {
             return false;
         }
         return talk(player, target, found) && found.binding().overrideInteract();
@@ -217,30 +245,44 @@ public final class NpcBindings {
                     || (proximity.lineOfSight() && !player.hasLineOfSight(entity))) {
                 continue;
             }
-            near.add(entity.getUUID());
-            if (!fresh && !previous.contains(entity.getUUID())) {
-                tryStart(player, entity, found, proximity, now);
+            // Near and not yet greeted during this stay: tried again on every check while it cannot start yet (the
+            // player is talking, the quest is not at that stage yet), so standing there does not miss it. Just after a
+            // login, what an NPC would say right now is not said (nobody is greeted for logging in), but what it
+            // only gets to say later still is.
+            boolean settled = previous.contains(entity.getUUID())
+                    || (fresh ? found.binding().pick(new StoryContext(player, entity)).isPresent() : tryStart(player, entity, found, proximity, now));
+            if (settled) {
+                near.add(entity.getUUID());
             }
         }
         NEAR.put(playerId, near);
     }
 
-    private static void tryStart(ServerPlayer player, Entity entity, Found found, NpcBinding.Proximity proximity, long now) {
+    /**
+     * @return whether this stay near the NPC is settled: a dialogue started, or it never will this time (its cooldown,
+     *         {@code once} spent); false while it may yet (the player is talking or watching a cutscene, the NPC is
+     *         busy, no dialogue passes its conditions yet), so the next check tries again. Those checks test the
+     *         conditions quietly: the trace gets the start, not a line every half second.
+     */
+    private static boolean tryStart(ServerPlayer player, Entity entity, Found found, NpcBinding.Proximity proximity, long now) {
         if (Dialogues.state(player).isPresent() || Cutscenes.watching(player) != null) {
-            return;
+            return false;
         }
         Map<UUID, Long> starts = LAST_START.computeIfAbsent(player.getUUID(), id -> new HashMap<>());
         Long last = starts.get(entity.getUUID());
         if (last != null && now - last < proximity.cooldown() * 20L) {
-            return;
+            return true;
         }
         ResourceLocation once = proximity.once() ? onceKey(found, entity) : null;
         if (once != null && StoryState.getStored(player, StoryScope.PLAYER, once).isPresent()) {
-            return;
+            return true;
         }
         if (busyWith(found, entity, player) != null) {
             // Coming close to a busy NPC starts nothing, not even the busy line: only talking to it does.
-            return;
+            return false;
+        }
+        if (found.binding().pick(new StoryContext(player, entity)).isEmpty()) {
+            return false;
         }
         Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, entity), bindingName(found, entity) + " proximity");
         if (dialogue.isPresent() && Dialogues.start(player, dialogue.get(), entity)) {
@@ -252,7 +294,9 @@ public final class NpcBindings {
                     Storybound.LOGGER.warn("Storybound: could not update {}: {}", once, e.getMessage());
                 }
             }
+            return true;
         }
+        return false;
     }
 
     /** The internal player flag of a {@code once} proximity binding. */

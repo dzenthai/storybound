@@ -56,9 +56,20 @@ public final class DialogueLogic {
             return START_DIALOGUE.get();
         }
 
+        /**
+         * The context entity becomes the speaker only for a dialogue that has one ({@code bound}) and only while it
+         * lives: a monologue started by a kill would otherwise get the dead mob as its speaker and stop at once
+         * ("the speaker is gone"). While the player talks, the dialogue waits for that to end (see
+         * {@link Dialogues#startOrQueue}).
+         */
         @Override
         public void run(StoryContext context) throws StoryException {
-            if (!Dialogues.start(context.player(), dialogue, context.entity())) {
+            DialogueDefinition definition = Dialogues.definition(dialogue);
+            Entity speaker = context.entity();
+            if (speaker != null && (!speaker.isAlive() || definition == null || !definition.hasBoundSpeaker())) {
+                speaker = null;
+            }
+            if (!Dialogues.startOrQueue(context.player(), dialogue, speaker)) {
                 throw new StoryException(Component.translatableWithFallback("storybound.dialogue.cannot_start",
                         "Dialogue %s cannot start: unknown dialogue, the player is already talking, or the dialogue module is disabled", dialogue.toString()));
             }
