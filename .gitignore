@@ -1,10 +1,9 @@
 .idea
 *.iml
 idea/
-/docs/*
-!/docs/ui-kit/
-/docs/ui-kit/*
-!/docs/ui-kit/*.md
+/docs/
+/guide/
+/ui-kit/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/

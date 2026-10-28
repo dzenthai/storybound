@@ -267,7 +267,7 @@ sourceSets.main.resources.srcDir generateModMetadata
 neoForge.ideSyncTask generateModMetadata
 
 processResources {
-    // The license and the notices travel with the jar (GPL-3.0).
+    // The license and the notices travel with the jar.
     from(['LICENSE', 'NOTICE']) {
         into 'META-INF'
         rename { "${it}_${mod_id}" }
