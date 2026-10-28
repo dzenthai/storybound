@@ -49,6 +49,12 @@ public final class QuestEvents {
         gameBus.addListener(QuestEvents::onPartyLeft);
         gameBus.addListener(QuestEvents::onServerTick);
         gameBus.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> QuestHints.forget(event.getEntity().getUUID()));
+        // Logged in, not data sync: by then the player is in the world, for the actions a reward may run.
+        gameBus.addListener((PlayerEvent.PlayerLoggedInEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer player) {
+                QuestRewards.payOwed(player);
+            }
+        });
         gameBus.addListener((ServerStoppedEvent event) -> QuestHints.reset());
         ChapterMap.register(gameBus);
         LogicOwners.register(QuestRegistries.QUESTS, QuestEvents::collectReferences);
@@ -91,6 +97,9 @@ public final class QuestEvents {
     private static void onDatapackSync(OnDatapackSyncEvent event) {
         event.getRelevantPlayers().forEach(player -> {
             StoryboundNetwork.sendToPlayer(player, ModulesPayload.fromConfig());
+            // After the migrations (HIGHEST), so a renamed stage is moved, not taken for a lost one.
+            Quests.adoptScopes(player);
+            Quests.repairStages(player);
             Quests.sync(player);
         });
     }
@@ -118,6 +127,7 @@ public final class QuestEvents {
             if (Math.floorMod(tick + player.getId(), FAIL_CHECK_INTERVAL) == 0) {
                 Quests.checkFailures(player);
                 Quests.checkItems(player);
+                Quests.checkStates(player);
                 QuestHints.check(player);
             }
         }
@@ -151,6 +161,10 @@ public final class QuestEvents {
                 }
                 if (!stageIds.add(stage.id())) {
                     sink.accept(ValidationIssue.error(type.id(), id, "Duplicate stage id '" + stage.id() + "'"));
+                }
+                if (stage.objectives().size() > 1 && stage.objectives().stream().anyMatch(objective -> objective.id().isEmpty())) {
+                    sink.accept(ValidationIssue.warning(type.id(), id, "Stage '" + stage.id() + "' has objectives without an 'id': their progress is kept by"
+                            + " position, so reordering or removing one moves players' counts to another objective"));
                 }
                 Set<String> objectiveIds = new HashSet<>();
                 for (int i = 0; i < stage.objectives().size(); i++) {

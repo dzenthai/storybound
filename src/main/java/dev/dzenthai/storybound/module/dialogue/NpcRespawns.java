@@ -3,6 +3,8 @@ package dev.dzenthai.storybound.module.dialogue;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.logic.EntityReturns;
+import dev.dzenthai.storybound.core.logic.action.SceneActions;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -81,6 +83,14 @@ public final class NpcRespawns extends SavedData {
         gameBus.addListener(NpcRespawns::onDrops);
         gameBus.addListener(NpcRespawns::onExperience);
         gameBus.addListener(NpcRespawns::onServerTick);
+        // An NPC waiting to come back exists for spawn_entity's "unique": spawning another would leave two of it.
+        SceneActions.registerElsewhere((level, type, tags) -> get(level.getServer()).pending.stream().anyMatch(pending ->
+                pending.dimension().equals(level.dimension())
+                        && pending.entity().getString("id").equals(EntityType.getKey(type).toString())
+                        && pending.entity().getList("Tags", Tag.TAG_STRING).stream().map(Tag::getAsString).toList().containsAll(tags)));
+        // And it is not gone for good: a waypoint following it keeps the place where it was seen.
+        EntityReturns.register((server, uuid) -> get(server).pending.stream()
+                .anyMatch(pending -> pending.entity().hasUUID("UUID") && pending.entity().getUUID("UUID").equals(uuid)));
     }
 
     private static NpcRespawns get(MinecraftServer server) {

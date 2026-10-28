@@ -9,6 +9,7 @@ import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.ActionType;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.List;
 import java.util.Optional;
@@ -112,19 +113,22 @@ public final class SceneActions {
      * unless {@code persistent} is false.
      */
     public record SpawnEntity(EntityType<?> entity, int count, Place place, List<String> tags, Optional<StoryText> name, Optional<CompoundTag> nbt,
-                              boolean persistent) implements Action {
+                              boolean persistent, boolean unique) implements Action {
         private static final Codec<List<String>> TAGS = Codec.either(Codec.STRING, Codec.STRING.listOf())
                 .xmap(either -> either.map(List::of, list -> list), list -> list.size() == 1 ? Either.left(list.getFirst())
                         : Either.right(list));
-        public static final MapCodec<SpawnEntity> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+        public static final MapCodec<SpawnEntity> CODEC = RecordCodecBuilder.<SpawnEntity>mapCodec(instance -> instance.group(
                 BuiltInRegistries.ENTITY_TYPE.byNameCodec().fieldOf("entity").forGetter(SpawnEntity::entity),
                 Codec.intRange(1, 64).optionalFieldOf("count", 1).forGetter(SpawnEntity::count),
                 Place.MAP_CODEC.forGetter(SpawnEntity::place),
                 TAGS.optionalFieldOf("tag", List.of()).forGetter(SpawnEntity::tags),
                 StoryText.CODEC.optionalFieldOf("name").forGetter(SpawnEntity::name),
                 CompoundTag.CODEC.optionalFieldOf("nbt").forGetter(SpawnEntity::nbt),
-                Codec.BOOL.optionalFieldOf("persistent", true).forGetter(SpawnEntity::persistent)
-        ).apply(instance, SpawnEntity::new));
+                Codec.BOOL.optionalFieldOf("persistent", true).forGetter(SpawnEntity::persistent),
+                Codec.BOOL.optionalFieldOf("unique", false).forGetter(SpawnEntity::unique)
+        ).apply(instance, SpawnEntity::new)).validate(spawn -> spawn.unique() && spawn.tags().isEmpty()
+                ? DataResult.error(() -> "'unique' needs a 'tag': it is how the entity already there is recognised")
+                : DataResult.success(spawn));
 
         @Override
         public ActionType<?> type() {
@@ -137,6 +141,11 @@ public final class SceneActions {
                 throw new StoryException(Component.literal(BuiltInRegistries.ENTITY_TYPE.getKey(entity) + " cannot be spawned"));
             }
             Place.Resolved at = place.resolve(context);
+            if (unique && exists(at.level())) {
+                // Not a failure: the actions after it (a sound, a line) still run.
+                StoryTrace.note(context.player(), "spawn_entity", "skipped: a " + BuiltInRegistries.ENTITY_TYPE.getKey(entity) + " tagged " + tags + " is already there");
+                return;
+            }
             for (int i = 0; i < count; i++) {
                 CompoundTag tag = nbt.map(CompoundTag::copy).orElseGet(CompoundTag::new);
                 tag.putString("id", BuiltInRegistries.ENTITY_TYPE.getKey(entity).toString());
@@ -163,6 +172,30 @@ public final class SceneActions {
                 }
             }
         }
+
+        /**
+         * Whether an entity of this type with all these tags is in the level: loaded, or somewhere a module keeps it
+         * meanwhile (an NPC waiting to respawn). One in an unloaded chunk is not seen.
+         */
+        private boolean exists(ServerLevel level) {
+            if (!level.getEntities(entity, candidate -> candidate.isAlive() && candidate.getTags().containsAll(tags)).isEmpty()) {
+                return true;
+            }
+            return ELSEWHERE.stream().anyMatch(check -> check.holds(level, entity, tags));
+        }
+    }
+
+    /** Where an entity can be while it is not in the level, for {@code spawn_entity}'s {@code unique}. */
+    @FunctionalInterface
+    public interface Elsewhere {
+        boolean holds(ServerLevel level, EntityType<?> type, List<String> tags);
+    }
+
+    private static final List<Elsewhere> ELSEWHERE = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /** Lets a module say an entity exists out of the level (core cannot depend on modules). */
+    public static void registerElsewhere(Elsewhere check) {
+        ELSEWHERE.add(check);
     }
 
     /** {@code { "type": "teleport", "pos": [10, 64, 20], "dimension": "minecraft:the_nether", "yaw": 90 }}: the player, or the context entity. */

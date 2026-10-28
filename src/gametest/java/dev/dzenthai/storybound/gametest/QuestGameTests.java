@@ -36,6 +36,7 @@ import dev.dzenthai.storybound.module.quest.QuestEvents;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.module.quest.QuestRewardData;
 import dev.dzenthai.storybound.module.quest.QuestRewards;
+import dev.dzenthai.storybound.module.quest.QuestRewardsOwed;
 import dev.dzenthai.storybound.module.quest.Quests;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
@@ -50,9 +51,11 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.stats.Stats;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -157,6 +160,231 @@ public final class QuestGameTests {
         ok(() -> PartyManager.disband(leader));
         remove(helper, leader);
         remove(helper, member);
+        helper.succeed();
+    }
+
+    /**
+     * A party quest's triggers fire for every member online (a personal quest that follows starts for each), its own
+     * {@code on_complete} once; a member away when it is completed is paid when they join.
+     */
+    @GameTest(template = "empty")
+    public static void partyQuestFollowUpsReachEveryMemberAndAbsentOnesArePaidLater(GameTestHelper helper) {
+        ServerPlayer leader = helper.makeMockServerPlayerInLevel();
+        ServerPlayer member = helper.makeMockServerPlayerInLevel();
+        ok(() -> PartyManager.create(leader, "Followers"));
+        ok(() -> PartyManager.invite(leader, member));
+        ok(() -> PartyManager.accept(member));
+        ResourceLocation follow = key("follow");
+        withQuest(helper, HUNT.formatted("party", "fanout"), () -> with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(follow, """
+                { "title": "gametest.quest.follow", "start": { "trigger": { "type": "quest_state_changed", "quest": "gametest:hunt", "state": "completed" } },
+                  "stages": [ { "id": "next" } ] }
+                """), () -> with(helper, CoreDefinitions.EVENTS.serverStore(), StoryEvent.CODEC, Map.of(key("fanout_done"),
+                "{ \"trigger\": { \"type\": \"quest_state_changed\", \"quest\": \"gametest:hunt\", \"state\": \"completed\" },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:fanout_events\", \"scope\": \"world\", \"amount\": 1 } }"), () -> {
+            QuestEvents.rebuild();
+            StoryEvents.rebuild();
+            fire(leader, "begin");
+            fire(leader, "wolf");
+            fire(leader, "wolf");
+            fire(leader, "report");
+            expect(helper, world(helper, "fanout_completions"), Optional.of(new StoryValue.Int(1)), "on_complete runs once");
+            expect(helper, world(helper, "fanout_events"), Optional.of(new StoryValue.Int(2)), "the trigger fires for each member online");
+            expect(helper, Quests.progress(leader, follow).map(QuestProgress::status), Optional.of(QuestStatus.ACTIVE), "the follow-up starts for the one who finished");
+            expect(helper, Quests.progress(member, follow).map(QuestProgress::status), Optional.of(QuestStatus.ACTIVE), "and for the other member");
+
+            // The member leaves the game; the party does it again without them.
+            helper.getLevel().getServer().getPlayerList().remove(member);
+            int before = member.getInventory().countItem(Items.EMERALD);
+            run(helper, leader, "{ \"type\": \"set_quest_state\", \"quest\": \"gametest:hunt\", \"state\": \"unknown\" }");
+            fire(leader, "begin");
+            fire(leader, "wolf");
+            fire(leader, "wolf");
+            fire(leader, "report");
+            expect(helper, member.getInventory().countItem(Items.EMERALD), before, "not paid while away");
+            expect(helper, QuestRewardsOwed.get(helper.getLevel().getServer()).of(member.getUUID()), List.of(QUEST), "owed to the absent member");
+            QuestRewards.payOwed(member);
+            expect(helper, member.getInventory().countItem(Items.EMERALD), before + 3, "paid on joining");
+            expect(helper, QuestRewardsOwed.get(helper.getLevel().getServer()).of(member.getUUID()), List.of(), "once");
+        })));
+        StoryEvents.rebuild();
+        QuestEvents.rebuild();
+        ok(() -> PartyManager.disband(leader));
+        remove(helper, leader);
+        helper.succeed();
+    }
+
+    /** A completed quest made active again starts over; a failed one goes on where it failed. */
+    @GameTest(template = "empty")
+    public static void finishedQuestsMadeActiveAgainStartOverOrGoOn(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        String active = "{ \"type\": \"set_quest_state\", \"quest\": \"gametest:hunt\", \"state\": \"active\" }";
+        withQuest(helper, HUNT.formatted("player", "reopen"), () -> {
+            fire(player, "begin");
+            fire(player, "wolf");
+            fire(player, "wolf");
+            fire(player, "report");
+            expect(helper, progress(player).status(), QuestStatus.COMPLETED, "completed");
+            run(helper, player, active);
+            expect(helper, progress(player).stage(), Optional.of("kill"), "a completed quest starts over at its first stage");
+            expect(helper, progress(player).count("wolves"), 0, "with fresh counters");
+            expect(helper, progress(player).log(), List.of(), "and a fresh log");
+            expect(helper, progress(player).completions(), 1, "keeping its completions");
+            expect(helper, world(helper, "reopen_kill_entered"), Optional.of(new StoryValue.Int(2)), "the first stage is entered again");
+            fire(player, "wolf");
+            expect(helper, progress(player).count("wolves"), 1, "and counts again");
+
+            run(helper, player, "{ \"type\": \"set_quest_state\", \"quest\": \"gametest:hunt\", \"state\": \"failed\" }");
+            run(helper, player, active);
+            expect(helper, progress(player).stage(), Optional.of("kill"), "a failed quest goes on at its stage");
+            expect(helper, progress(player).count("wolves"), 1, "with its counters");
+            expect(helper, progress(player).log(), List.of(), "its stage not logged twice");
+            fire(player, "wolf");
+            expect(helper, progress(player).stage(), Optional.of("report"), "and can be finished");
+
+            // Failed with every objective of its stage done: going on as it was could never move again.
+            StoryState.setQuest(player, StoryScope.PLAYER, QUEST, new QuestProgress(QuestStatus.FAILED, Optional.of("kill"), Map.of("wolves", 2), List.of("kill")));
+            run(helper, player, active);
+            expect(helper, progress(player).stage(), Optional.of("kill"), "goes on at that stage");
+            expect(helper, progress(player).count("wolves"), 0, "with the stage's counters anew");
+        });
+        QuestEvents.rebuild();
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * A player already in the place when an "enter it" objective becomes current (they walked in during the opening
+     * scene, or joined there) gets it counted, without walking out and back in.
+     */
+    @GameTest(template = "empty")
+    public static void beingAlreadyInsideCountsAsEntering(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Vec3 at = player.position();
+        String area = "\"area\": { \"center\": [" + at.x + ", " + at.y + ", " + at.z + "], \"radius\": 4 }";
+        withQuest(helper, """
+                { "title": "gametest.quest.arrive",
+                  "stages": [
+                    { "id": "go", "objectives": [ { "id": "there", "trigger": { "type": "area_entered", %1$s } } ] },
+                    { "id": "twice", "objectives": [ { "id": "again", "trigger": { "type": "area_entered", %1$s }, "count": 2 } ] } ] }
+                """.formatted(area), () -> {
+            Quests.start(player, QUEST);
+            Quests.checkStates(player);
+            expect(helper, progress(player).stage(), Optional.of("twice"), "already inside: the entry counts");
+            Quests.checkStates(player);
+            expect(helper, progress(player).count("again"), 0, "but not towards entering several times");
+        });
+        QuestEvents.rebuild();
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * A trigger's state that already holds counts: a past event ("history") in a quest that is not repeatable, unless
+     * the objective says since_stage; a quest added after what starts it happened starts.
+     */
+    @GameTest(template = "empty")
+    public static void statesThatAlreadyHoldCountAndStartQuests(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.awardStat(Stats.JUMP);
+        ResourceLocation past = key("past");
+        ResourceLocation pastAgain = key("past_again");
+        ResourceLocation next = key("next");
+        String jumped = "{ \"type\": \"stat_reached\", \"stat\": \"minecraft:jump\", \"value\": 1 }";
+        with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(
+                past, """
+                        { "title": "gametest.quest.past", "stages": [
+                            { "id": "jump", "objectives": [ { "id": "j", "trigger": %1$s } ] },
+                            { "id": "fresh", "objectives": [ { "id": "j", "trigger": %1$s, "since_stage": true } ] } ] }
+                        """.formatted(jumped),
+                pastAgain, """
+                        { "title": "gametest.quest.past_again", "repeatable": true, "stages": [
+                            { "id": "jump", "objectives": [ { "id": "j", "trigger": %1$s } ] } ] }
+                        """.formatted(jumped)), () -> {
+            QuestEvents.rebuild();
+            Quests.start(player, past);
+            Quests.start(player, pastAgain);
+            Quests.checkStates(player);
+            expect(helper, Quests.progress(player, past).flatMap(QuestProgress::stage), Optional.of("fresh"), "a jump made before counts");
+            Quests.checkStates(player);
+            expect(helper, Quests.progress(player, past).flatMap(QuestProgress::stage), Optional.of("fresh"), "but not with since_stage");
+            expect(helper, Quests.progress(player, pastAgain).map(progress -> progress.count("j")), Optional.of(0),
+                    "nor in a repeatable quest, whose every repetition it would finish");
+
+            Quests.setStatus(player, past, QuestStatus.COMPLETED);
+            // Added after the quest it waits for was completed: the change it listens for is long gone.
+            install(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(next, """
+                    { "title": "gametest.quest.next",
+                      "start": { "trigger": { "type": "quest_state_changed", "quest": "gametest:past", "state": "completed" } },
+                      "stages": [ { "id": "go" } ] }
+                    """));
+            QuestEvents.rebuild();
+            expect(helper, Quests.progress(player, next), Optional.empty(), "not started before the check");
+            Quests.checkStates(player);
+            expect(helper, Quests.progress(player, next).map(QuestProgress::status), Optional.of(QuestStatus.ACTIVE), "started by the state of its start");
+        });
+        QuestEvents.rebuild();
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * An author turns a personal quest into a party one after players have it: the furthest progress of the members
+     * becomes the party's; turned back, every member gets a copy. Nothing fires and nothing is paid.
+     */
+    @GameTest(template = "empty")
+    public static void changingAQuestsScopeKeepsItsProgress(GameTestHelper helper) {
+        ServerPlayer leader = helper.makeMockServerPlayerInLevel();
+        ServerPlayer member = helper.makeMockServerPlayerInLevel();
+        ok(() -> PartyManager.create(leader, "Movers"));
+        ok(() -> PartyManager.invite(leader, member));
+        ok(() -> PartyManager.accept(member));
+        withQuest(helper, HUNT.formatted("player", "moved"), () -> {
+            fire(leader, "begin");
+            fire(leader, "wolf");
+            fire(leader, "wolf");
+            fire(member, "begin");
+            expect(helper, progress(leader).stage(), Optional.of("report"), "the leader is further");
+            int emeralds = leader.getInventory().countItem(Items.EMERALD);
+
+            install(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(QUEST, HUNT.formatted("party", "moved")));
+            expect(helper, Quests.progress(member, QUEST), Optional.empty(), "read from the party, nothing is there yet");
+            Quests.adoptScopes(member);
+            expect(helper, progress(member).stage(), Optional.of("report"), "the furthest progress became the party's");
+            expect(helper, progress(leader).stage(), Optional.of("report"), "shared by the leader");
+            expect(helper, StoryState.getQuest(leader, StoryScope.PLAYER, QUEST), Optional.empty(), "replacing their own copies");
+            expect(helper, StoryState.getQuest(member, StoryScope.PLAYER, QUEST), Optional.empty(), "both of them");
+            expect(helper, world(helper, "moved_kill_entered"), Optional.of(new StoryValue.Int(2)), "no stage entered again");
+            expect(helper, leader.getInventory().countItem(Items.EMERALD), emeralds, "nothing paid");
+
+            install(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(QUEST, HUNT.formatted("player", "moved")));
+            Quests.adoptScopes(member);
+            Quests.adoptScopes(leader);
+            expect(helper, progress(member).stage(), Optional.of("report"), "back to personal: a copy for the member");
+            expect(helper, progress(leader).stage(), Optional.of("report"), "and for the leader");
+        });
+        QuestEvents.rebuild();
+        ok(() -> PartyManager.disband(leader));
+        remove(helper, leader);
+        remove(helper, member);
+        helper.succeed();
+    }
+
+    /** An active quest at a stage its definition no longer has is moved to the first stage on joining or reloading. */
+    @GameTest(template = "empty")
+    public static void aQuestAtALostStageMovesToTheFirstStage(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        withQuest(helper, HUNT.formatted("player", "lost"), () -> {
+            StoryState.setQuest(player, StoryScope.PLAYER, QUEST, new QuestProgress(QuestStatus.ACTIVE, Optional.of("renamed_away"), Map.of("0", 1), List.of("kill")));
+            Quests.repairStages(player);
+            expect(helper, progress(player).stage(), Optional.of("kill"), "moved to the first stage");
+            expect(helper, progress(player).objectives(), Map.of(), "with fresh counters");
+            expect(helper, progress(player).log(), List.of("kill"), "the story so far kept");
+            expect(helper, world(helper, "lost_kill_entered"), Optional.of(new StoryValue.Int(1)), "the stage is entered");
+            Quests.repairStages(player);
+            expect(helper, world(helper, "lost_kill_entered"), Optional.of(new StoryValue.Int(1)), "a stage that exists is left alone");
+        });
+        QuestEvents.rebuild();
+        remove(helper, player);
         helper.succeed();
     }
 

@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.module.quest;
 
+import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.event.QuestChangedEvent;
 import dev.dzenthai.storybound.core.logic.Action;
@@ -8,13 +9,16 @@ import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
+import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.action.WorldActions;
 import dev.dzenthai.storybound.core.logic.condition.WorldConditions;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.notify.NotifyKind;
 import dev.dzenthai.storybound.core.notify.Notifications;
+import dev.dzenthai.storybound.core.state.PartyData;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
+import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.network.QuestSyncPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
@@ -99,8 +103,12 @@ public final class Quests {
             StoryTrace.note(player, "quest " + quest, "not started: " + refused);
             return false;
         }
-        QuestDefinition definition = definition(quest);
-        Optional<QuestProgress> known = progress(player, quest);
+        begin(player, quest, definition(quest), progress(player, quest));
+        return true;
+    }
+
+    /** Puts the quest at its first stage, counters and log anew (completions kept), and runs its start. */
+    private static void begin(ServerPlayer player, ResourceLocation quest, QuestDefinition definition, Optional<QuestProgress> known) {
         String first = definition.firstStage().orElse(null);
         QuestProgress started = known.map(progress -> progress.restarted(first, now(player))).orElseGet(() -> QuestProgress.started(first, now(player)));
         write(player, quest, definition, known, started);
@@ -113,7 +121,131 @@ public final class Quests {
         run(definition.onStart(), player, "quest " + quest + " on_start");
         definition.firstStage().flatMap(definition::stage)
                 .ifPresent(stage -> run(stage.onEnter(), player, "quest " + quest + " stage " + stage.id() + " on_enter"));
-        return true;
+    }
+
+    /**
+     * A finished quest made active again. A completed one starts over from its first stage (done again, as a
+     * repeatable quest is); a failed one goes on from the stage it failed at with its counters (tried again), its time
+     * limit counting anew. A stage whose objectives were all done when it ended has its counters reset, and a stage
+     * that no longer exists means starting over: either way the quest could never move again.
+     */
+    private static void reopen(ServerPlayer player, ResourceLocation quest, QuestDefinition definition, QuestProgress finished) {
+        QuestDefinition.Stage stage = finished.stage().flatMap(definition::stage).orElse(null);
+        boolean lostStage = stage == null && !definition.stages().isEmpty();
+        if (finished.status() == QuestStatus.COMPLETED || lostStage) {
+            StoryTrace.note(player, "quest " + quest, "made active again: " + (lostStage ? "its stage is gone, " : "") + "starts over");
+            begin(player, quest, definition, Optional.of(finished));
+            return;
+        }
+        boolean stuck = stage != null && stage.isComplete(finished);
+        StoryTrace.note(player, "quest " + quest, "made active again: goes on" + (stuck ? ", the stage's counters anew" : ""));
+        write(player, quest, definition, Optional.of(finished), finished.resumed(now(player), stuck));
+        announce(player, definition, NotifyKind.QUEST_STARTED);
+        for (ServerPlayer member : sharing(player, definition)) {
+            if (tracked(member).isEmpty()) {
+                track(member, quest);
+            }
+        }
+    }
+
+    /**
+     * A quest whose {@code scope} the author changed keeps its progress: progress is read from the quest's scope only,
+     * so without this a quest made {@code party} after players had it as {@code player} would be unknown to everyone,
+     * and nothing would start it again. When the quest has no progress in its scope for this player but some in
+     * another one:
+     * <ul>
+     * <li>into a shared scope ({@code party}, {@code world}), the furthest progress among the players online who share
+     * it moves there (completed, then active with the longest log, then failed) and replaces their own copies (an
+     * offline member's stays hidden in their data);</li>
+     * <li>into {@code player}, the player gets a copy of their party's (or else the world's) progress, which stays for
+     * the other members to copy too.</li>
+     * </ul>
+     * Only data moves: no triggers fire, no actions run, no rewards are paid. On every data load and login, after the
+     * migrations and before {@link #repairStages}. Public for tests.
+     */
+    public static void adoptScopes(ServerPlayer player) {
+        QuestRegistries.QUESTS.serverStore().all().forEach((quest, definition) -> {
+            StoryScope scope = definition.scope();
+            if (StoryState.getQuest(player, scope, quest).isPresent()) {
+                return;
+            }
+            if (scope == StoryScope.PLAYER) {
+                for (StoryScope shared : List.of(StoryScope.PARTY, StoryScope.WORLD)) {
+                    Optional<QuestProgress> found = StoryState.getQuest(player, shared, quest);
+                    if (found.isPresent()) {
+                        adopted(player, quest, "a copy of the " + shared.getSerializedName() + " progress");
+                        StoryState.setQuest(player, scope, quest, found.get());
+                        sync(player);
+                        return;
+                    }
+                }
+                return;
+            }
+            ServerPlayer from = null;
+            QuestProgress furthest = null;
+            for (ServerPlayer member : sharing(player, definition)) {
+                Optional<QuestProgress> own = StoryState.getQuest(member, StoryScope.PLAYER, quest);
+                if (own.isPresent() && (furthest == null || further(own.get(), furthest))) {
+                    from = member;
+                    furthest = own.get();
+                }
+            }
+            if (furthest == null) {
+                return;
+            }
+            adopted(player, quest, "moved from " + from.getGameProfile().getName() + "'s own progress, the furthest of those online");
+            StoryState.setQuest(player, scope, quest, furthest);
+            for (ServerPlayer member : sharing(player, definition)) {
+                // The shared progress replaces everyone's own: switched back to player, they all get a copy of it.
+                StoryState.setQuest(member, StoryScope.PLAYER, quest, null);
+                sync(member);
+            }
+        });
+    }
+
+    /** Completed beats active beats failed; between two active ones, the one further along its stages. */
+    private static boolean further(QuestProgress candidate, QuestProgress best) {
+        int rank = rank(candidate.status()) - rank(best.status());
+        return rank != 0 ? rank > 0 : candidate.log().size() > best.log().size();
+    }
+
+    private static int rank(QuestStatus status) {
+        return switch (status) {
+            case FAILED -> 0;
+            case ACTIVE -> 1;
+            case COMPLETED -> 2;
+        };
+    }
+
+    private static void adopted(ServerPlayer player, ResourceLocation quest, String how) {
+        Storybound.LOGGER.info("Storybound: quest {} changed its scope; progress for {}: {}", quest, player.getGameProfile().getName(), how);
+        StoryTrace.note(player, "quest " + quest, "its scope changed: " + how);
+    }
+
+    /**
+     * Active quests at a stage their definition no longer has (an author removed or renamed it without a migration)
+     * would never move again: they go to the first stage, with a warning. On every data load and login, after the
+     * migrations, so a migrated stage is never mistaken for a lost one. Public for tests.
+     */
+    public static void repairStages(ServerPlayer player) {
+        if (!isEnabled()) {
+            return;
+        }
+        QuestRegistries.QUESTS.serverStore().all().forEach((quest, definition) -> {
+            Optional<QuestProgress> current = StoryState.getQuest(player, definition.scope(), quest);
+            if (current.isEmpty() || current.get().status() != QuestStatus.ACTIVE || current.get().stage().isEmpty()
+                    || definition.stage(current.get().stage().get()).isPresent() || definition.firstStage().isEmpty()) {
+                return;
+            }
+            String lost = current.get().stage().get();
+            String first = definition.firstStage().get();
+            Storybound.LOGGER.warn("Storybound: quest {} of {} was at stage '{}', which no longer exists; moved to the first stage '{}'"
+                    + " (rename stages with a migration to keep progress)", quest, player.getGameProfile().getName(), lost, first);
+            StoryTrace.note(player, "quest " + quest, "stage '" + lost + "' no longer exists: moved to the first stage '" + first + "'");
+            write(player, quest, definition, current, current.get().movedTo(first));
+            announce(player, definition, NotifyKind.QUEST_UPDATED);
+            definition.stage(first).ifPresent(stage -> run(stage.onEnter(), player, "quest " + quest + " stage " + first + " on_enter"));
+        });
     }
 
     /** Moves an active quest to a stage; an unknown quest is started first. */
@@ -164,8 +296,7 @@ public final class Quests {
                 return start(player, quest);
             }
             if (current.get().status() != QuestStatus.ACTIVE) {
-                write(player, quest, definition, current, current.get().withStatus(QuestStatus.ACTIVE).startedNow(now(player)));
-                announce(player, definition, NotifyKind.QUEST_STARTED);
+                reopen(player, quest, definition, current.get());
             }
             return true;
         }
@@ -183,8 +314,15 @@ public final class Quests {
         untrack(player, quest, definition);
         run(completed ? definition.onComplete() : definition.onFailed(), player, "quest " + quest + (completed ? " on_complete" : " on_failed"));
         if (completed) {
-            for (ServerPlayer member : sharing(player, definition)) {
+            List<ServerPlayer> online = sharing(player, definition);
+            for (ServerPlayer member : online) {
                 QuestRewards.grant(member, quest, definition.rewards());
+            }
+            if (definition.scope() == StoryScope.PARTY) {
+                // Members away now are paid when they next join (the world shares no list of members to wait for).
+                PartyData.get(player.server).party(StoryState.owner(player, StoryScope.PARTY)).ifPresent(party -> party.members().stream()
+                        .filter(member -> online.stream().noneMatch(present -> present.getUUID().equals(member)))
+                        .forEach(member -> QuestRewardsOwed.get(player.server).owe(member, quest)));
             }
         }
         return true;
@@ -282,6 +420,73 @@ public final class Quests {
                 }
             }
         });
+    }
+
+    /**
+     * Triggers that announce a state (see {@link Trigger#stateKind()}) fire only when it changes, so whatever waits for
+     * one would be stuck if the change came first: the player walked into the village before the quest reached that
+     * stage, read the document earlier, joined after a party member finished the quest the next one waits for, or the
+     * quest was added after it all happened. Every second, with the other checks, this looks at the state itself:
+     * <ul>
+     * <li>an objective of the current stage asking for it once ({@code count} 1; "enter it three times" is left to real
+     * crossings, so one cannot count twice) counts when its state holds, unless it says {@code since_stage};</li>
+     * <li>a quest that is not repeatable starts when the state of its start trigger and its conditions hold (a
+     * repeatable one restarts only on the event, or it would restart by itself after every cooldown).</li>
+     * </ul>
+     * States that stay done once they happened ({@link Trigger.StateKind#HISTORY}: a document read, a boss beaten)
+     * never count in a repeatable quest. Conditions are tested quietly, so a state that holds while they do not writes
+     * nothing to the trace every second. Objectives with {@code items} keep their own check. Public for tests.
+     */
+    public static void checkStates(ServerPlayer player) {
+        if (!isEnabled()) {
+            return;
+        }
+        StoryContext context = StoryContext.of(player);
+        QuestRegistries.QUESTS.serverStore().all().forEach((quest, definition) -> {
+            Optional<QuestProgress> current = StoryState.getQuest(player, definition.scope(), quest);
+            boolean repeatable = definition.repeatable().isPresent();
+            if (current.isEmpty()) {
+                definition.start().filter(start -> !repeatable && holds(start.trigger(), repeatable, context)
+                                && start.conditions().test(context) && whyNotStart(player, quest) == null)
+                        .ifPresent(start -> {
+                            StoryTrace.note(player, "quest " + quest + " start", "its start already holds: started");
+                            start(player, quest);
+                        });
+                return;
+            }
+            QuestDefinition.Stage stage = current.filter(progress -> progress.status() == QuestStatus.ACTIVE)
+                    .flatMap(QuestProgress::stage).flatMap(definition::stage).orElse(null);
+            if (stage == null) {
+                return;
+            }
+            for (int i = 0; i < stage.objectives().size(); i++) {
+                QuestDefinition.Objective objective = stage.objectives().get(i);
+                if (objective.count() == 1 && !objective.sinceStage() && objective.items().isEmpty()
+                        && current.get().count(stage.objectiveId(i)) == 0
+                        && objective.trigger().map(trigger -> holds(trigger, repeatable, context)).orElse(false)
+                        && objective.conditions().test(context)) {
+                    StoryTrace.note(player, "quest " + quest + " stage " + stage.id() + " objective " + stage.objectiveId(i),
+                            "its state already holds: counted");
+                    // Counts through the trigger's path: nothing if the quest moved meanwhile.
+                    objectiveTriggered(context, quest, stage.id(), i);
+                    return;
+                }
+            }
+        });
+    }
+
+    /** Whether a trigger's state holds now and may count here (no past events in a repeatable quest). */
+    private static boolean holds(Trigger<?> trigger, boolean repeatable, StoryContext context) {
+        Trigger.StateKind kind = trigger.stateKind();
+        if (kind == Trigger.StateKind.NONE || (kind == Trigger.StateKind.HISTORY && repeatable)) {
+            return false;
+        }
+        try {
+            return trigger.holdsNow(context);
+        } catch (RuntimeException e) {
+            Storybound.LOGGER.error("Storybound: checking the state of a {} trigger failed", trigger.type(), e);
+            return false;
+        }
     }
 
     /** Writes the objective's new count and moves the quest on when the stage is complete. */
@@ -400,13 +605,28 @@ public final class Quests {
         NeoForge.EVENT_BUS.post(new QuestChangedEvent(player.server, quest, definition.scope(), StoryState.owner(player, definition.scope()),
                 oldStatus, newStatus, oldStage, newStage, player));
         QuestLogic.QuestChange change = new QuestLogic.QuestChange(quest, oldStatus, newStatus, oldStage, newStage);
-        StoryContext context = StoryContext.of(player);
-        if (!oldStatus.equals(newStatus)) {
-            TriggerDispatcher.fire(QuestLogic.QUEST_STATE_CHANGED.get(), context, change);
+        for (ServerPlayer witness : witnesses(player, definition)) {
+            StoryContext context = StoryContext.of(witness);
+            if (!oldStatus.equals(newStatus)) {
+                TriggerDispatcher.fire(QuestLogic.QUEST_STATE_CHANGED.get(), context, change);
+            }
+            if (!oldStage.equals(newStage)) {
+                TriggerDispatcher.fire(QuestLogic.QUEST_STAGE_CHANGED.get(), context, change);
+            }
         }
-        if (!oldStage.equals(newStage)) {
-            TriggerDispatcher.fire(QuestLogic.QUEST_STAGE_CHANGED.get(), context, change);
+    }
+
+    /**
+     * Who the quest triggers fire for: the player who made the change, then, for a party quest, every other member
+     * online, so what follows a party quest (a personal quest starting, a story event for the player) happens to each of
+     * them. The quest's own {@code on_*} actions still run once.
+     */
+    private static List<ServerPlayer> witnesses(ServerPlayer player, QuestDefinition definition) {
+        List<ServerPlayer> witnesses = new ArrayList<>(List.of(player));
+        if (definition.scope() == StoryScope.PARTY) {
+            sharing(player, definition).stream().filter(member -> member != player).forEach(witnesses::add);
         }
+        return witnesses;
     }
 
     /** {@code unknown}, {@code active at stage hunt}, {@code completed}: for the trace. */

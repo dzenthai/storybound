@@ -129,6 +129,17 @@ public final class DocumentLogic {
             return document.map(event.document()::equals).orElse(true) && (!firstTime || event.firstTime());
         }
 
+        /** A named document, once read; "any document" has no state. */
+        @Override
+        public StateKind stateKind() {
+            return document.isPresent() ? StateKind.HISTORY : StateKind.NONE;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            return Journal.of(context.player()).hasRead(document.orElseThrow());
+        }
+
         @Override
         public void collectReferences(References references) {
             document.ifPresent(references::document);

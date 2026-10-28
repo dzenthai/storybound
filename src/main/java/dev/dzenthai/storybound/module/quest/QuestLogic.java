@@ -227,6 +227,24 @@ public final class QuestLogic {
             return quest.map(change.quest()::equals).orElse(true) && state.map(value -> value.matches(change.newStatus())).orElse(true);
         }
 
+        /**
+         * A quest (or, without {@code quest}, any quest the player knows) being in the state; "became unknown" (a
+         * reset) and "changed at all" are only moments.
+         */
+        @Override
+        public StateKind stateKind() {
+            return this.state.isPresent() && this.state.get() != QuestLogic.State.UNKNOWN ? Trigger.StateKind.CURRENT : Trigger.StateKind.NONE;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            QuestLogic.State wanted = this.state.orElseThrow();
+            if (quest.isPresent()) {
+                return wanted.matches(Quests.progress(context.player(), quest.get()).map(QuestProgress::status));
+            }
+            return Quests.known(context.player()).values().stream().anyMatch(progress -> wanted.matches(Optional.of(progress.status())));
+        }
+
         @Override
         public void collectReferences(References references) {
             quest.ifPresent(id -> references.quest(id, null));
@@ -248,6 +266,18 @@ public final class QuestLogic {
         @Override
         public boolean matches(StoryContext context, QuestChange change) {
             return quest.map(change.quest()::equals).orElse(true) && stage.map(value -> change.newStage().equals(Optional.of(value))).orElse(true);
+        }
+
+        /** A named quest active at a named stage. */
+        @Override
+        public StateKind stateKind() {
+            return quest.isPresent() && stage.isPresent() ? StateKind.CURRENT : StateKind.NONE;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            return Quests.progress(context.player(), quest.orElseThrow())
+                    .map(progress -> progress.status() == QuestStatus.ACTIVE && progress.stage().equals(stage)).orElse(false);
         }
 
         @Override

@@ -10,6 +10,7 @@ import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.Actions;
+import dev.dzenthai.storybound.core.logic.EntityReturns;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
@@ -34,7 +35,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -106,6 +109,60 @@ public final class WaypointGameTests {
         helper.succeed();
     }
 
+    /**
+     * For a party quest, what one member's waypoint found, the others see: the reaper the leader came across shows for
+     * a member far away, who never saw it. For a personal quest it does not: each may have their own.
+     */
+    @GameTest(template = "empty")
+    public static void aPartyQuestsWaypointShowsWhatAMemberFound(GameTestHelper helper) {
+        ServerPlayer leader = helper.makeMockServerPlayerInLevel();
+        ServerPlayer member = helper.makeMockServerPlayerInLevel();
+        ok(() -> PartyManager.create(leader, "Trackers"));
+        ok(() -> PartyManager.invite(leader, member));
+        ok(() -> PartyManager.accept(member));
+        leader.setPos(helper.absoluteVec(new Vec3(1.5, 1, 1.5)));
+        member.setPos(helper.absoluteVec(new Vec3(1.5, 1, 60.5)));
+        LivingEntity prey = helper.spawnWithNoFreeWill(EntityType.PIG, 3, 1, 1);
+        prey.addTag("gametest_shared_prey");
+        ResourceLocation trail = key("trail");
+        String quest = """
+                { "title": "gametest.waypoint_quest", "scope": "%s", "stages": [ { "id": "hunt", "waypoints": ["gametest:trail"] } ] }
+                """;
+        with(helper, WaypointRegistries.WAYPOINTS.serverStore(), WaypointDefinition.CODEC, Map.of(trail,
+                "{ \"name\": \"gametest.trail\", \"target\": { \"nearest\": { \"type\": \"minecraft:pig\", \"tag\": \"gametest_shared_prey\" }, \"range\": 8 } }"
+        ), () -> {
+            with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(QUEST, quest.formatted("party")), () -> {
+                QuestEvents.rebuild();
+                Waypoints.rebuild();
+                Quests.start(leader, QUEST);
+                assertAt(helper, leader, trail, prey, "the leader finds it nearby");
+                ClientWaypoint shared = Waypoints.visible(member).get(trail.toString());
+                helper.assertTrue(shared != null && Math.abs(shared.pos().x - prey.getX()) < 1 && Math.abs(shared.pos().z - prey.getZ()) < 1,
+                        "the member, far beyond the range, sees what the leader found, got " + shared);
+                Quests.setStatus(leader, QUEST, null);
+            });
+            // What the party showed the member is theirs now (they know where it is): a member who never learnt it.
+            member.setData(WaypointRegistries.SIGHTINGS, WaypointSightings.EMPTY);
+            with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(QUEST, quest.formatted("player")), () -> {
+                QuestEvents.rebuild();
+                Waypoints.rebuild();
+                Quests.start(leader, QUEST);
+                Quests.start(member, QUEST);
+                assertAt(helper, leader, trail, prey, "the leader's own");
+                helper.assertFalse(Waypoints.visible(member).containsKey(trail.toString()), "a personal quest's waypoint finds only one's own");
+                Quests.setStatus(leader, QUEST, null);
+                Quests.setStatus(member, QUEST, null);
+            });
+        });
+        Waypoints.rebuild();
+        QuestEvents.rebuild();
+        prey.discard();
+        ok(() -> PartyManager.disband(leader));
+        remove(helper, leader);
+        remove(helper, member);
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void addedWaypointsFollowTheirVisibility(GameTestHelper helper) {
         ServerPlayer leader = helper.makeMockServerPlayerInLevel();
@@ -158,6 +215,13 @@ public final class WaypointGameTests {
         helper.succeed();
     }
 
+    /** Entities this test says will come back, as an NPC waiting to respawn does. */
+    private static final Set<UUID> COMING_BACK = ConcurrentHashMap.newKeySet();
+
+    static {
+        EntityReturns.register((server, uuid) -> COMING_BACK.contains(uuid));
+    }
+
     /** Pigs with a tag no other test uses, so pigs and players of tests running alongside never count. */
     @GameTest(template = "open")
     public static void nearestWaypointPicksAnEntityAndKeepsIt(GameTestHelper helper) {
@@ -204,6 +268,27 @@ public final class WaypointGameTests {
             assertAt(helper, player, quarry, last, "kept when the player walks away from it and no other is in range");
             last.remove(Entity.RemovalReason.KILLED);
             helper.assertFalse(Waypoints.visible(player).containsKey(quarry.toString()), "nothing once the pick died");
+
+            // One that dies and waits to respawn (an NPC with respawn) keeps its place, as an area, until it is back.
+            LivingEntity phoenix = helper.spawnWithNoFreeWill(EntityType.PIG, 4, 1, 1);
+            phoenix.addTag("gametest_quarry");
+            assertAt(helper, player, quarry, phoenix, "a new pick");
+            Vec3 fell = phoenix.position();
+            COMING_BACK.add(phoenix.getUUID());
+            try {
+                // As in the game: killed, it lies there for its death animation, then leaves the level.
+                phoenix.kill();
+                helper.assertTrue(!phoenix.isAlive() && !phoenix.isRemoved(), "dying, still in the level");
+                ClientWaypoint dying = Waypoints.visible(player).get(quarry.toString());
+                helper.assertTrue(dying != null && dying.radius() >= 16, "while it dies: the area, its place kept, got " + dying);
+                phoenix.remove(Entity.RemovalReason.KILLED);
+                ClientWaypoint waiting = Waypoints.visible(player).get(quarry.toString());
+                helper.assertTrue(waiting != null && Math.abs(waiting.pos().x - fell.x) < 1 && waiting.radius() >= 16,
+                        "dead but coming back: the area where it was, got " + waiting);
+            } finally {
+                COMING_BACK.remove(phoenix.getUUID());
+            }
+            helper.assertFalse(Waypoints.visible(player).containsKey(quarry.toString()), "gone for good once it no longer waits");
 
             // Joined again far from it: only the saved sighting is known, in a chunk that is not loaded.
             Vec3 away = helper.absoluteVec(new Vec3(5000.5, 70, 5000.5));

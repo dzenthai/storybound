@@ -408,6 +408,40 @@ public final class LogicGameTests {
         helper.succeed();
     }
 
+    /**
+     * A once story event whose trigger's state already holds runs, once; an event without once stays an event; an
+     * aborted one is not retried while its state keeps holding.
+     */
+    @GameTest(template = "empty")
+    public static void onceEventsRunWhenTheirStateAlreadyHolds(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ok(() -> StoryState.set(player, StoryScope.PLAYER, key("lit_beacon"), new StoryValue.Bool(true)));
+        String trigger = "{ \"type\": \"flag_changed\", \"key\": \"gametest:lit_beacon\", \"value\": true }";
+        withEvents(helper, Map.of(
+                key("beacon_once"), "{ \"trigger\": " + trigger + ", \"once\": \"player\","
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:beacon_once\", \"amount\": 1 } }",
+                key("beacon_every"), "{ \"trigger\": " + trigger + ","
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:beacon_every\", \"amount\": 1 } }",
+                key("beacon_paid"), "{ \"trigger\": " + trigger + ", \"once\": \"player\","
+                        + " \"actions\": [ { \"type\": \"add_var\", \"key\": \"gametest:beacon_tries\", \"amount\": 1 },"
+                        + " { \"type\": \"take_item\", \"item\": \"minecraft:diamond\" } ] }"), () -> {
+            StoryEvents.checkStates(player);
+            StoryEvents.checkStates(player);
+            expect(helper, stored(player, "beacon_once"), Optional.of(new StoryValue.Int(1)), "the once event ran, once");
+            expect(helper, stored(player, "beacon_every"), Optional.empty(), "an event without once waits for a change");
+            expect(helper, stored(player, "beacon_tries"), Optional.of(new StoryValue.Int(1)), "an aborted one is not retried every second");
+            ok(() -> StoryState.set(player, StoryScope.PLAYER, key("lit_beacon"), new StoryValue.Bool(false)));
+            StoryEvents.checkStates(player);
+            ok(() -> StoryState.set(player, StoryScope.PLAYER, key("lit_beacon"), new StoryValue.Bool(true)));
+            StoryEvents.checkStates(player);
+            expect(helper, stored(player, "beacon_tries"), Optional.of(new StoryValue.Int(2)), "but again once its state came back"
+                    + " (by the change itself, and not a second time by its state)");
+        });
+        StoryEvents.forget(player.getUUID());
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void progressTriggersAndConditions(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
@@ -512,7 +546,22 @@ public final class LogicGameTests {
         helper.assertFalse(Actions.runAll(onEntity, context, "gametest scene", OnFail.ABORT), "\"entity\" without one fails");
         helper.assertTrue(Actions.runAll(onEntity, new StoryContext(player, kairen), "gametest scene", OnFail.ABORT) && kairen.hasEffect(MobEffects.GLOWING),
                 "and works on the context entity");
+
+        // "unique": a second player reaching the same scene does not get a second NPC.
+        var unique = LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString(
+                        "[ { \"type\": \"spawn_entity\", \"entity\": \"minecraft:zombie\", \"tag\": [\"gametest_kairen\", \"gametest_boss\"], \"unique\": true },"
+                                + " { \"type\": \"add_var\", \"key\": \"gametest:after_unique\", \"amount\": 1 } ]"))
+                .getOrThrow(GameTestAssertException::new);
+        helper.assertTrue(Actions.runAll(unique, context, "gametest scene", OnFail.ABORT), "a unique spawn of one already there is not a failure");
+        helper.assertTrue(helper.getLevel().getEntitiesOfClass(Zombie.class, player.getBoundingBox().inflate(64), zombie -> zombie.getTags().contains("gametest_kairen")).size() == 2,
+                "and spawns nothing");
         spawned.forEach(Entity::discard);
+        Actions.runAll(unique, context, "gametest scene", OnFail.ABORT);
+        var alone = helper.getLevel().getEntitiesOfClass(Zombie.class, player.getBoundingBox().inflate(64), zombie -> zombie.getTags().contains("gametest_kairen"));
+        helper.assertTrue(alone.size() == 1, "with none there it spawns one: " + alone.size());
+        alone.forEach(Entity::discard);
+        helper.assertTrue(LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString("{ \"type\": \"spawn_entity\", \"entity\": \"minecraft:zombie\", \"unique\": true }")).isError(),
+                "unique without a tag is refused");
         helper.getLevel().getServer().getPlayerList().remove(player);
         helper.succeed();
     }

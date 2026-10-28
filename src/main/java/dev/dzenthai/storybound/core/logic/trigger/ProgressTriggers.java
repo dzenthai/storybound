@@ -60,6 +60,18 @@ public final class ProgressTriggers {
         public boolean matches(StoryContext context, AdvancementHolder earned) {
             return advancement.map(id -> id.equals(earned.id())).orElseGet(() -> earned.value().display().isPresent());
         }
+
+        /** A named advancement, once earned; "any" has no state. */
+        @Override
+        public StateKind stateKind() {
+            return advancement.isPresent() ? StateKind.HISTORY : StateKind.NONE;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            AdvancementHolder holder = context.player().server.getAdvancements().get(advancement.orElseThrow());
+            return holder != null && context.player().getAdvancements().getOrStartProgress(holder).isDone();
+        }
     }
 
     public record Travel(ResourceKey<Level> from, ResourceKey<Level> to) {}
@@ -79,6 +91,17 @@ public final class ProgressTriggers {
         @Override
         public boolean matches(StoryContext context, Travel travel) {
             return from.map(travel.from()::equals).orElse(true) && to.map(travel.to()::equals).orElse(true);
+        }
+
+        /** Being in {@code to}; a journey from a given dimension is only the moment. */
+        @Override
+        public StateKind stateKind() {
+            return to.isPresent() && from.isEmpty() ? StateKind.CURRENT : StateKind.NONE;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            return context.player().level().dimension().equals(to.orElseThrow());
         }
     }
 
@@ -102,6 +125,17 @@ public final class ProgressTriggers {
         public boolean matches(StoryContext context, Change change) {
             return change.crossed(level);
         }
+
+        /** The level can drop again (death, enchanting), so it is a current state. */
+        @Override
+        public StateKind stateKind() {
+            return StateKind.CURRENT;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            return context.player().experienceLevel >= level;
+        }
     }
 
     public record StatChange(StatRef stat, Change change) {}
@@ -121,6 +155,16 @@ public final class ProgressTriggers {
         @Override
         public boolean matches(StoryContext context, StatChange change) {
             return stat.equals(change.stat()) && change.change().crossed(value);
+        }
+
+        @Override
+        public StateKind stateKind() {
+            return StateKind.HISTORY;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            return stat.value(context.player()) >= value;
         }
     }
 

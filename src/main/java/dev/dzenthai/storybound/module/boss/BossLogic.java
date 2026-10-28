@@ -107,6 +107,17 @@ public final class BossLogic {
             return boss.map(event.boss()::equals).orElse(true) && (!firstTime || event.firstTime());
         }
 
+        /** A named boss, once beaten by the player; "any boss" has no state. */
+        @Override
+        public StateKind stateKind() {
+            return boss.isPresent() ? StateKind.HISTORY : StateKind.NONE;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            return Bosses.data(context.player()).get(boss.orElseThrow()).victories() >= 1;
+        }
+
         @Override
         public void collectReferences(References references) {
             boss.ifPresent(references::boss);

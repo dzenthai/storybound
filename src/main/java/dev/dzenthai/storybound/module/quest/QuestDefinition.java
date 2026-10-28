@@ -220,12 +220,15 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
      * @param hint    shown under the objective in the Quests tab until the objective is done
      */
     /**
-     * @param items {@code count} items to have (or, with {@code consume}, to hand in); without a trigger they are
-     *              looked at every second, with one when it fires
+     * @param items      {@code count} items to have (or, with {@code consume}, to hand in); without a trigger they are
+     *                   looked at every second, with one when it fires
+     * @param sinceStage only the trigger firing while the objective is current counts; otherwise a trigger announcing a
+     *                   state ({@link Trigger#stateKind()}) also counts when that state already holds (see
+     *                   {@code Quests.checkStates})
      */
     public record Objective(Optional<String> id, Optional<Trigger<?>> trigger, Condition conditions, int count,
                             Optional<StoryText> text, boolean hidden, boolean optional, Optional<StoryText> hint, Optional<Items> items,
-                            List<Hint> hints) {
+                            List<Hint> hints, boolean sinceStage) {
         public static final Codec<Objective> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.optionalFieldOf("id").forGetter(Objective::id),
                 LogicCodecs.TRIGGER.optionalFieldOf("trigger").forGetter(Objective::trigger),
@@ -236,18 +239,19 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
                 Codec.BOOL.optionalFieldOf("optional", false).forGetter(Objective::optional),
                 StoryText.CODEC.optionalFieldOf("hint").forGetter(Objective::hint),
                 Items.CODEC.optionalFieldOf("items").forGetter(Objective::items),
-                Hint.CODEC.listOf().optionalFieldOf("hints", List.of()).forGetter(Objective::hints)
+                Hint.CODEC.listOf().optionalFieldOf("hints", List.of()).forGetter(Objective::hints),
+                Codec.BOOL.optionalFieldOf("since_stage", false).forGetter(Objective::sinceStage)
         ).apply(instance, Objective::new));
 
         public Objective(Optional<String> id, Optional<Trigger<?>> trigger, Condition conditions, int count,
                          Optional<StoryText> text, boolean hidden, boolean optional) {
-            this(id, trigger, conditions, count, text, hidden, optional, Optional.empty(), Optional.empty(), List.of());
+            this(id, trigger, conditions, count, text, hidden, optional, Optional.empty(), Optional.empty(), List.of(), false);
         }
 
         Objective clientView() {
             // The items stay: the Journal and JEI show what the objective asks for.
             return new Objective(id, Optional.empty(), LogicConditions.ALWAYS, count, text, hidden, optional, hint, items,
-                    hints.stream().map(Hint::clientView).toList());
+                    hints.stream().map(Hint::clientView).toList(), sinceStage);
         }
     }
 

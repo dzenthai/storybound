@@ -39,6 +39,7 @@ public final class QuestRegistries {
         QuestLogic.REGISTER_ACTIONS.register(modBus);
         QuestLogic.REGISTER_TRIGGERS.register(modBus);
         StoryMigrations.registerPlayer(QuestRegistries::migrate);
+        StoryMigrations.registerServer((server, renames) -> QuestRewardsOwed.get(server).migrate(renames));
     }
 
     /** Renamed quests in the player's pins and waiting rewards. */

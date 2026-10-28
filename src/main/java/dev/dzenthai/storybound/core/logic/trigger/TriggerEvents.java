@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
 import dev.dzenthai.storybound.core.logic.KillCredit;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.state.StoryState;
 import java.util.List;
@@ -22,6 +23,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 /** Turns game and Storybound events into trigger firings. */
 public final class TriggerEvents {
     private static final int AREA_CHECK_INTERVAL = 10;
+    /** How often once story events are checked by their trigger's state (see {@link StoryEvents#checkStates}). */
+    private static final int STATE_CHECK_INTERVAL = 20;
 
     private TriggerEvents() {}
 
@@ -68,6 +71,13 @@ public final class TriggerEvents {
     private static void onServerTick(ServerTickEvent.Post event) {
         if (event.getServer().getTickCount() % AREA_CHECK_INTERVAL == 0) {
             TriggerDispatcher.tickAreas(event.getServer());
+        }
+        int tick = event.getServer().getTickCount();
+        for (ServerPlayer player : List.copyOf(event.getServer().getPlayerList().getPlayers())) {
+            // Each player on a tick of their own, as the quest checks.
+            if (Math.floorMod(tick + player.getId(), STATE_CHECK_INTERVAL) == 0) {
+                StoryEvents.checkStates(player);
+            }
         }
         SeenTracker.tick(event.getServer());
     }
@@ -116,11 +126,13 @@ public final class TriggerEvents {
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         TriggerDispatcher.forget(event.getEntity().getUUID());
         SeenTracker.forget(event.getEntity().getUUID());
+        StoryEvents.forget(event.getEntity().getUUID());
     }
 
     private static void onServerStopped(ServerStoppedEvent event) {
         StoryTrace.stop();
         TriggerDispatcher.reset();
         SeenTracker.reset();
+        StoryEvents.reset();
     }
 }

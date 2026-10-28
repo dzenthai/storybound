@@ -23,7 +23,16 @@ Required on both client and server.
 - Stages, objectives (triggers or items to have or hand in), a Witcher-style log, failure conditions and time limits.
   Item objectives show how many the player carries before handing them in.
 - Rewards as in FTB Quests: items, one of several to choose, loot tables, experience, claimed in the Journal, which
-  then shows what was received.
+  then shows what was received. Party members who were away are paid when they join.
+- Party quests: what follows a party quest (a personal quest, a story event) happens to every member online.
+- Changing a quest's `scope` (for example from `player` to `party`) keeps the progress players already have.
+- A finished quest made active again starts over (completed) or goes on where it failed (failed); a quest left at a
+  stage that was removed moves to the first stage instead of getting stuck.
+- Objectives and quest starts no longer wait for ever when what they wait for happened first: a trigger that
+  announces a state (in a place, a document read, a quest completed, a level reached, ...) counts when that state
+  already holds (`since_stage` asks for a new event); `once` story events run by their state too.
+- `spawn_entity` with `"unique": true` spawns an NPC only if it is not there yet (the demo elder no longer appears once
+  per player).
 - Repeatable quests with a cooldown, difficulty (stars 1–5 or coloured levels), objective hints that appear when the
   player is stuck, up to five quests pinned on the HUD.
 - Chapter map for players (opt-in): the editor's chapters with arrows from quest to quest, coloured by progress,

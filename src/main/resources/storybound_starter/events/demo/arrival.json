@@ -59,6 +59,7 @@
       "type": "spawn_entity",
       "entity": "minecraft:villager",
       "tag": "demo_elder",
+      "unique": true,
       "name": "demo.npc.elder",
       "nbt": {
         "VillagerData": {

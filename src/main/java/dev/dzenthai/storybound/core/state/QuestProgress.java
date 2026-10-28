@@ -71,6 +71,24 @@ public record QuestProgress(QuestStatus status, Optional<String> stage, Map<Stri
         return new QuestProgress(QuestStatus.ACTIVE, Optional.ofNullable(firstStage), Map.of(), List.of(), completions, now, 0);
     }
 
+    /**
+     * A finished quest active again at the stage it ended on, its time counting from {@code now}: that stage leaves
+     * the log again (it is the current one), and its counters start over when {@code freshCounters} (it ended with
+     * them all done, so they could never move again).
+     */
+    public QuestProgress resumed(long now, boolean freshCounters) {
+        List<String> next = new ArrayList<>(log);
+        if (stage.isPresent() && !next.isEmpty() && next.getLast().equals(stage.get())) {
+            next.removeLast();
+        }
+        return new QuestProgress(QuestStatus.ACTIVE, stage, freshCounters ? Map.of() : objectives, next, completions, now, finishedAt);
+    }
+
+    /** Puts an active quest at another stage without logging the current one (which no longer exists). */
+    public QuestProgress movedTo(String next) {
+        return new QuestProgress(status, Optional.of(next), Map.of(), log, completions, startedAt, finishedAt);
+    }
+
     /** The quest's time (its time limit) counts from {@code now}. */
     public QuestProgress startedNow(long now) {
         return new QuestProgress(status, stage, objectives, log, completions, now, finishedAt);

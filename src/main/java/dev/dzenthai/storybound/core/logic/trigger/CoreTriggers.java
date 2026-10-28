@@ -12,6 +12,9 @@ import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.TriggerType;
+import dev.dzenthai.storybound.core.state.PartyData;
+import dev.dzenthai.storybound.core.state.StoryScope;
+import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.StoryValues;
 import java.util.Optional;
@@ -54,6 +57,23 @@ public final class CoreTriggers {
         @Override
         public boolean matches(StoryContext context, StoryValueChangedEvent event) {
             return event.getKey().equals(key) && value.map(expected -> event.getNewValue().map(expected::equals).orElse(false)).orElse(true);
+        }
+
+        /** With a {@code value}, the flag having it; without one ("any change") only the moment counts. */
+        @Override
+        public StateKind stateKind() {
+            return value.isPresent() ? StateKind.CURRENT : StateKind.NONE;
+        }
+
+        /** The change fires from any scope, so the value counts from any of them. */
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            for (StoryScope scope : StoryScope.values()) {
+                if (StoryState.getStored(context.player(), scope, key).equals(value)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -111,6 +131,17 @@ public final class CoreTriggers {
     public interface Entered extends Trigger<Unit> {
         /** Also fires when the player logs in already inside. */
         boolean fireOnLogin();
+
+        /** Being inside: what the crossing announces. */
+        @Override
+        default StateKind stateKind() {
+            return StateKind.CURRENT;
+        }
+
+        @Override
+        default boolean holdsNow(StoryContext context) {
+            return matches(context, Unit.INSTANCE);
+        }
     }
 
     /**
@@ -234,6 +265,16 @@ public final class CoreTriggers {
         @Override
         public boolean matches(StoryContext context, PartyEvent.Joined event) {
             return true;
+        }
+
+        @Override
+        public StateKind stateKind() {
+            return StateKind.CURRENT;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            return PartyData.get(context.player().server).partyOf(context.player().getUUID()).isPresent();
         }
     }
 

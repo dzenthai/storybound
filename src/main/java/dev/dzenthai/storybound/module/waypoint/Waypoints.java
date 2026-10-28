@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.module.waypoint;
 
 import dev.dzenthai.storybound.config.StoryboundConfig;
+import dev.dzenthai.storybound.core.logic.EntityReturns;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.QuestProgress;
@@ -101,6 +102,19 @@ public final class Waypoints {
         StructureLocator.reset();
     }
 
+    /**
+     * Who shares what a waypoint points at with the player: for a waypoint shown for a party or world quest, the others
+     * online who share that quest (what one of them found, the others are looking for too); nobody for a personal
+     * quest (each player may have their own of it: their own reaper) or a waypoint of no quest.
+     */
+    private static List<ServerPlayer> companions(ServerPlayer player, Optional<ResourceLocation> quest) {
+        QuestDefinition definition = quest.map(Quests::definition).orElse(null);
+        if (definition == null || definition.scope() == StoryScope.PLAYER) {
+            return List.of();
+        }
+        return StoryState.onlinePlayersOf(player.server, definition.scope(), StoryState.owner(player, definition.scope()));
+    }
+
     /** What the player should see now, by key. Public for tests. */
     public static Map<String, ClientWaypoint> visible(ServerPlayer player) {
         Map<String, ClientWaypoint> result = new LinkedHashMap<>();
@@ -123,7 +137,7 @@ public final class Waypoints {
                 return;
             }
             String key = id.toString();
-            Place place = locate(player, key, definition.target());
+            Place place = locate(player, key, definition.target(), companions(player, quest));
             if (place != null) {
                 result.put(key, new ClientWaypoint(key, definition.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(definition.radius()), definition.color(), quest, definition.style()));
@@ -133,7 +147,8 @@ public final class Waypoints {
             if (!sees(player, added)) {
                 continue;
             }
-            Place place = locate(player, added.key(), added.target());
+            Place place = locate(player, added.key(), added.target(), added.scope() == StoryScope.PLAYER ? List.of()
+                    : StoryState.onlinePlayersOf(player.server, added.scope(), StoryState.owner(player, added.scope())));
             if (place != null) {
                 result.put(added.key(), new ClientWaypoint(added.key(), added.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(added.radius()), added.color(), Optional.empty(), added.style()));
@@ -217,7 +232,7 @@ public final class Waypoints {
         if (waypoint == null) {
             return Teleport.NOT_FOUND;
         }
-        Place place = locate(player, id.toString(), waypoint.target());
+        Place place = locate(player, id.toString(), waypoint.target(), List.of());
         if (place == null) {
             if (waypoint.target() instanceof WaypointTarget.Structure structure) {
                 BlockPos origin = structure.origin().orElseGet(() -> structureSearchOrigin(player, structure.dimension()));
@@ -351,7 +366,7 @@ public final class Waypoints {
      * there: the waypoint shows the area where it was last seen ({@link WaypointSightings}, kept through relogs) until a
      * loaded match is in range. One that died, was removed or no longer matches is dropped. Null while there is none.
      */
-    private static @Nullable Place nearestEntity(ServerPlayer player, String key, WaypointTarget.Nearest target) {
+    private static @Nullable Place nearestEntity(ServerPlayer player, String key, WaypointTarget.Nearest target, List<ServerPlayer> companions) {
         Map<String, Entity> picks = NEAREST_PICKS.computeIfAbsent(player.getUUID(), uuid -> new HashMap<>());
         ServerLevel level = player.serverLevel();
         Entity picked = picks.get(key);
@@ -359,6 +374,11 @@ public final class Waypoints {
         UUID pickedId = picked != null ? picked.getUUID() : sighting != null ? sighting.entity() : null;
         // Looked up again: an entity whose chunk loads anew is another object with the same uuid.
         Entity entity = pickedId == null ? null : level.getEntity(pickedId);
+        if (entity != null && !entity.isAlive() && !entity.isRemoved() && sighting != null && sighting.entity().equals(pickedId)) {
+            // Dying: a mob lies there for its death animation before it leaves the level, and only then is it known
+            // whether it comes back (an NPC that respawns) or is gone; until then, where it was seen.
+            return lastSeen(sighting);
+        }
         boolean lost = entity != null && !isCandidate(entity, target);
         double keep = target.range() * KEEP_PICK_RANGE;
         if (entity != null && !lost && entity.distanceToSqr(player) <= keep * keep) {
@@ -380,7 +400,40 @@ public final class Waypoints {
         }
         picks.remove(key);
         WaypointSightings.forget(player, key);
-        return null;
+        return shared(player, key, target, companions, picks);
+    }
+
+    /**
+     * For a waypoint the player shares with companions (see {@link #companions}), when the player has nothing of their
+     * own: the entity a companion's waypoint points at. Loaded and alive, it becomes the player's own pick (a point,
+     * the one nearest to the player); otherwise the area where a companion last saw it. Only when the player's own
+     * search found nothing, so their own target, nearer to them, comes first.
+     */
+    private static @Nullable Place shared(ServerPlayer player, String key, WaypointTarget.Nearest target, List<ServerPlayer> companions,
+                                          Map<String, Entity> picks) {
+        Entity nearest = null;
+        WaypointSightings.Sighting seen = null;
+        for (ServerPlayer companion : companions) {
+            if (companion == player) {
+                continue;
+            }
+            Entity theirs = NEAREST_PICKS.getOrDefault(companion.getUUID(), Map.of()).get(key);
+            Entity loaded = theirs == null ? null : player.serverLevel().getEntity(theirs.getUUID());
+            if (loaded != null && isCandidate(loaded, target)) {
+                if (nearest == null || loaded.distanceToSqr(player) < nearest.distanceToSqr(player)) {
+                    nearest = loaded;
+                }
+                continue;
+            }
+            WaypointSightings.Sighting sighting = WaypointSightings.get(companion, key);
+            if (seen == null && sighting != null && stillThere(companion, theirs, sighting)) {
+                seen = sighting;
+            }
+        }
+        if (nearest != null) {
+            return remember(player, picks, key, nearest);
+        }
+        return seen == null ? null : lastSeen(seen);
     }
 
     private static Place remember(ServerPlayer player, Map<String, Entity> picks, String key, Entity entity) {
@@ -403,6 +456,10 @@ public final class Waypoints {
      * the entities of the chunk it was seen in are loaded and it is not there (it left meanwhile).
      */
     private static boolean stillThere(ServerPlayer player, @Nullable Entity picked, WaypointSightings.Sighting sighting) {
+        if (EntityReturns.comingBack(player.server, sighting.entity())) {
+            // Dead but waiting to respawn where it fell: its place is still the place to look.
+            return true;
+        }
         if (WaypointTargets.get(player.server).isGone(sighting.entity())) {
             return false;
         }
@@ -461,7 +518,8 @@ public final class Waypoints {
     }
 
     /** Where the waypoint with this key is for this player; null when it has no place for them now. */
-    private static @Nullable Place locate(ServerPlayer player, String key, WaypointTarget target) {
+    /** @param companions who shares the waypoint's target with the player (see {@link #companions}) */
+    private static @Nullable Place locate(ServerPlayer player, String key, WaypointTarget target, List<ServerPlayer> companions) {
         return switch (target) {
             case WaypointTarget.Fixed fixed -> new Place(fixed.dimension().location(), fixed.pos(), ClientWaypoint.NO_ENTITY);
             case WaypointTarget.Follow follow -> {
@@ -479,10 +537,11 @@ public final class Waypoints {
                 // Not loaded anywhere: where this player last saw it, else where anyone did since the server started.
                 WaypointSightings.Sighting own = WaypointSightings.get(player, key);
                 WaypointSightings.Sighting seen = own != null && own.entity().equals(follow.entity()) ? own : LAST_SEEN.get(follow.entity());
-                yield seen == null || WaypointTargets.get(player.server).isGone(follow.entity()) ? null : lastSeen(seen);
+                yield seen == null || (WaypointTargets.get(player.server).isGone(follow.entity())
+                        && !EntityReturns.comingBack(player.server, follow.entity())) ? null : lastSeen(seen);
             }
             case WaypointTarget.Structure structure -> nearestStructure(player, key, structure);
-            case WaypointTarget.Nearest nearest -> nearestEntity(player, key, nearest);
+            case WaypointTarget.Nearest nearest -> nearestEntity(player, key, nearest, companions);
         };
     }
 

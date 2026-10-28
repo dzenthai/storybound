@@ -10,6 +10,8 @@ import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
+import dev.dzenthai.storybound.core.notify.Notifications;
+import dev.dzenthai.storybound.core.notify.NotifyKind;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -134,6 +136,28 @@ public final class QuestRewards {
         QuestRewardData.add(player, new QuestRewardData.Pending(quest, loot));
         StoryTrace.note(player, origin, "waiting in the Journal" + (rewards.claim() ? "" : " (they did not fit, or something is to be chosen)"));
         Quests.sync(player);
+    }
+
+    /**
+     * Pays the party quests completed while the player was away ({@link QuestRewardsOwed}), with the completion toast
+     * they missed; when they join. Nothing while the quests module is disabled: the debt waits. Public for tests.
+     */
+    public static void payOwed(ServerPlayer player) {
+        if (!Quests.isEnabled()) {
+            return;
+        }
+        List<ResourceLocation> owed = QuestRewardsOwed.get(player.server).take(player.getUUID());
+        for (ResourceLocation quest : owed) {
+            QuestDefinition definition = Quests.definition(quest);
+            StoryTrace.note(player, "quest " + quest + " rewards", "completed by the party while the player was away: paid on joining");
+            if (definition.announce()) {
+                Notifications.send(player, NotifyKind.QUEST_COMPLETED, definition.title().resolve(player), Optional.empty());
+            }
+            grant(player, quest, definition.rewards());
+        }
+        if (!owed.isEmpty()) {
+            Quests.sync(player);
+        }
     }
 
     /**

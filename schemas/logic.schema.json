@@ -389,7 +389,8 @@
             "tag": { "description": "A tag or a list of tags given to every spawned entity.", "oneOf": [ { "type": "string" }, { "type": "array", "items": { "type": "string" } } ] },
             "name": { "$ref": "#/definitions/story_text" },
             "nbt": { "description": "Entity NBT, as /summon takes it.", "type": "object" },
-            "persistent": { "description": "Never despawns (mobs).", "type": "boolean", "default": true }
+            "persistent": { "description": "Never despawns (mobs).", "type": "boolean", "default": true },
+            "unique": { "description": "Spawns nothing while an entity of this type with all the tags is already there (loaded, or an NPC waiting to respawn). Needs tag.", "type": "boolean", "default": false }
           },
           "required": ["entity"],
           "additionalProperties": false

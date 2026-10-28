@@ -11,17 +11,24 @@ import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.fml.ModList;
 
 /** Subscribes loaded story events to their triggers and runs them. */
 public final class StoryEvents {
     private static final String SOURCE = Storybound.id("events").toString();
     static final String ONCE_PREFIX = "once/";
+    /** Per player: once events run by their state that aborted, not tried again while the state keeps holding. */
+    private static final Map<UUID, Set<ResourceLocation>> ATTEMPTED = new HashMap<>();
 
     private StoryEvents() {}
 
@@ -53,7 +60,51 @@ public final class StoryEvents {
         // An aborted event did not happen (e.g. the price could not be taken), so it may be tried again.
         if (!completed && event.onFail() == OnFail.ABORT && event.once().isPresent()) {
             setDone(id, event.once().get(), context, false);
+            // Not tried again by its state until that state stops holding (see checkStates).
+            ATTEMPTED.computeIfAbsent(context.player().getUUID(), uuid -> new HashSet<>()).add(id);
         }
+    }
+
+    /**
+     * A {@code once} story event whose trigger announces a state (see {@link Trigger#stateKind()}) that already holds
+     * runs as if the trigger had just fired: the change came before the event could hear it (the player was away, the
+     * file was added later). Every second for each player. Events without {@code once} stay events: run by state they
+     * would repeat every second. One that aborts (its {@code take_item} found nothing) is not tried again until its
+     * state stops holding, so it cannot repeat its earlier actions every second. Conditions are tested quietly.
+     */
+    public static void checkStates(ServerPlayer player) {
+        StoryContext context = StoryContext.of(player);
+        Set<ResourceLocation> attempted = ATTEMPTED.computeIfAbsent(player.getUUID(), uuid -> new HashSet<>());
+        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> {
+            if (event.once().isEmpty() || event.trigger().stateKind() == Trigger.StateKind.NONE) {
+                return;
+            }
+            boolean holds;
+            try {
+                holds = event.trigger().holdsNow(context);
+            } catch (RuntimeException e) {
+                Storybound.LOGGER.error("Storybound: checking the state of story event {} failed", id, e);
+                return;
+            }
+            if (!holds) {
+                attempted.remove(id);
+                return;
+            }
+            if (attempted.contains(id) || StoryState.getStored(player, event.once().get(), onceKey(id)).isPresent()
+                    || !event.conditions().test(context)) {
+                return;
+            }
+            StoryTrace.note(player, "story event " + id, "its trigger's state already holds: run");
+            run(id, event, context);
+        });
+    }
+
+    public static void forget(UUID player) {
+        ATTEMPTED.remove(player);
+    }
+
+    public static void reset() {
+        ATTEMPTED.clear();
     }
 
     /** Walks every id a story event refers to; modules use it to validate references to their data. */

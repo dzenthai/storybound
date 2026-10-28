@@ -165,6 +165,11 @@
           "$ref": "logic.schema.json#/definitions/story_text"
         },
         "hidden": { "type": "boolean", "default": false },
+        "since_stage": {
+          "description": "Only a trigger firing while this objective is current counts. Without it, a trigger that announces a state (entered a place, read a document, reached a level...) also counts when that state already holds: the player was already there or did it earlier.",
+          "type": "boolean",
+          "default": false
+        },
         "optional": {
           "description": "Counted and shown, but not needed to finish the stage.",
           "type": "boolean",
