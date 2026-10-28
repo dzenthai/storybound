@@ -70,7 +70,7 @@ public final class WaypointData extends SavedData {
             }
             moved++;
             if (waypoints.stream().noneMatch(other -> other.sameSlot(id, waypoint.scope(), waypoint.owner().orElse(null)))) {
-                next.add(new Added(id, waypoint.name(), waypoint.target(), waypoint.color(), waypoint.radius(), waypoint.scope(), waypoint.owner(), waypoint.style()));
+                next.add(new Added(id, waypoint.name(), waypoint.target(), waypoint.color(), waypoint.radius(), waypoint.look(), waypoint.scope(), waypoint.owner(), waypoint.style()));
             }
         }
         if (moved > 0) {
@@ -103,7 +103,7 @@ public final class WaypointData extends SavedData {
      * @param owner the player or party it belongs to; empty for {@code world}
      * @param style the client marker style
      */
-    public record Added(ResourceLocation id, StoryText name, WaypointTarget target, int color, float radius,
+    public record Added(ResourceLocation id, StoryText name, WaypointTarget target, int color, float radius, AreaLook look,
                         StoryScope scope, Optional<UUID> owner, ResourceLocation style) {
         public static final Codec<Added> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 ResourceLocation.CODEC.fieldOf("id").forGetter(Added::id),
@@ -111,6 +111,7 @@ public final class WaypointData extends SavedData {
                 WaypointTarget.CODEC.fieldOf("target").forGetter(Added::target),
                 ColorCodec.CODEC.optionalFieldOf("color", WaypointDefinition.DEFAULT_COLOR).forGetter(Added::color),
                 Codec.FLOAT.optionalFieldOf("radius", 0f).forGetter(Added::radius),
+                AreaLook.MAP_CODEC.forGetter(Added::look),
                 StoryScope.CODEC.fieldOf("scope").forGetter(Added::scope),
                 UUIDUtil.STRING_CODEC.optionalFieldOf("owner").forGetter(Added::owner),
                 ResourceLocation.CODEC.optionalFieldOf("style", WaypointDefinition.DEFAULT_STYLE).forGetter(Added::style)

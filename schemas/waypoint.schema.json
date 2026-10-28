@@ -9,12 +9,14 @@
   "properties": {
     "name": { "$ref": "logic.schema.json#/definitions/story_text" },
     "target": { "$ref": "#/definitions/target" },
-    "color": { "description": "#RRGGBB or #AARRGGBB.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
-    "conditions": { "$ref": "logic.schema.json#/definitions/conditions" },
-    "quest": { "$ref": "logic.schema.json#/definitions/id" },
-    "stage": { "description": "Needs quest: shown only while the quest is at this stage.", "type": "string" },
-    "radius": { "description": "A search area of this radius instead of a point.", "type": "number", "minimum": 0, "maximum": 1024, "default": 0 },
-    "style": { "description": "Marker style: assets/<ns>/storybound/waypoint_styles/<path>.json in a resource pack.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:default" }
+    "color": { "description": "The colour of the marker and its name, for a quest you do not track (the tracked quest's markers are always gold). Pick one or type #RRGGBB, e.g. #C0392B.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+    "conditions": { "description": "The marker shows only while these conditions hold (a flag is set, it is night...). Empty: always.", "$ref": "logic.schema.json#/definitions/conditions" },
+    "quest": { "description": "The marker shows only while this quest is active. Empty: no quest needed. Often simpler: list the marker in the quest's stage instead (the stage's waypoints).", "$ref": "logic.schema.json#/definitions/id" },
+    "stage": { "description": "With a quest: only while the quest is at this stage. Pick it from the quest's stages.", "type": "string" },
+    "radius": { "description": "A search area of this radius, in blocks (a block is a metre), instead of a point.", "type": "number", "minimum": 0, "maximum": 1024, "default": 0 },
+    "show_radius": { "description": "For a search area: write its radius by the name.", "type": "boolean", "default": true },
+    "show_ring": { "description": "For a search area: draw its edge on the ground near the player.", "type": "boolean", "default": true },
+    "style": { "description": "How the marker looks: the quest marker (a diamond) or the character marker (small, its name only under the crosshair, up to 96 blocks). Resource packs can add more looks in assets/<namespace>/storybound/waypoint_styles/.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:default" }
   },
   "definitions": {
     "target": {

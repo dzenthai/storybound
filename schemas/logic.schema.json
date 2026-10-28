@@ -622,6 +622,8 @@
             "search_radius": { "description": "In chunks, as /locate.", "type": "integer", "minimum": 1, "maximum": 512, "default": 100 },
             "color": { "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
             "radius": { "type": "number", "minimum": 0, "maximum": 1024 },
+            "show_radius": { "description": "For a search area: write its radius by the name.", "type": "boolean", "default": true },
+            "show_ring": { "description": "For a search area: draw its edge on the ground near the player.", "type": "boolean", "default": true },
             "visibility": { "$ref": "#/definitions/scope", "default": "player" },
             "style": { "description": "Marker style: assets/<ns>/storybound/waypoint_styles/<path>.json in a resource pack.", "$ref": "#/definitions/id", "default": "storybound:default" }
           },

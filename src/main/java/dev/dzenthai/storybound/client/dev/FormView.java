@@ -54,6 +54,9 @@ final class FormView {
     private static final int LABEL_H = 10;
     private static final int CONTROL_H = 18;
     private static final int ROW_GAP = 4;
+    /** The radius a waypoint gets when it becomes a search area in the form. */
+    private static final int NEW_AREA_RADIUS = 16;
+    private static final String WAYPOINT = "waypoint";
 
     /** What the form edits and how its changes are kept. */
     interface Host {
@@ -379,12 +382,29 @@ final class FormView {
         Kind kind = Schemas.kind(node);
         JsonObject object = objectAt(path);
         JsonElement value = object != null ? object.get(name) : null;
-        Component label = fieldLabel(name, required);
+        Component label = fieldLabel(name, required, owner);
         Tooltip tooltip = node.description().isEmpty() && Schemas.resolve(node).description().isEmpty() ? null
                 : Tooltip.create(Component.literal(described(!node.description().isEmpty() ? node.description() : Schemas.resolve(node).description())));
         if (name.equals("difficulty") && path.isEmpty()) {
             difficultyField(name, value, label);
             return;
+        }
+        // A waypoint (or add_waypoint): "target or search area" first; an area's radius and looks only for an area.
+        if (Schemas.properties(owner).containsKey("show_ring")) {
+            // Colour and marker look stay in the files (the demo uses them) but are left out of the form for now:
+            // the functionality first, such options later.
+            if (name.equals("color") || name.equals("style")) {
+                return;
+            }
+            boolean area = object != null && object.get("radius") instanceof JsonPrimitive radius && radius.isNumber() && radius.getAsDouble() > 0;
+            if (name.equals("radius")) {
+                waypointKindField(path, area);
+                if (!area) {
+                    return;
+                }
+            } else if ((name.equals("show_radius") || name.equals("show_ring")) && !area) {
+                return;
+            }
         }
         switch (kind) {
             case TEXT -> textField(path, name, label, tooltip);
@@ -525,6 +545,32 @@ final class FormView {
         return values.get((values.indexOf(effective) + 1) % values.size());
     }
 
+    /**
+     * A waypoint is a target (a point, the diamond) or a search area (the ring icon, a radius, its radius written by
+     * the name and its edge drawn on the ground). Switching to a target takes the area's fields away; to an area gives
+     * it a radius of {@link #NEW_AREA_RADIUS}.
+     */
+    private void waypointKindField(List<Object> path, boolean area) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("form.waypoint_kind"));
+        Component shown = DevUi.text(area ? "form.waypoint_area" : "form.waypoint_target");
+        Button button = Button.builder(shown, b -> {
+            JsonObject owner = ensureObject(path);
+            if (area) {
+                owner.remove("radius");
+                owner.remove("show_radius");
+                owner.remove("show_ring");
+            } else {
+                owner.addProperty("radius", NEW_AREA_RADIUS);
+            }
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("form.waypoint_kind.tooltip")));
+        screen.add(button);
+    }
+
     private void booleanField(List<Object> path, String name, Node node, @Nullable JsonElement value, Component label, @Nullable Tooltip tooltip) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
@@ -552,7 +598,7 @@ final class FormView {
         labelRow(label);
         int rowY = rowY(LABEL_H + CONTROL_H) + LABEL_H;
         boolean uuid = kind == Kind.STRING && Schemas.isUuid(node);
-        Picker picker = !uuid && (kind == Kind.ID || kind == Kind.ID_LIST || kind == Kind.STRING) ? picker(name, owner) : null;
+        Picker picker = !uuid && (kind == Kind.ID || kind == Kind.ID_LIST || kind == Kind.STRING) ? picker(name, owner, path) : null;
         boolean here = kind == Kind.POSITION;
         // A position has two buttons (where I stand, pick in the world); a picker or a uuid one.
         int boxW = w - (here ? 40 : picker != null || uuid ? 20 : 0);
@@ -1057,6 +1103,43 @@ final class FormView {
         return Language.getInstance().has(key) ? Component.translatable(key).getString() : described(variant.description());
     }
 
+    /**
+     * A field's label where the form says more than the field's own name: {@code storybound.dev.field.<context>.<name>}
+     * (on a waypoint, "conditions" is "show only if"), else the field's own.
+     */
+    private static Component fieldLabel(String name, boolean required, Node owner) {
+        String context = context(owner);
+        String key = "storybound.dev.field." + context + "." + name;
+        if (context == null || !Language.getInstance().has(key)) {
+            return fieldLabel(name, required);
+        }
+        Component label = Component.translatable(key);
+        return required ? Component.empty().append(label).append(" *") : label;
+    }
+
+    /** Which form this is, where it needs its own words: a waypoint (or add_waypoint), or null. */
+    private static @Nullable String context(Node owner) {
+        return Schemas.properties(owner).containsKey("show_ring") ? WAYPOINT : null;
+    }
+
+    /** The stages of the quest the form names, for a waypoint's {@code stage}; none until a quest is chosen. */
+    private static List<String> stagesOf(@Nullable JsonObject object) {
+        if (object == null || !(object.get("quest") instanceof JsonPrimitive quest)) {
+            return List.of();
+        }
+        ResourceLocation id = ResourceLocation.tryParse(quest.getAsString());
+        String raw = id == null ? null : ClientDevStore.byType(ClientDevStore.TYPE_QUEST).get(id);
+        List<String> stages = new ArrayList<>();
+        if (ClientDevStore.parseObject(raw).get("stages") instanceof JsonArray list) {
+            list.forEach(stage -> {
+                if (stage instanceof JsonObject entry && entry.get("id") instanceof JsonPrimitive stageId) {
+                    stages.add(stageId.getAsString());
+                }
+            });
+        }
+        return stages;
+    }
+
     static Component fieldLabel(String name, boolean required) {
         String key = "storybound.dev.field." + name;
         Component label = Language.getInstance().has(key) ? Component.translatable(key) : Component.literal(DevUi.humanize(name));
@@ -1125,6 +1208,19 @@ final class FormView {
 
     /** What a field can be picked from. */
     private record Picker(@Nullable Catalog.Kind kind, @Nullable ResourceLocation storyType, List<String> choices, Component title) {}
+
+    private @Nullable Picker picker(String field, Node owner, List<Object> path) {
+        if (WAYPOINT.equals(context(owner))) {
+            List<String> choices = switch (field) {
+                case "stage" -> stagesOf(objectAt(path));
+                default -> List.of();
+            };
+            if (!choices.isEmpty()) {
+                return new Picker(null, null, choices, fieldLabel(field, false, owner));
+            }
+        }
+        return picker(field, owner);
+    }
 
     private @Nullable Picker picker(String field, Node owner) {
         Catalog.Kind kind = switch (field) {

@@ -140,7 +140,8 @@ public final class Waypoints {
             Place place = locate(player, key, definition.target(), companions(player, quest));
             if (place != null) {
                 result.put(key, new ClientWaypoint(key, definition.name().resolve(player), place.dimension(), place.pos(), place.entity(),
-                        place.radius(definition.radius()), definition.color(), quest, definition.style()));
+                        place.radius(definition.radius()), place.showRadius(definition.radius(), definition.look()),
+                        place.showRing(definition.radius(), definition.look()), definition.color(), quest, definition.style()));
             }
         });
         for (WaypointData.Added added : WaypointData.get(player.server).all()) {
@@ -151,7 +152,8 @@ public final class Waypoints {
                     : StoryState.onlinePlayersOf(player.server, added.scope(), StoryState.owner(player, added.scope())));
             if (place != null) {
                 result.put(added.key(), new ClientWaypoint(added.key(), added.name().resolve(player), place.dimension(), place.pos(), place.entity(),
-                        place.radius(added.radius()), added.color(), Optional.empty(), added.style()));
+                        place.radius(added.radius()), place.showRadius(added.radius(), added.look()), place.showRing(added.radius(), added.look()),
+                        added.color(), Optional.empty(), added.style()));
             }
         }
         return result;
@@ -189,19 +191,19 @@ public final class Waypoints {
 
     /** Adds (or replaces) a waypoint seen by the player, their party or everyone, and updates whoever sees it. */
     public static boolean add(ServerPlayer player, ResourceLocation id, StoryText name, WaypointTarget target,
-                              int color, float radius, StoryScope scope, ResourceLocation style) {
+                              int color, float radius, AreaLook look, StoryScope scope, ResourceLocation style) {
         if (!isEnabled()) {
             return false;
         }
         UUID owner = StoryState.owner(player, scope);
-        WaypointData.get(player.server).put(new WaypointData.Added(id, name, target, color, radius, scope, Optional.ofNullable(owner), style));
+        WaypointData.get(player.server).put(new WaypointData.Added(id, name, target, color, radius, look, scope, Optional.ofNullable(owner), style));
         refreshScope(player.server, scope, owner);
         return true;
     }
 
     /** A world waypoint from a command, without a player behind it. */
     public static void addShared(MinecraftServer server, ResourceLocation id, StoryText name, WaypointTarget target, int color) {
-        WaypointData.get(server).put(new WaypointData.Added(id, name, target, color, 0f, StoryScope.WORLD, Optional.empty(),
+        WaypointData.get(server).put(new WaypointData.Added(id, name, target, color, 0f, AreaLook.DEFAULT, StoryScope.WORLD, Optional.empty(),
                 WaypointDefinition.DEFAULT_STYLE));
         refreshAll(server);
     }
@@ -565,6 +567,21 @@ public final class Waypoints {
 
         float radius(float own) {
             return radius < 0 ? own : Math.max(own, radius);
+        }
+
+        /** The area of "where it was last seen" in place of the waypoint's own (a point, or a smaller area). */
+        private boolean sighted(float own) {
+            return radius >= 0 && own < radius;
+        }
+
+        /** "Radius 16 m" would only confuse for a place last seen: the number is not the author's. */
+        boolean showRadius(float own, AreaLook look) {
+            return !sighted(own) && look.showRadius();
+        }
+
+        /** The edge of a place last seen is drawn: it is where to look. */
+        boolean showRing(float own, AreaLook look) {
+            return sighted(own) || look.showRing();
         }
     }
 }

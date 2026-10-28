@@ -14,6 +14,7 @@ import dev.dzenthai.storybound.module.codex.Codex;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.quest.QuestLogic;
 import dev.dzenthai.storybound.module.quest.Quests;
+import dev.dzenthai.storybound.module.waypoint.AreaLook;
 import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
 import dev.dzenthai.storybound.module.waypoint.WaypointTarget;
 import dev.dzenthai.storybound.module.waypoint.Waypoints;
@@ -290,13 +291,13 @@ public class StoryboundBinding {
 
         public boolean add(ResourceLocation id, String nameKey, double x, double y, double z, String visibility) {
             return Waypoints.add(player, id, StoryText.key(nameKey), new WaypointTarget.Fixed(new Vec3(x, y, z), player.level().dimension()),
-                    WaypointDefinition.DEFAULT_COLOR, 0f, ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
+                    WaypointDefinition.DEFAULT_COLOR, 0f, AreaLook.DEFAULT, ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
         }
 
         /** A waypoint that follows the entity (an NPC). */
         public boolean follow(ResourceLocation id, String nameKey, Entity entity, String visibility) {
             return Waypoints.add(player, id, StoryText.key(nameKey), new WaypointTarget.Follow(entity.getUUID()),
-                    WaypointDefinition.DEFAULT_COLOR, 0f, ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
+                    WaypointDefinition.DEFAULT_COLOR, 0f, AreaLook.DEFAULT, ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
         }
 
         public boolean structure(ResourceLocation id, String nameKey, String structure) {
@@ -313,7 +314,7 @@ public class StoryboundBinding {
                     .orElseThrow(() -> new IllegalArgumentException("Unknown structure or #tag: " + structure));
             WaypointTarget target = new WaypointTarget.Structure(ref, player.serverLevel().dimension(), StructureRef.DEFAULT_SEARCH_RADIUS,
                     Optional.empty());
-            return Waypoints.add(player, id, StoryText.key(nameKey), target, WaypointDefinition.DEFAULT_COLOR, 0f,
+            return Waypoints.add(player, id, StoryText.key(nameKey), target, WaypointDefinition.DEFAULT_COLOR, 0f, AreaLook.DEFAULT,
                     ScriptValues.scope(visibility), WaypointDefinition.DEFAULT_STYLE);
         }
 

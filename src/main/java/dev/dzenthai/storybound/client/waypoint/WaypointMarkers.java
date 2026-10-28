@@ -175,6 +175,9 @@ public final class WaypointMarkers {
         float nameAlpha = nameAlpha(style, marker, graphics);
         if (nameAlpha > 0.03f) {
             Component name = marker.waypoint().name().toComponent();
+            if (marker.area() && marker.waypoint().showRadius()) {
+                name = name.copy().append(Component.translatable("storybound.waypoint.radius", Math.round(marker.waypoint().radius())));
+            }
             text(graphics, font, name, x, y - half - 10, 1f, style.textColor(), marker.alpha() * nameAlpha);
         }
         if (marker.label() != null) {

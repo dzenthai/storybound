@@ -19,6 +19,7 @@ public final class StoryboundClientConfig {
     public final ModConfigSpec.BooleanValue waypointMarkers;
     public final ModConfigSpec.DoubleValue waypointMarkerScale;
     public final ModConfigSpec.DoubleValue waypointMarkerOpacity;
+    public final ModConfigSpec.BooleanValue waypointAreaRings;
     public final ModConfigSpec.BooleanValue cameraEnabled;
     public final ModConfigSpec.ConfigValue<List<? extends String>> cameraDisableWith;
 
@@ -67,6 +68,9 @@ public final class StoryboundClientConfig {
         waypointMarkerOpacity = builder.comment("Opacity of waypoint markers.")
                 .translation("storybound.configuration.waypointMarkerOpacity")
                 .defineInRange("markerOpacity", 1.0, 0.1, 1.0);
+        waypointAreaRings = builder.comment("Draw the edge of search areas on the ground, near you.")
+                .translation("storybound.configuration.waypointAreaRings")
+                .define("areaRings", true);
         builder.pop();
 
         builder.translation("storybound.configuration.camera").push("camera");

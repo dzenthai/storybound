@@ -123,6 +123,10 @@ public final class WaypointEvents {
             if (waypoint.stage().isPresent() && waypoint.quest().isEmpty()) {
                 sink.accept(ValidationIssue.error(WaypointRegistries.WAYPOINTS.id(), id, "'stage' needs 'quest'"));
             }
+            if (waypoint.radius() == 0 && !waypoint.look().equals(AreaLook.DEFAULT)) {
+                sink.accept(ValidationIssue.warning(WaypointRegistries.WAYPOINTS.id(), id,
+                        "'show_radius' and 'show_ring' are for a search area; without a 'radius' this is a point and they do nothing"));
+            }
         });
     }
 }

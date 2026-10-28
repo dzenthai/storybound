@@ -45,7 +45,7 @@ public final class WaypointLogic {
      */
     public record AddWaypoint(ResourceLocation id, StoryText name, Optional<Vec3> pos, Optional<ResourceKey<Level>> dimension, boolean follow,
                               Optional<StructureRef> structure, int searchRadius,
-                              int color, float radius, StoryScope visibility, ResourceLocation style) implements Action {
+                              int color, float radius, AreaLook look, StoryScope visibility, ResourceLocation style) implements Action {
         public static final MapCodec<AddWaypoint> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 ResourceLocation.CODEC.fieldOf("id").forGetter(AddWaypoint::id),
                 StoryText.CODEC.fieldOf("name").forGetter(AddWaypoint::name),
@@ -56,6 +56,7 @@ public final class WaypointLogic {
                 Codec.intRange(1, 512).optionalFieldOf("search_radius", StructureRef.DEFAULT_SEARCH_RADIUS).forGetter(AddWaypoint::searchRadius),
                 ColorCodec.CODEC.optionalFieldOf("color", WaypointDefinition.DEFAULT_COLOR).forGetter(AddWaypoint::color),
                 Codec.floatRange(0f, 1024f).optionalFieldOf("radius", 0f).forGetter(AddWaypoint::radius),
+                AreaLook.MAP_CODEC.forGetter(AddWaypoint::look),
                 StoryScope.CODEC.optionalFieldOf("visibility", StoryScope.PLAYER).forGetter(AddWaypoint::visibility),
                 ResourceLocation.CODEC.optionalFieldOf("style", WaypointDefinition.DEFAULT_STYLE).forGetter(AddWaypoint::style)
         ).apply(instance, AddWaypoint::new));
@@ -87,7 +88,7 @@ public final class WaypointLogic {
             } else {
                 target = new WaypointTarget.Fixed(anchor.position(), anchor.level().dimension());
             }
-            if (!Waypoints.add(context.player(), id, name, target, color, radius, visibility, style)) {
+            if (!Waypoints.add(context.player(), id, name, target, color, radius, look, visibility, style)) {
                 throw disabled();
             }
         }

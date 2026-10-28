@@ -60,6 +60,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class WaypointGameTests {
     private static final ResourceLocation QUEST = key("waypoint_quest");
     private static final ResourceLocation CAMP = key("camp");
+    private static final ResourceLocation DEN = key("den");
     private static final ResourceLocation SHRINE = key("shrine");
     private static final ResourceLocation TOWER = key("tower");
 
@@ -70,6 +71,8 @@ public final class WaypointGameTests {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         with(helper, WaypointRegistries.WAYPOINTS.serverStore(), WaypointDefinition.CODEC, Map.of(
                 CAMP, "{ \"name\": \"gametest.camp\", \"target\": { \"pos\": [10, 64, 10] }, \"radius\": 16 }",
+                DEN, "{ \"name\": \"gametest.den\", \"target\": { \"pos\": [12, 64, 12] }, \"radius\": 24, \"show_ring\": false,"
+                        + " \"quest\": \"gametest:waypoint_quest\", \"stage\": \"first\" }",
                 SHRINE, "{ \"name\": \"gametest.shrine\", \"target\": { \"pos\": [20, 64, 20], \"dimension\": \"minecraft:the_nether\" },"
                         + " \"quest\": \"gametest:waypoint_quest\", \"stage\": \"second\" }",
                 TOWER, "{ \"name\": \"gametest.tower\", \"target\": { \"pos\": [30, 70, 30] }, \"color\": \"#3366FF\", \"style\": \"storybound:npc\","
@@ -88,7 +91,10 @@ public final class WaypointGameTests {
             helper.assertTrue(camp != null, "the first stage shows its waypoint");
             expect(helper, camp.quest(), Optional.of(QUEST), "it knows its quest, for highlighting");
             expect(helper, camp.radius(), 16f, "an area keeps its radius");
+            helper.assertTrue(camp.showRadius() && camp.showRing(), "its radius written and its edge drawn, by default");
             expect(helper, camp.entity(), ClientWaypoint.NO_ENTITY, "a fixed waypoint is above no entity");
+            ClientWaypoint den = Waypoints.visible(player).get(DEN.toString());
+            helper.assertTrue(den != null && den.showRadius() && !den.showRing(), "an area whose edge would give it away: not drawn");
 
             Quests.setStage(player, QUEST, "second");
             expect(helper, keys(player), List.of(SHRINE.toString()), "the next stage hides the camp and shows the shrine");
@@ -260,6 +266,7 @@ public final class WaypointGameTests {
                     "one whose chunk unloaded (the player went far away) stays where it was last seen, got " + unloaded);
             expect(helper, unloaded.entity(), ClientWaypoint.NO_ENTITY, "and the client is not told to draw it at an entity");
             helper.assertTrue(unloaded.radius() >= 16, "but the area around that place, got radius " + unloaded.radius());
+            helper.assertTrue(unloaded.showRing() && !unloaded.showRadius(), "its edge drawn (where to look), no radius written (not the author's)");
             last = helper.spawnWithNoFreeWill(EntityType.PIG, 4, 1, 1);
             last.addTag("gametest_quarry");
             assertAt(helper, player, quarry, last, "a loaded one in range comes before it");

@@ -20,6 +20,7 @@ import dev.dzenthai.storybound.client.quest.ClientChapterMap;
 import dev.dzenthai.storybound.client.quest.QuestHud;
 import dev.dzenthai.storybound.client.quest.QuestsView;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
+import dev.dzenthai.storybound.client.waypoint.AreaRings;
 import dev.dzenthai.storybound.client.waypoint.ClientWaypoints;
 import dev.dzenthai.storybound.client.waypoint.MapIntegrations;
 import dev.dzenthai.storybound.client.waypoint.WaypointMarkers;
@@ -85,6 +86,7 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(SpeechBubbles::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
+        NeoForge.EVENT_BUS.addListener(AreaRings::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHand);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onComputeFov);

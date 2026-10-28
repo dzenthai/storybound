@@ -17,10 +17,12 @@ import net.minecraft.resources.ResourceLocation;
  * waypoints of their own ({@code waypoints} in a stage). Never sent to clients as such: they get only what they see.
  *
  * @param radius an area (a search zone) instead of a point, in blocks; 0 for a point
+ * @param look   how an area shows (its radius by the name, its edge on the ground)
  * @param style  how clients draw its marker: {@code assets/<ns>/storybound/waypoint_styles/<path>.json} in a resource pack
  */
 public record WaypointDefinition(StoryText name, WaypointTarget target, int color, Condition conditions,
-                                 Optional<ResourceLocation> quest, Optional<String> stage, float radius, ResourceLocation style) {
+                                 Optional<ResourceLocation> quest, Optional<String> stage, float radius, AreaLook look,
+                                 ResourceLocation style) {
     public static final int DEFAULT_COLOR = 0xFFE8C66A;
     public static final ResourceLocation DEFAULT_STYLE = Storybound.id("default");
 
@@ -32,6 +34,7 @@ public record WaypointDefinition(StoryText name, WaypointTarget target, int colo
             ResourceLocation.CODEC.optionalFieldOf("quest").forGetter(WaypointDefinition::quest),
             Codec.STRING.optionalFieldOf("stage").forGetter(WaypointDefinition::stage),
             Codec.floatRange(0f, 1024f).optionalFieldOf("radius", 0f).forGetter(WaypointDefinition::radius),
+            AreaLook.MAP_CODEC.forGetter(WaypointDefinition::look),
             ResourceLocation.CODEC.optionalFieldOf("style", DEFAULT_STYLE).forGetter(WaypointDefinition::style)
     ).apply(instance, WaypointDefinition::new));
 }
