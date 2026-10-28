@@ -25,6 +25,13 @@ public final class StoryFolder {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     /** The demo story's namespace: its files, texts and translation keys. */
     public static final String DEMO = "demo";
+    /**
+     * The bundled demo's version: raise it whenever the demo's files change, so a story folder with an older copy is
+     * told about it (see {@link #demoOutdated}). 2: the elder spawns once ({@code unique}), October 28, 2026.
+     */
+    public static final int DEMO_VERSION = 2;
+    /** In the story folder: the version of the demo copied there. Missing for copies from before versions were kept (0). */
+    static final String DEMO_VERSION_FILE = ".demo_version";
 
     private StoryFolder() {}
 
@@ -50,6 +57,7 @@ public final class StoryFolder {
                     Files.copy(file, target);
                 }
             }
+            writeDemoVersion(root);
             Storybound.LOGGER.info("Storybound: created the story folder {}", root);
         } catch (IOException e) {
             Storybound.LOGGER.error("Storybound: could not create the story folder {}", root, e);
@@ -80,7 +88,36 @@ public final class StoryFolder {
             }
             written++;
         }
+        writeDemoVersion(root);
         return written;
+    }
+
+    /**
+     * Whether the story folder has the demo (its quests are there) in an older version than the mod brings: its files
+     * are never replaced on their own (the author may have changed them), so an operator is told to install it again.
+     */
+    public static boolean demoOutdated(Path root) {
+        if (!Files.isDirectory(root.resolve("quests").resolve(DEMO))) {
+            return false;
+        }
+        int installed = 0;
+        try {
+            Path file = root.resolve(DEMO_VERSION_FILE);
+            if (Files.exists(file)) {
+                installed = Integer.parseInt(Files.readString(file).trim());
+            }
+        } catch (IOException | NumberFormatException e) {
+            Storybound.LOGGER.warn("Storybound: could not read {}: {}", DEMO_VERSION_FILE, e.getMessage());
+        }
+        return installed < DEMO_VERSION;
+    }
+
+    private static void writeDemoVersion(Path root) {
+        try {
+            Files.writeString(root.resolve(DEMO_VERSION_FILE), Integer.toString(DEMO_VERSION));
+        } catch (IOException e) {
+            Storybound.LOGGER.warn("Storybound: could not write {}: {}", DEMO_VERSION_FILE, e.getMessage());
+        }
     }
 
     /**

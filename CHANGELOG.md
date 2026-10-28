@@ -9,7 +9,8 @@ Required on both client and server.
 ### The demo story
 - A new story folder comes with a short demo story in the nearest village: five quests in two chapters, an elder
   with a relationship scale and day and night lines, a boss, a cat to find, a festival with fireworks. It starts
-  when a player joins; change it or delete it (`/storybound demo install` brings it back).
+  when a player joins; change it or delete it (`/storybound demo install` brings it back). When a newer mod brings
+  a newer demo, operators are told so on joining.
 
 ### Story logic
 - Story flags and variables in player, party and world scopes; parties with shared progress.
@@ -24,7 +25,11 @@ Required on both client and server.
   Item objectives show how many the player carries before handing them in.
 - Rewards as in FTB Quests: items, one of several to choose, loot tables, experience, claimed in the Journal, which
   then shows what was received. Party members who were away are paid when they join.
-- Party quests: what follows a party quest (a personal quest, a story event) happens to every member online.
+- Party quests: what follows a party quest (a personal quest, a story event) happens to every member online, and so
+  does what follows a party flag.
+- Joining a party brings your progress: each quest goes on from whoever got further, and flags the party has not
+  set come along; whoever skips a completed quest that way gets its rewards. Leaving keeps your own under the
+  party's.
 - Changing a quest's `scope` (for example from `player` to `party`) keeps the progress players already have.
 - A finished quest made active again starts over (completed) or goes on where it failed (failed); a quest left at a
   stage that was removed moves to the first stage instead of getting stuck.

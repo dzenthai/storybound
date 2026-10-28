@@ -12,9 +12,20 @@ import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.notify.Notifications;
 import dev.dzenthai.storybound.core.notify.NotifyKind;
+import dev.dzenthai.storybound.core.event.PartyEvent;
+import dev.dzenthai.storybound.core.state.PartyData;
+import dev.dzenthai.storybound.core.state.QuestProgress;
+import dev.dzenthai.storybound.core.state.QuestStatus;
+import dev.dzenthai.storybound.core.state.StoryScope;
+import dev.dzenthai.storybound.core.state.StoryState;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import net.minecraft.server.MinecraftServer;
+import org.jetbrains.annotations.Nullable;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.registries.Registries;
@@ -124,6 +135,10 @@ public final class QuestRewards {
         String origin = "quest " + quest + " rewards";
         // Nothing to claim (an empty object the editor left): only the actions, at once; nothing waits in the Journal.
         if (rewards.isActionList() || !rewards.hasThings()) {
+            if (!rewards.actions().isEmpty()) {
+                // Kept, though there is nothing to show, so a party join does not pay it again (see payCaughtUp).
+                QuestRewardData.receive(player, new QuestRewardData.Received(quest, List.of(), 0));
+            }
             Actions.runAll(rewards.actions(), StoryContext.of(player), origin, OnFail.ABORT);
             return;
         }
@@ -158,6 +173,67 @@ public final class QuestRewards {
         if (!owed.isEmpty()) {
             Quests.sync(player);
         }
+    }
+
+    /**
+     * A player joined a party (October 29, 2026): whoever now sees a party quest completed that they had not completed
+     * (the newcomer behind the party, or the party behind the newcomer) skipped it, and is paid as if they had been
+     * there, as FTB Quests pays a newcomer to a team. Once: not when they already got its rewards, have them waiting or
+     * are owed them. Not for a repeatable quest (the next round is theirs to do) or one that is not loaded. Members away
+     * are paid when they next join. What the quest did on completing ({@code on_complete}) does not run again: it was a
+     * moment in the world (a spawn, the weather), not something owed. Public for tests.
+     */
+    public static void payCaughtUp(PartyEvent.Joined event) {
+        MinecraftServer server = event.getServer();
+        ServerPlayer newcomer = server.getPlayerList().getPlayer(event.getPlayer());
+        if (newcomer == null || !Quests.isEnabled()) {
+            return;
+        }
+        List<UUID> others = PartyData.get(server).party(event.getPartyId())
+                .map(party -> party.members().stream().filter(member -> !member.equals(newcomer.getUUID())).toList())
+                .orElse(List.of());
+        Map<ServerPlayer, Integer> paid = new LinkedHashMap<>();
+        StoryState.stored(newcomer, StoryScope.PARTY).quests().forEach((quest, progress) -> {
+            QuestDefinition definition = Quests.definition(quest);
+            if (progress.status() != QuestStatus.COMPLETED || definition == null || definition.scope() != StoryScope.PARTY
+                    || definition.repeatable().isPresent() || !definition.rewards().hasThings() && definition.rewards().actions().isEmpty()) {
+                return;
+            }
+            if (skipped(event.getBroughtQuests().get(quest))) {
+                payCaughtUp(server, newcomer.getUUID(), quest, definition, paid);
+            }
+            if (skipped(event.getPartyQuestsBefore().get(quest))) {
+                others.forEach(member -> payCaughtUp(server, member, quest, definition, paid));
+            }
+        });
+        paid.forEach((player, quests) -> {
+            player.sendSystemMessage(Component.translatable("storybound.quests.rewards.caught_up", quests));
+            Quests.sync(player);
+        });
+    }
+
+    private static boolean skipped(@Nullable QuestProgress before) {
+        return before == null || before.status() != QuestStatus.COMPLETED;
+    }
+
+    private static void payCaughtUp(MinecraftServer server, UUID member, ResourceLocation quest, QuestDefinition definition,
+                                    Map<ServerPlayer, Integer> paid) {
+        ServerPlayer online = server.getPlayerList().getPlayer(member);
+        QuestRewardsOwed owed = QuestRewardsOwed.get(server);
+        if (owed.of(member).contains(quest)) {
+            return;
+        }
+        if (online == null) {
+            owed.owe(member, quest);
+            return;
+        }
+        QuestRewardData rewards = QuestRewardData.of(online);
+        if (rewards.received(quest).isPresent() || rewards.pending().stream().anyMatch(pending -> pending.quest().equals(quest))) {
+            return;
+        }
+        StoryTrace.note(online, "quest " + quest + " rewards", "completed by the party without the player (they skipped it by a party join): paid now");
+        grant(online, quest, definition.rewards());
+        paid.merge(online, 1, Integer::sum);
     }
 
     /**

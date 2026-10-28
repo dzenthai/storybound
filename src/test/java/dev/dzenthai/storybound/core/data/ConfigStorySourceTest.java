@@ -107,6 +107,19 @@ class ConfigStorySourceTest {
         assertFalse(StoryFolder.isDemo("README.txt"));
     }
 
+    @Test
+    void anOlderDemoCopyIsNoticed() throws IOException {
+        assertFalse(StoryFolder.demoOutdated(root), "no demo at all: nothing to tell");
+        write("quests/demo/smoke.json", "{}");
+        assertTrue(StoryFolder.demoOutdated(root), "a copy from before versions were kept counts as old");
+        write(".demo_version", Integer.toString(StoryFolder.DEMO_VERSION - 1));
+        assertTrue(StoryFolder.demoOutdated(root), "an older version");
+        write(".demo_version", Integer.toString(StoryFolder.DEMO_VERSION));
+        assertFalse(StoryFolder.demoOutdated(root), "the current one");
+        write(".demo_version", "not a number");
+        assertTrue(StoryFolder.demoOutdated(root), "an unreadable mark is told about, not trusted");
+    }
+
     private void write(String relative, String content) throws IOException {
         Path file = root.resolve(relative);
         Files.createDirectories(file.getParent());

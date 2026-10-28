@@ -213,6 +213,65 @@ public final class QuestGameTests {
         helper.succeed();
     }
 
+    /**
+     * Whoever skips a completed party quest by a join is paid for it once, as if they had been there: the party behind
+     * the newcomer (a member away when they next join), a newcomer behind the party; not for a repeatable quest, not
+     * the one who already completed it.
+     */
+    @GameTest(template = "empty")
+    public static void skippingACompletedPartyQuestByJoiningPaysItsRewardsOnce(GameTestHelper helper) {
+        ServerPlayer leader = helper.makeMockServerPlayerInLevel();
+        ServerPlayer away = helper.makeMockServerPlayerInLevel();
+        ServerPlayer member = helper.makeMockServerPlayerInLevel();
+        ServerPlayer latecomer = helper.makeMockServerPlayerInLevel();
+        ResourceLocation chore = key("catch_up_chore");
+        withQuest(helper, HUNT.formatted("party", "catch_up"), () -> with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(chore, """
+                { "title": "gametest.quest.chore", "scope": "party", "repeatable": { "cooldown": 1200 },
+                  "start": { "trigger": { "type": "custom", "id": "gametest:chore_begin" } },
+                  "stages": [ { "id": "do", "objectives": [ { "trigger": { "type": "custom", "id": "gametest:chore" } } ] } ],
+                  "rewards": { "type": "give_item", "item": "minecraft:diamond", "count": 1 } }
+                """), () -> {
+            QuestEvents.rebuild();
+            ok(() -> PartyManager.create(leader, "Catching up"));
+            ok(() -> PartyManager.invite(leader, away));
+            ok(() -> PartyManager.accept(away));
+            remove(helper, away);
+            // The member does both quests alone, before joining.
+            fire(member, "begin");
+            fire(member, "wolf");
+            fire(member, "wolf");
+            fire(member, "report");
+            fire(member, "chore_begin");
+            fire(member, "chore");
+            expect(helper, member.getInventory().countItem(Items.EMERALD), 3, "the member's own rewards");
+
+            ok(() -> PartyManager.invite(leader, member));
+            ok(() -> PartyManager.accept(member));
+            expect(helper, progress(leader).status(), QuestStatus.COMPLETED, "the party goes on from the member's progress");
+            expect(helper, leader.getInventory().countItem(Items.EMERALD), 3, "the leader skipped the quest: paid as if they had been there");
+            expect(helper, member.getInventory().countItem(Items.EMERALD), 3, "the member is not paid again");
+            expect(helper, QuestRewardsOwed.get(helper.getLevel().getServer()).of(away.getUUID()), List.of(QUEST), "the member away is owed it");
+            expect(helper, leader.getInventory().countItem(Items.DIAMOND), 0, "a repeatable quest: the next round is the leader's to do");
+
+            ok(() -> PartyManager.invite(leader, latecomer));
+            ok(() -> PartyManager.accept(latecomer));
+            expect(helper, latecomer.getInventory().countItem(Items.EMERALD), 3, "a newcomer behind the party is paid");
+            expect(helper, leader.getInventory().countItem(Items.EMERALD), 3, "the others are not paid again");
+
+            ok(() -> PartyManager.leave(member));
+            ok(() -> PartyManager.invite(leader, member));
+            ok(() -> PartyManager.accept(member));
+            expect(helper, member.getInventory().countItem(Items.EMERALD), 3, "leaving and joining again pays nothing");
+            expect(helper, QuestRewardsOwed.get(helper.getLevel().getServer()).of(away.getUUID()), List.of(QUEST), "owed once");
+        }));
+        QuestEvents.rebuild();
+        ok(() -> PartyManager.disband(leader));
+        remove(helper, leader);
+        remove(helper, member);
+        remove(helper, latecomer);
+        helper.succeed();
+    }
+
     /** A completed quest made active again starts over; a failed one goes on where it failed. */
     @GameTest(template = "empty")
     public static void finishedQuestsMadeActiveAgainStartOverOrGoOn(GameTestHelper helper) {

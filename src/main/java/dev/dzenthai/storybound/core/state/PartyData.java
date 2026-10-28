@@ -79,26 +79,35 @@ public final class PartyData extends SavedData {
         return party;
     }
 
-    /** The newcomer's solo progress is frozen until they leave the party. */
+    /**
+     * The newcomer brings in their own party scope: of each quest the further progress (the party goes on from the
+     * furthest point; who was behind skips ahead, without the rewards of what they skipped), and the flags the party
+     * has not set (the party's own stay). Their own stays where it was, out of sight while they are in the party
+     * (October 28, 2026; before, all of it was frozen, and a quest half done alone started from nothing; the same day,
+     * at first only what the party lacked came, so a newcomer who had finished a quest the party had just begun went
+     * back to its beginning).
+     */
     void join(UUID partyId, UUID player) {
         requireNotInParty(player);
         Party party = parties.get(partyId);
         if (party == null) {
             throw new IllegalStateException("Unknown party " + partyId);
         }
+        container(partyId).bringIn(container(player));
         party.addMember(player);
         partyByMember.put(player, partyId);
         setDirty();
     }
 
     /**
-     * With {@code copyState} the leaver keeps a copy of the party progress, otherwise they return
-     * to their frozen solo progress. The last member leaving disbands the party.
+     * With {@code copyState} the party's progress is laid over the leaver's own (what the party did wins, what it never
+     * touched stays as the leaver had it), otherwise they return to their own as it was. The last member leaving
+     * disbands the party.
      */
     LeaveResult leave(UUID player, boolean copyState) {
         Party party = partyOf(player).orElseThrow(() -> new IllegalStateException(player + " is not in a party"));
         if (copyState) {
-            container(player).copyFrom(container(party.id()));
+            container(player).layOver(container(party.id()));
         }
         UUID oldLeader = party.leader();
         party.removeMember(player);
@@ -121,7 +130,7 @@ public final class PartyData extends SavedData {
         List<UUID> members = List.copyOf(party.members());
         for (UUID member : members) {
             if (copyState) {
-                container(member).copyFrom(container(partyId));
+                container(member).layOver(container(partyId));
             }
             partyByMember.remove(member);
         }

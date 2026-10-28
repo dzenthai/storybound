@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.PartyEvent;
+import java.util.Map;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -52,9 +53,17 @@ public final class PartyManager {
         UUID partyId = data.takeInvite(player.getUUID(), System.currentTimeMillis())
                 .orElseThrow(() -> error("storybound.party.error.no_invite"));
         Party party = data.party(partyId).orElseThrow(() -> error("storybound.party.error.party_gone"));
+        var brought = Map.copyOf(data.container(player.getUUID()).quests());
+        var before = Map.copyOf(data.container(partyId).quests());
         data.join(partyId, player.getUUID());
-        NeoForge.EVENT_BUS.post(new PartyEvent.Joined(player.server, partyId, player.getUUID()));
-        StateSync.sendFull(player);
+        NeoForge.EVENT_BUS.post(new PartyEvent.Joined(player.server, partyId, player.getUUID(), brought, before));
+        // The newcomer may have brought quests and flags: every member sees the party's state anew.
+        for (UUID member : party.members()) {
+            ServerPlayer online = player.server.getPlayerList().getPlayer(member);
+            if (online != null) {
+                StateSync.sendFull(online);
+            }
+        }
         broadcast(player.server, party, Component.translatable("storybound.party.joined", player.getDisplayName()));
         return party;
     }

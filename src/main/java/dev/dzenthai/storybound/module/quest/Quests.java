@@ -185,7 +185,7 @@ public final class Quests {
             QuestProgress furthest = null;
             for (ServerPlayer member : sharing(player, definition)) {
                 Optional<QuestProgress> own = StoryState.getQuest(member, StoryScope.PLAYER, quest);
-                if (own.isPresent() && (furthest == null || further(own.get(), furthest))) {
+                if (own.isPresent() && (furthest == null || own.get().isFurtherThan(furthest))) {
                     from = member;
                     furthest = own.get();
                 }
@@ -201,20 +201,6 @@ public final class Quests {
                 sync(member);
             }
         });
-    }
-
-    /** Completed beats active beats failed; between two active ones, the one further along its stages. */
-    private static boolean further(QuestProgress candidate, QuestProgress best) {
-        int rank = rank(candidate.status()) - rank(best.status());
-        return rank != 0 ? rank > 0 : candidate.log().size() > best.log().size();
-    }
-
-    private static int rank(QuestStatus status) {
-        return switch (status) {
-            case FAILED -> 0;
-            case ACTIVE -> 1;
-            case COMPLETED -> 2;
-        };
     }
 
     private static void adopted(ServerPlayer player, ResourceLocation quest, String how) {

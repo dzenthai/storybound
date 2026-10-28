@@ -1,11 +1,17 @@
 package dev.dzenthai.storybound.gametest;
 
+import com.google.gson.JsonParser;
+import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
+import dev.dzenthai.storybound.core.logic.StoryEvent;
+import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.state.FlagDeclaration;
 import dev.dzenthai.storybound.core.state.PartyManager;
+import dev.dzenthai.storybound.core.state.QuestProgress;
+import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
@@ -19,6 +25,7 @@ import java.util.Optional;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.PlayerList;
@@ -89,6 +96,70 @@ public final class StoryStateGameTests {
 
         ok(() -> PartyManager.disband(leader));
         expect(helper, StoryState.getStored(leader, StoryScope.PARTY, key), Optional.of(new StoryValue.Int(3)), "leader keeps a copy after disband");
+        removeAll(helper, leader, member);
+        helper.succeed();
+    }
+
+    /**
+     * A newcomer brings what the party has not got and the party keeps what it has; a leaver gets the party's laid over
+     * their own; a party flag's change reaches the stories of every member online.
+     */
+    @GameTest(template = "empty")
+    public static void joiningBringsWhatThePartyLacksAndPartyFlagsReachEveryone(GameTestHelper helper) {
+        ServerPlayer leader = helper.makeMockServerPlayerInLevel();
+        ServerPlayer member = helper.makeMockServerPlayerInLevel();
+        ResourceLocation shared = key("join_shared");
+        ResourceLocation brought = key("join_brought");
+        ResourceLocation quest = key("join_quest");
+        ResourceLocation gate = key("join_gate");
+
+        ok(() -> PartyManager.create(leader, "Merging party"));
+        ok(() -> StoryState.set(leader, StoryScope.PARTY, shared, new StoryValue.Int(1)));
+        // The newcomer's own, from before joining: a value the party has too, one it has not, a quest half done alone.
+        ok(() -> StoryState.set(member, StoryScope.PARTY, shared, new StoryValue.Int(9)));
+        ok(() -> StoryState.set(member, StoryScope.PARTY, brought, new StoryValue.Int(5)));
+        StoryState.setQuest(member, StoryScope.PARTY, quest, QuestProgress.started("half"));
+        // A quest both have: the newcomer finished what the party has only begun; another the party is ahead in.
+        ResourceLocation raced = key("join_raced");
+        ResourceLocation ahead = key("join_ahead");
+        StoryState.setQuest(leader, StoryScope.PARTY, raced, QuestProgress.started("road"));
+        StoryState.setQuest(member, StoryScope.PARTY, raced, QuestProgress.started("road").finished(QuestStatus.COMPLETED, 1));
+        StoryState.setQuest(leader, StoryScope.PARTY, ahead, QuestProgress.started("road").withStage("village"));
+        StoryState.setQuest(member, StoryScope.PARTY, ahead, QuestProgress.started("road"));
+
+        ok(() -> PartyManager.invite(leader, member));
+        ok(() -> PartyManager.accept(member));
+        expect(helper, StoryState.getQuest(leader, StoryScope.PARTY, raced).map(QuestProgress::status), Optional.of(QuestStatus.COMPLETED),
+                "the newcomer's further progress wins: the party goes on from there");
+        expect(helper, StoryState.getQuest(leader, StoryScope.PARTY, ahead).flatMap(QuestProgress::stage), Optional.of("village"),
+                "and the party's, where it is further");
+        expect(helper, StoryState.getStored(leader, StoryScope.PARTY, shared), Optional.of(new StoryValue.Int(1)), "what the party has stays");
+        expect(helper, StoryState.getStored(leader, StoryScope.PARTY, brought), Optional.of(new StoryValue.Int(5)), "what it lacked is brought");
+        expect(helper, StoryState.getQuest(leader, StoryScope.PARTY, quest).flatMap(QuestProgress::stage), Optional.of("half"),
+                "so is a quest half done alone");
+
+        Map<ResourceLocation, StoryEvent> previous = CoreDefinitions.EVENTS.serverStore().all();
+        Map<ResourceLocation, StoryEvent> events = new LinkedHashMap<>(previous);
+        events.put(key("join_gate_opened"), StoryEvent.CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()),
+                JsonParser.parseString("{ \"trigger\": { \"type\": \"flag_changed\", \"key\": \"gametest:join_gate\", \"value\": true },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:join_gate_seen\", \"scope\": \"world\", \"amount\": 1 } }"))
+                .getOrThrow(GameTestAssertException::new));
+        CoreDefinitions.EVENTS.serverStore().replace(events);
+        StoryEvents.rebuild();
+        try {
+            ok(() -> StoryState.set(member, StoryScope.PARTY, gate, new StoryValue.Bool(true)));
+            expect(helper, StoryState.getStored(leader, StoryScope.WORLD, key("join_gate_seen")), Optional.of(new StoryValue.Int(2)),
+                    "the party flag's story ran for both members");
+        } finally {
+            CoreDefinitions.EVENTS.serverStore().replace(previous);
+            StoryEvents.rebuild();
+        }
+
+        ok(() -> StoryState.set(leader, StoryScope.PARTY, shared, new StoryValue.Int(3)));
+        ok(() -> PartyManager.leave(member));
+        expect(helper, StoryState.getStored(member, StoryScope.PARTY, shared), Optional.of(new StoryValue.Int(3)), "the party's wins on leaving");
+        expect(helper, StoryState.getStored(member, StoryScope.PARTY, brought), Optional.of(new StoryValue.Int(5)), "and the leaver keeps the rest");
+        ok(() -> PartyManager.disband(leader));
         removeAll(helper, leader, member);
         helper.succeed();
     }

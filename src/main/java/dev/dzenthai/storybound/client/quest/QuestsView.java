@@ -399,6 +399,13 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
             }
             return;
         }
+        if (waiting.isEmpty() && entry.progress().status() == QuestStatus.COMPLETED) {
+            // Completed without this player's getting anything (a repeatable quest done by the party before they joined):
+            // nothing to choose or wait for.
+            detail.gap(4).text(Component.translatable("storybound.quests.rewards").withStyle(ChatFormatting.BOLD), theme.muted());
+            detail.text(Component.translatable("storybound.quests.rewards.not_received"), theme.muted());
+            return;
+        }
         detail.gap(4).text(Component.translatable(waiting.isPresent() ? "storybound.quests.rewards.waiting" : "storybound.quests.rewards")
                 .withStyle(ChatFormatting.BOLD), theme.accent());
         List<ItemStack> shown = new ArrayList<>();

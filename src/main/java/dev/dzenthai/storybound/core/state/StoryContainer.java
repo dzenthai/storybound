@@ -92,6 +92,34 @@ public final class StoryContainer {
         onChange.run();
     }
 
+    /**
+     * Brings in the other container: values this one lacks (its own stay: a value has no "further"), and of each quest
+     * the further progress (see {@link QuestProgress#isFurtherThan}).
+     */
+    void bringIn(StoryContainer other) {
+        boolean changed = false;
+        for (var entry : other.values.entrySet()) {
+            changed |= values.putIfAbsent(entry.getKey(), entry.getValue()) == null;
+        }
+        for (var entry : other.quests.entrySet()) {
+            QuestProgress own = quests.get(entry.getKey());
+            if (own == null || entry.getValue().isFurtherThan(own)) {
+                quests.put(entry.getKey(), entry.getValue());
+                changed = true;
+            }
+        }
+        if (changed) {
+            onChange.run();
+        }
+    }
+
+    /** Lays the other container over this one: its values and quests win, this one's others stay. */
+    void layOver(StoryContainer other) {
+        values.putAll(other.values);
+        quests.putAll(other.quests);
+        onChange.run();
+    }
+
     void copyFrom(StoryContainer other) {
         values.clear();
         values.putAll(other.values);

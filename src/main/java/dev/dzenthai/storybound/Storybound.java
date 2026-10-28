@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound;
 
 import com.mojang.logging.LogUtils;
+import dev.dzenthai.storybound.command.DemoCommands;
 import dev.dzenthai.storybound.command.StoryboundCommands;
 import dev.dzenthai.storybound.compat.cutscene.Cutscenes;
 import dev.dzenthai.storybound.config.StoryboundConfig;
@@ -70,6 +71,7 @@ public final class Storybound {
         BossEvents.register(NeoForge.EVENT_BUS);
         WaypointEvents.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(StoryboundCommands::register);
+        NeoForge.EVENT_BUS.addListener(DemoCommands::onLoggedIn);
     }
 
     public static ResourceLocation id(String path) {

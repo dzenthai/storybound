@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.event.QuestChangedEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
 import dev.dzenthai.storybound.core.logic.LogicOwners;
+import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import java.util.function.Consumer;
@@ -77,6 +78,8 @@ public final class WaypointEvents {
         if (player != null) {
             Waypoints.refresh(player);
         }
+        // The rest of the party: a newcomer may have brought quest stages whose waypoints they now see.
+        Waypoints.refreshScope(event.getServer(), StoryScope.PARTY, event.getPartyId());
     }
 
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {

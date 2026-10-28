@@ -94,6 +94,24 @@ public record QuestProgress(QuestStatus status, Optional<String> stage, Map<Stri
         return new QuestProgress(status, stage, objectives, log, completions, now, finishedAt);
     }
 
+    /**
+     * Whether this progress is further along than the other, where two copies of one quest meet (a player joining a
+     * party, a quest changing its scope): completed beats active beats failed; of two active ones, the one with more
+     * stages behind it.
+     */
+    public boolean isFurtherThan(QuestProgress other) {
+        int rank = rank(status) - rank(other.status);
+        return rank != 0 ? rank > 0 : status == QuestStatus.ACTIVE && log.size() > other.log.size();
+    }
+
+    private static int rank(QuestStatus status) {
+        return switch (status) {
+            case FAILED -> 0;
+            case ACTIVE -> 1;
+            case COMPLETED -> 2;
+        };
+    }
+
     public int count(String objective) {
         return objectives.getOrDefault(objective, 0);
     }

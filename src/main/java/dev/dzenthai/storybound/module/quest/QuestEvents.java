@@ -15,6 +15,8 @@ import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.trigger.Subscription;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
+import dev.dzenthai.storybound.core.state.StoryScope;
+import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.network.ModulesPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import java.util.ArrayList;
@@ -104,8 +106,9 @@ public final class QuestEvents {
         });
     }
 
-    // Joining or leaving a party switches which party-scoped quests the player sees.
+    // Joining or leaving a party switches which party-scoped quests the player sees; who skipped a completed one is paid.
     private static void onPartyJoined(PartyEvent.Joined event) {
+        QuestRewards.payCaughtUp(event);
         syncPlayer(event);
     }
 
@@ -113,10 +116,16 @@ public final class QuestEvents {
         syncPlayer(event);
     }
 
+    // The whole party: a newcomer may have brought quests the others now share.
     private static void syncPlayer(PartyEvent event) {
         ServerPlayer player = event.getServer().getPlayerList().getPlayer(event.getPlayer());
         if (player != null) {
             Quests.sync(player);
+        }
+        for (ServerPlayer member : StoryState.onlinePlayersOf(event.getServer(), StoryScope.PARTY, event.getPartyId())) {
+            if (member != player) {
+                Quests.sync(member);
+            }
         }
     }
 

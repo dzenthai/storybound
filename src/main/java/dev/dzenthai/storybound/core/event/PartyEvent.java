@@ -1,6 +1,9 @@
 package dev.dzenthai.storybound.core.event;
 
+import dev.dzenthai.storybound.core.state.QuestProgress;
+import java.util.Map;
 import java.util.UUID;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.bus.api.Event;
 
@@ -35,9 +38,29 @@ public abstract class PartyEvent extends Event {
         }
     }
 
+    /**
+     * A player joined a party. With the party-scoped quests both sides had before (the newcomer's own, the party's), so
+     * what the join changed for whom can be told: the party goes on from the further progress of each quest.
+     */
     public static final class Joined extends PartyEvent {
-        public Joined(MinecraftServer server, UUID partyId, UUID player) {
+        private final Map<ResourceLocation, QuestProgress> broughtQuests;
+        private final Map<ResourceLocation, QuestProgress> partyQuestsBefore;
+
+        public Joined(MinecraftServer server, UUID partyId, UUID player, Map<ResourceLocation, QuestProgress> broughtQuests,
+                      Map<ResourceLocation, QuestProgress> partyQuestsBefore) {
             super(server, partyId, player);
+            this.broughtQuests = Map.copyOf(broughtQuests);
+            this.partyQuestsBefore = Map.copyOf(partyQuestsBefore);
+        }
+
+        /** The newcomer's own party-scoped quests before joining. */
+        public Map<ResourceLocation, QuestProgress> getBroughtQuests() {
+            return broughtQuests;
+        }
+
+        /** The party's quests before the newcomer joined. */
+        public Map<ResourceLocation, QuestProgress> getPartyQuestsBefore() {
+            return partyQuestsBefore;
         }
     }
 

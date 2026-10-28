@@ -6,7 +6,9 @@ import dev.dzenthai.storybound.core.logic.KillCredit;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
+import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
@@ -43,14 +45,23 @@ public final class TriggerEvents {
         ProgressTriggers.register(gameBus);
     }
 
-    // Runs for the player who caused the change; changes without one (console, scripts) run for every affected player.
+    // Runs for the player who caused the change (then, for a party value, for the other members online: what follows a
+    // party's flag happens to each of them, as with party quests); changes without one (console, scripts) run for every
+    // affected player. A world value runs for its actor only, or one change would run stories for the whole server.
     private static void onValueChanged(StoryValueChangedEvent event) {
         if (!TriggerDispatcher.hasSubscribers(BuiltinTriggers.FLAG_CHANGED.get())) {
             return;
         }
-        List<ServerPlayer> players = event.getActor() != null
-                ? List.of(event.getActor())
-                : StoryState.onlinePlayersOf(event.getServer(), event.getScope(), event.getOwner());
+        List<ServerPlayer> players;
+        if (event.getActor() == null) {
+            players = StoryState.onlinePlayersOf(event.getServer(), event.getScope(), event.getOwner());
+        } else if (event.getScope() == StoryScope.PARTY) {
+            players = new ArrayList<>(List.of(event.getActor()));
+            StoryState.onlinePlayersOf(event.getServer(), event.getScope(), event.getOwner()).stream()
+                    .filter(member -> member != event.getActor()).forEach(players::add);
+        } else {
+            players = List.of(event.getActor());
+        }
         for (ServerPlayer player : players) {
             TriggerDispatcher.fire(BuiltinTriggers.FLAG_CHANGED.get(), StoryContext.of(player), event);
         }
