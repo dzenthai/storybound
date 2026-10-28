@@ -16,6 +16,7 @@ public final class ClientQuests {
     private static volatile Map<ResourceLocation, QuestProgress> quests = Map.of();
     private static volatile List<ResourceLocation> pinned = List.of();
     private static volatile List<QuestRewardData.Pending> rewards = List.of();
+    private static volatile List<QuestRewardData.Received> received = List.of();
     private static volatile Set<String> hints = Set.of();
 
     /** Incremented on every change (on the main thread); open views compare it to know when to refresh. */
@@ -27,10 +28,12 @@ public final class ClientQuests {
         return version;
     }
 
-    public static void apply(Map<ResourceLocation, QuestProgress> quests, List<ResourceLocation> pinned, List<QuestRewardData.Pending> rewards) {
+    public static void apply(Map<ResourceLocation, QuestProgress> quests, List<ResourceLocation> pinned, List<QuestRewardData.Pending> rewards,
+                             List<QuestRewardData.Received> received) {
         ClientQuests.quests = Map.copyOf(quests);
         ClientQuests.pinned = List.copyOf(pinned);
         ClientQuests.rewards = List.copyOf(rewards);
+        ClientQuests.received = List.copyOf(received);
         version++;
         if (ModList.get().isLoaded("jei")) {
             JeiQuests.refresh();
@@ -70,6 +73,11 @@ public final class ClientQuests {
         return rewards.stream().filter(pending -> pending.quest().equals(quest)).count();
     }
 
+    /** What the quest gave the last time its rewards were given. */
+    public static Optional<QuestRewardData.Received> received(ResourceLocation quest) {
+        return received.stream().filter(given -> given.quest().equals(quest)).findFirst();
+    }
+
     /** The objective hints that show now, as the server sent them. */
     public static void applyHints(Set<String> shown) {
         hints = Set.copyOf(shown);
@@ -86,6 +94,7 @@ public final class ClientQuests {
         quests = Map.of();
         pinned = List.of();
         rewards = List.of();
+        received = List.of();
         version++;
     }
 }

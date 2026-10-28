@@ -9,6 +9,7 @@ import dev.dzenthai.storybound.client.menu.ListDetailView;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.client.menu.JournalSkin;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
+import dev.dzenthai.storybound.core.logic.condition.WorldConditions;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.module.quest.DifficultyScale;
@@ -32,6 +33,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
@@ -307,12 +309,30 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
     static Component objectiveText(QuestDefinition.Objective objective, int count) {
         Component text = objective.text().map(value -> value.asComponent().copy()).orElseGet(Component::empty);
         if (objective.count() > 1) {
-            text = text.copy().append(" (" + Math.min(count, objective.count()) + "/" + objective.count() + ")");
+            text = text.copy().append(" (" + Math.min(shownCount(objective, count), objective.count()) + "/" + objective.count() + ")");
         }
         if (objective.optional()) {
             text = text.copy().append(" ").append(Component.translatable("storybound.quests.optional"));
         }
         return text;
+    }
+
+    /**
+     * The count shown for an objective. An item objective counted only when its trigger fires (a hand-in at a dialogue)
+     * or once a second on the server shows what the player holds now, so the number moves as they gather; the
+     * objective is done only when the server counts it. Items taken as they come have nothing left to show.
+     */
+    static int shownCount(QuestDefinition.Objective objective, int count) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null || objective.items().isEmpty() || count >= objective.count()) {
+            return count;
+        }
+        QuestDefinition.Items items = objective.items().get();
+        if (items.consume() && objective.trigger().isEmpty()) {
+            return count;
+        }
+        int held = WorldConditions.countItems(player, items.matcher());
+        return items.consume() ? count + Math.min(held, objective.count() - count) : Math.max(count, Math.min(held, objective.count()));
     }
 
     private static int statusColor(MenuTheme theme, QuestStatus status) {
@@ -368,6 +388,18 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
             return;
         }
         Optional<QuestRewardData.Pending> waiting = ClientQuests.waitingReward(entry.id());
+        Optional<QuestRewardData.Received> received = ClientQuests.received(entry.id());
+        if (waiting.isEmpty() && received.isPresent() && entry.progress().status() == QuestStatus.COMPLETED) {
+            // Claimed: exactly what came, the chosen item and the rolled loot included.
+            detail.gap(4).text(Component.translatable("storybound.quests.rewards.received").withStyle(ChatFormatting.BOLD), theme.completed());
+            for (ItemStack stack : received.get().items()) {
+                detail.reward(stack, theme.muted());
+            }
+            if (received.get().xp() > 0) {
+                detail.experience(Component.translatable("storybound.quests.rewards.xp", received.get().xp()), theme.muted());
+            }
+            return;
+        }
         detail.gap(4).text(Component.translatable(waiting.isPresent() ? "storybound.quests.rewards.waiting" : "storybound.quests.rewards")
                 .withStyle(ChatFormatting.BOLD), theme.accent());
         List<ItemStack> shown = new ArrayList<>();

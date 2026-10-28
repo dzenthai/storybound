@@ -127,7 +127,8 @@ public final class QuestRewards {
         }
         List<ItemStack> loot = roll(player, rewards);
         if (!rewards.claim() && rewards.choice().isEmpty() && fits(player.getInventory(), things(rewards, loot, -1)) == 0) {
-            give(player, origin, rewards, loot, -1);
+            give(player, quest, rewards, loot, -1);
+            Quests.sync(player);
             return;
         }
         QuestRewardData.add(player, new QuestRewardData.Pending(quest, loot));
@@ -157,13 +158,17 @@ public final class QuestRewards {
             return Component.translatable("storybound.quests.rewards.no_room", missing);
         }
         QuestRewardData.remove(player, pending);
-        give(player, "quest " + quest + " rewards", rewards, pending.loot(), choice);
+        give(player, quest, rewards, pending.loot(), choice);
         Quests.sync(player);
         return null;
     }
 
-    private static void give(ServerPlayer player, String origin, Rewards rewards, List<ItemStack> loot, int choice) {
-        for (ItemStack stack : things(rewards, loot, choice)) {
+    /** Gives the rewards and keeps what was given for the Journal; the caller syncs. */
+    private static void give(ServerPlayer player, ResourceLocation quest, Rewards rewards, List<ItemStack> loot, int choice) {
+        String origin = "quest " + quest + " rewards";
+        List<ItemStack> given = things(rewards, loot, choice);
+        QuestRewardData.receive(player, new QuestRewardData.Received(quest, given.stream().map(ItemStack::copy).toList(), rewards.xp()));
+        for (ItemStack stack : given) {
             if (!player.getInventory().add(stack.copy())) {
                 // Only when the inventory changed between the check and now (another mod): better at the feet than lost.
                 player.drop(stack, false);
@@ -172,7 +177,7 @@ public final class QuestRewards {
         if (rewards.xp() > 0) {
             player.giveExperiencePoints(rewards.xp());
         }
-        StoryTrace.event(player, "rewards", "source", origin, "items", String.valueOf(things(rewards, loot, choice).size()), "xp", String.valueOf(rewards.xp()),
+        StoryTrace.event(player, "rewards", "source", origin, "items", String.valueOf(given.size()), "xp", String.valueOf(rewards.xp()),
                 "choice", String.valueOf(choice));
         Actions.runAll(rewards.actions(), StoryContext.of(player), origin, OnFail.ABORT);
     }

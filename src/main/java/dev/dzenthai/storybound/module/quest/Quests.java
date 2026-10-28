@@ -372,7 +372,8 @@ public final class Quests {
 
     /** Every known quest of the player, each from its own scope, plus the tracked one. */
     public static void sync(ServerPlayer player) {
-        StoryboundNetwork.sendToPlayer(player, new QuestSyncPayload(known(player), pinned(player), DifficultyScale.current(), QuestRewardData.of(player).pending()));
+        StoryboundNetwork.sendToPlayer(player, new QuestSyncPayload(known(player), pinned(player), DifficultyScale.current(), QuestRewardData.of(player).pending(),
+                QuestRewardData.of(player).received()));
     }
 
     /** Every quest the player knows, each read from its own scope. */

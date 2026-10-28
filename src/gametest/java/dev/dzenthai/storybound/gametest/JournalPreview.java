@@ -105,7 +105,7 @@ public final class JournalPreview {
             var definition = dev.dzenthai.storybound.module.quest.QuestRegistries.QUESTS.clientStore().getOrNull(preview);
             dev.dzenthai.storybound.module.quest.QuestRegistries.QUESTS.clientStore().replace(java.util.Map.of(chapterQuest, definition));
             dev.dzenthai.storybound.client.ClientQuests.apply(java.util.Map.of(chapterQuest,
-                    dev.dzenthai.storybound.core.state.QuestProgress.started(null)), List.of(), List.of());
+                    dev.dzenthai.storybound.core.state.QuestProgress.started(null)), List.of(), List.of(), List.of());
             minecraft.setScreen(new AdventureMenuScreen(AdventureMenu.QUESTS));
         }
         if (ticks == 475) capture(minecraft, "dark-chapter-ford.png");
@@ -199,7 +199,7 @@ public final class JournalPreview {
                 java.util.Map.of(id, choices ? new dev.dzenthai.storybound.core.state.QuestProgress(
                         dev.dzenthai.storybound.core.state.QuestStatus.COMPLETED, java.util.Optional.empty(), java.util.Map.of(), List.of())
                         : dev.dzenthai.storybound.core.state.QuestProgress.started(null)), List.of(id),
-                List.of(new dev.dzenthai.storybound.module.quest.QuestRewardData.Pending(id, List.of())));
+                List.of(new dev.dzenthai.storybound.module.quest.QuestRewardData.Pending(id, List.of())), List.of());
         minecraft.setScreen(new AdventureMenuScreen(AdventureMenu.QUESTS));
     }
 

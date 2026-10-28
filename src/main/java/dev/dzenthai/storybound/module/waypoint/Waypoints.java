@@ -66,8 +66,11 @@ public final class Waypoints {
      * the marker does not hop between two mobs at about the same distance.
      */
     private static final double KEEP_PICK_RANGE = 1.25;
-    /** Player → waypoint key with a {@code nearest} target → the entity it points at for them. */
-    private static final Map<UUID, Map<String, UUID>> NEAREST_PICKS = new HashMap<>();
+    /**
+     * Player → waypoint key with a {@code nearest} target → the entity it points at for them. The entity object itself,
+     * so that once it is gone from the level its removal reason tells an unloaded chunk from a death.
+     */
+    private static final Map<UUID, Map<String, Entity>> NEAREST_PICKS = new HashMap<>();
 
     private Waypoints() {}
 
@@ -338,37 +341,56 @@ public final class Waypoints {
 
     /**
      * The matching entity nearest to this player, in their dimension and within range; the previous pick is kept
-     * while it still matches and stays within {@link #KEEP_PICK_RANGE} times the range. Null while there is none.
+     * while it still matches and stays within {@link #KEEP_PICK_RANGE} times the range. A pick whose chunk unloaded
+     * (the player went far away, or to another dimension) is still there, so it stays where it was last seen until a
+     * loaded match is in range; one that died or was removed is dropped. Null while there is none.
      */
     private static @Nullable Place nearestEntity(ServerPlayer player, String key, WaypointTarget.Nearest target) {
-        Map<String, UUID> picks = NEAREST_PICKS.computeIfAbsent(player.getUUID(), uuid -> new HashMap<>());
+        Map<String, Entity> picks = NEAREST_PICKS.computeIfAbsent(player.getUUID(), uuid -> new HashMap<>());
         ServerLevel level = player.serverLevel();
-        UUID picked = picks.get(key);
-        Entity entity = picked == null ? null : level.getEntity(picked);
+        Entity picked = picks.get(key);
+        // Looked up again: an entity whose chunk loads anew is another object with the same uuid.
+        Entity entity = picked == null ? null : level.getEntity(picked.getUUID());
         double keep = target.range() * KEEP_PICK_RANGE;
-        if (entity == null || !isCandidate(entity, target) || entity.distanceToSqr(player) > keep * keep) {
-            double range = target.range();
-            entity = level.getEntities((Entity) null, player.getBoundingBox().inflate(range),
-                            candidate -> isCandidate(candidate, target) && candidate.distanceToSqr(player) <= range * range).stream()
-                    .min(Comparator.comparingDouble(candidate -> candidate.distanceToSqr(player)))
-                    .orElse(null);
-            if (entity == null) {
-                picks.remove(key);
-                return null;
-            }
-            picks.put(key, entity.getUUID());
+        if (entity != null && isCandidate(entity, target) && entity.distanceToSqr(player) <= keep * keep) {
+            picks.put(key, entity);
+            return placeOf(entity, true);
         }
-        return placeOf(entity);
+        double range = target.range();
+        Entity found = level.getEntities((Entity) null, player.getBoundingBox().inflate(range),
+                        candidate -> isCandidate(candidate, target) && candidate.distanceToSqr(player) <= range * range).stream()
+                .min(Comparator.comparingDouble(candidate -> candidate.distanceToSqr(player)))
+                .orElse(null);
+        if (found != null) {
+            picks.put(key, found);
+            return placeOf(found, true);
+        }
+        if (entity == null && picked != null && stillExists(picked)) {
+            return placeOf(picked, false);
+        }
+        picks.remove(key);
+        return null;
     }
 
     private static boolean isCandidate(Entity entity, WaypointTarget.Nearest target) {
         return entity.isAlive() && !(entity instanceof Player) && target.entity().matches(entity);
     }
 
-    /** Above the entity's head, rounded so a mob shuffling in place does not resend the waypoint every second. */
-    private static Place placeOf(Entity entity) {
+    /** Whether an entity not in the player's level is still somewhere: in another level, or saved with its chunk. */
+    private static boolean stillExists(Entity entity) {
+        Entity.RemovalReason reason = entity.getRemovalReason();
+        return reason == null || !reason.shouldDestroy();
+    }
+
+    /**
+     * Above the entity's head, rounded so a mob shuffling in place does not resend the waypoint every second.
+     *
+     * @param loaded whether the client may have the entity to draw the marker at; an unloaded entity's network id may
+     *               belong to another entity by now
+     */
+    private static Place placeOf(Entity entity, boolean loaded) {
         Vec3 pos = new Vec3(Math.round(entity.getX() * 2) / 2.0, Math.round(entity.getY() * 2) / 2.0, Math.round(entity.getZ() * 2) / 2.0);
-        return new Place(entity.level().dimension().location(), pos.add(0, entity.getBbHeight(), 0), entity.getId());
+        return new Place(entity.level().dimension().location(), pos.add(0, entity.getBbHeight(), 0), loaded ? entity.getId() : ClientWaypoint.NO_ENTITY);
     }
 
     /** Whether the player sees a waypoint that moves on its own: one that follows an entity or picks the nearest. */
@@ -404,7 +426,7 @@ public final class Waypoints {
                 for (ServerLevel level : player.server.getAllLevels()) {
                     Entity entity = level.getEntity(follow.entity());
                     if (entity != null && entity.isAlive()) {
-                        Place place = placeOf(entity);
+                        Place place = placeOf(entity, true);
                         LAST_SEEN.put(follow.entity(), new Place(place.dimension(), place.pos(), ClientWaypoint.NO_ENTITY));
                         yield place;
                     }

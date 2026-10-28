@@ -27,5 +27,11 @@
     "storybound.preview.contract.reward":  "Reward: 12 emeralds.",
     "storybound.preview.contract.long_title":  "A Commission for the Watch at the Old Mill and the Northern Crossing",
     "storybound.preview.contract.conditions":  "Terms: bring proof to the elder.",
-    "storybound.preview.contract.title":  "The Old Mill"
+    "storybound.preview.contract.title":  "The Old Mill",
+    "storybound.preview.dialogue.body": "The road to the old mill is no longer safe.\nI saw tracks by the bridge last night.\nWill you take a look?",
+    "storybound.preview.dialogue.name": "Watchman Tikhon",
+    "storybound.preview.dialogue.locked_hint": "Requires an iron sword.",
+    "storybound.preview.dialogue.answer_long": "Tell me more about the tracks you found near the bridge.",
+    "storybound.preview.dialogue.answer_one": "I will investigate.",
+    "storybound.preview.dialogue.answer_locked": "I need better equipment."
 }

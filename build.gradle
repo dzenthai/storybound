@@ -115,6 +115,12 @@ neoForge {
             systemProperty 'storybound.documentPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '800'
         }
+        dialoguePreview {
+            client()
+            gameDirectory = project.file('run/dialogue-preview')
+            systemProperty 'storybound.dialoguePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '800'
+        }
         // More players for party and dialogue tests: other names (offline UUIDs come from the name) and their own folders.
         client2 {
             client()

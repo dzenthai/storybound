@@ -354,6 +354,9 @@ public final class QuestGameTests {
             expect(helper, held, 3 + 1 + lootCount, "and exactly the loot that was rolled");
             expect(helper, world(helper, "paid"), Optional.of(new StoryValue.Int(1)), "the actions ran");
             helper.assertTrue(QuestRewardData.of(player).pending().isEmpty(), "nothing waits");
+            QuestRewardData.Received received = QuestRewardData.of(player).received(QUEST).orElse(null);
+            helper.assertTrue(received != null && received.xp() == 10 && received.items().stream().mapToInt(ItemStack::getCount).sum() == 3 + 1 + lootCount
+                    && received.items().stream().anyMatch(stack -> stack.is(Items.BOW)), "the Journal keeps what was received, the chosen bow and the loot included");
             helper.assertTrue(QuestRewards.claim(player, QUEST, 1) != null, "and nothing can be claimed twice");
             remove(helper, player);
         });
@@ -371,6 +374,7 @@ public final class QuestGameTests {
             Quests.start(player, QUEST);
             fire(player, "instant_done");
             helper.assertTrue(player.getInventory().countItem(Items.GOLD_INGOT) == 2 && QuestRewardData.of(player).pending().isEmpty(), "given at once");
+            helper.assertTrue(QuestRewardData.of(player).received(QUEST).isPresent(), "and kept as received");
             remove(helper, player);
         });
         helper.succeed();

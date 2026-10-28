@@ -106,3 +106,16 @@ generation briefs are in ui-kit/concepts/documents/material-polish.txt.
 Inventory icons are independently reconstructed from the unchanged approved
 image.png with individually aligned grids and explicit silhouettes. Their
 colors and visible details are sampled only from that supplied source.
+
+Conversation artwork, October 27, 2026
+--------------------------------------
+The dialogue parchment texture was generated with the built-in imagegen tool
+using only the approved original project conversation concept as a reference.
+The accepted compact revision supplies the small brown corner ornaments and
+coarse paper edge. The revised surface uses compact woven corner motifs and a solid-body crop without
+recoloring. Separator ink is extracted from the accepted concept; the renderer
+uses fixed-size ornaments and nine-slice paper. The reproducible extraction
+is ui-kit/build-dialogue-art.ps1. Provenance and SHA-256 are recorded in
+ui-kit/dialogue-art.json. The concept portrait is used only by the isolated
+client preview and is excluded from the published mod JAR. No external art
+or font was imported for the conversation screen.

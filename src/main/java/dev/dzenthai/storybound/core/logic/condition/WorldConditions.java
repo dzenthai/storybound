@@ -19,6 +19,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 
@@ -27,7 +28,7 @@ public final class WorldConditions {
     private WorldConditions() {}
 
     /** Counts matching items across the whole inventory, armor and offhand included. */
-    public static int countItems(ServerPlayer player, ItemMatcher matcher) {
+    public static int countItems(Player player, ItemMatcher matcher) {
         Inventory inventory = player.getInventory();
         int count = 0;
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {

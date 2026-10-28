@@ -1,4 +1,10 @@
 {
+  "storybound.dialogue.controls.reveal": "Space Reveal",
+  "storybound.dialogue.controls.leave": "   Esc Leave",
+  "storybound.dialogue.controls.scroll": "   Scroll",
+  "storybound.dialogue.controls.wait": "Waiting",
+  "storybound.dialogue.controls.continue": "Space Continue",
+  "storybound.dialogue.controls.choose": "1-%s Choose   Tab Navigate",
   "commands.storybound.demo.installed": "Demo story installed in config/storybound/ (%s files); reloading.",
   "commands.storybound.demo.failed": "Could not install the demo story: %s",
   "commands.storybound.validate.summary": "Storybound: %s definitions, %s errors, %s warnings",
@@ -104,6 +110,7 @@
   "storybound.quests.untrack": "Unpin",
   "storybound.quests.rewards": "Rewards",
   "storybound.quests.rewards.waiting": "Rewards to claim",
+  "storybound.quests.rewards.received": "Rewards received",
   "storybound.quests.rewards.loot": "Random loot",
   "storybound.quests.rewards.xp": "%s experience",
   "storybound.quests.rewards.choice": "Choose one:",

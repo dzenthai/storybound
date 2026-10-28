@@ -40,6 +40,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -179,18 +180,35 @@ public final class WaypointGameTests {
                 + " \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:quarry_hunter\" } }"));
         store.replace(installed);
         Waypoints.rebuild();
+        LivingEntity last = null;
         try {
             assertAt(helper, player, quarry, near, "the nearest tagged pig, not the closer untagged one");
             far.moveTo(helper.absoluteVec(new Vec3(2.5, 1, 1.5)));
             assertAt(helper, player, quarry, near, "kept while it lives and stays in range, though another came closer");
             near.discard();
             assertAt(helper, player, quarry, far, "then the next nearest");
-            far.moveTo(helper.absoluteVec(new Vec3(11.5, 1, 11.5)));
+            Vec3 left = far.position();
+            far.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+            ClientWaypoint unloaded = Waypoints.visible(player).get(quarry.toString());
+            helper.assertTrue(unloaded != null && Math.abs(unloaded.pos().x - left.x) < 1 && Math.abs(unloaded.pos().z - left.z) < 1,
+                    "one whose chunk unloaded (the player went far away) stays where it was last seen, got " + unloaded);
+            expect(helper, unloaded.entity(), ClientWaypoint.NO_ENTITY, "and the client is not told to draw it at an entity");
+            last = helper.spawnWithNoFreeWill(EntityType.PIG, 4, 1, 1);
+            last.addTag("gametest_quarry");
+            assertAt(helper, player, quarry, last, "a loaded one in range comes before it");
+            last.moveTo(helper.absoluteVec(new Vec3(11.5, 1, 11.5)));
             helper.assertFalse(Waypoints.visible(player).containsKey(quarry.toString()), "nothing when none is in range");
+            last.moveTo(helper.absoluteVec(new Vec3(4.5, 1, 1.5)));
+            assertAt(helper, player, quarry, last, "back in range");
+            last.remove(Entity.RemovalReason.KILLED);
+            helper.assertFalse(Waypoints.visible(player).containsKey(quarry.toString()), "nothing once the pick died");
         } finally {
             store.replace(previous);
             Waypoints.rebuild();
             List.of(near, far, untagged).forEach(LivingEntity::discard);
+            if (last != null) {
+                last.discard();
+            }
             remove(helper, player);
         }
         helper.succeed();

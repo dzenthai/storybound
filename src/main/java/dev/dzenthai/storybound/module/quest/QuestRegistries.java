@@ -50,11 +50,14 @@ public final class QuestRegistries {
             player.setData(TRACKED, new TrackedQuest(renamed));
             moved++;
         }
-        List<QuestRewardData.Pending> pending = player.getData(REWARDS).pending();
-        List<QuestRewardData.Pending> next = pending.stream()
+        QuestRewardData rewards = player.getData(REWARDS);
+        List<QuestRewardData.Pending> next = rewards.pending().stream()
                 .map(waiting -> new QuestRewardData.Pending(renames.id(StoryMigrations.Kind.QUESTS, waiting.quest()), waiting.loot())).toList();
-        if (!next.stream().map(QuestRewardData.Pending::quest).toList().equals(pending.stream().map(QuestRewardData.Pending::quest).toList())) {
-            player.setData(REWARDS, new QuestRewardData(next));
+        List<QuestRewardData.Received> received = rewards.received().stream()
+                .map(given -> new QuestRewardData.Received(renames.id(StoryMigrations.Kind.QUESTS, given.quest()), given.items(), given.xp())).toList();
+        if (!next.stream().map(QuestRewardData.Pending::quest).toList().equals(rewards.pending().stream().map(QuestRewardData.Pending::quest).toList())
+                || !received.stream().map(QuestRewardData.Received::quest).toList().equals(rewards.received().stream().map(QuestRewardData.Received::quest).toList())) {
+            player.setData(REWARDS, new QuestRewardData(next, received));
             moved++;
         }
         return moved;

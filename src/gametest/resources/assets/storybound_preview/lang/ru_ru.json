@@ -27,5 +27,11 @@
     "storybound.preview.contract.reward":  "Награда: 12 изумрудов.",
     "storybound.preview.contract.long_title":  "Поручение для дозора у старой мельницы и северной переправы",
     "storybound.preview.contract.conditions":  "Условия: принесите старосте доказательство.",
-    "storybound.preview.contract.title":  "Старая мельница"
+    "storybound.preview.contract.title":  "Старая мельница",
+    "storybound.preview.dialogue.body": "Дорога к старой мельнице больше не безопасна.\nПрошлой ночью я видел следы у моста.\nТы можешь проверить, что там случилось?",
+    "storybound.preview.dialogue.name": "Страж Тихон",
+    "storybound.preview.dialogue.locked_hint": "Требуется железный меч.",
+    "storybound.preview.dialogue.answer_long": "Расскажи подробнее о следах, которые ты нашёл возле моста.",
+    "storybound.preview.dialogue.answer_one": "Я разберусь.",
+    "storybound.preview.dialogue.answer_locked": "Мне нужно снаряжение получше."
 }

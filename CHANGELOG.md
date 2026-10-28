@@ -21,7 +21,9 @@ Required on both client and server.
 
 ### Quests
 - Stages, objectives (triggers or items to have or hand in), a Witcher-style log, failure conditions and time limits.
-- Rewards as in FTB Quests: items, one of several to choose, loot tables, experience, claimed in the Journal.
+  Item objectives show how many the player carries before handing them in.
+- Rewards as in FTB Quests: items, one of several to choose, loot tables, experience, claimed in the Journal, which
+  then shows what was received.
 - Repeatable quests with a cooldown, difficulty (stars 1–5 or coloured levels), objective hints that appear when the
   player is stuck, up to five quests pinned on the HUD.
 - Chapter map for players (opt-in): the editor's chapters with arrows from quest to quest, coloured by progress,
@@ -38,7 +40,7 @@ Required on both client and server.
 - Readable documents (books, letters, notes, contracts) in their own markup, kept in the Journal.
 - Codex entries that open on sight, kills and reading; bosses with fight records.
 - Server waypoints shown in Xaero's Minimap, JourneyMap and as in-world markers, pointing at places, structures or
-  the nearest matching entity.
+  the nearest matching entity (which stays where it was last seen when the player goes far away).
 
 ### For authors
 - In-game editor (the "Dev Mode" button of the Adventure Menu, for operators): a quest map like FTB Quests, a
