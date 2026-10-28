@@ -4,7 +4,11 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
+import dev.dzenthai.storybound.core.logic.action.FlowActions;
+import dev.dzenthai.storybound.core.logic.action.SceneActions;
+import dev.dzenthai.storybound.core.logic.action.StateActions;
 import dev.dzenthai.storybound.core.logic.action.WorldActions;
+import dev.dzenthai.storybound.core.logic.trigger.CoreTriggers;
 import dev.dzenthai.storybound.core.logic.trigger.Subscription;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.state.StoryScope;
@@ -111,7 +115,45 @@ public final class StoryEvents {
     public static void collectReferences(StoryEvent event, References references) {
         event.trigger().collectReferences(references);
         event.conditions().collectReferences(references);
-        event.actions().forEach(action -> action.collectReferences(references));
+        References actions = event.once().filter(scope -> scope == StoryScope.WORLD).isPresent() ? references.once() : references;
+        event.actions().forEach(action -> action.collectReferences(actions));
+    }
+
+    /**
+     * Whether a story event on a change that reaches everyone online who shares it (a party flag, a party or world quest)
+     * runs once per such player: unless its {@code once} is at least as wide as the shared scope.
+     */
+    public static boolean runsForEachSharer(StoryEvent event, StoryScope shared) {
+        return event.once().filter(once -> once == StoryScope.WORLD || once == shared).isEmpty();
+    }
+
+    /**
+     * The actions among these (and inside their {@code schedule}s) whose effect is shared rather than the player's own,
+     * so that running them once per member of a party repeats one thing: a spawn that is not {@code unique}, a sound in
+     * the world, a command, an addition to a party or world value. A warning names them (October 29, 2026).
+     */
+    public static List<String> sharedActions(List<Action> actions) {
+        List<String> shared = new ArrayList<>();
+        for (Action action : actions) {
+            switch (action) {
+                case SceneActions.SpawnEntity spawn when !spawn.isUnique() -> shared.add("spawn_entity");
+                case SceneActions.SoundAt sound -> shared.add("sound_at");
+                case WorldActions.RunCommand command -> shared.add("run_command");
+                case StateActions.AddVar add when add.scope().orElseGet(() -> StoryState.declaredScope(add.key())) != StoryScope.PLAYER ->
+                        shared.add("add_var " + add.key());
+                case FlowActions.Schedule schedule -> shared.addAll(sharedActions(schedule.actions()));
+                default -> {}
+            }
+        }
+        return shared;
+    }
+
+    /** The warning for a story event that runs once per sharing player online and repeats shared actions. */
+    public static String eachSharerWarning(String change, StoryScope scope, List<String> shared) {
+        String who = scope == StoryScope.WORLD ? "player" : "party member";
+        return "Runs for every " + who + " online on " + change + ", so " + String.join(", ", new LinkedHashSet<>(shared))
+                + " happens once per " + who + ": put it in the quest's own actions (on_enter, on_complete), which run once,"
+                + " or give the event \"once\": \"" + scope.getSerializedName() + "\"";
     }
 
     /**
@@ -141,6 +183,13 @@ public final class StoryEvents {
             }
         });
         CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> {
+            if (event.trigger() instanceof CoreTriggers.FlagChanged changed && StoryState.declaredScope(changed.key()) == StoryScope.PARTY
+                    && runsForEachSharer(event, StoryScope.PARTY)) {
+                List<String> shared = sharedActions(event.actions());
+                if (!shared.isEmpty()) {
+                    sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id, eachSharerWarning("a change of the party flag " + changed.key(), StoryScope.PARTY, shared)));
+                }
+            }
             if (event.onFail() == OnFail.ABORT && hasTakeAfterOtherActions(event.actions())) {
                 sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id,
                         "take_item runs after other actions; if it fails, those actions have already happened. Put take_item first."));

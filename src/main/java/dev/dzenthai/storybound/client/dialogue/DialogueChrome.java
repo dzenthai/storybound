@@ -4,12 +4,13 @@ import dev.dzenthai.storybound.Storybound;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
-/** Warm paper from the approved conversation concept, with fixed-size corner artwork. */
+/** Warm paper with a pixel brass frame and fixed-size separator artwork. */
 final class DialogueChrome {
     static final int INK = 0xFF49301D;
     static final int MUTED = 0xFF79634B;
     static final int RULE = 0xFFAC7848;
     private static final ResourceLocation PAPER = Storybound.id("textures/gui/dialogue/parchment.png");
+    private static final ResourceLocation FRAME = Storybound.id("textures/gui/dialogue/frame.png");
     private static final ResourceLocation ORNAMENTS = Storybound.id("textures/gui/dialogue/ornaments.png");
     private static final ResourceLocation NEBULA = Storybound.id("textures/gui/dialogue/nebula.png");
 
@@ -22,28 +23,44 @@ final class DialogueChrome {
                 (frame % 8) * 320, (frame / 8) * 128, 320, 128, 2560, 1024);
     }
 
-    static void paper(GuiGraphics graphics, int x, int y, int width, int height, boolean compact) {
-        int cornerX = compact ? 7 : 19;
-        int cornerY = compact ? 7 : 19;
-        int[] sx = {0, 140, 1921, 2061};
-        int[] sy = {0, 140, 455, 595};
-        int[] dx = {x, x + cornerX, x + width - cornerX, x + width};
-        int[] dy = {y, y + cornerY, y + height - cornerY, y + height};
+    static void paper(GuiGraphics graphics, int x, int y, int width, int height) {
+        // Sample only the plain paper, excluding the former edge and corner ornaments.
+        graphics.blit(PAPER, x + 3, y + 3, width - 6, height - 6,
+                140, 140, 1781, 315, 2061, 595);
+        int corner = height >= 80 ? 12 : 8;
+        int sourceX = height >= 80 ? 0 : 48;
+        int[] source = {0, corner, 32 - corner, 32};
+        int[] dx = {x, x + corner, x + width - corner, x + width};
+        int[] dy = {y, y + corner, y + height - corner, y + height};
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 3; col++) {
-                graphics.blit(PAPER, dx[col], dy[row], dx[col + 1] - dx[col], dy[row + 1] - dy[row],
-                        sx[col], sy[row], sx[col + 1] - sx[col], sy[row + 1] - sy[row], 2061, 595);
+                if (row == 1 && col == 1) continue;
+                graphics.blit(FRAME, dx[col], dy[row], dx[col + 1] - dx[col], dy[row + 1] - dy[row],
+                        sourceX + source[col], source[row], source[col + 1] - source[col], source[row + 1] - source[row], 80, 32);
             }
+        }
+        if (height >= 80) {
+            graphics.blit(FRAME, x + width / 2 - 4, y + 1, 8, 6, 32, 0, 8, 6, 80, 32);
+            graphics.blit(FRAME, x + width / 2 - 4, y + height - 7, 8, 6, 32, 8, 8, 6, 80, 32);
+            graphics.blit(FRAME, x + 1, y + height / 2 - 4, 6, 8, 32, 16, 6, 8, 80, 32);
+            graphics.blit(FRAME, x + width - 7, y + height / 2 - 4, 6, 8, 40, 16, 6, 8, 80, 32);
         }
     }
 
     static void rule(GuiGraphics graphics, int x, int y, int width) {
         int center = x + width / 2;
-        graphics.fill(x + 9, y, center - 25, y + 1, RULE);
-        graphics.fill(center + 25, y, x + width - 9, y + 1, RULE);
-        graphics.blit(ORNAMENTS, center - 25, y - 6, 50, 11, 0, 0, 152, 34, 200, 34);
-        graphics.blit(ORNAMENTS, x, y - 4, 12, 8, 160, 0, 36, 24, 200, 34);
-        graphics.blit(ORNAMENTS, x + width - 12, y - 4, 12, 8, 196, 0, -36, 24, 200, 34);
+        int motifWidth = width >= 160 ? 96 : 16;
+        int motifSource = width >= 160 ? 0 : 40;
+        int left = center - motifWidth / 2;
+        int right = left + motifWidth;
+        int cap = width >= 64 ? 16 : 0;
+        if (x + cap < left) graphics.fill(x + cap, y, left, y + 1, RULE);
+        if (right < x + width - cap) graphics.fill(right, y, x + width - cap, y + 1, RULE);
+        graphics.blit(ORNAMENTS, left, y - 8, motifWidth, 16, motifSource, 0, motifWidth, 16, 128, 16);
+        if (cap > 0) {
+            graphics.blit(ORNAMENTS, x, y - 8, 16, 16, 112, 0, 16, 16, 128, 16);
+            graphics.blit(ORNAMENTS, x + width - 16, y - 8, 16, 16, 128, 0, -16, 16, 128, 16);
+        }
     }
 
     static void portrait(GuiGraphics graphics, int x, int y, int size) {

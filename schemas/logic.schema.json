@@ -390,7 +390,7 @@
             "name": { "$ref": "#/definitions/story_text" },
             "nbt": { "description": "Entity NBT, as /summon takes it.", "type": "object" },
             "persistent": { "description": "Never despawns (mobs).", "type": "boolean", "default": true },
-            "unique": { "description": "Spawns nothing while an entity of this type with all the tags is already there (loaded, or an NPC waiting to respawn). Needs tag.", "type": "boolean", "default": false }
+            "unique": { "description": "true: spawns nothing while an entity of this type with all the tags is already there (loaded, or an NPC waiting to respawn): one NPC everyone shares. false: each player or party that gets here gets their own. Needs tag. Leaving it out where an NPC binding talks through the tag and the actions may run more than once is warned about.", "type": "boolean", "default": false }
           },
           "required": ["entity"],
           "additionalProperties": false

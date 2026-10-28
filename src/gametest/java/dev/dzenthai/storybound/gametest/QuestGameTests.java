@@ -213,6 +213,32 @@ public final class QuestGameTests {
         helper.succeed();
     }
 
+    /** A world quest's changes reach every player online, as a party quest's do; its own {@code on_complete} runs once. */
+    @GameTest(template = "empty")
+    public static void worldQuestChangesReachEveryPlayerOnline(GameTestHelper helper) {
+        ServerPlayer first = helper.makeMockServerPlayerInLevel();
+        ServerPlayer second = helper.makeMockServerPlayerInLevel();
+        ResourceLocation seen = key("world_fanout_seen");
+        withQuest(helper, HUNT.formatted("world", "world_fanout"), () -> with(helper, CoreDefinitions.EVENTS.serverStore(), StoryEvent.CODEC, Map.of(key("world_fanout_done"),
+                "{ \"trigger\": { \"type\": \"quest_state_changed\", \"quest\": \"gametest:hunt\", \"state\": \"completed\" },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:world_fanout_seen\", \"scope\": \"player\", \"amount\": 1 } }"), () -> {
+            StoryEvents.rebuild();
+            fire(first, "begin");
+            fire(first, "wolf");
+            fire(second, "wolf");
+            fire(second, "report");
+            expect(helper, world(helper, "world_fanout_completions"), Optional.of(new StoryValue.Int(1)), "on_complete runs once");
+            expect(helper, StoryState.getStored(second, StoryScope.PLAYER, seen), Optional.of(new StoryValue.Int(1)), "the event ran for the one who completed it");
+            expect(helper, StoryState.getStored(first, StoryScope.PLAYER, seen), Optional.of(new StoryValue.Int(1)), "and for the other player online");
+            run(helper, first, "{ \"type\": \"set_quest_state\", \"quest\": \"gametest:hunt\", \"state\": \"unknown\" }");
+        }));
+        StoryEvents.rebuild();
+        QuestEvents.rebuild();
+        remove(helper, first);
+        remove(helper, second);
+        helper.succeed();
+    }
+
     /**
      * Whoever skips a completed party quest by a join is paid for it once, as if they had been there: the party behind
      * the newcomer (a member away when they next join), a newcomer behind the party; not for a repeatable quest, not

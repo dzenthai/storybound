@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
@@ -211,6 +212,33 @@ public final class DialogueEvents {
                 }
             }
         });
+        Set<String> boundTags = new HashSet<>();
+        DialogueRegistries.NPC_BINDINGS.serverStore().all().values().forEach(binding -> binding.entity().tag().ifPresent(boundTags::add));
+        LogicOwners.walkAll((owner, ownerId) -> new NpcCopies(owner, ownerId, boundTags, false, new HashSet<>(), sink));
+    }
+
+    /**
+     * Warns about a spawn of an NPC that a binding talks through (by its tag), written without {@code unique}, where it
+     * may run more than once (for each player or party that gets there): each would get a copy of their own, as three
+     * players got three demo elders (October 28, 2026). An explicit {@code unique} says which was meant.
+     */
+    private record NpcCopies(DefinitionType<?> owner, ResourceLocation ownerId, Set<String> boundTags, boolean runsOnce, Set<String> reported,
+                             Consumer<ValidationIssue> sink) implements References {
+        @Override
+        public void spawn(List<String> tags, Optional<Boolean> unique) {
+            if (runsOnce || unique.isPresent()) {
+                return;
+            }
+            tags.stream().filter(boundTags::contains).findFirst().filter(reported::add).ifPresent(tag -> sink.accept(ValidationIssue.warning(owner.id(), ownerId,
+                    "spawn_entity of the NPC tagged '" + tag + "' (an NPC binding talks through it) may run for each player or party that gets"
+                            + " here, and each would get a copy of their own: \"unique\": true for one NPC they all share, \"unique\": false"
+                            + " if each is meant to have their own")));
+        }
+
+        @Override
+        public References once() {
+            return new NpcCopies(owner, ownerId, boundTags, true, reported, sink);
+        }
     }
 
     private static void checkEntry(ResourceLocation other, String node, String from, Consumer<String> error) {

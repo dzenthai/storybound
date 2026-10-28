@@ -18,6 +18,7 @@ import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryEvent;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
+import dev.dzenthai.storybound.core.state.FlagDeclaration;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
@@ -30,6 +31,8 @@ import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
 import dev.dzenthai.storybound.module.dialogue.NpcRespawns;
+import dev.dzenthai.storybound.module.quest.QuestDefinition;
+import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -643,6 +646,77 @@ public final class DialogueGameTests {
             helper.assertTrue(messages(issues, key("bad_start"), true).stream().anyMatch(message -> message.contains("Unknown dialogue gametest:nope")),
                     "start_dialogue with an unknown dialogue in a story event");
         }));
+        helper.succeed();
+    }
+
+    /**
+     * What repeats in multiplayer is told about: a story NPC spawned without {@code unique} where it may run for each
+     * player or party (not in what runs once, not when {@code unique} is written either way, not for an entity no
+     * binding talks through); a story event on a party change that repeats shared actions once per member (not
+     * personal ones, not with {@code once: party}).
+     */
+    @GameTest(template = "empty")
+    public static void validatorWarnsAboutWhatRepeatsInMultiplayer(GameTestHelper helper) {
+        String spawn = "{ \"type\": \"spawn_entity\", \"entity\": \"minecraft:villager\", \"tag\": \"gt_villager\"%s }";
+        String quest = "{ \"title\": \"gametest.q\", \"scope\": \"%s\", \"stages\": [ { \"id\": \"a\" } ], \"on_start\": %s }";
+        Map<ResourceLocation, String> quests = Map.of(
+                key("lint_personal"), quest.formatted("player", spawn.formatted("")),
+                key("lint_party"), quest.formatted("party", spawn.formatted("")),
+                key("lint_shared"), quest.formatted("player", spawn.formatted(", \"unique\": true")),
+                key("lint_own"), quest.formatted("player", spawn.formatted(", \"unique\": false")),
+                key("lint_world"), quest.formatted("world", spawn.formatted("")),
+                key("lint_unbound"), quest.formatted("player", "{ \"type\": \"spawn_entity\", \"entity\": \"minecraft:zombie\", \"tag\": \"gt_boss\" }"),
+                key("lint_rewards"), "{ \"title\": \"gametest.q\", \"scope\": \"world\", \"stages\": [ { \"id\": \"a\" } ], \"rewards\": " + spawn.formatted("") + " }");
+        String partyStage = "{ \"type\": \"quest_stage_changed\", \"quest\": \"gametest:lint_party\" }";
+        String shared = "[ { \"type\": \"title\", \"title\": \"gametest.t\" }, { \"type\": \"sound_at\", \"sound\": \"minecraft:block.bell.use\" } ]";
+        Map<ResourceLocation, String> events = Map.of(
+                key("lint_each_member"), "{ \"trigger\": " + partyStage + ", \"actions\": " + shared + " }",
+                key("lint_once_party"), "{ \"trigger\": " + partyStage + ", \"once\": \"party\", \"actions\": " + shared + " }",
+                key("lint_personal_only"), "{ \"trigger\": " + partyStage + ", \"actions\": { \"type\": \"title\", \"title\": \"gametest.t\" } }",
+                key("lint_scheduled"), "{ \"trigger\": " + partyStage + ", \"actions\": { \"type\": \"schedule\", \"seconds\": 1,"
+                        + " \"actions\": { \"type\": \"run_command\", \"command\": \"say hi\" } } }",
+                key("lint_party_flag"), "{ \"trigger\": { \"type\": \"flag_changed\", \"key\": \"gametest:lint_party_flag\" },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:lint_count\", \"scope\": \"world\", \"amount\": 1 } }",
+                key("lint_player_flag"), "{ \"trigger\": { \"type\": \"flag_changed\", \"key\": \"gametest:lint_player_flag\" },"
+                        + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:lint_count\", \"scope\": \"world\", \"amount\": 1 } }",
+                key("lint_once_world"), "{ \"trigger\": { \"type\": \"custom\", \"id\": \"gametest:x\" }, \"once\": \"world\", \"actions\": " + spawn.formatted("") + " }",
+                // A world quest's change reaches every player online: once per party still repeats it, once per world does not.
+                key("lint_world_each"), "{ \"trigger\": { \"type\": \"quest_stage_changed\", \"quest\": \"gametest:lint_world\" }, \"once\": \"party\","
+                        + " \"actions\": " + shared + " }",
+                key("lint_world_once"), "{ \"trigger\": { \"type\": \"quest_stage_changed\", \"quest\": \"gametest:lint_world\" }, \"once\": \"world\","
+                        + " \"actions\": " + shared + " }");
+        with(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(key("lint_villager"),
+                "{ \"entity\": { \"tag\": \"gt_villager\" }, \"custom\": true }"),
+                () -> with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, quests,
+                () -> with(helper, CoreDefinitions.FLAGS.serverStore(), FlagDeclaration.CODEC, Map.of(
+                        key("lint_party_flag"), "{ \"type\": \"bool\", \"scope\": \"party\" }",
+                        key("lint_player_flag"), "{ \"type\": \"bool\" }",
+                        key("lint_count"), "{ \"type\": \"int\", \"scope\": \"world\" }"),
+                () -> with(helper, CoreDefinitions.EVENTS.serverStore(), StoryEvent.CODEC, events, () -> {
+            List<ValidationIssue> issues = ValidationService.validate().issues();
+            for (String warned : List.of("lint_personal", "lint_party", "lint_rewards")) {
+                helper.assertTrue(messages(issues, key(warned), false).stream().anyMatch(message -> message.contains("'gt_villager'")),
+                        warned + ": a copy of the NPC each, got " + messages(issues, key(warned), false));
+            }
+            for (String quiet : List.of("lint_shared", "lint_own", "lint_world", "lint_unbound", "lint_once_world")) {
+                helper.assertTrue(messages(issues, key(quiet), false).stream().noneMatch(message -> message.contains("spawn_entity")),
+                        quiet + ": nothing to say, got " + messages(issues, key(quiet), false));
+            }
+            List<String> eachMember = messages(issues, key("lint_each_member"), false);
+            helper.assertTrue(eachMember.stream().anyMatch(message -> message.contains("every party member") && message.contains("sound_at")
+                    && !message.contains("title")), "the bell rings once per member, the title is personal: " + eachMember);
+            helper.assertTrue(messages(issues, key("lint_scheduled"), false).stream().anyMatch(message -> message.contains("run_command")),
+                    "a command inside a schedule");
+            helper.assertTrue(messages(issues, key("lint_party_flag"), false).stream().anyMatch(message -> message.contains("add_var gametest:lint_count")),
+                    "a world counter on a party flag's change");
+            List<String> worldEach = messages(issues, key("lint_world_each"), false);
+            helper.assertTrue(worldEach.stream().anyMatch(message -> message.contains("every player online") && message.contains("\"once\": \"world\"")),
+                    "a world quest's change, once per party: " + worldEach);
+            for (String quiet : List.of("lint_once_party", "lint_personal_only", "lint_player_flag", "lint_world_once")) {
+                helper.assertTrue(messages(issues, key(quiet), false).stream().noneMatch(message -> message.contains("Runs for every")),
+                        quiet + ": runs once or only for the player, got " + messages(issues, key(quiet), false));
+            }
+        }))));
         helper.succeed();
     }
 

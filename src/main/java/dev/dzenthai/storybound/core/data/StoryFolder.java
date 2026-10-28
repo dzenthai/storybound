@@ -27,9 +27,10 @@ public final class StoryFolder {
     public static final String DEMO = "demo";
     /**
      * The bundled demo's version: raise it whenever the demo's files change, so a story folder with an older copy is
-     * told about it (see {@link #demoOutdated}). 2: the elder spawns once ({@code unique}), October 28, 2026.
+     * told about it (see {@link #demoOutdated}). 2: the elder spawns once ({@code unique}), October 28, 2026; 3: Murka says she is
+     * each player's own ({@code "unique": false}), October 29, 2026.
      */
-    public static final int DEMO_VERSION = 2;
+    public static final int DEMO_VERSION = 3;
     /** In the story folder: the version of the demo copied there. Missing for copies from before versions were kept (0). */
     static final String DEMO_VERSION_FILE = ".demo_version";
 

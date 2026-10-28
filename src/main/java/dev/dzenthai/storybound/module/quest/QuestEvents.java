@@ -11,6 +11,7 @@ import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
+import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.trigger.Subscription;
@@ -22,6 +23,7 @@ import dev.dzenthai.storybound.network.StoryboundNetwork;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
@@ -194,6 +196,23 @@ public final class QuestEvents {
             }
         });
         LogicOwners.walkAll((owner, id) -> unknownQuests(owner, id, sink));
+        // A party or world quest's changes fire for everyone online who shares it (see Quests#witnesses).
+        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> {
+            Optional<ResourceLocation> quest = switch (event.trigger()) {
+                case QuestLogic.StateChanged changed -> changed.quest();
+                case QuestLogic.StageChanged changed -> changed.quest();
+                default -> Optional.empty();
+            };
+            QuestDefinition definition = quest.map(type.serverStore()::getOrNull).orElse(null);
+            if (definition != null && definition.scope() != StoryScope.PLAYER && StoryEvents.runsForEachSharer(event, definition.scope())) {
+                List<String> shared = StoryEvents.sharedActions(event.actions());
+                if (!shared.isEmpty()) {
+                    sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id,
+                            StoryEvents.eachSharerWarning("a change of the " + definition.scope().getSerializedName() + " quest " + quest.get(),
+                                    definition.scope(), shared)));
+                }
+            }
+        });
         // Migrations rename stages and objectives inside a quest named by its new id.
         CoreDefinitions.MIGRATIONS.serverStore().all().forEach((file, migration) -> {
             migration.stages().forEach((quest, stages) -> {
@@ -224,16 +243,20 @@ public final class QuestEvents {
         actions.addAll(quest.onStart());
         actions.addAll(quest.onComplete());
         actions.addAll(quest.onFailed());
-        actions.addAll(quest.rewards().actions());
         for (QuestDefinition.Stage stage : quest.stages()) {
             actions.addAll(stage.onEnter());
+        }
+        // A world quest's own actions run once; its rewards, like every quest's, once per player paid.
+        References own = quest.scope() == StoryScope.WORLD ? references.once() : references;
+        actions.forEach(action -> action.collectReferences(own));
+        quest.rewards().actions().forEach(action -> action.collectReferences(references));
+        for (QuestDefinition.Stage stage : quest.stages()) {
             for (QuestDefinition.Objective objective : stage.objectives()) {
                 objective.trigger().ifPresent(trigger -> trigger.collectReferences(references));
                 objective.hints().forEach(hint -> hint.conditions().collectReferences(references));
                 objective.conditions().collectReferences(references);
             }
         }
-        actions.forEach(action -> action.collectReferences(references));
     }
 
     private static References unknownQuests(DefinitionType<?> owner, ResourceLocation ownerId, Consumer<ValidationIssue> sink) {

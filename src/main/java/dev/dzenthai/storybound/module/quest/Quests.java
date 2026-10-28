@@ -603,13 +603,14 @@ public final class Quests {
     }
 
     /**
-     * Who the quest triggers fire for: the player who made the change, then, for a party quest, every other member
-     * online, so what follows a party quest (a personal quest starting, a story event for the player) happens to each of
-     * them. The quest's own {@code on_*} actions still run once.
+     * Who the quest triggers fire for: the player who made the change, then, for a party or world quest, everyone else
+     * online who shares it, so what follows a shared quest (a personal quest starting, a story event for the player)
+     * happens to each of them. The quest's own {@code on_*} actions still run once. (World quests since October 29,
+     * 2026: before, a story event on a world quest's change ran for the one who made it only.)
      */
     private static List<ServerPlayer> witnesses(ServerPlayer player, QuestDefinition definition) {
         List<ServerPlayer> witnesses = new ArrayList<>(List.of(player));
-        if (definition.scope() == StoryScope.PARTY) {
+        if (definition.scope() != StoryScope.PLAYER) {
             sharing(player, definition).stream().filter(member -> member != player).forEach(witnesses::add);
         }
         return witnesses;

@@ -26,7 +26,7 @@ Required on both client and server.
 - Rewards as in FTB Quests: items, one of several to choose, loot tables, experience, claimed in the Journal, which
   then shows what was received. Party members who were away are paid when they join.
 - Party quests: what follows a party quest (a personal quest, a story event) happens to every member online, and so
-  does what follows a party flag.
+  does what follows a party flag. What follows a world quest happens to every player online.
 - Joining a party brings your progress: each quest goes on from whoever got further, and flags the party has not
   set come along; whoever skips a completed quest that way gets its rewards. Leaving keeps your own under the
   party's.
@@ -38,6 +38,9 @@ Required on both client and server.
   already holds (`since_stage` asks for a new event); `once` story events run by their state too.
 - `spawn_entity` with `"unique": true` spawns an NPC only if it is not there yet (the demo elder no longer appears once
   per player).
+- The validator warns about what would repeat in multiplayer: a story NPC spawned without `unique` where each player
+  or party would get a copy, and a story event on a party change that repeats a spawn, a sound, a command or a shared
+  counter once per member.
 - Repeatable quests with a cooldown, difficulty (stars 1–5 or coloured levels), objective hints that appear when the
   player is stuck, up to five quests pinned on the HUD.
 - Chapter map for players (opt-in): the editor's chapters with arrows from quest to quest, coloured by progress,

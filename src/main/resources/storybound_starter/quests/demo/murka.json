@@ -17,6 +17,7 @@
         "demo_murka",
         "demo_new"
       ],
+      "unique": false,
       "name": "demo.npc.murka",
       "nbt": {
         "variant": "minecraft:red",

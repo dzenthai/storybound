@@ -8,6 +8,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.ActionType;
+import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.text.StoryText;
@@ -113,7 +114,7 @@ public final class SceneActions {
      * unless {@code persistent} is false.
      */
     public record SpawnEntity(EntityType<?> entity, int count, Place place, List<String> tags, Optional<StoryText> name, Optional<CompoundTag> nbt,
-                              boolean persistent, boolean unique) implements Action {
+                              boolean persistent, Optional<Boolean> unique) implements Action {
         private static final Codec<List<String>> TAGS = Codec.either(Codec.STRING, Codec.STRING.listOf())
                 .xmap(either -> either.map(List::of, list -> list), list -> list.size() == 1 ? Either.left(list.getFirst())
                         : Either.right(list));
@@ -125,8 +126,9 @@ public final class SceneActions {
                 StoryText.CODEC.optionalFieldOf("name").forGetter(SpawnEntity::name),
                 CompoundTag.CODEC.optionalFieldOf("nbt").forGetter(SpawnEntity::nbt),
                 Codec.BOOL.optionalFieldOf("persistent", true).forGetter(SpawnEntity::persistent),
-                Codec.BOOL.optionalFieldOf("unique", false).forGetter(SpawnEntity::unique)
-        ).apply(instance, SpawnEntity::new)).validate(spawn -> spawn.unique() && spawn.tags().isEmpty()
+                // Kept as written: an explicit false says "each player is meant to have their own" (see References#spawn).
+                Codec.BOOL.optionalFieldOf("unique").forGetter(SpawnEntity::unique)
+        ).apply(instance, SpawnEntity::new)).validate(spawn -> spawn.isUnique() && spawn.tags().isEmpty()
                 ? DataResult.error(() -> "'unique' needs a 'tag': it is how the entity already there is recognised")
                 : DataResult.success(spawn));
 
@@ -135,13 +137,22 @@ public final class SceneActions {
             return BuiltinActions.SPAWN_ENTITY.get();
         }
 
+        public boolean isUnique() {
+            return unique.orElse(false);
+        }
+
+        @Override
+        public void collectReferences(References references) {
+            references.spawn(tags, unique);
+        }
+
         @Override
         public void run(StoryContext context) throws StoryException {
             if (!entity.canSummon()) {
                 throw new StoryException(Component.literal(BuiltInRegistries.ENTITY_TYPE.getKey(entity) + " cannot be spawned"));
             }
             Place.Resolved at = place.resolve(context);
-            if (unique && exists(at.level())) {
+            if (isUnique() && exists(at.level())) {
                 // Not a failure: the actions after it (a sound, a line) still run.
                 StoryTrace.note(context.player(), "spawn_entity", "skipped: a " + BuiltInRegistries.ENTITY_TYPE.getKey(entity) + " tagged " + tags + " is already there");
                 return;

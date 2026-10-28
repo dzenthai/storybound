@@ -1,5 +1,7 @@
 package dev.dzenthai.storybound.core.logic;
 
+import java.util.List;
+import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,4 +26,15 @@ public interface References {
 
     /** A handler of the action or condition "Script" ({@code kubejs}). */
     default void script(ResourceLocation id, boolean condition) {}
+
+    /** A {@code spawn_entity}: the tags it gives, and its {@code unique} as written (empty when not written). */
+    default void spawn(List<String> tags, Optional<Boolean> unique) {}
+
+    /**
+     * The receiver for actions that run once in the world: a {@code world} quest's own actions, a story event with
+     * {@code once: world}. Walkers pass such lists through it; everything else may run once per player or party.
+     */
+    default References once() {
+        return this;
+    }
 }

@@ -135,7 +135,7 @@ public final class DialogueScreen extends Screen {
         renderBackground(graphics, localX, localY, partialTick);
         if (builtLine != null) {
             DialogueChrome.nebula(graphics, panelX, panelY, panelWidth, panelHeight, Util.getMillis() - animationStart);
-            DialogueChrome.paper(graphics, panelX, panelY, panelWidth, panelHeight, false);
+            DialogueChrome.paper(graphics, panelX, panelY, panelWidth, panelHeight);
             renderLine(graphics);
             renderFooter(graphics);
         }
@@ -390,7 +390,7 @@ public final class DialogueScreen extends Screen {
         @Override
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
             boolean selected = selectedReply == number - 1;
-            DialogueChrome.paper(graphics, getX(), getY(), getWidth(), getHeight(), true);
+            DialogueChrome.paper(graphics, getX(), getY(), getWidth(), getHeight());
             if (!active) graphics.fill(getX() + 4, getY() + 3, getX() + getWidth() - 4, getY() + getHeight() - 3, 0x25A39984);
             else if (isHoveredOrFocused() || selected) graphics.fill(getX() + 4, getY() + 3,
                     getX() + getWidth() - 4, getY() + getHeight() - 3, 0x30D99527);
