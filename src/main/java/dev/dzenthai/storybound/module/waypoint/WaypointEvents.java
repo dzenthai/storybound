@@ -9,11 +9,16 @@ import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import java.util.function.Consumer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -32,6 +37,8 @@ public final class WaypointEvents {
         gameBus.addListener(WaypointEvents::onLoggedOut);
         gameBus.addListener(WaypointEvents::onServerTick);
         gameBus.addListener(WaypointEvents::onServerStopped);
+        gameBus.addListener(WaypointEvents::onEntityLeave);
+        gameBus.addListener(WaypointEvents::onEntityJoin);
         LogicOwners.register(WaypointRegistries.WAYPOINTS, (waypoint, references) -> {
             waypoint.conditions().collectReferences(references);
             waypoint.quest().ifPresent(quest -> references.quest(quest, waypoint.stage().orElse(null)));
@@ -84,6 +91,21 @@ public final class WaypointEvents {
 
     private static void onServerStopped(ServerStoppedEvent event) {
         Waypoints.reset();
+    }
+
+    /** A followed entity killed or removed for good (not unloaded, not through a portal) is gone for every player. */
+    private static void onEntityLeave(EntityLeaveLevelEvent event) {
+        Entity.RemovalReason reason = event.getEntity().getRemovalReason();
+        if (event.getLevel() instanceof ServerLevel level && reason != null && reason.shouldDestroy()
+                && reason != Entity.RemovalReason.CHANGED_DIMENSION && !(event.getEntity() instanceof Player)) {
+            WaypointTargets.get(level.getServer()).left(event.getEntity().getUUID());
+        }
+    }
+
+    private static void onEntityJoin(EntityJoinLevelEvent event) {
+        if (event.getLevel() instanceof ServerLevel level && !(event.getEntity() instanceof Player)) {
+            WaypointTargets.get(level.getServer()).back(event.getEntity().getUUID());
+        }
     }
 
     /** Quest stages must list waypoints that exist; a waypoint bound to a stage needs a quest. */

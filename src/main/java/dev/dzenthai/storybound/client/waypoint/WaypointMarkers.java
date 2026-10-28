@@ -134,10 +134,13 @@ public final class WaypointMarkers {
         } else if (tracked) {
             size *= TRACKED_SIZE;
         }
+        Screen screen = project(anchor, graphics.guiWidth(), graphics.guiHeight());
         if (distance > style.fadeStart()) {
             float far = style.maxDistance() > style.fadeStart()
                     ? (float) Mth.clamp((distance - style.fadeStart()) / (style.maxDistance() - style.fadeStart()), 0, 1) : 0f;
-            alpha *= Mth.lerp(far, 1f, FAR_ALPHA);
+            // A far marker the player aims at is shown at full strength: they are looking for it.
+            float aimed = screen.onScreen() ? nearCrosshair(screen, graphics) : 0f;
+            alpha *= Mth.lerp(far * (1 - aimed), 1f, FAR_ALPHA);
         }
         if (inside) {
             alpha *= 0.5f;
@@ -148,7 +151,6 @@ public final class WaypointMarkers {
             return null;
         }
 
-        Screen screen = project(anchor, graphics.guiWidth(), graphics.guiHeight());
         boolean edge = style.edge() == WaypointStyle.EdgeMode.ALL || (style.edge() == WaypointStyle.EdgeMode.TRACKED && tracked);
         if (!screen.onScreen() && !edge) {
             return null;
@@ -198,14 +200,15 @@ public final class WaypointMarkers {
         return switch (style.name()) {
             case ALWAYS -> 1f;
             case NEVER -> 0f;
-            case TRACKED -> marker.tracked() ? 1f : nearCrosshair(marker, graphics);
-            case NEAR_CROSSHAIR -> nearCrosshair(marker, graphics);
+            case TRACKED -> marker.tracked() ? 1f : nearCrosshair(marker.screen(), graphics);
+            case NEAR_CROSSHAIR -> nearCrosshair(marker.screen(), graphics);
         };
     }
 
-    private static float nearCrosshair(Marker marker, GuiGraphics graphics) {
-        float dx = marker.screen().x() - graphics.guiWidth() / 2f;
-        float dy = marker.screen().y() - graphics.guiHeight() / 2f;
+    /** 1 at the crosshair, fading to 0 at {@link #NAME_RADIUS} from it. */
+    private static float nearCrosshair(Screen screen, GuiGraphics graphics) {
+        float dx = screen.x() - graphics.guiWidth() / 2f;
+        float dy = screen.y() - graphics.guiHeight() / 2f;
         float off = (float) Math.sqrt(dx * dx + dy * dy);
         return Mth.clamp((NAME_RADIUS - off) / (NAME_RADIUS / 2), 0f, 1f);
     }

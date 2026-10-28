@@ -320,7 +320,9 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
     /**
      * The count shown for an objective. An item objective counted only when its trigger fires (a hand-in at a dialogue)
      * or once a second on the server shows what the player holds now, so the number moves as they gather; the
-     * objective is done only when the server counts it. Items taken as they come have nothing left to show.
+     * objective is done only when the server counts it. The client's definition has no triggers (see
+     * {@code QuestDefinition.clientView}), so items taken as they come are shown the same way: they are only ever a
+     * second ahead of the server.
      */
     static int shownCount(QuestDefinition.Objective objective, int count) {
         Player player = Minecraft.getInstance().player;
@@ -328,9 +330,6 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
             return count;
         }
         QuestDefinition.Items items = objective.items().get();
-        if (items.consume() && objective.trigger().isEmpty()) {
-            return count;
-        }
         int held = WorldConditions.countItems(player, items.matcher());
         return items.consume() ? count + Math.min(held, objective.count() - count) : Math.max(count, Math.min(held, objective.count()));
     }

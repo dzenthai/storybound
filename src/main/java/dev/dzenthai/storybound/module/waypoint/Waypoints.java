@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -30,6 +31,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -49,7 +51,7 @@ public final class Waypoints {
     /** Player → what their client has now. */
     private static final Map<UUID, Map<String, ClientWaypoint>> SENT = new HashMap<>();
     /** Followed entity → where it was last seen, for when it is not loaded (without the entity id: the client has no such entity either). */
-    private static final Map<UUID, Place> LAST_SEEN = new HashMap<>();
+    private static final Map<UUID, WaypointSightings.Sighting> LAST_SEEN = new HashMap<>();
     /**
      * Structure searches from a player start from the middle of the 256-block cell they stand in, so players near
      * each other share one background search, and walking within a cell starts none.
@@ -66,6 +68,8 @@ public final class Waypoints {
      * the marker does not hop between two mobs at about the same distance.
      */
     private static final double KEEP_PICK_RANGE = 1.25;
+    /** The search area shown around where an entity out of sight was last seen, in blocks. */
+    private static final float SIGHTING_RADIUS = 16;
     /**
      * Player → waypoint key with a {@code nearest} target → the entity it points at for them. The entity object itself,
      * so that once it is gone from the level its removal reason tells an unloaded chunk from a death.
@@ -122,7 +126,7 @@ public final class Waypoints {
             Place place = locate(player, key, definition.target());
             if (place != null) {
                 result.put(key, new ClientWaypoint(key, definition.name().resolve(player), place.dimension(), place.pos(), place.entity(),
-                        definition.radius(), definition.color(), quest, definition.style()));
+                        place.radius(definition.radius()), definition.color(), quest, definition.style()));
             }
         });
         for (WaypointData.Added added : WaypointData.get(player.server).all()) {
@@ -132,7 +136,7 @@ public final class Waypoints {
             Place place = locate(player, added.key(), added.target());
             if (place != null) {
                 result.put(added.key(), new ClientWaypoint(added.key(), added.name().resolve(player), place.dimension(), place.pos(), place.entity(),
-                        added.radius(), added.color(), Optional.empty(), added.style()));
+                        place.radius(added.radius()), added.color(), Optional.empty(), added.style()));
             }
         }
         return result;
@@ -341,20 +345,24 @@ public final class Waypoints {
 
     /**
      * The matching entity nearest to this player, in their dimension and within range; the previous pick is kept
-     * while it still matches and stays within {@link #KEEP_PICK_RANGE} times the range. A pick whose chunk unloaded
-     * (the player went far away, or to another dimension) is still there, so it stays where it was last seen until a
-     * loaded match is in range; one that died or was removed is dropped. Null while there is none.
+     * while it still matches and stays within {@link #KEEP_PICK_RANGE} times the range, and also beyond that while no
+     * other match is in range (the player walked away from it). A pick that cannot be found in the player's level (its
+     * chunk is not loaded: the player went far away, to another dimension, or joined again far from it) is still
+     * there: the waypoint shows the area where it was last seen ({@link WaypointSightings}, kept through relogs) until a
+     * loaded match is in range. One that died, was removed or no longer matches is dropped. Null while there is none.
      */
     private static @Nullable Place nearestEntity(ServerPlayer player, String key, WaypointTarget.Nearest target) {
         Map<String, Entity> picks = NEAREST_PICKS.computeIfAbsent(player.getUUID(), uuid -> new HashMap<>());
         ServerLevel level = player.serverLevel();
         Entity picked = picks.get(key);
+        WaypointSightings.Sighting sighting = WaypointSightings.get(player, key);
+        UUID pickedId = picked != null ? picked.getUUID() : sighting != null ? sighting.entity() : null;
         // Looked up again: an entity whose chunk loads anew is another object with the same uuid.
-        Entity entity = picked == null ? null : level.getEntity(picked.getUUID());
+        Entity entity = pickedId == null ? null : level.getEntity(pickedId);
+        boolean lost = entity != null && !isCandidate(entity, target);
         double keep = target.range() * KEEP_PICK_RANGE;
-        if (entity != null && isCandidate(entity, target) && entity.distanceToSqr(player) <= keep * keep) {
-            picks.put(key, entity);
-            return placeOf(entity, true);
+        if (entity != null && !lost && entity.distanceToSqr(player) <= keep * keep) {
+            return remember(player, picks, key, entity);
         }
         double range = target.range();
         Entity found = level.getEntities((Entity) null, player.getBoundingBox().inflate(range),
@@ -362,24 +370,58 @@ public final class Waypoints {
                 .min(Comparator.comparingDouble(candidate -> candidate.distanceToSqr(player)))
                 .orElse(null);
         if (found != null) {
-            picks.put(key, found);
-            return placeOf(found, true);
+            return remember(player, picks, key, found);
         }
-        if (entity == null && picked != null && stillExists(picked)) {
-            return placeOf(picked, false);
+        if (entity != null && !lost) {
+            return remember(player, picks, key, entity);
+        }
+        if (entity == null && sighting != null && sighting.entity().equals(pickedId) && stillThere(player, picked, sighting)) {
+            return lastSeen(sighting);
         }
         picks.remove(key);
+        WaypointSightings.forget(player, key);
         return null;
+    }
+
+    private static Place remember(ServerPlayer player, Map<String, Entity> picks, String key, Entity entity) {
+        picks.put(key, entity);
+        Place place = placeOf(entity, true);
+        WaypointSightings.put(player, key, new WaypointSightings.Sighting(entity.getUUID(), place.dimension(), place.pos()));
+        WaypointTargets.get(player.server).seen(entity.getUUID());
+        return place;
     }
 
     private static boolean isCandidate(Entity entity, WaypointTarget.Nearest target) {
         return entity.isAlive() && !(entity instanceof Player) && target.entity().matches(entity);
     }
 
-    /** Whether an entity not in the player's level is still somewhere: in another level, or saved with its chunk. */
-    private static boolean stillExists(Entity entity) {
-        Entity.RemovalReason reason = entity.getRemovalReason();
-        return reason == null || !reason.shouldDestroy();
+    /**
+     * Whether an entity the player cannot find in their level is still where it was seen. Gone when anyone killed or
+     * removed it since ({@link WaypointTargets}, also while this player was far away or offline), or when the object
+     * kept for the pick says so. Otherwise there when it is loaded in its level (another dimension than the player's),
+     * or when its object was unloaded with its chunk. After a relog there is no object, only the sighting: gone when
+     * the entities of the chunk it was seen in are loaded and it is not there (it left meanwhile).
+     */
+    private static boolean stillThere(ServerPlayer player, @Nullable Entity picked, WaypointSightings.Sighting sighting) {
+        if (WaypointTargets.get(player.server).isGone(sighting.entity())) {
+            return false;
+        }
+        if (picked != null && picked.getRemovalReason() != null && picked.getRemovalReason().shouldDestroy()) {
+            return false;
+        }
+        ServerLevel level = player.server.getLevel(ResourceKey.create(Registries.DIMENSION, sighting.dimension()));
+        if (level == null) {
+            return false;
+        }
+        if (level.getEntity(sighting.entity()) != null || picked != null) {
+            return true;
+        }
+        return !level.areEntitiesLoaded(ChunkPos.asLong(BlockPos.containing(sighting.pos())));
+    }
+
+    /** An entity out of sight: the area where it was last seen rather than a point it may have left. */
+    private static Place lastSeen(WaypointSightings.Sighting sighting) {
+        return new Place(sighting.dimension(), sighting.pos(), ClientWaypoint.NO_ENTITY, SIGHTING_RADIUS);
     }
 
     /**
@@ -427,11 +469,17 @@ public final class Waypoints {
                     Entity entity = level.getEntity(follow.entity());
                     if (entity != null && entity.isAlive()) {
                         Place place = placeOf(entity, true);
-                        LAST_SEEN.put(follow.entity(), new Place(place.dimension(), place.pos(), ClientWaypoint.NO_ENTITY));
+                        WaypointSightings.Sighting sighting = new WaypointSightings.Sighting(follow.entity(), place.dimension(), place.pos());
+                        LAST_SEEN.put(follow.entity(), sighting);
+                        WaypointSightings.put(player, key, sighting);
+                        WaypointTargets.get(player.server).seen(follow.entity());
                         yield place;
                     }
                 }
-                yield LAST_SEEN.get(follow.entity());
+                // Not loaded anywhere: where this player last saw it, else where anyone did since the server started.
+                WaypointSightings.Sighting own = WaypointSightings.get(player, key);
+                WaypointSightings.Sighting seen = own != null && own.entity().equals(follow.entity()) ? own : LAST_SEEN.get(follow.entity());
+                yield seen == null || WaypointTargets.get(player.server).isGone(follow.entity()) ? null : lastSeen(seen);
             }
             case WaypointTarget.Structure structure -> nearestStructure(player, key, structure);
             case WaypointTarget.Nearest nearest -> nearestEntity(player, key, nearest);
@@ -447,6 +495,17 @@ public final class Waypoints {
         }
     }
 
-    /** @param entity the network id of the entity it is above, for the client to follow it smoothly, or {@link ClientWaypoint#NO_ENTITY} */
-    private record Place(ResourceLocation dimension, Vec3 pos, int entity) {}
+    /**
+     * @param entity the network id of the entity it is above, for the client to follow it smoothly, or {@link ClientWaypoint#NO_ENTITY}
+     * @param radius a search area to show at least, for an entity out of sight; negative for the waypoint's own
+     */
+    private record Place(ResourceLocation dimension, Vec3 pos, int entity, float radius) {
+        Place(ResourceLocation dimension, Vec3 pos, int entity) {
+            this(dimension, pos, entity, -1);
+        }
+
+        float radius(float own) {
+            return radius < 0 ? own : Math.max(own, radius);
+        }
+    }
 }

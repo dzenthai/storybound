@@ -26,6 +26,7 @@ import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
 import dev.dzenthai.storybound.module.waypoint.StructureLocator;
 import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
 import dev.dzenthai.storybound.module.waypoint.WaypointRegistries;
+import dev.dzenthai.storybound.module.waypoint.WaypointSightings;
 import dev.dzenthai.storybound.module.waypoint.WaypointTarget;
 import dev.dzenthai.storybound.module.waypoint.Waypoints;
 import java.util.LinkedHashMap;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -193,16 +195,29 @@ public final class WaypointGameTests {
             helper.assertTrue(unloaded != null && Math.abs(unloaded.pos().x - left.x) < 1 && Math.abs(unloaded.pos().z - left.z) < 1,
                     "one whose chunk unloaded (the player went far away) stays where it was last seen, got " + unloaded);
             expect(helper, unloaded.entity(), ClientWaypoint.NO_ENTITY, "and the client is not told to draw it at an entity");
+            helper.assertTrue(unloaded.radius() >= 16, "but the area around that place, got radius " + unloaded.radius());
             last = helper.spawnWithNoFreeWill(EntityType.PIG, 4, 1, 1);
             last.addTag("gametest_quarry");
             assertAt(helper, player, quarry, last, "a loaded one in range comes before it");
+            expect(helper, Waypoints.visible(player).get(quarry.toString()).radius(), 0f, "as a point again");
             last.moveTo(helper.absoluteVec(new Vec3(11.5, 1, 11.5)));
-            helper.assertFalse(Waypoints.visible(player).containsKey(quarry.toString()), "nothing when none is in range");
-            last.moveTo(helper.absoluteVec(new Vec3(4.5, 1, 1.5)));
-            assertAt(helper, player, quarry, last, "back in range");
+            assertAt(helper, player, quarry, last, "kept when the player walks away from it and no other is in range");
             last.remove(Entity.RemovalReason.KILLED);
             helper.assertFalse(Waypoints.visible(player).containsKey(quarry.toString()), "nothing once the pick died");
+
+            // Joined again far from it: only the saved sighting is known, in a chunk that is not loaded.
+            Vec3 away = helper.absoluteVec(new Vec3(5000.5, 70, 5000.5));
+            player.setData(WaypointRegistries.SIGHTINGS, new WaypointSightings(Map.of(quarry.toString(),
+                    new WaypointSightings.Sighting(last.getUUID(), helper.getLevel().dimension().location(), away))));
+            helper.assertFalse(Waypoints.visible(player).containsKey(quarry.toString()),
+                    "not for an entity someone killed while the player was away, though nobody keeps its place loaded");
+            player.setData(WaypointRegistries.SIGHTINGS, new WaypointSightings(Map.of(quarry.toString(),
+                    new WaypointSightings.Sighting(UUID.randomUUID(), helper.getLevel().dimension().location(), away))));
+            ClientWaypoint remembered = Waypoints.visible(player).get(quarry.toString());
+            helper.assertTrue(remembered != null && remembered.pos().distanceTo(away) < 1 && remembered.radius() >= 16,
+                    "after a relog, the area where it was last seen, got " + remembered);
         } finally {
+            player.setData(WaypointRegistries.SIGHTINGS, WaypointSightings.EMPTY);
             store.replace(previous);
             Waypoints.rebuild();
             List.of(near, far, untagged).forEach(LivingEntity::discard);
