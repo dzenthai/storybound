@@ -18,8 +18,8 @@ public final class BookGuiGraphics extends GuiGraphics {
         pose().scale((float) viewport.scale(), (float) viewport.scale(), 1);
     }
 
-    @Override public int guiWidth() { return BookViewport.WIDTH; }
-    @Override public int guiHeight() { return BookViewport.HEIGHT; }
+    @Override public int guiWidth() { return viewport.width(); }
+    @Override public int guiHeight() { return viewport.height(); }
 
     @Override
     public int drawString(Font font, @Nullable String text, int x, int y, int color, boolean shadow) {

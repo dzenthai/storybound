@@ -55,9 +55,9 @@ public class AdventureMenuScreen extends Screen {
         var window = minecraft.getWindow();
         viewport = MenuThemes.INSTANCE.journalBook()
                 ? BookViewport.wholePixels(window.getWidth(), window.getHeight(), window.getGuiScale(), JournalSkin.BOOK_WIDTH,
-                        JournalLayout.fit(BookViewport.WIDTH, BookViewport.HEIGHT)) : null;
-        width = viewport == null ? window.getGuiScaledWidth() : BookViewport.WIDTH;
-        height = viewport == null ? window.getGuiScaledHeight() : BookViewport.HEIGHT;
+                        JournalLayout.fit(BookViewport.MENU_WIDTH, BookViewport.MENU_HEIGHT)) : null;
+        width = viewport == null ? window.getGuiScaledWidth() : BookViewport.MENU_WIDTH;
+        height = viewport == null ? window.getGuiScaledHeight() : BookViewport.MENU_HEIGHT;
         bookTooltip = null;
         bookTooltipPositioner = null;
         tabs = AdventureMenu.availableTabs();
@@ -77,7 +77,7 @@ public class AdventureMenuScreen extends Screen {
                 MenuTab tab = tabs.get(i);
                 addRenderableWidget(new JournalSkin.Bookmark(tab, tab == current, ribbons.computeIfAbsent(tab.id(), id -> new RibbonMotion()),
                         ribbonJoins.computeIfAbsent(tab.id(), id -> new RibbonMotion()),
-                        bookLayout.bookmark(i, tabs.size()), button -> {
+                        bookLayout.bookmark(i, tabs.size()), bookLayout.bookmarkPixelScale(), button -> {
                             if (tab != current) showTab(tab.id());
                         }));
             }
@@ -183,9 +183,7 @@ public class AdventureMenuScreen extends Screen {
                         bookmark.renderPageJoin(graphics, mouseX, mouseY, partialTick);
                     }
                 }
-                JournalSkin.title(graphics, font, current.title().copy().withStyle(net.minecraft.ChatFormatting.BOLD),
-                        bookLayout.content().x(), bookLayout.titleY(), bookLayout.indexWidth(),
-                        bookLayout.compact() ? 1.2f : 1.7f, theme.title());
+                JournalSkin.title(graphics, font, current.title().copy().withStyle(net.minecraft.ChatFormatting.BOLD), bookLayout, theme.title());
                 view(current).render(graphics, mouseX, mouseY, partialTick);
             } else {
                 Component empty = JournalSkin.text(Component.translatable("storybound.menu.empty"));

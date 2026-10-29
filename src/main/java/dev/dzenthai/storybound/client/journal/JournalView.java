@@ -186,7 +186,7 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
         detail.heading(entry.title().copy().withStyle(ChatFormatting.BOLD), theme().title()).gap(4);
         if (screen.bookLayout() != null) {
             detail.block(14, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
-                    JournalSkin.rule(graphics, x, y + 3, Math.min(width, 130), theme().divider()));
+                    JournalSkin.bookRule(graphics, screen.bookLayout(), x, y + 3, Math.min(width, 130), theme().divider()));
         } else if (MenuThemes.INSTANCE.archiveChrome()) {
             detail.block(9, (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
                 graphics.fill(x, y + 1, x + Math.min(28, width), y + 2, theme().accent());

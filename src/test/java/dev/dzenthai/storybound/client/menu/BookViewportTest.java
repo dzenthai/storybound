@@ -7,10 +7,11 @@ class BookViewportTest {
     /** The journal book shows its texture pixels at a whole ratio of window pixels, starting on a window pixel. */
     @Test
     void theJournalBookKeepsItsPixelsWhole() {
-        JournalLayout book = JournalLayout.fit(BookViewport.WIDTH, BookViewport.HEIGHT);
+        JournalLayout book = JournalLayout.fit(BookViewport.MENU_WIDTH, BookViewport.MENU_HEIGHT);
         int[][] windows = {{1920, 1080}, {2560, 1440}, {3840, 2160}, {3440, 1440}, {1366, 768}, {1280, 720}, {1600, 900},
                 {1024, 768}, {854, 480}, {640, 360}};
-        double[][] expected = {{1920, 1}, {2560, 1}, {3840, 2}, {1366, 0.5}};
+        // Window pixels per pixel of the 384×256 book.
+        double[][] expected = {{1920, 4}, {2560, 5}, {3840, 8}, {1366, 2}};
         for (int[] window : windows) {
             var reference = BookViewport.wholePixels(window[0], window[1], 1, JournalSkin.BOOK_WIDTH, book);
             for (int guiScale = 1; guiScale <= 6; guiScale++) {
@@ -25,8 +26,8 @@ class BookViewportTest {
                 double whole = perTexturePixel >= 1 ? perTexturePixel : 1 / perTexturePixel;
                 assertEquals(Math.rint(whole), whole, 1e-6, "a whole ratio: " + perTexturePixel);
                 assertEquals(perTexturePixel, (bottom - top) / JournalSkin.BOOK_HEIGHT, 1e-9, "the same both ways");
-                assertTrue(viewport.toGuiX(0) * guiScale >= -1e-6 && viewport.toGuiX(BookViewport.WIDTH) * guiScale <= window[0] + 1e-6);
-                assertTrue(viewport.toGuiY(0) * guiScale >= -1e-6 && viewport.toGuiY(BookViewport.HEIGHT) * guiScale <= window[1] + 1e-6);
+                assertTrue(viewport.toGuiX(0) * guiScale >= -1e-6 && viewport.toGuiX(BookViewport.MENU_WIDTH) * guiScale <= window[0] + 1e-6);
+                assertTrue(viewport.toGuiY(0) * guiScale >= -1e-6 && viewport.toGuiY(BookViewport.MENU_HEIGHT) * guiScale <= window[1] + 1e-6);
                 assertEquals(reference.toGuiX(100), viewport.toGuiX(100) * guiScale, 1e-6, "the HUD scale changes nothing");
                 for (double[] known : expected) {
                     if (known[0] == window[0]) {

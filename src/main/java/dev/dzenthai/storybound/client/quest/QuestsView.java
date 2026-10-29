@@ -242,7 +242,7 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         }
         if (screen.bookLayout() != null) {
             detail.block(10, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
-                    JournalSkin.rule(graphics, x, y + 4, width, theme.divider()));
+                    JournalSkin.bookRule(graphics, screen.bookLayout(), x, y + 4, width, theme.divider()));
         } else {
             detail.gap(6);
         }

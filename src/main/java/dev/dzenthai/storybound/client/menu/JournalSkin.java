@@ -13,10 +13,14 @@ import net.minecraft.resources.ResourceLocation;
 public final class JournalSkin {
     public static final ResourceLocation FONT = ResourceLocation.withDefaultNamespace("default");
     public static final ResourceLocation HEADING_FONT = FONT;
-    private static final ResourceLocation BOOK = Storybound.id("textures/gui/journal/vanilla_book.png");
+    /**
+     * The open book (October 30, 2026: the 384×256 pixel-art book, drawn a whole number of window pixels per its pixel;
+     * before, a 1536×1024 picture scaled down by any factor).
+     */
+    private static final ResourceLocation BOOK = Storybound.id("textures/gui/journal/adventure_book.png");
     /** The book texture's size in pixels. */
-    public static final int BOOK_WIDTH = 1536;
-    public static final int BOOK_HEIGHT = 1024;
+    public static final int BOOK_WIDTH = 384;
+    public static final int BOOK_HEIGHT = 256;
     private JournalSkin() {}
 
     public static Component text(Component text) {
@@ -42,6 +46,58 @@ public final class JournalSkin {
         graphics.drawString(font, styled, 0, 0, color, false);
         graphics.pose().popPose();
         titleRule(graphics, x, y + 29, width, MenuThemes.INSTANCE.theme().divider());
+    }
+
+    /**
+     * The menu's title over the left page, with its rule and diamond under it in the book's pixels, the diamond on the
+     * page's middle, under the frame's small square (October 30, 2026; before, in the canvas's units, a unit off it).
+     */
+    public static void title(GuiGraphics graphics, Font font, Component title, JournalLayout layout, int color) {
+        Component styled = title.copy().withStyle(style -> style.withFont(FONT).withBold(true));
+        int x = layout.content().x();
+        int y = layout.titleY();
+        int width = layout.indexWidth();
+        int fitted = font.width(styled) * 2 <= width ? 2 : 1;
+        graphics.pose().pushPose();
+        graphics.pose().translate(x + (width - font.width(styled) * fitted) / 2, y + (18 - 7 * fitted) / 2, 0);
+        graphics.pose().scale(fitted, fitted, 1);
+        graphics.drawString(font, styled, 0, 0, color, false);
+        graphics.pose().popPose();
+        pageRule(graphics, layout, JournalLayout.LEFT_FROM, JournalLayout.LEFT_TO, y + 29, MenuThemes.INSTANCE.theme().divider(), true);
+    }
+
+    /**
+     * A rule of a page in the book's pixels, one pixel thick as the frames' lines, from {@code from} up to {@code to}
+     * and at {@code y} GUI pixels snapped to them; with {@code diamond}, the title's diamond in its middle, which is
+     * the page's middle for a column's rule (an even column: the middle falls between two pixels, as the square's).
+     */
+    public static void pageRule(GuiGraphics graphics, JournalLayout layout, int from, int to, int y, int ink, boolean diamond) {
+        double px = layout.bookPixel();
+        int row = (int) Math.round((y - layout.y()) / px);
+        graphics.pose().pushPose();
+        graphics.pose().translate(layout.x(), layout.y(), 0);
+        graphics.pose().scale((float) px, (float) px, 1);
+        if (!diamond) {
+            graphics.fill(from, row, to, row + 1, ink);
+        } else {
+            int middle = (from + to) / 2;
+            graphics.fill(from, row, middle - 6, row + 1, ink);
+            graphics.fill(middle + 6, row, to, row + 1, ink);
+            for (int dy = -2; dy <= 2; dy++) {
+                int half = 3 - Math.abs(dy);
+                graphics.fill(middle - half, row + dy, middle + half, row + dy + 1, ink);
+            }
+            graphics.fill(middle - 1, row, middle + 1, row + 1, 0xFFEBD4AA);
+        }
+        graphics.pose().popPose();
+    }
+
+    /** A rule given in GUI pixels (a column of a view), drawn as {@link #pageRule}, on the book's pixels. */
+    public static void bookRule(GuiGraphics graphics, JournalLayout layout, int x, int y, int width, int ink) {
+        double px = layout.bookPixel();
+        int from = (int) Math.round((x - layout.x()) / px);
+        int to = (int) Math.round((x + width - layout.x()) / px);
+        pageRule(graphics, layout, from, to, y, ink, false);
     }
 
     public static void titleRule(GuiGraphics graphics, int x, int ruleY, int width, int ink) {
@@ -102,15 +158,22 @@ public final class JournalSkin {
         private final boolean selected;
         private final RibbonMotion motion;
         private final RibbonMotion joinMotion;
+        private final float pixelScale;
+        private final int clothWidth;
+        private final int clothHeight;
         private float renderedOrigin;
         private float renderedJoin;
 
-        public Bookmark(MenuTab tab, boolean selected, RibbonMotion motion, RibbonMotion joinMotion, JournalLayout.Rect bounds, OnPress onPress) {
+        public Bookmark(MenuTab tab, boolean selected, RibbonMotion motion, RibbonMotion joinMotion, JournalLayout.Rect bounds,
+                        float pixelScale, OnPress onPress) {
             super(bounds.x(), bounds.y(), bounds.width(), bounds.height(), tab.title(), onPress, DEFAULT_NARRATION);
             this.tab = tab;
             this.selected = selected;
             this.motion = motion;
             this.joinMotion = joinMotion;
+            this.pixelScale = pixelScale;
+            this.clothWidth = Math.round(bounds.width() / pixelScale);
+            this.clothHeight = Math.round(bounds.height() / pixelScale);
             setTooltip(Tooltip.create(text(tab.title())));
         }
 
@@ -127,9 +190,10 @@ public final class JournalSkin {
             // Slide the unchanged ribbon from behind the paper without stretching the emblem.
             RenderSystem.enableBlend();
             graphics.pose().pushPose();
-            renderedOrigin = x - 6 + reveal;
+            renderedOrigin = x + (-6 + reveal) * pixelScale;
             graphics.pose().translate(renderedOrigin, y, 0);
-            BookmarkPixels.draw(graphics, index, width, height, renderedJoin);
+            graphics.pose().scale(pixelScale, pixelScale, 1);
+            BookmarkPixels.draw(graphics, index, clothWidth, clothHeight, renderedJoin);
             graphics.pose().popPose();
         }
 
@@ -137,17 +201,20 @@ public final class JournalSkin {
             if (renderedJoin < 0.001f) return;
             int index = tab.id().equals(AdventureMenu.QUESTS) ? 0 : tab.id().equals(AdventureMenu.CODEX) ? 2
                     : tab.id().equals(AdventureMenu.BOSSES) ? 3 : tab.id().equals(AdventureMenu.MAP) ? 4 : 1;
-            int joinLeft = getX() + 7 - Math.round(16 * renderedJoin);
+            // Only the two dark fore-edge texels open; the light page and its ornament stay exposed.
+            float joinLeft = getX() + (7 - 9 * renderedJoin) * pixelScale;
+            float joinRight = getX() + 7 * pixelScale;
             // The page overlay must stop before the moving emblem, including its transparent pixels.
-            int materialRight = Math.min((int) Math.ceil(getX() + 7 - renderedOrigin),
-                    BookmarkPixels.iconLeft(width, height) - 1);
-            int materialLeft = (int) Math.floor(joinLeft - renderedOrigin);
+            int materialRight = Math.min((int) Math.ceil((joinRight - renderedOrigin) / pixelScale),
+                    BookmarkPixels.iconLeft(clothWidth, clothHeight) - 1);
+            int materialLeft = (int) Math.floor((joinLeft - renderedOrigin) / pixelScale);
             if (materialLeft >= materialRight) return;
-            graphics.enableScissor(joinLeft, getY(), getX() + 7, getY() + height);
+            graphics.enableScissor((int) Math.floor(joinLeft), getY(), (int) Math.ceil(joinRight), getY() + height);
             graphics.pose().pushPose();
             graphics.pose().translate(renderedOrigin, getY(), 0);
+            graphics.pose().scale(pixelScale, pixelScale, 1);
             BookmarkPixels.drawPageJoin(graphics, index,
-                    materialLeft, 0, materialRight, height);
+                    materialLeft, 0, materialRight, clothHeight);
             graphics.pose().popPose();
             graphics.disableScissor();
         }

@@ -180,7 +180,8 @@ public abstract class ListDetailView<E> extends MenuView {
             int available = Math.max(1, listWidth() - inset - 3);
             if (hovered && font.width(text) > available) rowTooltip = text;
             if (row.entry() == null) {
-                JournalSkin.rule(graphics, left, y + rowHeight() - 2, listWidth() - 3, theme.divider());
+                // As long and thick as the title's rule over the list, on the book's pixels (before, 3 shorter).
+                JournalSkin.bookRule(graphics, screen.bookLayout(), left, y + rowHeight() - 2, listWidth(), theme.divider());
             } else {
                 if (hovered) graphics.fill(left, y, left + listWidth(), y + rowHeight(), theme.hover());
                 if (isSelected) {

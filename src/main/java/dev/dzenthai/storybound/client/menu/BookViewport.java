@@ -1,15 +1,32 @@
 package dev.dzenthai.storybound.client.menu;
 
-/** A fixed reading canvas, independent of Minecraft's HUD scale. */
-public record BookViewport(double scale, double x, double y) {
+/** A fixed reading canvas, independent of Minecraft's HUD scale; {@code width} and {@code height} are its size. */
+public record BookViewport(double scale, double x, double y, int width, int height) {
+    /** The documents' canvas. */
     public static final int WIDTH = 640;
     public static final int HEIGHT = 400;
+    /**
+     * The Adventure Menu's canvas (October 30, 2026; before, the documents' 640 x 400): the book fills 624 x 416 of it,
+     * 1.625 units per pixel of the 384 x 256 book instead of 1.5, so the text and everything on the pages is 7.7%
+     * smaller beside the book, which stays as large on the screen.
+     */
+    public static final int MENU_WIDTH = 692;
+    public static final int MENU_HEIGHT = 432;
+
+    /** A viewport on the documents' canvas. */
+    public BookViewport(double scale, double x, double y) {
+        this(scale, x, y, WIDTH, HEIGHT);
+    }
 
     public static BookViewport fit(int framebufferWidth, int framebufferHeight, double guiScale) {
-        double physicalScale = 0.94 * Math.min(framebufferWidth / (double) WIDTH, framebufferHeight / (double) HEIGHT);
+        return fit(framebufferWidth, framebufferHeight, guiScale, WIDTH, HEIGHT);
+    }
+
+    private static BookViewport fit(int framebufferWidth, int framebufferHeight, double guiScale, int width, int height) {
+        double physicalScale = 0.94 * Math.min(framebufferWidth / (double) width, framebufferHeight / (double) height);
         return new BookViewport(physicalScale / guiScale,
-                (framebufferWidth - WIDTH * physicalScale) / (2 * guiScale),
-                (framebufferHeight - HEIGHT * physicalScale) / (2 * guiScale));
+                (framebufferWidth - width * physicalScale) / (2 * guiScale),
+                (framebufferHeight - height * physicalScale) / (2 * guiScale), width, height);
     }
 
     /**
@@ -30,18 +47,18 @@ public record BookViewport(double scale, double x, double y) {
             perTexturePixel = fits(framebufferWidth, framebufferHeight, 1.0 / part, textureWidth, book) ? 1.0 / part : 0;
         }
         if (perTexturePixel == 0) {
-            return fit(framebufferWidth, framebufferHeight, guiScale);
+            return fit(framebufferWidth, framebufferHeight, guiScale, MENU_WIDTH, MENU_HEIGHT);
         }
         double physicalScale = perTexturePixel * textureWidth / book.width();
         double bookLeft = Math.floor((framebufferWidth - book.width() * physicalScale) / 2);
         double bookTop = Math.floor((framebufferHeight - book.height() * physicalScale) / 2);
         return new BookViewport(physicalScale / guiScale, (bookLeft - book.x() * physicalScale) / guiScale,
-                (bookTop - book.y() * physicalScale) / guiScale);
+                (bookTop - book.y() * physicalScale) / guiScale, MENU_WIDTH, MENU_HEIGHT);
     }
 
     private static boolean fits(int framebufferWidth, int framebufferHeight, double perTexturePixel, int textureWidth, JournalLayout book) {
         double physicalScale = perTexturePixel * textureWidth / book.width();
-        return WIDTH * physicalScale <= framebufferWidth && HEIGHT * physicalScale <= framebufferHeight;
+        return MENU_WIDTH * physicalScale <= framebufferWidth && MENU_HEIGHT * physicalScale <= framebufferHeight;
     }
 
     public double toGuiX(double value) { return x + value * scale; }

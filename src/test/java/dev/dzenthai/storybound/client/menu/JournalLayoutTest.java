@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class JournalLayoutTest {
     @Test
     void pagesAndControlsFitAtSupportedGuiSizes() {
-        for (int[] size : new int[][]{{320, 180}, {320, 240}, {427, 240}, {640, 360}, {640, 400}, {960, 540}, {1920, 1080}}) {
+        for (int[] size : new int[][]{{320, 180}, {320, 240}, {427, 240}, {640, 360}, {640, 400}, {692, 432}, {960, 540}, {1920, 1080}}) {
             JournalLayout layout = JournalLayout.fit(size[0], size[1]);
             JournalLayout.Rect content = layout.content();
             assertTrue(layout.x() >= 0 && layout.y() >= 0);
@@ -18,7 +18,7 @@ class JournalLayoutTest {
             assertTrue(content.right() < layout.x() + layout.width() * 0.95);
             assertTrue(content.height() > 40);
             assertTrue(content.right() - layout.detailLeft() >= 64);
-            if (size[0] == BookViewport.WIDTH && size[1] == BookViewport.HEIGHT) {
+            if (size[0] == BookViewport.MENU_WIDTH && size[1] == BookViewport.MENU_HEIGHT) {
                 assertTrue(content.right() - layout.detailLeft() >= 160);
             }
             assertTrue(Math.abs(layout.indexWidth() - (content.right() - layout.detailLeft())) <= 2);
