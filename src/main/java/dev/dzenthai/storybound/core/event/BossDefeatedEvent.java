@@ -4,16 +4,17 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.bus.api.Event;
+import org.jetbrains.annotations.Nullable;
 
 /** A boss died and this player shares the victory. Posted on {@code NeoForge.EVENT_BUS}, once per credited player. */
 public final class BossDefeatedEvent extends Event {
     private final ServerPlayer player;
     private final ResourceLocation boss;
-    private final LivingEntity entity;
+    private final @Nullable LivingEntity entity;
     private final boolean first;
     private final long fightTicks;
 
-    public BossDefeatedEvent(ServerPlayer player, ResourceLocation boss, LivingEntity entity, boolean first, long fightTicks) {
+    public BossDefeatedEvent(ServerPlayer player, ResourceLocation boss, @Nullable LivingEntity entity, boolean first, long fightTicks) {
         this.player = player;
         this.boss = boss;
         this.entity = entity;
@@ -29,7 +30,8 @@ public final class BossDefeatedEvent extends Event {
         return boss;
     }
 
-    public LivingEntity getEntity() {
+    /** The boss; null for a victory credited to a player who fought it and left before the end, on their joining. */
+    public @Nullable LivingEntity getEntity() {
         return entity;
     }
 

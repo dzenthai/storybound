@@ -62,9 +62,11 @@ public final class TriggerEvents {
         } else {
             players = List.of(event.getActor());
         }
-        for (ServerPlayer player : players) {
-            TriggerDispatcher.fire(BuiltinTriggers.FLAG_CHANGED.get(), StoryContext.of(player), event);
-        }
+        TriggerDispatcher.asOne(() -> {
+            for (ServerPlayer player : players) {
+                TriggerDispatcher.fire(BuiltinTriggers.FLAG_CHANGED.get(), StoryContext.of(player), event);
+            }
+        });
     }
 
     // The killer first, then party members nearby, whom only "shared" triggers count.
@@ -73,10 +75,12 @@ public final class TriggerEvents {
             return;
         }
         LivingEntity victim = event.getEntity();
-        TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(killer, victim), new CoreTriggers.Kill(victim, true));
-        for (ServerPlayer member : KillCredit.partyNear(killer, victim)) {
-            TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(member, victim), new CoreTriggers.Kill(victim, false));
-        }
+        TriggerDispatcher.asOne(() -> {
+            TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(killer, victim), new CoreTriggers.Kill(victim, true));
+            for (ServerPlayer member : KillCredit.partyNear(killer, victim)) {
+                TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(member, victim), new CoreTriggers.Kill(victim, false));
+            }
+        });
     }
 
     private static void onServerTick(ServerTickEvent.Post event) {

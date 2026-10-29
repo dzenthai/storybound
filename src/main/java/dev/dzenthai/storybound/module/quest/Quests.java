@@ -13,8 +13,8 @@ import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.action.WorldActions;
 import dev.dzenthai.storybound.core.logic.condition.WorldConditions;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
-import dev.dzenthai.storybound.core.notify.NotifyKind;
 import dev.dzenthai.storybound.core.notify.Notifications;
+import dev.dzenthai.storybound.core.notify.NotifyKind;
 import dev.dzenthai.storybound.core.state.PartyData;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
@@ -23,11 +23,14 @@ import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.network.QuestSyncPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
@@ -345,7 +348,37 @@ public final class Quests {
         if (!Conditions.check(objective.conditions(), context, source)) {
             return;
         }
+        if (!firstCount(context.player(), definition, quest, objectiveId)) {
+            StoryTrace.note(context.player(), source, "not counted: the same happening was counted for the shared progress already");
+            return;
+        }
         advance(context.player(), quest, definition, stage, current.get(), objectiveId, objective, count + 1);
+    }
+
+    /**
+     * Whether a party or world quest's objective may count the happening being handled: one happening fired for
+     * several players who share the progress (a kill shared with the party, a boss's victory for each credited player,
+     * a party quest's change for each member online) counts once (October 29, 2026; before, once per player it
+     * reached, so two members at one boss counted two). See {@link TriggerDispatcher#asOne}.
+     */
+    private static long countedOccurrence = -1;
+    /** What the happening {@link #countedOccurrence} counted: owner, quest and objective. */
+    private static final Set<String> COUNTED = new HashSet<>();
+
+    private static boolean firstCount(ServerPlayer player, QuestDefinition definition, ResourceLocation quest, String objective) {
+        if (definition.scope() == StoryScope.PLAYER) {
+            return true;
+        }
+        UUID owner = StoryState.owner(player, definition.scope());
+        if (TriggerDispatcher.countedBefore(owner)) {
+            return false;
+        }
+        long occurrence = TriggerDispatcher.occurrence();
+        if (occurrence != countedOccurrence) {
+            countedOccurrence = occurrence;
+            COUNTED.clear();
+        }
+        return COUNTED.add(owner + " " + quest + " " + objective);
     }
 
     /**
@@ -591,6 +624,14 @@ public final class Quests {
         NeoForge.EVENT_BUS.post(new QuestChangedEvent(player.server, quest, definition.scope(), StoryState.owner(player, definition.scope()),
                 oldStatus, newStatus, oldStage, newStage, player));
         QuestLogic.QuestChange change = new QuestLogic.QuestChange(quest, oldStatus, newStatus, oldStage, newStage);
+        TriggerDispatcher.asOne(() -> notifyWitnesses(player, definition, change));
+    }
+
+    private static void notifyWitnesses(ServerPlayer player, QuestDefinition definition, QuestLogic.QuestChange change) {
+        Optional<QuestStatus> oldStatus = change.oldStatus();
+        Optional<QuestStatus> newStatus = change.newStatus();
+        Optional<String> oldStage = change.oldStage();
+        Optional<String> newStage = change.newStage();
         for (ServerPlayer witness : witnesses(player, definition)) {
             StoryContext context = StoryContext.of(witness);
             if (!oldStatus.equals(newStatus)) {

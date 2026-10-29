@@ -21,6 +21,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Unit;
 import net.neoforged.neoforge.common.NeoForge;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Routes game events to subscribed story logic. Indexed by trigger type, so event types nobody
@@ -36,6 +37,16 @@ public final class TriggerDispatcher {
     /** Players whose next area check is their first since logging in. */
     private static final Set<UUID> FRESH_LOGINS = new HashSet<>();
     private static int depth;
+    /** The owner of the world's shared progress, for {@link #asOne(Set, Runnable)} ({@code StoryState.owner} gives null). */
+    public static final UUID WORLD = new UUID(0, 0);
+    private static long occurrences;
+    /** The happening the trigger now being handled belongs to. */
+    private static long current;
+    private static Set<UUID> countedBefore = Set.of();
+    /** The happening fired as one by {@link #asOne}, at its depth; -1 outside one. */
+    private static long group = -1;
+    private static int groupDepth = -1;
+    private static Set<UUID> groupCountedBefore = Set.of();
 
     private TriggerDispatcher() {}
 
@@ -66,16 +77,62 @@ public final class TriggerDispatcher {
     @SuppressWarnings("unchecked")
     public static <E> void fire(TriggerType<?, E> type, StoryContext context, E event) {
         List<Subscription<?>> subscriptions = index.get(type);
+        boolean grouped = group >= 0 && depth == groupDepth;
         if (subscriptions == null || !enter(type)) {
             return;
         }
+        long previous = current;
+        Set<UUID> previousCounted = countedBefore;
+        current = grouped ? group : ++occurrences;
+        countedBefore = grouped ? groupCountedBefore : Set.of();
         try {
             for (Subscription<?> subscription : subscriptions) {
                 notify((Subscription<E>) subscription, context, event);
             }
         } finally {
             depth--;
+            current = previous;
+            countedBefore = previousCounted;
         }
+    }
+
+    /**
+     * Fires what {@code fires} fires as one happening in the world: a kill shared with the killer's party, a boss's
+     * victory for each credited player, a party quest's or flag's change for each member online fire one trigger for
+     * several players, and progress those players share (a party's, the world's) counts it once (October 29, 2026;
+     * see {@link #occurrence}). What those triggers set off in turn is a happening of its own.
+     *
+     * @param countedBefore owners of shared progress that already counted this happening (a victory credited late, on
+     *                      joining, was counted for the party of a player who was there); {@link #WORLD} for the world's
+     */
+    public static void asOne(Set<UUID> countedBefore, Runnable fires) {
+        long previousGroup = group;
+        int previousDepth = groupDepth;
+        Set<UUID> previousCounted = groupCountedBefore;
+        group = ++occurrences;
+        groupDepth = depth;
+        groupCountedBefore = Set.copyOf(countedBefore);
+        try {
+            fires.run();
+        } finally {
+            group = previousGroup;
+            groupDepth = previousDepth;
+            groupCountedBefore = previousCounted;
+        }
+    }
+
+    public static void asOne(Runnable fires) {
+        asOne(Set.of(), fires);
+    }
+
+    /** The happening of the trigger being handled: the same for every player it was fired for {@link #asOne as one}. */
+    public static long occurrence() {
+        return current;
+    }
+
+    /** Whether the shared progress of {@code owner} (null: the world's) counted the happening being handled before. */
+    public static boolean countedBefore(@Nullable UUID owner) {
+        return countedBefore.contains(owner == null ? WORLD : owner);
     }
 
     /** True if a subscription of this type would react to the event; lets costly detectors skip what nobody listens for. */
@@ -116,7 +173,10 @@ public final class TriggerDispatcher {
         if (subscriptions.isEmpty()) {
             return;
         }
+        long previousOccurrence = current;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            // Each player walking in is a happening of their own.
+            current = ++occurrences;
             Set<Subscription<?>> inside = Collections.newSetFromMap(new IdentityHashMap<>());
             StoryContext context = StoryContext.of(player);
             for (Subscription<?> subscription : subscriptions) {
@@ -148,6 +208,7 @@ public final class TriggerDispatcher {
                 depth--;
             }
         }
+        current = previousOccurrence;
     }
 
     static void loggedIn(UUID player) {

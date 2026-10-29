@@ -75,6 +75,11 @@ public final class JournalData {
     }
 
     /** In the order they were added. */
+    /** Every document the player has read, archived or not. */
+    public Collection<ResourceLocation> read() {
+        return Collections.unmodifiableSet(read);
+    }
+
     public Collection<ResourceLocation> documents() {
         return Collections.unmodifiableSet(documents);
     }

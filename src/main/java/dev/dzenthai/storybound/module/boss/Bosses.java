@@ -8,10 +8,14 @@ import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.KillCredit;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.notify.Notifications;
 import dev.dzenthai.storybound.core.notify.NotifyKind;
+import dev.dzenthai.storybound.core.state.StoryScope;
+import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.module.codex.Unlock;
+import dev.dzenthai.storybound.module.journal.Journal;
 import dev.dzenthai.storybound.network.BossSyncPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import java.util.ArrayList;
@@ -99,9 +103,62 @@ public final class Bosses {
             return;
         }
         long ticks = fight != null ? server.getTickCount() - fight.startTick() : 0;
-        for (ServerPlayer player : credited(victim, killer, fight, definition)) {
-            defeated(player, boss, definition, victim, ticks);
+        List<ServerPlayer> credited = credited(victim, killer, fight, definition);
+        TriggerDispatcher.asOne(() -> credited.forEach(player -> defeated(player, boss, definition, victim, ticks)));
+        oweAbsent(server, boss, definition, victim, fight, credited, ticks);
+    }
+
+    /**
+     * Players who dealt their share of the damage and left before the end get the victory when they next join
+     * (October 29, 2026; before, they got nothing). What it counted for the parties of the players who were there
+     * and for the world is not counted again.
+     */
+    private static void oweAbsent(MinecraftServer server, ResourceLocation boss, BossDefinition definition, LivingEntity victim,
+                                  @Nullable Fight fight, List<ServerPlayer> credited, long ticks) {
+        if (fight == null) {
+            return;
         }
+        float needed = definition.participation() * victim.getMaxHealth();
+        List<UUID> counted = new ArrayList<>(List.of(TriggerDispatcher.WORLD));
+        credited.forEach(player -> counted.add(StoryState.owner(player, StoryScope.PARTY)));
+        fight.damage().forEach((id, damage) -> {
+            if (damage >= needed && server.getPlayerList().getPlayer(id) == null) {
+                BossVictoriesOwed.get(server).owe(id, new BossVictoriesOwed.Owed(boss, ticks, counted));
+            }
+        });
+    }
+
+    /** Credits the victories won while the player was away (see {@link #oweAbsent}); on joining. Public for tests. */
+    public static void payOwed(ServerPlayer player) {
+        if (!isEnabled()) {
+            return;
+        }
+        for (BossVictoriesOwed.Owed victory : BossVictoriesOwed.get(player.server).take(player.getUUID())) {
+            StoryTrace.note(player, "boss " + victory.boss(), "won after the player had fought it and left: credited on joining");
+            TriggerDispatcher.asOne(Set.copyOf(victory.counted()),
+                    () -> defeated(player, victory.boss(), definition(victory.boss()), null, victory.ticks()));
+        }
+    }
+
+    /**
+     * Sections that open on reading a document the player has read already (before the boss or the section existed,
+     * or while its conditions did not hold) open now: a read is a state that holds (October 29, 2026). On joining
+     * and after a reload.
+     */
+    public static void catchUpReads(ServerPlayer player) {
+        if (!isEnabled()) {
+            return;
+        }
+        StoryContext context = StoryContext.of(player);
+        bosses.forEach(entry -> {
+            for (String section : BossDefinition.SECTIONS) {
+                entry.getValue().unlock(section).ifPresent(unlock -> unlock.on().forEach(source -> {
+                    if (source instanceof Unlock.Source.Read read && Journal.of(player).hasRead(read.document())) {
+                        read(context, entry.getKey(), source);
+                    }
+                }));
+            }
+        });
     }
 
     /** Players who dealt enough damage, the killer, and the party members of all of them near the boss. Public for tests. */
@@ -169,7 +226,8 @@ public final class Bosses {
         sync(player);
     }
 
-    private static void defeated(ServerPlayer player, ResourceLocation boss, BossDefinition definition, LivingEntity entity, long ticks) {
+    /** @param entity the boss; null for a victory credited later, when the boss is long gone */
+    private static void defeated(ServerPlayer player, ResourceLocation boss, BossDefinition definition, @Nullable LivingEntity entity, long ticks) {
         BossData data = data(player);
         BossData.Record before = data.get(boss);
         BossData.Record after = before.victory(System.currentTimeMillis(), ticks);

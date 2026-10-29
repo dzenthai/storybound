@@ -26,7 +26,13 @@ public final class DocumentEvents {
     }
 
     private static void onDatapackSync(OnDatapackSyncEvent event) {
-        event.getRelevantPlayers().forEach(Journal::sync);
+        event.getRelevantPlayers().forEach(player -> {
+            Journal.archiveMissing(player, document -> {
+                DocumentDefinition definition = DocumentRegistries.DOCUMENTS.serverStore().getOrNull(document);
+                return definition != null && definition.journal().addOnRead();
+            });
+            Journal.sync(player);
+        });
     }
 
     /** Every definition with logic must refer to documents that exist. */

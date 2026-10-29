@@ -59,7 +59,10 @@ Required on both client and server.
 
 ### Journal, Codex, bosses, waypoints
 - Readable documents (books, letters, notes, contracts) in their own markup, kept in the Journal.
-- Codex entries that open on sight, kills and reading; bosses with fight records.
+- Codex entries that open on sight, kills and reading; bosses with fight records. A book read before the entry (or
+  the section) existed opens it on the next join; a player who fought a boss and left before the end gets the victory
+  when they come back.
+- One kill or boss victory counts once for a party quest, however many members it is credited to.
 - Search areas show their radius by the name and their edge on the ground near the player (each can be turned off;
   players can turn the edges off in the client settings).
 - Server waypoints shown in Xaero's Minimap, JourneyMap and as in-world markers, pointing at places, structures or

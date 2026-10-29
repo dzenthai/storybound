@@ -18,6 +18,8 @@ import dev.dzenthai.storybound.core.logic.StoryEvent;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.logic.trigger.SeenTracker;
 import dev.dzenthai.storybound.core.state.PartyManager;
+import dev.dzenthai.storybound.core.state.QuestProgress;
+import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
@@ -25,6 +27,7 @@ import dev.dzenthai.storybound.module.boss.BossData;
 import dev.dzenthai.storybound.module.boss.BossDefinition;
 import dev.dzenthai.storybound.module.boss.BossEvents;
 import dev.dzenthai.storybound.module.boss.BossRegistries;
+import dev.dzenthai.storybound.module.boss.BossVictoriesOwed;
 import dev.dzenthai.storybound.module.boss.Bosses;
 import dev.dzenthai.storybound.module.codex.Codex;
 import dev.dzenthai.storybound.module.codex.CodexDefinition;
@@ -33,10 +36,16 @@ import dev.dzenthai.storybound.module.codex.CodexRegistries;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.document.Documents;
+import dev.dzenthai.storybound.module.journal.Journal;
+import dev.dzenthai.storybound.module.quest.QuestDefinition;
+import dev.dzenthai.storybound.module.quest.QuestEvents;
+import dev.dzenthai.storybound.module.quest.QuestRegistries;
+import dev.dzenthai.storybound.module.quest.Quests;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.gametest.framework.GameTest;
@@ -207,6 +216,110 @@ public final class CodexGameTests {
         ok(() -> PartyManager.disband(leader));
         List.of(leader, ally, stranger, scratcher, distant).forEach(player -> remove(helper, player));
         helper.succeed();
+    }
+
+    /**
+     * One happening counts once for progress players share: a boss's victory credited to two party members, a kill
+     * shared with the party, counts one for a party quest (a personal quest of each still counts for each). A player
+     * who fought and left before the end gets the victory on joining, without counting it again for their party.
+     */
+    @GameTest(template = "empty")
+    public static void oneVictoryCountsOnceForSharedProgressAndAFighterWhoLeftGetsItLater(GameTestHelper helper) {
+        ServerPlayer leader = at(helper, helper.makeMockServerPlayerInLevel(), 1.5, 2, 3);
+        ServerPlayer ally = at(helper, helper.makeMockServerPlayerInLevel(), 3.5, 2, 3);
+        ServerPlayer gone = at(helper, helper.makeMockServerPlayerInLevel(), 2.5, 2, 4);
+        ok(() -> PartyManager.create(leader, "Raiders"));
+        for (ServerPlayer member : List.of(ally, gone)) {
+            ok(() -> PartyManager.invite(leader, member));
+            ok(() -> PartyManager.accept(member));
+        }
+        ResourceLocation raid = key("raid"), own = key("own_hunt"), pigs = key("pig_drive");
+        String quest = "{ \"title\": \"gametest.q\", \"scope\": \"%s\", \"stages\": [ { \"id\": \"a\", \"objectives\": [ { \"id\": \"o\","
+                + " \"trigger\": %s, \"count\": %d } ] } ] }";
+        String brute = "{ \"type\": \"boss_killed\", \"boss\": \"gametest:brute\" }";
+        withBoss(helper, () -> with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(
+                raid, quest.formatted("party", brute, 2),
+                own, quest.formatted("player", brute, 1),
+                pigs, quest.formatted("party", "{ \"type\": \"entity_killed\", \"entity\": \"minecraft:pig\", \"shared\": true }", 2)), () -> {
+            QuestEvents.rebuild();
+            for (ResourceLocation id : List.of(raid, own, pigs)) {
+                for (ServerPlayer player : List.of(leader, ally, gone)) {
+                    run(helper, player, "{ \"type\": \"set_quest_state\", \"quest\": \"" + id + "\", \"state\": \"active\" }");
+                }
+            }
+            kill(helper.spawnWithNoFreeWill(EntityType.PIG, 1, 2, 1), leader);
+            expect(helper, count(leader, pigs), 1, "a kill shared with the party counts once for the party");
+
+            Zombie first = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 1, 2, 1);
+            first.addTag("gametest_brute");
+            hit(first, gone, 6f);
+            helper.getLevel().getServer().getPlayerList().remove(gone);
+            hit(first, leader, 100f);
+            expect(helper, Bosses.data(ally).get(BOSS).victories(), 1, "the ally nearby shares the victory");
+            expect(helper, count(leader, raid), 1, "two members credited: the party quest counts one victory");
+            expect(helper, Quests.progress(ally, own).map(QuestProgress::status), Optional.of(QuestStatus.COMPLETED), "each one's own quest counts");
+            expect(helper, Bosses.data(gone).get(BOSS).victories(), 0, "the one who left: not yet");
+            expect(helper, BossVictoriesOwed.get(helper.getLevel().getServer()).of(gone.getUUID()).size(), 1, "owed");
+
+            Bosses.payOwed(gone);
+            expect(helper, Bosses.data(gone).get(BOSS).victories(), 1, "credited on joining");
+            expect(helper, playerVar(gone, "brute_firsts"), 1, "with the boss's first-kill actions");
+            expect(helper, Quests.progress(gone, own).map(QuestProgress::status), Optional.of(QuestStatus.COMPLETED), "and their own quest's objective");
+            expect(helper, count(leader, raid), 1, "but the party's progress, counted when it happened, not again");
+            expect(helper, BossVictoriesOwed.get(helper.getLevel().getServer()).of(gone.getUUID()), List.of(), "once");
+
+            Zombie second = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 2, 2, 1);
+            second.addTag("gametest_brute");
+            hit(second, leader, 100f);
+            expect(helper, Quests.progress(leader, raid).map(QuestProgress::status), Optional.of(QuestStatus.COMPLETED), "the second victory completes the raid");
+            for (ServerPlayer player : List.of(leader, ally, gone)) {
+                Bosses.reset(player, BOSS);
+                for (ResourceLocation id : List.of(raid, own, pigs)) {
+                    run(helper, player, "{ \"type\": \"set_quest_state\", \"quest\": \"" + id + "\", \"state\": \"unknown\" }");
+                }
+            }
+        }));
+        QuestEvents.rebuild();
+        ok(() -> PartyManager.disband(leader));
+        List.of(leader, ally).forEach(player -> remove(helper, player));
+        helper.succeed();
+    }
+
+    /**
+     * A treatise read before the Codex entry or the boss section that opens on it existed opens them on joining (a read
+     * is a state); a read document that belongs in the Journal but is not there goes in.
+     */
+    @GameTest(template = "empty")
+    public static void whatWasReadBeforeOpensItsSectionsLater(GameTestHelper helper) {
+        ServerPlayer reader = at(helper, helper.makeMockServerPlayerInLevel(), 1.5, 2, 3);
+        with(helper, DocumentRegistries.DOCUMENTS.serverStore(), DocumentDefinition.CODEC, Map.of(BESTIARY,
+                "{ \"kind\": \"book\", \"title\": \"gametest.bestiary\", \"journal\": { \"add_on_read\": false } }"), () -> {
+            helper.assertTrue(Documents.read(reader, BESTIARY, false), "read before anything opens on it");
+            helper.assertTrue(!Journal.of(reader).documents().contains(BESTIARY), "not archived: add_on_read was off");
+            Journal.archiveMissing(reader, document -> true);
+            helper.assertTrue(Journal.of(reader).documents().contains(BESTIARY), "archived once it belongs in the Journal");
+        });
+        withCodex(helper, () -> {
+            helper.assertTrue(!Codex.data(reader).isUnlocked(PIGS, "lore"), "the entry came after the read");
+            Codex.catchUpReads(reader);
+            helper.assertTrue(Codex.data(reader).isUnlocked(PIGS, "lore"), "the read opens the lore on joining");
+        });
+        with(helper, BossRegistries.BOSSES.serverStore(), BossDefinition.CODEC, Map.of(BOSS,
+                "{ \"entity\": { \"type\": \"minecraft:zombie\", \"tag\": \"gametest_brute\" }, \"title\": \"gametest.boss.brute\","
+                        + " \"tactics\": { \"unlock\": { \"on\": [\"read:gametest:bestiary\"] } } }"), () -> {
+            BossEvents.rebuild();
+            Bosses.catchUpReads(reader);
+            helper.assertTrue(Bosses.data(reader).get(BOSS).isUnlocked(BossDefinition.TACTICS), "and the boss's tactics");
+            Bosses.reset(reader, BOSS);
+        });
+        BossEvents.rebuild();
+        Codex.lock(reader, PIGS, null);
+        remove(helper, reader);
+        helper.succeed();
+    }
+
+    private static int count(ServerPlayer player, ResourceLocation quest) {
+        return Quests.progress(player, quest).map(progress -> progress.count("o")).orElse(-1);
     }
 
     @GameTest(template = "empty")

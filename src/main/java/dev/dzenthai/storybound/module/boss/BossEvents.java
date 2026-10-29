@@ -31,6 +31,7 @@ import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 public final class BossEvents {
@@ -46,6 +47,7 @@ public final class BossEvents {
         gameBus.addListener(BossEvents::onDeath);
         gameBus.addListener(BossEvents::onLeave);
         gameBus.addListener(BossEvents::onServerStopped);
+        gameBus.addListener(BossEvents::onLoggedIn);
         LogicOwners.register(BossRegistries.BOSSES, BossEvents::collectReferences);
         ValidationService.registerValidator(BossEvents::validate);
     }
@@ -81,7 +83,16 @@ public final class BossEvents {
     }
 
     private static void onDatapackSync(OnDatapackSyncEvent event) {
-        event.getRelevantPlayers().forEach(Bosses::sync);
+        event.getRelevantPlayers().forEach(player -> {
+            Bosses.catchUpReads(player);
+            Bosses.sync(player);
+        });
+    }
+
+    private static void onLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            Bosses.payOwed(player);
+        }
     }
 
     private static void onDamage(LivingDamageEvent.Post event) {

@@ -79,7 +79,10 @@ public final class CodexEvents {
     }
 
     private static void onDatapackSync(OnDatapackSyncEvent event) {
-        event.getRelevantPlayers().forEach(Codex::sync);
+        event.getRelevantPlayers().forEach(player -> {
+            Codex.catchUpReads(player);
+            Codex.sync(player);
+        });
     }
 
     /** The conditions and the documents of every section's unlock. */

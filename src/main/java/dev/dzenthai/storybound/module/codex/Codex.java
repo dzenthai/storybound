@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.notify.Notifications;
 import dev.dzenthai.storybound.core.notify.NotifyKind;
+import dev.dzenthai.storybound.module.journal.Journal;
 import dev.dzenthai.storybound.network.CodexKillsPayload;
 import dev.dzenthai.storybound.network.CodexSyncPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
@@ -68,6 +69,23 @@ public final class Codex {
             // One number, not the whole Codex: kills come often (a mob farm).
             StoryboundNetwork.sendToPlayer(context.player(), new CodexKillsPayload(Map.of(entry, counter), false));
         }
+    }
+
+    /**
+     * Sections that open on reading a document the player has read already (before the entry or the section existed,
+     * or while its conditions did not hold) open now: a read is a state that holds, as quests and story events count
+     * it (October 29, 2026). On joining and after a reload.
+     */
+    public static void catchUpReads(ServerPlayer player) {
+        if (!isEnabled()) {
+            return;
+        }
+        StoryContext context = StoryContext.of(player);
+        CodexRegistries.CODEX.serverStore().all().forEach((entry, definition) -> definition.sections().stream()
+                .flatMap(section -> section.unlock().on().stream())
+                .filter(source -> source instanceof Unlock.Source.Read read && Journal.of(player).hasRead(read.document()))
+                .distinct()
+                .forEach(source -> observed(context, entry, source)));
     }
 
     /** Opens one section, or every section when {@code section} is null. @return false for an unknown entry or section, or a disabled module */

@@ -28,5 +28,6 @@ public final class BossRegistries {
         BossLogic.REGISTER_ACTIONS.register(modBus);
         BossLogic.REGISTER_TRIGGERS.register(modBus);
         StoryMigrations.registerPlayer((player, renames) -> player.getData(DATA).migrate(renames));
+        StoryMigrations.registerServer((server, renames) -> BossVictoriesOwed.get(server).migrate(renames));
     }
 }
