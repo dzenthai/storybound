@@ -20,7 +20,7 @@ import org.jetbrains.annotations.Nullable;
  * {@code <namespace>:<name>} (a subfolder goes into the name: {@code sounds/demo/elder/hello.ogg} is
  * {@code demo:elder/hello}); a file right in {@code sounds/} is {@code storybound:<name>}, as a story file without a
  * folder is. Only Ogg Vorbis plays in Minecraft; a file that is not, or is wrongly named, is left out
- * and said why. Pure, for {@link StorySounds} and tests.
+ * and said why. Pure, for {@link StoryAssets} and tests.
  */
 public final class StorySoundFiles {
     /** Above this a sound is streamed, as Minecraft does with music: a long voice line does not load at once. */

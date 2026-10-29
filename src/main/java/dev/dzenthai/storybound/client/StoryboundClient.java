@@ -82,7 +82,7 @@ public final class StoryboundClient {
         modBus.addListener(StoryboundClient::onRegisterKeys);
         modBus.addListener(StoryboundClient::onRegisterReloadListeners);
         modBus.addListener(StoryboundClient::onRegisterGuiLayers);
-        dev.dzenthai.storybound.client.sound.StorySounds.register(modBus);
+        dev.dzenthai.storybound.client.sound.StoryAssets.register(modBus);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onClientTick);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(SpeechBubbles::onRenderLevel);

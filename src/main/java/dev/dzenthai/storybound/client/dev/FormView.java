@@ -410,7 +410,9 @@ final class FormView {
         JsonObject inDialogue = host.dialogue();
         String node = inDialogue != null && path.isEmpty() && host.root().get("type") instanceof JsonPrimitive type ? type.getAsString() : null;
         boolean option = inDialogue != null && path.size() == 2 && "options".equals(path.getFirst()) && Schemas.properties(schema).containsKey("locked");
-        String form = node != null ? "node." + node : option ? "option" : null;
+        boolean document = path.isEmpty() && Schemas.properties(schema).containsKey("journal") && Schemas.properties(schema).containsKey("kind");
+        boolean journal = path.size() == 1 && "journal".equals(path.getFirst()) && Schemas.properties(schema).containsKey("add_on_read");
+        String form = node != null ? "node." + node : option ? "option" : document ? "document" : journal ? "journal" : null;
         Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
                 : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
         JsonObject object = objectAt(path);
@@ -428,6 +430,11 @@ final class FormView {
                 proximityField(path, property.getValue(), object);
             } else if ("node.choice".equals(form) && name.equals("timeout")) {
                 timeoutField(path, property.getValue(), object);
+            } else if ("document".equals(form) && name.equals("journal")) {
+                // Two settings: shown here, not behind a row of their own.
+                objectPage(with(path, "journal"), property.getValue(), Set.of(), null);
+            } else if ("document".equals(form) && name.equals("custom_model_data")) {
+                iconField(path, name, object);
             } else {
                 field(path, name, property.getValue(), required.contains(name), schema);
             }
@@ -532,17 +539,30 @@ final class FormView {
      */
     private static final Map<String, List<String>> NODE_ORDER = Map.of(
             "node.jump", List.of("dialogue", "node"),
-            "option", List.of("text", "next", "conditions", "locked", "locked_text", "actions", "once", "think", "id"));
+            "option", List.of("text", "next", "conditions", "locked", "locked_text", "actions", "once", "think", "id"),
+            // A document (October 30, 2026; before, the file's order, the journal behind a row, the contract for every kind).
+            "document", List.of("title", "kind", "custom_model_data", "style", "journal", "on_read", "contract", "content"),
+            "journal", List.of("add_on_read", "category"));
 
     private static final Map<String, Map<String, String>> NODE_GROUPS = Map.of(
             "node.line", Map.of("sound", "node.group.sound_time", "shot", "node.group.camera"),
-            "option", Map.of("conditions", "option.group.when", "actions", "option.group.chosen", "id", "option.group.other"));
+            "option", Map.of("conditions", "option.group.when", "actions", "option.group.chosen", "id", "option.group.other"),
+            "document", Map.of("custom_model_data", "document.group.look", "journal", "document.group.journal", "on_read", "document.group.read",
+                    "contract", "document.group.contract", "content", "document.group.other"));
 
     private static boolean nodeFieldShown(String form, String name, @Nullable JsonObject object, @Nullable JsonObject dialogue) {
         if (form.equals("node.line") && (name.equals("shot") || name.equals("transition"))) {
             boolean screen = !(dialogue != null && dialogue.get("presentation") instanceof JsonPrimitive shown) || shown.getAsString().equals("screen");
             boolean camera = !(dialogue != null && dialogue.get("camera") instanceof JsonPrimitive mode) || !mode.getAsString().equals("off");
             return screen && camera || object != null && object.has(name);
+        }
+        if (form.equals("document") && name.equals("contract")) {
+            // Only a contract has one.
+            return object != null && (object.get("kind") instanceof JsonPrimitive kind && kind.getAsString().equals("contract") || object.has("contract"));
+        }
+        if (form.equals("journal") && name.equals("category")) {
+            boolean added = !(object != null && object.get("add_on_read") instanceof JsonPrimitive add) || add.getAsBoolean();
+            return added || object.has("category");
         }
         if (form.equals("option") && name.equals("locked_text")) {
             return object != null && (object.get("locked") instanceof JsonPrimitive locked && locked.getAsString().equals("show") || object.has("locked_text"));
@@ -682,9 +702,9 @@ final class FormView {
             boolean known = text.isEmpty() || id != null && Minecraft.getInstance().getSoundManager().getAvailableSounds().contains(id);
             box.setTextColor(known ? 0xFFE0E0E0 : DevUi.ERROR);
             dev.dzenthai.storybound.client.sound.StorySoundFiles.Problem problem = id != null
-                    ? dev.dzenthai.storybound.client.sound.StorySounds.last().problemOf(id.toString()) : null;
+                    ? dev.dzenthai.storybound.client.sound.StoryAssets.last().problemOf(id.toString()) : null;
             Component why = problem != null ? DevUi.text("sound.problem." + problem.kind())
-                    : known ? DevUi.text("sound.tooltip", dev.dzenthai.storybound.client.sound.StorySounds.folder().toString())
+                    : known ? DevUi.text("sound.tooltip", dev.dzenthai.storybound.client.sound.StoryAssets.folder().toString())
                     : DevUi.text("sound.missing");
             box.setTooltip(Tooltip.create(why));
         };
@@ -717,10 +737,87 @@ final class FormView {
         }).tooltip(Tooltip.create(DevUi.text("sound.play"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
     }
 
-    /** A choice from a list in words where it has some: "@end" is "the end of the dialogue". */
+    /**
+     * A document's icon in the inventory, its {@code custom_model_data}: the story's icons
+     * ({@code config/storybound/icons}) by name, picked from a list that shows them; empty, the kind's own icon (October
+     * 30, 2026; before, a number to type, to pair with a resource pack made by hand). A number no icon of the story
+     * has stays, said to come from a resource pack.
+     */
+    private void iconField(List<Object> path, String name, @Nullable JsonObject document) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("document.icon"));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        Integer number = document != null && document.get(name) instanceof JsonPrimitive value && value.isNumber() ? value.getAsInt() : null;
+        dev.dzenthai.storybound.client.sound.StoryIconFiles.Icon icon = number != null ? dev.dzenthai.storybound.client.sound.StoryAssets.icons().byNumber(number) : null;
+        Component shown = number == null ? DevUi.text("document.icon_default") : icon != null ? Component.literal(icon.id())
+                : DevUi.text("document.icon_number", number);
+        Button button = Button.builder(Component.empty().append(shown).append(" ▸"), b -> screen.catalog().open(DevUi.text("document.pick_icon"), Catalog.Kind.ICON, (kind, entry) -> {
+            if (entry.id().startsWith(Catalog.PROBLEM)) {
+                screen.status(DevUi.text("icon.problem." + entry.id().substring(Catalog.PROBLEM.length())), DevUi.BAD);
+                return;
+            }
+            dev.dzenthai.storybound.client.sound.StoryIconFiles.Icon picked = dev.dzenthai.storybound.client.sound.StoryAssets.icons().icons().stream()
+                    .filter(candidate -> candidate.id().equals(entry.id())).findFirst().orElse(null);
+            if (picked != null) {
+                ensureObject(path).addProperty(name, picked.number());
+                host.changed();
+            }
+        })).tooltip(Tooltip.create(DevUi.text("document.icon_tooltip", dev.dzenthai.storybound.client.sound.StoryAssets.iconFolder().toString())))
+                .bounds(x, rowTop, w - 20, CONTROL_H).build();
+        screen.add(button);
+        Button clear = Button.builder(Component.literal("✕"), b -> {
+            ensureObject(path).remove(name);
+            host.changed();
+        }).tooltip(Tooltip.create(DevUi.text("document.icon_clear"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build();
+        clear.active = number != null;
+        screen.add(clear);
+    }
+
+    /**
+     * What a document's empty style, journal section or text is, by its kind, for the box to say (October 30, 2026;
+     * before, an empty box): a letter is on parchment and goes to Letters; the text is the document's own.
+     */
+    private @Nullable Component documentDefault(String name, List<Object> path) {
+        JsonObject document = objectAt(List.of());
+        if (document == null || !document.has("journal") && !document.has("kind") || host.dialogue() != null) {
+            return null;
+        }
+        String kind = document.get("kind") instanceof JsonPrimitive value ? value.getAsString() : "";
+        boolean top = path.isEmpty();
+        boolean inJournal = path.size() == 1 && "journal".equals(path.getFirst());
+        if (top && name.equals("style")) {
+            String style = switch (kind) {
+                case "book" -> "book_leather";
+                case "letter" -> "parchment";
+                case "scroll", "note", "contract" -> kind;
+                default -> null;
+            };
+            return style == null ? null : Component.literal(choiceLabel("storybound:" + style));
+        }
+        if (inJournal && name.equals("category")) {
+            String section = switch (kind) {
+                case "book", "scroll", "note", "letter", "contract" -> kind + "s";
+                default -> null;
+            };
+            return section == null ? null : Component.literal(choiceLabel("storybound:" + section));
+        }
+        if (top && name.equals("content")) {
+            return DevUi.text("document.own_text");
+        }
+        return null;
+    }
+
+    /** A choice from a list in words where it has some: "@end" is "the end of the dialogue"; a style or a section by its name. */
     private static String choiceLabel(String choice) {
         String key = "storybound.dev.value." + choice;
-        return Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) + (choice.startsWith("@") ? " (" + choice + ")" : "") : choice;
+        if (Language.getInstance().has(key)) {
+            return Language.getInstance().getOrDefault(key) + (choice.startsWith("@") ? " (" + choice + ")" : "");
+        }
+        ResourceLocation id = choice.contains(":") ? ResourceLocation.tryParse(choice) : null;
+        String section = id != null ? id.getNamespace() + ".journal.category." + id.getPath() : "";
+        return id != null && Language.getInstance().has(section) ? Language.getInstance().getOrDefault(section) + " (" + choice + ")" : choice;
     }
 
     /** A heading over a group of fields. */
@@ -1092,7 +1189,7 @@ final class FormView {
             }
         }
         switch (kind) {
-            case TEXT -> textField(path, name, label, tooltip);
+            case TEXT -> textField(path, name, label, tooltip, longText(name, owner));
             case ENUM -> enumField(path, name, node, required, value, label, tooltip);
             case BOOLEAN -> booleanField(path, name, node, value, needsKubeJs(path, name) ? DevUi.text("form.needs_kubejs", label) : label, tooltip);
             case ID -> {
@@ -1141,14 +1238,28 @@ final class FormView {
         labels.add(new Label(label, x, rowY(LABEL_H + CONTROL_H), DevUi.LABEL));
     }
 
-    private void textField(List<Object> path, String name, Component label, @Nullable Tooltip tooltip) {
+    /**
+     * Whether a story text is written at length, so its field has the text window's ✎: a dialogue's line and answer, a
+     * quest's description, its texts per state and its stages' log. The rest (titles, names, a contract's lines, an
+     * objective's line, hints) is one line (October 30, 2026; before, ✎ on every text field).
+     */
+    private static boolean longText(String name, Node owner) {
+        Map<String, Node> properties = Schemas.properties(owner);
+        return switch (name) {
+            case "description", "log", "active", "completed", "failed" -> true;
+            case "text" -> properties.containsKey("speaker") || properties.containsKey("locked_text");
+            default -> false;
+        };
+    }
+
+    private void textField(List<Object> path, String name, Component label, @Nullable Tooltip tooltip, boolean window) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
         }
         labelRow(label);
         JsonObject object = objectAt(path);
         int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
-        EditBox box = new EditBox(screen.font(), x, rowTop, w - 20, CONTROL_H - 2, label);
+        EditBox box = new EditBox(screen.font(), x, rowTop, window ? w - 20 : w, CONTROL_H - 2, label);
         box.setMaxLength(1024);
         box.setValue(object != null ? ClientDevStore.readStoryText(object, name, "", ClientDevStore.activeLanguage()) : "");
         if (!ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage()) && object != null) {
@@ -1168,6 +1279,9 @@ final class FormView {
             box.setTooltip(tooltip);
         }
         screen.add(box);
+        if (!window) {
+            return;
+        }
         // The same text in a window of its own, for a long line (October 29, 2026; before, only the one-line box).
         screen.add(Button.builder(Component.literal("✎"), b -> {
             JsonObject owner = objectAt(path);
@@ -1433,7 +1547,10 @@ final class FormView {
         box.setMaxLength(4096);
         box.setValue(display(kind, value));
         JsonElement fallback = node.defaultValue() != null ? node.defaultValue() : Schemas.resolve(node).defaultValue();
-        if (fallback != null) {
+        Component byKind = documentDefault(name, path);
+        if (byKind != null) {
+            box.setHint(byKind.copy().withStyle(style -> style.withColor(0xFF6B7380)));
+        } else if (fallback != null) {
             box.setHint(Component.literal(display(kind, fallback)).withStyle(style -> style.withColor(0xFF6B7380)));
         }
         box.setResponder(text -> {
@@ -2013,6 +2130,9 @@ final class FormView {
         if (properties.containsKey("show_ring")) {
             return WAYPOINT;
         }
+        if (properties.containsKey("reward") && properties.containsKey("hint") && properties.containsKey("quest")) {
+            return "contract";
+        }
         if (properties.containsKey("locked") && properties.containsKey("once")) {
             return "option";
         }
@@ -2142,7 +2262,26 @@ final class FormView {
         if (kind != null) {
             return new Picker(kind, null, List.of(), DevUi.text("form.pick_title." + kind.name().toLowerCase(java.util.Locale.ROOT)));
         }
+        if (field.equals("style") && Schemas.properties(owner).containsKey("journal")) {
+            List<String> styles = dev.dzenthai.storybound.client.document.DocumentStyles.INSTANCE.ids().stream().map(ResourceLocation::toString).sorted().toList();
+            return new Picker(null, null, styles, DevUi.text("document.pick_style"));
+        }
+        if (field.equals("category") && Schemas.properties(owner).containsKey("add_on_read")) {
+            // The kinds' own sections, then those other documents name.
+            java.util.Set<String> sections = new java.util.LinkedHashSet<>(List.of("storybound:books", "storybound:scrolls", "storybound:notes",
+                    "storybound:letters", "storybound:contracts"));
+            ClientDevStore.byType(ClientDevStore.TYPE_DOCUMENT).values().forEach(raw -> {
+                if (ClientDevStore.parseObject(raw).get("journal") instanceof JsonObject settings && settings.get("category") instanceof JsonPrimitive category) {
+                    ResourceLocation id = ResourceLocation.tryParse(category.getAsString().contains(":") ? category.getAsString() : "storybound:" + category.getAsString());
+                    if (id != null) {
+                        sections.add(id.toString());
+                    }
+                }
+            });
+            return new Picker(null, null, List.copyOf(sections), DevUi.text("document.pick_section"));
+        }
         ResourceLocation story = switch (field) {
+            case "content" -> Schemas.properties(owner).containsKey("journal") ? ClientDevStore.TYPE_DOCUMENT : null;
             case "quest" -> ClientDevStore.TYPE_QUEST;
             case "dialogue", "busy_dialogue" -> ClientDevStore.TYPE_DIALOGUE;
             case "document" -> ClientDevStore.TYPE_DOCUMENT;

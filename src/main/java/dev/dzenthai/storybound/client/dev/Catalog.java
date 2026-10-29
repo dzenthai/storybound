@@ -1,7 +1,7 @@
 package dev.dzenthai.storybound.client.dev;
 
 import dev.dzenthai.storybound.client.sound.StorySoundFiles;
-import dev.dzenthai.storybound.client.sound.StorySounds;
+import dev.dzenthai.storybound.client.sound.StoryAssets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -41,7 +41,7 @@ final class Catalog {
     private static final int ROW_H = 19;
 
     /** What is picked; {@code LIST} is a list given by the caller (types, story nodes, dialogue nodes). */
-    enum Kind { STRUCTURE, BIOME, POI, MOB, ITEM, SOUND, LIST }
+    enum Kind { STRUCTURE, BIOME, POI, MOB, ITEM, SOUND, ICON, LIST }
 
     /** A file of the sounds folder that is not a sound, shown with why: picking it says how to fix it. */
     static final String PROBLEM = "@problem:";
@@ -127,7 +127,7 @@ final class Catalog {
             close();
             screen.rebuild();
         }).bounds(left + WIDTH - 22, top + 4, 18, 16).build());
-        if (kind == Kind.SOUND) {
+        if (kind == Kind.SOUND || kind == Kind.ICON) {
             soundButtons(screen, left, top);
         }
 
@@ -162,7 +162,7 @@ final class Catalog {
         int folderW = 64;
         int reloadW = 76;
         screen.add(Button.builder(Component.literal("📂 ").append(DevUi.text("sound.folder")), b -> {
-            java.nio.file.Path folder = StorySounds.folder();
+            java.nio.file.Path folder = kind == Kind.ICON ? StoryAssets.iconFolder() : StoryAssets.folder();
             try {
                 java.nio.file.Files.createDirectories(folder);
                 net.minecraft.Util.getPlatform().openPath(folder);
@@ -174,11 +174,12 @@ final class Catalog {
             screen.status(DevUi.text("sound.reloading"), DevUi.NEUTRAL);
             Minecraft minecraft = Minecraft.getInstance();
             minecraft.reloadResourcePacks().thenRun(() -> minecraft.execute(() -> {
-                if (open && kind == Kind.SOUND) {
+                if (open && (kind == Kind.SOUND || kind == Kind.ICON)) {
                     entries = entries(kind, minecraft.level);
                     scroll = 0;
                 }
-                screen.status(DevUi.text("sound.reloaded", StorySounds.last().sounds().size()), DevUi.OK);
+                screen.status(kind == Kind.ICON ? DevUi.text("icon.reloaded", StoryAssets.icons().icons().size())
+                        : DevUi.text("sound.reloaded", StoryAssets.last().sounds().size()), DevUi.OK);
                 screen.rebuild();
             }));
         }).tooltip(Tooltip.create(DevUi.text("sound.reload"))).bounds(left + WIDTH - 26 - folderW - reloadW, top + 3, reloadW, 16).build());
@@ -382,7 +383,7 @@ final class Catalog {
             case SOUND -> {
                 // The story's own sounds first (config/storybound/sounds), then every sound the game knows.
                 // The files that did not make it, and why, so a file dropped in is never just missing.
-                for (StorySoundFiles.Problem problem : StorySounds.last().problems()) {
+                for (StorySoundFiles.Problem problem : StoryAssets.last().problems()) {
                     if (!problem.kind().equals("stereo")) {
                         list.add(new Entry(PROBLEM + problem.kind(), "⚠ " + problem.file() + " — " + DevUi.str("sound.short." + problem.kind()),
                                 new ItemStack(Items.BARRIER)));
@@ -390,7 +391,7 @@ final class Catalog {
                 }
                 Set<String> listed = new LinkedHashSet<>();
                 list.add(new Entry(SECTION + "story", DevUi.str("sound.section.story"), ItemStack.EMPTY));
-                for (StorySoundFiles.Sound sound : StorySounds.last().sounds()) {
+                for (StorySoundFiles.Sound sound : StoryAssets.last().sounds()) {
                     if (listed.add(sound.id())) {
                         list.add(new Entry(sound.id(), sound.name(), new ItemStack(Items.NOTE_BLOCK)));
                     }
@@ -404,6 +405,25 @@ final class Catalog {
                         list.add(new Entry(id.toString(), id.getPath(), new ItemStack(Items.JUKEBOX)));
                     }
                 });
+            }
+            case ICON -> {
+                // The story's icons, shown as the document's item will show them.
+                for (dev.dzenthai.storybound.client.sound.StoryIconFiles.Problem problem : StoryAssets.icons().problems()) {
+                    if (!problem.kind().equals("not_16")) {
+                        list.add(new Entry(PROBLEM + problem.kind(), "⚠ " + problem.file() + " — " + DevUi.str("icon.short." + problem.kind()),
+                                new ItemStack(Items.BARRIER)));
+                    }
+                }
+                list.add(new Entry(SECTION + "icons", DevUi.str("icon.section"), ItemStack.EMPTY));
+                Item document = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("storybound", "document"));
+                for (dev.dzenthai.storybound.client.sound.StoryIconFiles.Icon icon : StoryAssets.icons().icons()) {
+                    ItemStack shown = new ItemStack(document);
+                    shown.set(net.minecraft.core.component.DataComponents.CUSTOM_MODEL_DATA, new net.minecraft.world.item.component.CustomModelData(icon.number()));
+                    list.add(new Entry(icon.id(), icon.name(), shown));
+                }
+                if (StoryAssets.icons().icons().isEmpty()) {
+                    list.add(new Entry(NOTE + "icons", DevUi.str("icon.section_empty"), ItemStack.EMPTY));
+                }
             }
             case LIST -> {}
         }

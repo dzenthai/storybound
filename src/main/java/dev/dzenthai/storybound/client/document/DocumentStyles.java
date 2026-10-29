@@ -23,6 +23,11 @@ public final class DocumentStyles extends SimpleJsonResourceReloadListener {
     }
 
     /** Whether a resource pack defines the style (a missing one falls back to the parchment). */
+    /** Every style the resource packs give, for the editor's list. */
+    public java.util.Set<ResourceLocation> ids() {
+        return styles.keySet();
+    }
+
     public boolean has(ResourceLocation id) {
         return styles.containsKey(id);
     }

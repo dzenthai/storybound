@@ -171,8 +171,12 @@ final class DevUi {
     }
 
     /** The round button on the inspector's edge that folds it away. */
+    /**
+     * The round button that hides the side panel, centred on the panel's edge ({@code cx}). Small enough to stay off
+     * the panel's labels, which start 8 pixels in (October 30, 2026; before, a radius of 11, over them).
+     */
     static void collapseButton(GuiGraphics graphics, int cx, int cy, int mouseX, int mouseY) {
-        int r = 11;
+        int r = COLLAPSE_R;
         boolean hover = onCollapseButton(mouseX, mouseY, cx, cy);
         int border = hover ? ACCENT : 0xFF3A4150;
         int fill = hover ? ROW_HOVER : 0xFF16191F;
@@ -181,10 +185,11 @@ final class DevUi {
         graphics.pose().translate(0, 0, 150);
         disc(graphics, cx, cy, r, border);
         disc(graphics, cx, cy, r - 1, fill);
-        for (int i = -3; i <= 3; i++) {
-            int offset = 3 - Math.abs(i);
-            graphics.fill(cx - 4 + offset, cy + i, cx - 2 + offset, cy + i + 1, icon);
-            graphics.fill(cx + 1 + offset, cy + i, cx + 3 + offset, cy + i + 1, icon);
+        // ">>" in two small chevrons.
+        for (int i = -2; i <= 2; i++) {
+            int offset = 2 - Math.abs(i);
+            graphics.fill(cx - 3 + offset, cy + i, cx - 2 + offset, cy + i + 1, icon);
+            graphics.fill(cx + offset, cy + i, cx + 1 + offset, cy + i + 1, icon);
         }
         graphics.pose().popPose();
     }
@@ -192,8 +197,11 @@ final class DevUi {
     static boolean onCollapseButton(double mouseX, double mouseY, int cx, int cy) {
         double dx = mouseX - cx;
         double dy = mouseY - cy;
-        return dx * dx + dy * dy <= 169;
+        // A little larger than drawn, so a small button is still easy to hit.
+        return dx * dx + dy * dy <= (COLLAPSE_R + 2) * (COLLAPSE_R + 2);
     }
+
+    private static final int COLLAPSE_R = 7;
 
     private static void disc(GuiGraphics graphics, int cx, int cy, int r, int color) {
         for (int y = -r; y <= r; y++) {

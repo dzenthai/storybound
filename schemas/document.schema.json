@@ -43,10 +43,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "quest": { "$ref": "logic.schema.json#/definitions/id" },
-        "conditions": { "$ref": "logic.schema.json#/definitions/story_text" },
-        "reward": { "$ref": "logic.schema.json#/definitions/story_text" },
-        "hint": { "$ref": "logic.schema.json#/definitions/story_text" }
+        "quest": { "description": "The quest the contract gives: started on the first read, before on_read.", "$ref": "logic.schema.json#/definitions/id" },
+        "conditions": { "description": "Printed in bold under the contract's text: what is to be done.", "$ref": "logic.schema.json#/definitions/story_text" },
+        "reward": { "description": "Printed under the contract's text: what it pays.", "$ref": "logic.schema.json#/definitions/story_text" },
+        "hint": { "description": "Printed in italics under the contract's text: a hint where to start.", "$ref": "logic.schema.json#/definitions/story_text" }
       }
     }
   }

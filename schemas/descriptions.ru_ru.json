@@ -248,5 +248,9 @@
   "Colours the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the maps. Left out, the marker keeps its own look. Xaero's Minimap shows only Minecraft's 16 text colours, any other as the nearest of them. #RRGGBB.": "Красит метку в мире (иконку, название, стрелку у края экрана, кольцо зоны поиска) и метку на картах. Без него метка остаётся как есть. Xaero показывает только 16 цветов текста Minecraft, любой другой — как ближайший из них. #RRGGBB.",
   "Which entities talk: one selector, or a list of them; the binding is for any entity that matches one.": "Какие существа говорят: одно описание или список; привязка действует на любое существо, подходящее под одно из них.",
   "The story's namespace: the dev mode makes new nodes in it (their folder in the story folder). Not minecraft or demo.": "Пространство имён истории: в нём режим разработки создаёт новые узлы (их папка в папке истории). Не minecraft и не demo.",
-  "Seconds after which the line moves on by itself (a click still moves on sooner). Empty: it waits for the player.": "Через сколько секунд реплика сама перейдёт дальше (кликом можно раньше). Пусто — ждёт игрока."
+  "Seconds after which the line moves on by itself (a click still moves on sooner). Empty: it waits for the player.": "Через сколько секунд реплика сама перейдёт дальше (кликом можно раньше). Пусто — ждёт игрока.",
+  "The quest the contract gives: started on the first read, before on_read.": "Квест, который даёт контракт: начинается при первом прочтении, до on_read.",
+  "Printed in bold under the contract's text: what is to be done.": "Печатается жирным под текстом контракта: что нужно сделать.",
+  "Printed under the contract's text: what it pays.": "Печатается под текстом контракта: что за это дадут.",
+  "Printed in italics under the contract's text: a hint where to start.": "Печатается курсивом под текстом контракта: подсказка, с чего начать."
 }
