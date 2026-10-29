@@ -546,94 +546,98 @@ final class FormView {
     }
 
     /**
-     * A waypoint is a target (a point, the diamond) or a search area (the ring icon, a radius, its radius written by
-     * the name and its edge drawn on the ground). Switching to a target takes the area's fields away; to an area gives
-     * it a radius of {@link #NEW_AREA_RADIUS}.
-     */
-    /**
-     * A waypoint's colour: the default or one of the 16 every map shows the same ({@link WaypointDefinition#PALETTE}),
-     * as swatches; a colour written in the file outside them is named under the label.
+     * A waypoint's colour: a swatch and its code. Typing a code recolours the swatch as soon as it is one; the swatch
+     * opens a list of the colours that look the same everywhere ({@link WaypointDefinition#MARKER_COLORS}), with an own
+     * colour written before on top. Empty, or the default's code, leaves the field out (the marker's own look).
      */
     private void colorField(List<Object> path, @Nullable JsonObject object) {
-        int size = 12;
-        int perRow = Math.max(1, (w + 2) / (size + 2));
-        int count = WaypointDefinition.PALETTE.size() + 1;
-        int rows = (count + perRow - 1) / perRow;
-        int height = LABEL_H + rows * (size + 2);
-        if (!row(height)) {
+        if (!row(LABEL_H + CONTROL_H)) {
             return;
         }
-        Integer current = object != null && object.get("color") instanceof JsonPrimitive written ? parseColor(written.getAsString()) : null;
-        Component label = DevUi.text("form.waypoint_color");
-        if (current != null && !WaypointDefinition.PALETTE.contains(current)) {
-            label = label.copy().append(String.format(" (#%06X)", current & 0xFFFFFF));
-        }
-        labels.add(new Label(label, x, rowY(height), DevUi.LABEL));
-        int top = rowY(height) + LABEL_H;
-        for (int i = 0; i < count; i++) {
-            Integer color = i == 0 ? null : WaypointDefinition.PALETTE.get(i - 1);
-            boolean chosen = color == null ? current == null : color.equals(current);
-            Component name = color == null ? DevUi.text("form.waypoint_color.default")
-                    : DevUi.text("form.waypoint_color." + paletteName(i - 1));
-            Swatch swatch = new Swatch(x + (i % perRow) * (size + 2), top + (i / perRow) * (size + 2), size,
-                    color == null ? WaypointDefinition.DEFAULT_COLOR : color, color == null, chosen, name, () -> {
-                JsonObject owner = ensureObject(path);
-                if (color == null) {
+        labelRow(DevUi.text("form.waypoint_color"));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        Integer written = object != null && object.get("color") instanceof JsonPrimitive value ? parseColor(value.getAsString()) : null;
+        int[] shown = {written != null ? written : WaypointDefinition.DEFAULT_COLOR};
+        EditBox box = new EditBox(screen.font(), x + CONTROL_H + 4, rowTop + 1, w - CONTROL_H - 4, CONTROL_H - 2, DevUi.text("form.waypoint_color"));
+        box.setMaxLength(7);
+        box.setValue(written != null ? String.format("#%06X", written & 0xFFFFFF) : "");
+        box.setHint(DevUi.text("form.waypoint_color.default").copy().withStyle(style -> style.withColor(0xFF6B7380)));
+        box.setResponder(text -> {
+            JsonObject owner = ensureObject(path);
+            if (text.isBlank()) {
+                owner.remove("color");
+                shown[0] = WaypointDefinition.DEFAULT_COLOR;
+                box.setTextColor(0xFFE0E0E0);
+                host.edited();
+                return;
+            }
+            Integer parsed = parseColor(text);
+            box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
+            if (parsed != null) {
+                if (parsed == WaypointDefinition.DEFAULT_COLOR) {
                     owner.remove("color");
                 } else {
-                    owner.addProperty("color", String.format("#%06X", color & 0xFFFFFF));
+                    owner.addProperty("color", String.format("#%06X", parsed & 0xFFFFFF));
                 }
-                host.changed();
-            });
-            swatch.setTooltip(Tooltip.create(name.copy().append("\n").append(DevUi.text("form.waypoint_color.tooltip"))));
-            screen.add(swatch);
+                shown[0] = parsed;
+                host.edited();
+            }
+        });
+        Swatch swatch = new Swatch(x, rowTop, CONTROL_H, () -> shown[0], () -> {
+            List<DevModeScreen.MenuItem> items = new ArrayList<>();
+            if (shown[0] != WaypointDefinition.DEFAULT_COLOR && !WaypointDefinition.MARKER_COLORS.contains(shown[0])) {
+                int own = shown[0];
+                items.add(DevModeScreen.MenuItem.color(DevUi.text("form.waypoint_color.own").copy()
+                        .append(String.format(" #%06X", own & 0xFFFFFF)), own, () -> pickColor(path, own)));
+            }
+            for (int color : WaypointDefinition.MARKER_COLORS) {
+                items.add(DevModeScreen.MenuItem.color(DevUi.text("form.waypoint_color." + WaypointDefinition.colorName(color)), color,
+                        () -> pickColor(path, color)));
+            }
+            screen.openMenu(x, rowTop + CONTROL_H + 2, items);
+        });
+        swatch.setTooltip(Tooltip.create(DevUi.text("form.waypoint_color.tooltip")));
+        screen.add(swatch);
+        screen.add(box);
+    }
+
+    private void pickColor(List<Object> path, int color) {
+        JsonObject owner = ensureObject(path);
+        if (color == WaypointDefinition.DEFAULT_COLOR) {
+            owner.remove("color");
+        } else {
+            owner.addProperty("color", String.format("#%06X", color & 0xFFFFFF));
         }
+        host.changed();
     }
 
-    private static String paletteName(int index) {
-        return java.util.Arrays.stream(net.minecraft.ChatFormatting.values()).filter(net.minecraft.ChatFormatting::isColor)
-                .toList().get(index).getName();
-    }
-
+    /** {@code #RRGGBB} or {@code RRGGBB}, opaque; null for anything else. */
     private static @Nullable Integer parseColor(String text) {
-        String hex = text.startsWith("#") ? text.substring(1) : text;
-        try {
-            long value = Long.parseLong(hex, 16);
-            return hex.length() <= 6 ? 0xFF000000 | (int) value : (int) value;
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        String hex = text.trim().startsWith("#") ? text.trim().substring(1) : text.trim();
+        return hex.matches("[0-9a-fA-F]{6}") ? 0xFF000000 | Integer.parseInt(hex, 16) : null;
     }
 
-    /** A colour to pick, framed when it is the one chosen; the default one is crossed out by a corner mark. */
+    /** The colour of a field as it is now (it follows the code being typed); a click opens the list of colours. */
     private static final class Swatch extends net.minecraft.client.gui.components.AbstractButton {
-        private final int color;
-        private final boolean isDefault;
-        private final boolean chosen;
-        private final Runnable pick;
+        private final Supplier<Integer> color;
+        private final Runnable open;
 
-        Swatch(int x, int y, int size, int color, boolean isDefault, boolean chosen, Component name, Runnable pick) {
-            super(x, y, size, size, name);
+        Swatch(int x, int y, int size, Supplier<Integer> color, Runnable open) {
+            super(x, y, size, size, Component.empty());
             this.color = color;
-            this.isDefault = isDefault;
-            this.chosen = chosen;
-            this.pick = pick;
+            this.open = open;
         }
 
         @Override
         public void onPress() {
-            pick.run();
+            open.run();
         }
 
         @Override
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            int frame = chosen ? 0xFFFFFFFF : isHovered() ? 0xFFB0B0B0 : 0xFF2A2A2A;
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, frame);
-            graphics.fill(getX() + (chosen ? 2 : 1), getY() + (chosen ? 2 : 1), getX() + width - (chosen ? 2 : 1), getY() + height - (chosen ? 2 : 1),
-                    0xFF000000 | color);
-            if (isDefault) {
-                graphics.fill(getX() + width - 4, getY() + 1, getX() + width - 1, getY() + 4, 0xFF2A2A2A);
-            }
+            graphics.fill(getX(), getY(), getX() + width, getY() + height, isHovered() ? 0xFFFFFFFF : 0xFF8A8A8A);
+            graphics.fill(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1, 0xFF2A2A2A);
+            graphics.fill(getX() + 3, getY() + 3, getX() + width - 3, getY() + height - 3, 0xFF000000 | color.get());
         }
 
         @Override
@@ -642,6 +646,11 @@ final class FormView {
         }
     }
 
+    /**
+     * A waypoint is a target (a point, the diamond) or a search area (the ring icon, a radius, its radius written by
+     * the name and its edge drawn on the ground). Switching to a target takes the area's fields away; to an area gives
+     * it a radius of {@link #NEW_AREA_RADIUS}.
+     */
     private void waypointKindField(List<Object> path, boolean area) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;

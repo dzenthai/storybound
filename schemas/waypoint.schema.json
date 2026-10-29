@@ -9,7 +9,7 @@
   "properties": {
     "name": { "$ref": "logic.schema.json#/definitions/story_text" },
     "target": { "$ref": "#/definitions/target" },
-    "color": { "description": "On the maps (Xaero's Minimap, JourneyMap) and on the marker in the world while it is not tracked (a tracked marker is always gold). One of Minecraft's 16 text colours shows the same everywhere: Xaero's Minimap shows only those, any other as the nearest of them. #RRGGBB.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+    "color": { "description": "Colours the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the maps. Left out, the marker keeps its own look. Xaero's Minimap shows only Minecraft's 16 text colours, any other as the nearest of them. #RRGGBB.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
     "conditions": { "description": "The marker shows only while these conditions hold (a flag is set, it is night...). Empty: always.", "$ref": "logic.schema.json#/definitions/conditions" },
     "quest": { "description": "The marker shows only while this quest is active. Empty: no quest needed. Often simpler: list the marker in the quest's stage instead (the stage's waypoints).", "$ref": "logic.schema.json#/definitions/id" },
     "stage": { "description": "With a quest: only while the quest is at this stage. Pick it from the quest's stages.", "type": "string" },

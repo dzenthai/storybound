@@ -453,10 +453,9 @@ public final class WaypointGameTests {
                             "a stage listing an unknown waypoint, got " + errors(issues, broken));
                     helper.assertTrue(errors(issues, key("loose")).stream().anyMatch(message -> message.contains("'stage' needs 'quest'")),
                             "stage without quest, got " + errors(issues, key("loose")));
-                    // A colour outside Minecraft's 16 text colours: Xaero's Minimap shows the nearest of them instead.
-                    helper.assertTrue(warnings(issues, key("off_palette")).stream().anyMatch(message -> message.contains("Xaero's Minimap shows it as #5555FF")),
-                            "a colour Xaero cannot show, got " + warnings(issues, key("off_palette")));
-                    helper.assertTrue(warnings(issues, key("in_palette")).stream().noneMatch(message -> message.contains("Colour")), "one of the 16");
+                    // Any colour is the author's choice: the colour window shows what Xaero's Minimap makes of it.
+                    helper.assertTrue(warnings(issues, key("off_palette")).isEmpty() && warnings(issues, key("in_palette")).isEmpty(),
+                            "no warning for a colour, got " + warnings(issues, key("off_palette")));
                 }));
         helper.succeed();
     }

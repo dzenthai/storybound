@@ -16,15 +16,14 @@ class WaypointStyleTest {
         assertEquals(WaypointStyle.NameMode.NEAR_CROSSHAIR, style.name());
         assertEquals(WaypointStyle.EdgeMode.NEVER, style.edge());
         assertEquals(WaypointStyle.FALLBACK.icon(), style.icon());
-        assertEquals(WaypointStyle.FALLBACK.trackedColor(), style.trackedColor());
         assertEquals(WaypointStyle.FALLBACK.maxDistance(), style.maxDistance());
     }
 
     @Test
     void ownSpritesAndColours() {
-        WaypointStyle style = parse("{ \"icon\": \"mypack:marker/skull\", \"tracked_color\": \"#C0392B\", \"text_color\": \"#80FFFFFF\" }");
+        WaypointStyle style = parse("{ \"icon\": \"mypack:marker/skull\", \"distance_color\": \"#C0392B\", \"text_color\": \"#80FFFFFF\" }");
         assertEquals(ResourceLocation.fromNamespaceAndPath("mypack", "marker/skull"), style.icon());
-        assertEquals(0xFFC0392B, style.trackedColor(), "#RRGGBB is opaque");
+        assertEquals(0xFFC0392B, style.distanceColor(), "#RRGGBB is opaque");
         assertEquals(0x80FFFFFF, style.textColor(), "#AARRGGBB keeps its alpha");
     }
 

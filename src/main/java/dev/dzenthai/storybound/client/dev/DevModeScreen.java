@@ -43,10 +43,19 @@ public class DevModeScreen extends Screen {
     private static final DevHistory HISTORY = new DevHistory();
     private static boolean inspectorCollapsed;
 
-    /** A context menu line; {@code danger} lines (deleting) are red. */
-    record MenuItem(Component label, boolean danger, Runnable action) {
+    /** A context menu line; {@code danger} lines (deleting) are red; {@code swatch} a colour shown before it (0: none). */
+    record MenuItem(Component label, boolean danger, Runnable action, int swatch) {
+        MenuItem(Component label, boolean danger, Runnable action) {
+            this(label, danger, action, 0);
+        }
+
         static MenuItem of(Component label, Runnable action) {
             return new MenuItem(label, false, action);
+        }
+
+        /** A line with the colour it picks. */
+        static MenuItem color(Component label, int color, Runnable action) {
+            return new MenuItem(label, false, action, 0xFF000000 | color);
         }
 
         static MenuItem danger(Component label, Runnable action) {
@@ -501,7 +510,13 @@ public class DevModeScreen extends Screen {
             }
             MenuItem item = menu.get(i);
             int color = item.danger() ? (hover ? DevUi.BAD : DevUi.ERROR) : (hover ? DevUi.WARN : DevUi.TEXT);
-            graphics.drawString(font, font.plainSubstrByWidth(item.label().getString(), MENU_W - 10), left + 6, y + 4, color, false);
+            int textX = left + 6;
+            if (item.swatch() != 0) {
+                graphics.fill(textX, y + 3, textX + 10, y + 13, 0xFF2A2A2A);
+                graphics.fill(textX + 1, y + 4, textX + 9, y + 12, item.swatch());
+                textX += 14;
+            }
+            graphics.drawString(font, font.plainSubstrByWidth(item.label().getString(), left + MENU_W - 4 - textX), textX, y + 4, color, false);
         }
         graphics.pose().popPose();
     }

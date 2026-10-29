@@ -130,12 +130,6 @@ public final class WaypointEvents {
                 sink.accept(ValidationIssue.warning(WaypointRegistries.WAYPOINTS.id(), id,
                         "'show_radius' and 'show_ring' are for a search area; without a 'radius' this is a point and they do nothing"));
             }
-            if (waypoint.color() != WaypointDefinition.DEFAULT_COLOR && !WaypointDefinition.PALETTE.contains(waypoint.color())) {
-                sink.accept(ValidationIssue.warning(WaypointRegistries.WAYPOINTS.id(), id, String.format(
-                        "Colour #%06X is not one of the 16 a waypoint offers: Xaero's Minimap shows it as #%06X (JourneyMap and the"
-                                + " marker in the world as it is); pick one of them for the same colour everywhere",
-                        waypoint.color() & 0xFFFFFF, WaypointDefinition.nearestInPalette(waypoint.color()) & 0xFFFFFF)));
-            }
         });
     }
 }

@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.client.ClientModules;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
+import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -155,7 +156,8 @@ public final class WaypointMarkers {
         if (!screen.onScreen() && !edge) {
             return null;
         }
-        int tint = tracked ? style.trackedColor() : waypoint.color();
+        // Shown no darker than reads on the icons' dark outline and the font's dark shadow (the hue kept); the maps get it as chosen.
+        int tint = MarkerContrast.readable(waypoint.color());
         Component label = inside ? Component.translatable("storybound.waypoint.in_area")
                 : style.distance() ? distanceText(area ? Math.max(0, horizontal - waypoint.radius()) : distance) : null;
         return new Marker(waypoint, style, screen, tracked, area, distance, alpha, size, tint, label);
@@ -178,7 +180,9 @@ public final class WaypointMarkers {
             if (marker.area() && marker.waypoint().showRadius()) {
                 name = name.copy().append(Component.translatable("storybound.waypoint.radius", Math.round(marker.waypoint().radius())));
             }
-            text(graphics, font, name, x, y - half - 10, 1f, style.textColor(), marker.alpha() * nameAlpha);
+            // The name in the waypoint's colour, unless it keeps the default (then the look's text colour, as before).
+            int nameColor = marker.waypoint().color() == WaypointDefinition.DEFAULT_COLOR ? style.textColor() : marker.tint();
+            text(graphics, font, name, x, y - half - 10, 1f, nameColor, marker.alpha() * nameAlpha);
         }
         if (marker.label() != null) {
             text(graphics, font, marker.label(), x, y + half + 2, DISTANCE_SCALE, style.distanceColor(), marker.alpha());

@@ -21,16 +21,16 @@ import net.minecraft.resources.ResourceLocation;
  *
  * @param radius an area (a search zone) instead of a point, in blocks; 0 for a point
  * @param look   how an area shows (its radius by the name, its edge on the ground)
- * @param color  on the maps (Xaero's Minimap, JourneyMap) and on the marker in the world while it is not tracked (a
- *               tracked marker is gold); one of {@link #PALETTE} shows the same everywhere
+ * @param color  the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the
+ *               maps; {@link #DEFAULT_COLOR} keeps the marker's own look. Xaero's Minimap shows only {@link #PALETTE}
  */
 public record WaypointDefinition(StoryText name, WaypointTarget target, int color, Condition conditions,
                                  Optional<ResourceLocation> quest, Optional<String> stage, float radius, AreaLook look) {
     public static final int DEFAULT_COLOR = 0xFFE8C66A;
     /**
      * The colours a waypoint offers: Minecraft's 16 text colours, the only ones Xaero's Minimap shows (any other is
-     * shown there as the nearest of them, while JourneyMap and the markers in the world show it as it is), so a colour
-     * from here looks the same everywhere (October 29, 2026). The dev mode offers these.
+     * shown there as the nearest of them, while JourneyMap and the markers in the world show it as it is). The dev
+     * mode's colour window offers them as presets and shows what Xaero will show (October 29, 2026).
      */
     public static final List<Integer> PALETTE = Arrays.stream(ChatFormatting.values())
             .filter(ChatFormatting::isColor).map(format -> 0xFF000000 | format.getColor()).toList();
@@ -45,6 +45,27 @@ public record WaypointDefinition(StoryText name, WaypointTarget target, int colo
             Codec.floatRange(0f, 1024f).optionalFieldOf("radius", 0f).forGetter(WaypointDefinition::radius),
             AreaLook.MAP_CODEC.forGetter(WaypointDefinition::look)
     ).apply(instance, WaypointDefinition::new));
+
+    /**
+     * The colours the dev mode offers, which look the same in the world, in Xaero's Minimap and in JourneyMap: the
+     * default and Minecraft's light text colours (markers show a darker colour raised, and Xaero has only the 16 text
+     * colours; October 29, 2026).
+     */
+    public static final List<Integer> MARKER_COLORS = List.of(DEFAULT_COLOR,
+            0xFF000000 | ChatFormatting.GOLD.getColor(), 0xFF000000 | ChatFormatting.YELLOW.getColor(),
+            0xFF000000 | ChatFormatting.GREEN.getColor(), 0xFF000000 | ChatFormatting.DARK_AQUA.getColor(),
+            0xFF000000 | ChatFormatting.AQUA.getColor(), 0xFF000000 | ChatFormatting.RED.getColor(),
+            0xFF000000 | ChatFormatting.LIGHT_PURPLE.getColor(), 0xFF000000 | ChatFormatting.GRAY.getColor(),
+            0xFF000000 | ChatFormatting.WHITE.getColor());
+
+    /** {@code default}, or the name of the text colour it is ({@code gold}...), or {@code own}. For the dev mode. */
+    public static String colorName(int color) {
+        if (color == DEFAULT_COLOR) {
+            return "default";
+        }
+        return Arrays.stream(ChatFormatting.values()).filter(format -> format.isColor() && (0xFF000000 | format.getColor()) == color)
+                .map(ChatFormatting::getName).findFirst().orElse("own");
+    }
 
     /** The colour of {@link #PALETTE} nearest to {@code color}, as Xaero's Minimap shows it. */
     public static int nearestInPalette(int color) {

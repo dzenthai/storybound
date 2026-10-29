@@ -10,7 +10,6 @@
     "area_icon": { "description": "The marker of a search area (radius > 0).", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/area" },
     "arrow": { "description": "The arrow at the screen edge, pointing up; turned in game.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/arrow" },
     "size": { "description": "Icon size in GUI pixels, before the player's scale setting.", "type": "integer", "minimum": 4, "maximum": 64, "default": 11 },
-    "tracked_color": { "description": "Tint of the tracked quest's markers; others take the waypoint's colour.", "$ref": "#/definitions/color", "default": "#E8C66A" },
     "text_color": { "$ref": "#/definitions/color", "default": "#F0E6D2" },
     "distance_color": { "$ref": "#/definitions/color", "default": "#C9B48A" },
     "name": {

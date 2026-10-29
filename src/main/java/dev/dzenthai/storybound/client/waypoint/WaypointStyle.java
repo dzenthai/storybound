@@ -9,8 +9,9 @@ import net.minecraft.util.StringRepresentable;
 
 /**
  * How waypoint markers are drawn in the world, from {@code assets/<ns>/storybound/waypoint_styles/<path>.json}.
- * A waypoint picks one with its {@code style} field; resource packs restyle or add them. Sprites are GUI sprites
- * drawn white-on-transparent and tinted: the tracked quest's colour for its waypoints, the waypoint's own otherwise.
+ * One look for every marker ({@code storybound:default}), which resource packs restyle. Sprites are GUI sprites drawn
+ * light-on-transparent and tinted with the waypoint's colour (October 29, 2026: the tracked quest's markers too; before,
+ * they all took one {@code tracked_color}).
  *
  * @param size        the icon's size in GUI pixels, before the player's scale setting
  * @param fadeStart   farther than this (blocks), the marker starts fading
@@ -18,18 +19,17 @@ import net.minecraft.util.StringRepresentable;
  * @param hideWithin  closer than this the marker fades out: you have arrived
  */
 public record WaypointStyle(ResourceLocation icon, ResourceLocation areaIcon, ResourceLocation arrow,
-                            int size, int trackedColor, int textColor, int distanceColor,
+                            int size, int textColor, int distanceColor,
                             NameMode name, boolean distance, float fadeStart, float maxDistance, float hideWithin, EdgeMode edge) {
     public static final WaypointStyle FALLBACK = new WaypointStyle(
             Storybound.id("waypoint/marker"), Storybound.id("waypoint/area"), Storybound.id("waypoint/arrow"),
-            11, 0xFFE8C66A, 0xFFF0E6D2, 0xFFC9B48A, NameMode.TRACKED, true, 96f, 768f, 4f, EdgeMode.TRACKED);
+            11, 0xFFF0E6D2, 0xFFC9B48A, NameMode.TRACKED, true, 96f, 768f, 4f, EdgeMode.TRACKED);
 
     public static final Codec<WaypointStyle> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.optionalFieldOf("icon", FALLBACK.icon).forGetter(WaypointStyle::icon),
             ResourceLocation.CODEC.optionalFieldOf("area_icon", FALLBACK.areaIcon).forGetter(WaypointStyle::areaIcon),
             ResourceLocation.CODEC.optionalFieldOf("arrow", FALLBACK.arrow).forGetter(WaypointStyle::arrow),
             Codec.intRange(4, 64).optionalFieldOf("size", FALLBACK.size).forGetter(WaypointStyle::size),
-            ColorCodec.CODEC.optionalFieldOf("tracked_color", FALLBACK.trackedColor).forGetter(WaypointStyle::trackedColor),
             ColorCodec.CODEC.optionalFieldOf("text_color", FALLBACK.textColor).forGetter(WaypointStyle::textColor),
             ColorCodec.CODEC.optionalFieldOf("distance_color", FALLBACK.distanceColor).forGetter(WaypointStyle::distanceColor),
             NameMode.CODEC.optionalFieldOf("name", FALLBACK.name).forGetter(WaypointStyle::name),

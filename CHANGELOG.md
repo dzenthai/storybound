@@ -65,8 +65,8 @@ Required on both client and server.
 - One kill or boss victory counts once for a party quest, however many members it is credited to.
 - Search areas show their radius by the name and their edge on the ground near the player (each can be turned off;
   players can turn the edges off in the client settings).
-- A waypoint's colour is picked from the 16 colours every map shows the same; markers no longer have a style of their
-  own (one look, which resource packs can change).
+- A waypoint's colour paints its marker, name, edge arrow and search ring, and its place on the maps; the editor offers the
+  10 colours that look the same in the world and on every map, and a dark colour reads in the world too. Markers no longer have a style of their own.
 - Server waypoints shown in Xaero's Minimap, JourneyMap and as in-world markers, pointing at places, structures or
   the nearest matching entity (which stays where it was last seen when the player goes far away).
 

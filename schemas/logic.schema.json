@@ -620,7 +620,7 @@
             "follow": { "type": "boolean", "default": false },
             "structure": { "description": "Searched near each player who sees it, and again as they travel (as a structure target without origin). The action fails at once if the server does not know the structure. Shown once found, never if none is within search_radius.", "$ref": "#/definitions/structure" },
             "search_radius": { "description": "In chunks, as /locate.", "type": "integer", "minimum": 1, "maximum": 512, "default": 100 },
-            "color": { "description": "On the maps (Xaero's Minimap, JourneyMap) and on the marker in the world while it is not tracked (a tracked marker is always gold). One of Minecraft's 16 text colours shows the same everywhere: Xaero's Minimap shows only those, any other as the nearest of them. #RRGGBB.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+            "color": { "description": "Colours the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the maps. Left out, the marker keeps its own look. Xaero's Minimap shows only Minecraft's 16 text colours, any other as the nearest of them. #RRGGBB.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
             "radius": { "type": "number", "minimum": 0, "maximum": 1024 },
             "show_radius": { "description": "For a search area: write its radius by the name.", "type": "boolean", "default": true },
             "show_ring": { "description": "For a search area: draw its edge on the ground near the player.", "type": "boolean", "default": true },

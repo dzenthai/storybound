@@ -3,7 +3,6 @@
   "area_icon": "storybound:waypoint/area",
   "arrow": "storybound:waypoint/arrow",
   "size": 11,
-  "tracked_color": "#E8C66A",
   "text_color": "#F0E6D2",
   "distance_color": "#C9B48A",
   "name": "tracked",

@@ -194,7 +194,6 @@
   "The stage's entry in the quest's story, shown from the moment the stage is reached.": "Запись этапа в истории квеста; видна с момента, когда этап достигнут.",
   "The story's languages, edited in the dev mode.": "Языки сюжета, которые редактируются в режиме разработчика.",
   "These actions run that many seconds later, for the same player and entity; the list goes on at once.": "Эти действия выполнятся через столько секунд, для того же игрока и сущности; список идёт дальше сразу.",
-  "Tint of the tracked quest's markers; others take the waypoint's colour.": "Цвет маркеров отслеживаемого квеста; остальные берут цвет метки.",
   "Toasts on the first encounter and on victory.": "Уведомления при первой встрече и при победе.",
   "Toasts when the entry appears or a section opens.": "Уведомления, когда появляется запись или открывается раздел.",
   "Tracks the quest on the player's HUD; without quest, tracks nothing.": "Отслеживает квест на HUD игрока; без quest — ничего не отслеживать.",
@@ -246,5 +245,5 @@
   "stars: 1 to 5, shown ★★★☆☆ as in Stardew Valley; levels: the level's name in its colour.": "stars: от 1 до 5, видно как ★★★☆☆, как в Stardew Valley; levels: название уровня его цветом.",
   "unknown resets the quest; active starts it (or reopens a finished one); completed runs on_complete and rewards.": "unknown сбрасывает квест; active запускает (или открывает заново завершённый); completed выполняет on_complete и награды.",
   "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:translation.key}, or plain text.": "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:ключ.перевода} или обычный текст.",
-  "On the maps (Xaero's Minimap, JourneyMap) and on the marker in the world while it is not tracked (a tracked marker is always gold). One of Minecraft's 16 text colours shows the same everywhere: Xaero's Minimap shows only those, any other as the nearest of them. #RRGGBB.": "На картах (Xaero, JourneyMap) и у метки в мире, пока она не отслеживается (отслеживаемая всегда золотая). Один из 16 цветов текста Minecraft выглядит везде одинаково: Xaero показывает только их, любой другой — как ближайший из них. #RRGGBB."
+  "Colours the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the maps. Left out, the marker keeps its own look. Xaero's Minimap shows only Minecraft's 16 text colours, any other as the nearest of them. #RRGGBB.": "Красит метку в мире (иконку, название, стрелку у края экрана, кольцо зоны поиска) и метку на картах. Без него метка остаётся как есть. Xaero показывает только 16 цветов текста Minecraft, любой другой — как ближайший из них. #RRGGBB."
 }

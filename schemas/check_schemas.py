@@ -241,7 +241,7 @@ for path in (root / "src/main/resources/assets").rglob("storybound/waypoint_styl
 expect(marker_style, {"name": "hover"}, False, "marker style: bad name mode")
 expect(marker_style, {"edge": "everywhere"}, False, "marker style: bad edge mode")
 expect(marker_style, {"size": 2}, False, "marker style: too small")
-expect(marker_style, {"tracked_color": "gold"}, False, "marker style: bad colour")
+expect(marker_style, {"text_color": "gold"}, False, "marker style: bad colour")
 expect(quest, {"title": "q", "stages": [{"id": "a", "waypoints": ["a:den"]}]}, True, "quest: stage waypoints")
 expect(event, {"trigger": custom, "actions": [{"type": "add_waypoint", "id": "a:b", "name": "n", "follow": True, "visibility": "party"}, {"type": "remove_waypoint", "id": "a:c", "visibility": "world"}]}, True, "event: waypoint actions")
 expect(event, {"trigger": custom, "actions": {"type": "add_waypoint", "id": "a:b"}}, False, "event: add_waypoint without name")
