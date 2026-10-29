@@ -149,7 +149,6 @@ public final class KubeJSGameTests {
         ClientWaypoint added = Waypoints.visible(player).get(camp);
         helper.assertTrue(added != null, "the player sees the script's waypoint");
         expect(helper, added.pos(), new Vec3(1, 64, 3), "at the script's position");
-        expect(helper, added.style(), WaypointDefinition.DEFAULT_STYLE, "with the default marker style");
         TriggerDispatcher.fireCustom(player, key("kjs_waypoint_remove"));
         expect(helper, stored(player, "kjs_waypoint_removed"), Optional.of(new StoryValue.Bool(true)), "binding removed it");
         helper.assertFalse(Waypoints.visible(player).containsKey(camp), "and it is gone");

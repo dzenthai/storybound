@@ -41,11 +41,11 @@ public final class WaypointLogic {
      * (in {@code dimension}, by default the player's), or follows the context entity with {@code "follow": true},
      * or marks the nearest {@code structure} (searched in the background near each player who sees it, within
      * {@code search_radius} chunks, and again as they travel), or marks where the context entity (else the player) stands now. The same id and
-     * visibility replaces it. {@code style} picks the client marker style.
+     * visibility replaces it.
      */
     public record AddWaypoint(ResourceLocation id, StoryText name, Optional<Vec3> pos, Optional<ResourceKey<Level>> dimension, boolean follow,
                               Optional<StructureRef> structure, int searchRadius,
-                              int color, float radius, AreaLook look, StoryScope visibility, ResourceLocation style) implements Action {
+                              int color, float radius, AreaLook look, StoryScope visibility) implements Action {
         public static final MapCodec<AddWaypoint> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 ResourceLocation.CODEC.fieldOf("id").forGetter(AddWaypoint::id),
                 StoryText.CODEC.fieldOf("name").forGetter(AddWaypoint::name),
@@ -57,8 +57,7 @@ public final class WaypointLogic {
                 ColorCodec.CODEC.optionalFieldOf("color", WaypointDefinition.DEFAULT_COLOR).forGetter(AddWaypoint::color),
                 Codec.floatRange(0f, 1024f).optionalFieldOf("radius", 0f).forGetter(AddWaypoint::radius),
                 AreaLook.MAP_CODEC.forGetter(AddWaypoint::look),
-                StoryScope.CODEC.optionalFieldOf("visibility", StoryScope.PLAYER).forGetter(AddWaypoint::visibility),
-                ResourceLocation.CODEC.optionalFieldOf("style", WaypointDefinition.DEFAULT_STYLE).forGetter(AddWaypoint::style)
+                StoryScope.CODEC.optionalFieldOf("visibility", StoryScope.PLAYER).forGetter(AddWaypoint::visibility)
         ).apply(instance, AddWaypoint::new));
 
         @Override
@@ -88,7 +87,7 @@ public final class WaypointLogic {
             } else {
                 target = new WaypointTarget.Fixed(anchor.position(), anchor.level().dimension());
             }
-            if (!Waypoints.add(context.player(), id, name, target, color, radius, look, visibility, style)) {
+            if (!Waypoints.add(context.player(), id, name, target, color, radius, look, visibility)) {
                 throw disabled();
             }
         }

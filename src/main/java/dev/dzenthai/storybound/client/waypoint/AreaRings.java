@@ -69,7 +69,7 @@ public final class AreaRings {
             if (horizontal <= waypoint.radius()) {
                 alpha *= INSIDE_ALPHA;
             }
-            int rgb = display == ClientWaypoints.Display.TRACKED ? WaypointStyles.INSTANCE.get(waypoint.style()).trackedColor() : waypoint.color();
+            int rgb = display == ClientWaypoints.Display.TRACKED ? WaypointStyles.INSTANCE.get().trackedColor() : waypoint.color();
             if (lines == null) {
                 lines = buffers.getBuffer(RenderType.lines());
             }

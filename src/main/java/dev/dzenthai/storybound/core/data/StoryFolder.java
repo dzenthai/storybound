@@ -31,9 +31,10 @@ public final class StoryFolder {
      * each player's own ({@code "unique": false}), October 29, 2026; 4: a retry of Murka after failing starts her search
      * over (reset, then active), so a new Murka is spawned, October 29, 2026; 5: the Murka who came home after a failed
      * search runs off again on a retry, instead of a second one being spawned ({@code unique}), October 29, 2026; 6: the
-     * elder answers "more work?" by where Murka is (out there, following, home) and gives fish again, October 29, 2026.
+     * elder answers "more work?" by where Murka is (out there, following, home) and gives fish again, October 29, 2026;
+     * 7: waypoints without a marker style, their colours from the 16 every map shows, October 29, 2026.
      */
-    public static final int DEMO_VERSION = 6;
+    public static final int DEMO_VERSION = 7;
     /** In the story folder: the version of the demo copied there. Missing for copies from before versions were kept (0). */
     static final String DEMO_VERSION_FILE = ".demo_version";
 

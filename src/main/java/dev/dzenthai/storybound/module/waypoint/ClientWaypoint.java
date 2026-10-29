@@ -15,12 +15,11 @@ import net.minecraft.world.phys.Vec3;
  * @param entity the network id of the entity the waypoint is above ({@code entity} and {@code nearest} targets), so
  *               the client can draw the marker at the entity every frame while it has it; {@link #NO_ENTITY} otherwise
  * @param quest  the quest it belongs to, so the tracked quest's waypoints can be highlighted
- * @param style  the marker style from the client's resource packs
  * @param showRadius for an area: write its radius by the name
  * @param showRing   for an area: draw its edge on the ground
  */
 public record ClientWaypoint(String key, ResolvedText name, ResourceLocation dimension, Vec3 pos, int entity, float radius,
-                             boolean showRadius, boolean showRing, int color, Optional<ResourceLocation> quest, ResourceLocation style) {
+                             boolean showRadius, boolean showRing, int color, Optional<ResourceLocation> quest) {
     public static final int NO_ENTITY = -1;
     // More fields than StreamCodec.composite takes.
     public static final StreamCodec<RegistryFriendlyByteBuf, ClientWaypoint> STREAM_CODEC = StreamCodec.of(ClientWaypoint::write, ClientWaypoint::read);
@@ -29,7 +28,7 @@ public record ClientWaypoint(String key, ResolvedText name, ResourceLocation dim
         return new ClientWaypoint(ByteBufCodecs.STRING_UTF8.decode(buf), ResolvedText.STREAM_CODEC.decode(buf), ResourceLocation.STREAM_CODEC.decode(buf),
                 new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble()), buf.readVarInt() - 1, buf.readFloat(), buf.readBoolean(), buf.readBoolean(),
                 buf.readInt(),
-                ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC).decode(buf), ResourceLocation.STREAM_CODEC.decode(buf));
+                ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC).decode(buf));
     }
 
     private static void write(RegistryFriendlyByteBuf buf, ClientWaypoint waypoint) {
@@ -45,6 +44,5 @@ public record ClientWaypoint(String key, ResolvedText name, ResourceLocation dim
         buf.writeBoolean(waypoint.showRing());
         buf.writeInt(waypoint.color());
         ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC).encode(buf, waypoint.quest());
-        ResourceLocation.STREAM_CODEC.encode(buf, waypoint.style());
     }
 }

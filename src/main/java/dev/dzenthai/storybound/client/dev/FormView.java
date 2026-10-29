@@ -15,6 +15,7 @@ import dev.dzenthai.storybound.client.dev.Schemas.Node;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.module.quest.DifficultyScale;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
+import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -391,9 +392,8 @@ final class FormView {
         }
         // A waypoint (or add_waypoint): "target or search area" first; an area's radius and looks only for an area.
         if (Schemas.properties(owner).containsKey("show_ring")) {
-            // Colour and marker look stay in the files (the demo uses them) but are left out of the form for now:
-            // the functionality first, such options later.
-            if (name.equals("color") || name.equals("style")) {
+            if (name.equals("color")) {
+                colorField(path, object);
                 return;
             }
             boolean area = object != null && object.get("radius") instanceof JsonPrimitive radius && radius.isNumber() && radius.getAsDouble() > 0;
@@ -550,6 +550,98 @@ final class FormView {
      * the name and its edge drawn on the ground). Switching to a target takes the area's fields away; to an area gives
      * it a radius of {@link #NEW_AREA_RADIUS}.
      */
+    /**
+     * A waypoint's colour: the default or one of the 16 every map shows the same ({@link WaypointDefinition#PALETTE}),
+     * as swatches; a colour written in the file outside them is named under the label.
+     */
+    private void colorField(List<Object> path, @Nullable JsonObject object) {
+        int size = 12;
+        int perRow = Math.max(1, (w + 2) / (size + 2));
+        int count = WaypointDefinition.PALETTE.size() + 1;
+        int rows = (count + perRow - 1) / perRow;
+        int height = LABEL_H + rows * (size + 2);
+        if (!row(height)) {
+            return;
+        }
+        Integer current = object != null && object.get("color") instanceof JsonPrimitive written ? parseColor(written.getAsString()) : null;
+        Component label = DevUi.text("form.waypoint_color");
+        if (current != null && !WaypointDefinition.PALETTE.contains(current)) {
+            label = label.copy().append(String.format(" (#%06X)", current & 0xFFFFFF));
+        }
+        labels.add(new Label(label, x, rowY(height), DevUi.LABEL));
+        int top = rowY(height) + LABEL_H;
+        for (int i = 0; i < count; i++) {
+            Integer color = i == 0 ? null : WaypointDefinition.PALETTE.get(i - 1);
+            boolean chosen = color == null ? current == null : color.equals(current);
+            Component name = color == null ? DevUi.text("form.waypoint_color.default")
+                    : DevUi.text("form.waypoint_color." + paletteName(i - 1));
+            Swatch swatch = new Swatch(x + (i % perRow) * (size + 2), top + (i / perRow) * (size + 2), size,
+                    color == null ? WaypointDefinition.DEFAULT_COLOR : color, color == null, chosen, name, () -> {
+                JsonObject owner = ensureObject(path);
+                if (color == null) {
+                    owner.remove("color");
+                } else {
+                    owner.addProperty("color", String.format("#%06X", color & 0xFFFFFF));
+                }
+                host.changed();
+            });
+            swatch.setTooltip(Tooltip.create(name.copy().append("\n").append(DevUi.text("form.waypoint_color.tooltip"))));
+            screen.add(swatch);
+        }
+    }
+
+    private static String paletteName(int index) {
+        return java.util.Arrays.stream(net.minecraft.ChatFormatting.values()).filter(net.minecraft.ChatFormatting::isColor)
+                .toList().get(index).getName();
+    }
+
+    private static @Nullable Integer parseColor(String text) {
+        String hex = text.startsWith("#") ? text.substring(1) : text;
+        try {
+            long value = Long.parseLong(hex, 16);
+            return hex.length() <= 6 ? 0xFF000000 | (int) value : (int) value;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** A colour to pick, framed when it is the one chosen; the default one is crossed out by a corner mark. */
+    private static final class Swatch extends net.minecraft.client.gui.components.AbstractButton {
+        private final int color;
+        private final boolean isDefault;
+        private final boolean chosen;
+        private final Runnable pick;
+
+        Swatch(int x, int y, int size, int color, boolean isDefault, boolean chosen, Component name, Runnable pick) {
+            super(x, y, size, size, name);
+            this.color = color;
+            this.isDefault = isDefault;
+            this.chosen = chosen;
+            this.pick = pick;
+        }
+
+        @Override
+        public void onPress() {
+            pick.run();
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+            int frame = chosen ? 0xFFFFFFFF : isHovered() ? 0xFFB0B0B0 : 0xFF2A2A2A;
+            graphics.fill(getX(), getY(), getX() + width, getY() + height, frame);
+            graphics.fill(getX() + (chosen ? 2 : 1), getY() + (chosen ? 2 : 1), getX() + width - (chosen ? 2 : 1), getY() + height - (chosen ? 2 : 1),
+                    0xFF000000 | color);
+            if (isDefault) {
+                graphics.fill(getX() + width - 4, getY() + 1, getX() + width - 1, getY() + 4, 0xFF2A2A2A);
+            }
+        }
+
+        @Override
+        protected void updateWidgetNarration(net.minecraft.client.gui.narration.NarrationElementOutput output) {
+            defaultButtonNarrationText(output);
+        }
+    }
+
     private void waypointKindField(List<Object> path, boolean area) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;

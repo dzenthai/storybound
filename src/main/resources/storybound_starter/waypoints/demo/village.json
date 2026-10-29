@@ -2,6 +2,5 @@
   "name": "demo.waypoint.village.name",
   "target": {
     "structure": "#minecraft:village"
-  },
-  "color": "#E8C66A"
+  }
 }

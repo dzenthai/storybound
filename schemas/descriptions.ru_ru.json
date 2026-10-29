@@ -85,7 +85,6 @@
   "Group in the Quests tab; name: '<ns>.quest.category.<path>'. Built in: main, side, contract.": "Группа во вкладке «Задания»; название: '<ns>.quest.category.<путь>'. Встроенные: main, side, contract.",
   "Hidden for this player after being chosen once.": "Скрывается для этого игрока после того, как его выбрали.",
   "How every quest shows its difficulty. Without it: levels easy (green), normal (yellow), hard (red), deadly (dark red).": "Как все квесты показывают сложность. Без этого: уровни easy (зелёный), normal (жёлтый), hard (красный), deadly (бордовый).",
-  "How the marker looks: the quest marker (a diamond) or the character marker (small, its name only under the crosshair, up to 96 blocks). Resource packs can add more looks in assets/<namespace>/storybound/waypoint_styles/.": "Как выглядит метка: метка задания (ромб) или метка персонажа (маленькая, название только под прицелом, видна до 96 блоков). Ресурс-паки могут добавить свои виды в assets/<namespace>/storybound/waypoint_styles/.",
   "How the players' chapter map (project.json chapter_map) shows the quest before the player starts it: visible as it is; secret as ??? until every quest before it is completed; invisible not at all until it starts.": "Как карта глав игроков (chapter_map в project.json) показывает квест, пока игрок его не начал: visible — как есть; secret — «???», пока не выполнены все квесты перед ним; invisible — вовсе не показывает до старта.",
   "Icon size in GUI pixels, before the player's scale setting.": "Размер значка в пикселях интерфейса, до настройки масштаба у игрока.",
   "In blocks, around the player.": "В блоках вокруг игрока.",
@@ -94,7 +93,6 @@
   "In order; the quest starts at the first one.": "По порядку; квест начинается с первого.",
   "Journal notes written by journal_entry.": "Заметки журнала, записанные journal_entry.",
   "Journal section; defaults by kind: books, scrolls, notes, letters, contracts. Name: '<ns>.journal.category.<path>'.": "Раздел журнала; по умолчанию по виду: books, scrolls, notes, letters, contracts. Название: '<ns>.journal.category.<путь>'.",
-  "Marker style: assets/<ns>/storybound/waypoint_styles/<path>.json in a resource pack.": "Стиль маркера: assets/<ns>/storybound/waypoint_styles/<путь>.json в ресурспаке.",
   "Marks the nearest such structure, or any of a #tag, searched in the background (like /locate) near each player; shown once found, never if none is within search_radius. It follows the player: when they travel into another 256-block area, a search from there runs in the background and the waypoint moves if that structure is at least 16 blocks nearer.": "Отмечает ближайшую такую структуру или любую из #тега, ищется в фоне (как /locate) рядом с каждым игроком; показывается, когда найдена, и никогда, если в search_radius её нет. Следует за игроком: когда он уходит в другую область 256 блоков, оттуда в фоне идёт новый поиск, и метка переезжает, если та структура ближе хотя бы на 16 блоков.",
   "Moves an active quest to a stage, starting it first if it is unknown.": "Переводит активный квест на этап, сначала запуская его, если он неизвестен.",
   "Moves the player (or the context entity) to the place: pos (with dimension, also another one), else offset from at.": "Переносит игрока (или сущность из контекста) в место: pos (с dimension, в том числе в другое измерение), иначе offset от at.",
@@ -163,7 +161,6 @@
   "The .sbt text id; defaults to the document id.": "id текста .sbt; по умолчанию — id документа.",
   "The arrow at the screen edge, pointing up; turned in game.": "Стрелка у края экрана, смотрит вверх; поворачивается в игре.",
   "The camera for this line. auto: over the listener's shoulder at the speaker. two_shot: both from the side. close_up: the speaker's face. first_person: no camera movement.": "Камера для этой реплики. auto: из-за плеча слушающего на говорящего. two_shot: оба сбоку. close_up: лицо говорящего. first_person: камера не двигается.",
-  "The colour of the marker and its name, for a quest you do not track (the tracked quest's markers are always gold). Pick one or type #RRGGBB, e.g. #C0392B.": "Цвет метки и её названия, пока задание не отслеживается (у отслеживаемого задания метки всегда золотые). Выберите из списка или впишите #RRGGBB, например #C0392B.",
   "The definition type of the node, e.g. storybound:quest (the namespace may be left out).": "Вид определения узла, например storybound:quest (пространство имён можно опустить).",
   "The definition's id.": "id определения.",
   "The first node.": "Первый узел.",
@@ -248,5 +245,6 @@
   "screen: a blocking dialogue screen. hud: subtitles, the player keeps moving (a choice still opens the screen). bubble: speech bubble above the speaker's head.": "screen: экран диалога, игрок стоит. hud: субтитры, игрок двигается (выбор всё равно открывает экран). bubble: облачко над головой говорящего.",
   "stars: 1 to 5, shown ★★★☆☆ as in Stardew Valley; levels: the level's name in its colour.": "stars: от 1 до 5, видно как ★★★☆☆, как в Stardew Valley; levels: название уровня его цветом.",
   "unknown resets the quest; active starts it (or reopens a finished one); completed runs on_complete and rewards.": "unknown сбрасывает квест; active запускает (или открывает заново завершённый); completed выполняет on_complete и награды.",
-  "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:translation.key}, or plain text.": "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:ключ.перевода} или обычный текст."
+  "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:translation.key}, or plain text.": "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:ключ.перевода} или обычный текст.",
+  "On the maps (Xaero's Minimap, JourneyMap) and on the marker in the world while it is not tracked (a tracked marker is always gold). One of Minecraft's 16 text colours shows the same everywhere: Xaero's Minimap shows only those, any other as the nearest of them. #RRGGBB.": "На картах (Xaero, JourneyMap) и у метки в мире, пока она не отслеживается (отслеживаемая всегда золотая). Один из 16 цветов текста Minecraft выглядит везде одинаково: Xaero показывает только их, любой другой — как ближайший из них. #RRGGBB."
 }

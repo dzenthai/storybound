@@ -141,7 +141,7 @@ public final class Waypoints {
             if (place != null) {
                 result.put(key, new ClientWaypoint(key, definition.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(definition.radius()), place.showRadius(definition.radius(), definition.look()),
-                        place.showRing(definition.radius(), definition.look()), definition.color(), quest, definition.style()));
+                        place.showRing(definition.radius(), definition.look()), definition.color(), quest));
             }
         });
         for (WaypointData.Added added : WaypointData.get(player.server).all()) {
@@ -153,7 +153,7 @@ public final class Waypoints {
             if (place != null) {
                 result.put(added.key(), new ClientWaypoint(added.key(), added.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(added.radius()), place.showRadius(added.radius(), added.look()), place.showRing(added.radius(), added.look()),
-                        added.color(), Optional.empty(), added.style()));
+                        added.color(), Optional.empty()));
             }
         }
         return result;
@@ -191,20 +191,19 @@ public final class Waypoints {
 
     /** Adds (or replaces) a waypoint seen by the player, their party or everyone, and updates whoever sees it. */
     public static boolean add(ServerPlayer player, ResourceLocation id, StoryText name, WaypointTarget target,
-                              int color, float radius, AreaLook look, StoryScope scope, ResourceLocation style) {
+                              int color, float radius, AreaLook look, StoryScope scope) {
         if (!isEnabled()) {
             return false;
         }
         UUID owner = StoryState.owner(player, scope);
-        WaypointData.get(player.server).put(new WaypointData.Added(id, name, target, color, radius, look, scope, Optional.ofNullable(owner), style));
+        WaypointData.get(player.server).put(new WaypointData.Added(id, name, target, color, radius, look, scope, Optional.ofNullable(owner)));
         refreshScope(player.server, scope, owner);
         return true;
     }
 
     /** A world waypoint from a command, without a player behind it. */
     public static void addShared(MinecraftServer server, ResourceLocation id, StoryText name, WaypointTarget target, int color) {
-        WaypointData.get(server).put(new WaypointData.Added(id, name, target, color, 0f, AreaLook.DEFAULT, StoryScope.WORLD, Optional.empty(),
-                WaypointDefinition.DEFAULT_STYLE));
+        WaypointData.get(server).put(new WaypointData.Added(id, name, target, color, 0f, AreaLook.DEFAULT, StoryScope.WORLD, Optional.empty()));
         refreshAll(server);
     }
 

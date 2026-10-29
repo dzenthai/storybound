@@ -75,7 +75,7 @@ public final class WaypointGameTests {
                         + " \"quest\": \"gametest:waypoint_quest\", \"stage\": \"first\" }",
                 SHRINE, "{ \"name\": \"gametest.shrine\", \"target\": { \"pos\": [20, 64, 20], \"dimension\": \"minecraft:the_nether\" },"
                         + " \"quest\": \"gametest:waypoint_quest\", \"stage\": \"second\" }",
-                TOWER, "{ \"name\": \"gametest.tower\", \"target\": { \"pos\": [30, 70, 30] }, \"color\": \"#3366FF\", \"style\": \"storybound:npc\","
+                TOWER, "{ \"name\": \"gametest.tower\", \"target\": { \"pos\": [30, 70, 30] }, \"color\": \"#3366FF\","
                         + " \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:tower_known\" } }"
         ), () -> with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(QUEST, """
                 { "title": "gametest.waypoint_quest", "stages": [
@@ -103,8 +103,6 @@ public final class WaypointGameTests {
             ok(() -> StoryState.set(player, StoryScope.PLAYER, key("tower_known"), new StoryValue.Bool(true)));
             helper.assertTrue(Waypoints.visible(player).containsKey(TOWER.toString()), "conditions decide an unbound waypoint");
             expect(helper, Waypoints.visible(player).get(TOWER.toString()).color(), 0xFF3366FF, "colour");
-            expect(helper, Waypoints.visible(player).get(TOWER.toString()).style(), ResourceLocation.fromNamespaceAndPath("storybound", "npc"), "marker style");
-            expect(helper, camp.style(), WaypointDefinition.DEFAULT_STYLE, "the default marker style");
 
             Quests.setStatus(player, QUEST, null);
             expect(helper, keys(player), List.of(TOWER.toString()), "a reset quest takes its waypoints away");
@@ -179,13 +177,12 @@ public final class WaypointGameTests {
         ok(() -> PartyManager.accept(member));
 
         run(helper, leader, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:mine\", \"name\": \"gametest.mine\", \"pos\": [1, 2, 3] }");
-        run(helper, leader, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:ours\", \"name\": \"gametest.ours\", \"pos\": [4, 5, 6], \"visibility\": \"party\", \"style\": \"storybound:npc\" }");
+        run(helper, leader, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:ours\", \"name\": \"gametest.ours\", \"pos\": [4, 5, 6], \"visibility\": \"party\" }");
         run(helper, leader, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:everyone\", \"name\": \"gametest.everyone\", \"pos\": [7, 8, 9], \"visibility\": \"world\" }");
 
         helper.assertTrue(Waypoints.visible(leader).keySet().containsAll(List.of("player/gametest:mine", "party/gametest:ours", "world/gametest:everyone")), "the author sees all three");
         helper.assertFalse(Waypoints.visible(member).containsKey("player/gametest:mine"), "a party member does not see a personal waypoint");
         helper.assertTrue(Waypoints.visible(member).containsKey("party/gametest:ours"), "a party member sees the party one");
-        expect(helper, Waypoints.visible(member).get("party/gametest:ours").style(), ResourceLocation.fromNamespaceAndPath("storybound", "npc"), "an added waypoint keeps its style");
         helper.assertFalse(Waypoints.visible(stranger).containsKey("party/gametest:ours"), "a stranger does not see the party one");
         helper.assertTrue(Waypoints.visible(stranger).containsKey("world/gametest:everyone"), "everyone sees a world waypoint");
 
@@ -448,18 +445,28 @@ public final class WaypointGameTests {
         with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(broken,
                 "{ \"title\": \"gametest.q\", \"stages\": [ { \"id\": \"a\", \"waypoints\": [\"gametest:nowhere\"] } ] }"),
                 () -> with(helper, WaypointRegistries.WAYPOINTS.serverStore(), WaypointDefinition.CODEC, Map.of(key("loose"),
-                        "{ \"name\": \"gametest.loose\", \"target\": { \"pos\": [0, 0, 0] }, \"stage\": \"a\" }"), () -> {
+                        "{ \"name\": \"gametest.loose\", \"target\": { \"pos\": [0, 0, 0] }, \"stage\": \"a\" }",
+                        key("off_palette"), "{ \"name\": \"gametest.o\", \"target\": { \"pos\": [0, 0, 0] }, \"color\": \"#3366FF\" }",
+                        key("in_palette"), "{ \"name\": \"gametest.i\", \"target\": { \"pos\": [0, 0, 0] }, \"color\": \"#5555FF\" }"), () -> {
                     List<ValidationIssue> issues = ValidationService.validate().issues();
                     helper.assertTrue(errors(issues, broken).stream().anyMatch(message -> message.contains("unknown waypoint gametest:nowhere")),
                             "a stage listing an unknown waypoint, got " + errors(issues, broken));
                     helper.assertTrue(errors(issues, key("loose")).stream().anyMatch(message -> message.contains("'stage' needs 'quest'")),
                             "stage without quest, got " + errors(issues, key("loose")));
+                    // A colour outside Minecraft's 16 text colours: Xaero's Minimap shows the nearest of them instead.
+                    helper.assertTrue(warnings(issues, key("off_palette")).stream().anyMatch(message -> message.contains("Xaero's Minimap shows it as #5555FF")),
+                            "a colour Xaero cannot show, got " + warnings(issues, key("off_palette")));
+                    helper.assertTrue(warnings(issues, key("in_palette")).stream().noneMatch(message -> message.contains("Colour")), "one of the 16");
                 }));
         helper.succeed();
     }
 
     private static List<String> keys(ServerPlayer player) {
         return Waypoints.visible(player).keySet().stream().filter(key -> key.startsWith("gametest:")).sorted().toList();
+    }
+
+    private static List<String> warnings(List<ValidationIssue> issues, ResourceLocation entry) {
+        return issues.stream().filter(issue -> entry.equals(issue.entry()) && !issue.isError()).map(ValidationIssue::message).toList();
     }
 
     private static List<String> errors(List<ValidationIssue> issues, ResourceLocation entry) {

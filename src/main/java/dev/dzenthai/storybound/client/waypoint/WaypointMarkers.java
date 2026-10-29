@@ -116,7 +116,7 @@ public final class WaypointMarkers {
     private static @Nullable Marker marker(ClientWaypoint waypoint, Vec3 pos, Vec3 eyes, GuiGraphics graphics, StoryboundClientConfig config) {
         ClientWaypoints.Display display = ClientWaypoints.display(waypoint);
         boolean tracked = display == ClientWaypoints.Display.TRACKED;
-        WaypointStyle style = WaypointStyles.INSTANCE.get(waypoint.style());
+        WaypointStyle style = WaypointStyles.INSTANCE.get();
         Vec3 anchor = pos.add(0, LIFT, 0);
         double distance = eyes.distanceTo(anchor);
         boolean area = waypoint.radius() > 0;
