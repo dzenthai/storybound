@@ -116,6 +116,20 @@ public final class ClientDevStore {
         return byType(type).get(id);
     }
 
+    /** Forgets a definition here at once (its deletion is on the way to the server). */
+    public static void removeLocal(ResourceLocation type, ResourceLocation id) {
+        Map<ResourceLocation, Map<ResourceLocation, String>> immutable = new LinkedHashMap<>();
+        definitions.forEach((t, map) -> {
+            Map<ResourceLocation, String> copy = new LinkedHashMap<>(map);
+            if (t.equals(type)) {
+                copy.remove(id);
+            }
+            immutable.put(t, Collections.unmodifiableMap(copy));
+        });
+        definitions = Collections.unmodifiableMap(immutable);
+        refreshDerivedScripts();
+    }
+
     public static void putLocal(ResourceLocation type, ResourceLocation id, String json) {
         Map<ResourceLocation, Map<ResourceLocation, String>> copy = new LinkedHashMap<>();
         definitions.forEach((t, map) -> copy.put(t, new LinkedHashMap<>(map)));

@@ -213,7 +213,7 @@ public final class DialogueEvents {
             }
         });
         Set<String> boundTags = new HashSet<>();
-        DialogueRegistries.NPC_BINDINGS.serverStore().all().values().forEach(binding -> binding.entity().tag().ifPresent(boundTags::add));
+        DialogueRegistries.NPC_BINDINGS.serverStore().all().values().forEach(binding -> boundTags.addAll(binding.tags()));
         LogicOwners.walkAll((owner, ownerId) -> new NpcCopies(owner, ownerId, boundTags, false, new HashSet<>(), sink));
     }
 

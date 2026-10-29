@@ -53,7 +53,7 @@ Required on both client and server.
   to say.
 - Dialogue graphs with choices, conditions, one-time options, timers and calls into other dialogues.
 - A cinematic camera (shot / reverse shot, walls respected), speech bubbles for players nearby, a "thinking" pause.
-- NPC bindings by type, tag or uuid; NPCs that talk to one player at a time; different lines before, during and
+- NPC bindings by type, tag, name or uuid, for one entity or a list of them; NPCs that talk to one player at a time; different lines before, during and
   after a quest.
 - NPCs that come back (`"respawn": true`): the same NPC returns where it died or disappeared, and drops nothing.
 

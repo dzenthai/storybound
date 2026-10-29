@@ -7,7 +7,13 @@
   "required": ["entity"],
   "additionalProperties": false,
   "properties": {
-    "entity": { "$ref": "logic.schema.json#/definitions/entity_selector" },
+    "entity": {
+      "description": "Which entities talk: one selector, or a list of them; the binding is for any entity that matches one.",
+      "oneOf": [
+        { "$ref": "logic.schema.json#/definitions/entity_selector" },
+        { "type": "array", "minItems": 1, "items": { "$ref": "logic.schema.json#/definitions/entity_selector" } }
+      ]
+    },
     "dialogues": {
       "description": "Tried by priority, highest first; the first whose conditions pass is started. None passing: the click does what it normally does (trading).",
       "type": "array",
@@ -23,6 +29,7 @@
       }
     },
     "interact": { "description": "Right-click starts the dialogue.", "type": "boolean", "default": true },
+    "override_interact": { "description": "Right-click starts the dialogue and cancels the entity's vanilla interaction (e.g. villager trade menu).", "type": "boolean", "default": false },
     "proximity": {
       "description": "Coming close starts the dialogue; again only after leaving and coming back.",
       "type": "object",
@@ -34,10 +41,9 @@
         "line_of_sight": { "type": "boolean", "default": true }
       }
     },
-    "custom": { "description": "Right-click posts the KubeJS npcInteract event; the script decides.", "type": "boolean", "default": false },
-    "override_interact": { "description": "Right-click starts the dialogue and cancels the entity's vanilla interaction (e.g. villager trade menu).", "type": "boolean", "default": false },
     "exclusive": { "description": "While the NPC talks with one player, others cannot start its dialogues (they get busy_dialogue, or nothing). Off: several players talk with it at once.", "type": "boolean", "default": false },
     "busy_dialogue": { "description": "What others get while an exclusive NPC talks: e.g. a bubble \"Wait, I am busy\".", "$ref": "logic.schema.json#/definitions/id" },
-    "respawn": { "description": "When the NPC dies or disappears, the same NPC (its name, look, trades and uuid) comes back where it was 5 seconds later. It drops nothing when it dies.", "type": "boolean", "default": false }
+    "respawn": { "description": "When the NPC dies or disappears, the same NPC (its name, look, trades and uuid) comes back where it was 5 seconds later. It drops nothing when it dies.", "type": "boolean", "default": false },
+    "custom": { "description": "Talking to the NPC (talk key or right-click) fires the KubeJS event npcInteract. Its dialogues still start too while interact is on: for the script alone, turn interact off or leave dialogues empty. Needs KubeJS; only for binding files, not /storybound npc bind.", "type": "boolean", "default": false }
   }
 }

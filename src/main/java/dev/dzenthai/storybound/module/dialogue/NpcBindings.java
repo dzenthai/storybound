@@ -6,7 +6,6 @@ import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.event.NpcInteractEvent;
-import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.state.StoryScope;
@@ -71,7 +70,7 @@ public final class NpcBindings {
             return Optional.of(new Found(null, entity.getData(DialogueRegistries.NPC_BINDING).toBinding(entity)));
         }
         for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
-            if (entry.getValue().entity().matches(entity)) {
+            if (entry.getValue().matches(entity)) {
                 return Optional.of(new Found(entry.getKey(), entry.getValue()));
             }
         }
@@ -80,7 +79,7 @@ public final class NpcBindings {
 
     /** Whether a binding file that matches the entity says it comes back (an entity's own binding never does). */
     public static boolean respawns(Entity entity) {
-        return files.stream().anyMatch(entry -> entry.getValue().respawn() && entry.getValue().entity().matches(entity));
+        return files.stream().anyMatch(entry -> entry.getValue().respawn() && entry.getValue().matches(entity));
     }
 
     /**
@@ -337,8 +336,7 @@ public final class NpcBindings {
         }
         List<String> reasons = new ArrayList<>();
         for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
-            EntitySelector selector = entry.getValue().entity();
-            String mismatch = selector.mismatch(target);
+            String mismatch = entry.getValue().mismatch(target);
             if (!mismatch.startsWith("type is ")) {
                 reasons.add(entry.getKey() + ": " + mismatch);
             }

@@ -220,7 +220,9 @@ public final class DevEditorGameTests {
             }
             case OBJECT -> sampleObject(node);
             case VARIANTS -> sampleObject(Schemas.variants(node).getFirst());
-            case MAP, RAW -> new JsonObject();
+            // One thing or a list of them (an NPC binding's entity): the one thing.
+            case RAW -> Schemas.variants(node).isEmpty() ? new JsonObject() : sample(Schemas.variants(node).getFirst(), field);
+            case MAP -> new JsonObject();
         };
     }
 

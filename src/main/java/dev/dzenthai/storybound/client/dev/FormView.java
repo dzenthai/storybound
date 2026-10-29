@@ -73,6 +73,11 @@ final class FormView {
         /** A button changed the JSON: saved now. */
         void changed();
 
+        /** The NPC binding the form edits, for the fields that belong to the NPC rather than its file; null otherwise. */
+        default @Nullable ResourceLocation npcBinding() {
+            return null;
+        }
+
         /** Values for a field that names something inside the definition (a dialogue's nodes, its speakers); usually none. */
         default List<String> choices(String field) {
             return List.of();
@@ -136,7 +141,9 @@ final class FormView {
                 current = current.isJsonObject() ? current.getAsJsonObject().get(key) : null;
             } else {
                 int index = (Integer) step;
-                current = current.isJsonArray() && index < current.getAsJsonArray().size() ? current.getAsJsonArray().get(index) : null;
+                // One thing written alone where a list may stand (an action, an NPC binding's entity) is its first element.
+                current = current.isJsonArray() && index < current.getAsJsonArray().size() ? current.getAsJsonArray().get(index)
+                        : current.isJsonObject() && index == 0 ? current : null;
             }
             if (current == null) {
                 return null;
@@ -334,6 +341,14 @@ final class FormView {
     }
 
     private void page(List<Object> path, Node schema) {
+        if (isEntitySelector(schema)) {
+            entityPage(path);
+            return;
+        }
+        if (entityListItems(schema) != null) {
+            listPage(path, entityListItems(schema));
+            return;
+        }
         switch (Schemas.kind(schema)) {
             case CONDITIONS -> listPage(path, Schemas.logic("condition"));
             case ACTIONS -> listPage(path, Schemas.logic("action"));
@@ -370,13 +385,304 @@ final class FormView {
 
     private void objectPage(List<Object> path, Node schema, Set<String> skip, @Nullable String typeField) {
         Set<String> required = Schemas.required(schema);
+        boolean npc = path.isEmpty() && host.npcBinding() != null;
+        JsonObject object = objectAt(path);
         for (Map.Entry<String, Node> property : Schemas.properties(schema).entrySet()) {
             String name = property.getKey();
-            if (skip.contains(name) || name.equals(typeField)) {
+            if (skip.contains(name) || name.equals(typeField) || npc && !npcFieldShown(name, object)) {
                 continue;
             }
-            field(path, name, property.getValue(), required.contains(name), schema);
+            if (npc && NPC_GROUPS.containsKey(name)) {
+                group(DevUi.text(NPC_GROUPS.get(name)));
+            }
+            if (npc && name.equals("proximity")) {
+                proximityField(path, property.getValue(), object);
+            } else {
+                field(path, name, property.getValue(), required.contains(name), schema);
+            }
+            if (npc && name.equals("dialogues")) {
+                relationshipField(host.npcBinding());
+            }
         }
+    }
+
+    /**
+     * An NPC binding's form in the order its author asks (October 29, 2026; before, the file's order, with the
+     * relationship scale after respawn): who it is, what it says and the relationship its options move; how a talk
+     * starts; what happens with several players; the rest. Each group but the first opens with a heading at this field.
+     */
+    private static final Map<String, String> NPC_GROUPS = Map.of(
+            "interact", "npc.group.start",
+            "exclusive", "npc.group.players",
+            "respawn", "npc.group.other");
+
+    /**
+     * What depends on a switch shows only while it is on, unless the file still sets it: "instead of trading" with
+     * talking by key or right-click, "reply while busy" with talking to one player at a time.
+     */
+    private static boolean npcFieldShown(String name, @Nullable JsonObject binding) {
+        return switch (name) {
+            case "override_interact" -> flag(binding, "interact", true) || flag(binding, "override_interact", false);
+            case "busy_dialogue" -> flag(binding, "exclusive", false) || binding != null && binding.has("busy_dialogue");
+            default -> true;
+        };
+    }
+
+    private static boolean flag(@Nullable JsonObject object, String name, boolean byDefault) {
+        return object != null && object.get(name) instanceof JsonPrimitive value && value.isBoolean() ? value.getAsBoolean() : byDefault;
+    }
+
+    /** A heading over a group of fields. */
+    private void group(Component title) {
+        y += 4;
+        text(title, DevUi.ACCENT);
+    }
+
+    /**
+     * Speaking up when a player comes near: yes/no, and while yes its settings in words ("4 blocks · every 30 s"), which
+     * open them. Before, one row "1 ▸" or "—", and "—" for {@code {}} too, which is on with the defaults.
+     */
+    private void proximityField(List<Object> path, Node node, @Nullable JsonObject binding) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(fieldLabel("proximity", false));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        JsonObject settings = binding != null && binding.get("proximity") instanceof JsonObject value ? value : null;
+        boolean on = settings != null;
+        int toggleW = on ? Math.min(60, w / 3) : w;
+        Button toggle = Button.builder(Component.literal(DevUi.yesNo(on)), b -> {
+            if (on) {
+                ensureObject(path).remove("proximity");
+            } else {
+                ensureObject(path).add("proximity", new JsonObject());
+            }
+            host.changed();
+        }).bounds(x, rowTop, toggleW, CONTROL_H).build();
+        if (!node.description().isEmpty()) {
+            toggle.setTooltip(Tooltip.create(Component.literal(described(node.description()))));
+        }
+        screen.add(toggle);
+        if (on) {
+            NpcProximity shown = NpcProximity.of(settings);
+            Component summary = Component.empty()
+                    .append(DevUi.text(shown.once() ? "npc.proximity.once" : "npc.proximity.summary", format(shown.radius()), shown.cooldown()))
+                    .append(" ▸");
+            screen.add(Button.builder(summary, b -> push(with(path, "proximity"), node, fieldLabel("proximity", false).getString(), false))
+                    .bounds(x + toggleW + 2, rowTop, w - toggleW - 2, CONTROL_H).build());
+        }
+    }
+
+    /** The settings a proximity object gives, with the defaults for what it leaves out (as {@code NpcBinding.Proximity}). */
+    private record NpcProximity(double radius, int cooldown, boolean once) {
+        static NpcProximity of(JsonObject settings) {
+            return new NpcProximity(
+                    settings.get("radius") instanceof JsonPrimitive radius && radius.isNumber() ? radius.getAsDouble() : 4,
+                    settings.get("cooldown") instanceof JsonPrimitive cooldown && cooldown.isNumber() ? cooldown.getAsInt() : 30,
+                    flag(settings, "once", false));
+        }
+    }
+
+    private static String format(double value) {
+        return value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value);
+    }
+
+    private static boolean isEntitySelector(Node node) {
+        return "entity_selector".equals(Schemas.resolve(node).ref());
+    }
+
+    /** The selector of a field written as one entity selector or a list of them (an NPC binding's); null for others. */
+    private static @Nullable Node entityListItems(Node node) {
+        List<Node> variants = Schemas.variants(node);
+        if (variants.size() != 2 || !isEntitySelector(variants.get(0))) {
+            return null;
+        }
+        Node items = Schemas.items(variants.get(1));
+        return items != null && isEntitySelector(items) ? variants.get(0) : null;
+    }
+
+    /**
+     * Several entities (an NPC binding is for any of them): one row naming them, which opens their list, as a dialogue's
+     * nodes. There "+ Add" makes an empty one and opens its page ({@link #entityPage}), as a row opens a set one.
+     */
+    private void entityListField(List<Object> path, String name, Node node, @Nullable JsonElement value, boolean required) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text(required ? "entity.list_required" : "entity.list"));
+        List<JsonElement> entities = value == null ? List.of() : value.isJsonArray() ? value.getAsJsonArray().asList() : List.of(value);
+        List<String> names = new ArrayList<>();
+        for (JsonElement entity : entities) {
+            names.add(entitySummary(entity.isJsonObject() ? entity.getAsJsonObject() : null));
+        }
+        Component summary = Component.literal((names.isEmpty() ? "—" : String.join("; ", names)) + " ▸");
+        screen.add(Button.builder(summary, b -> push(with(path, name), node, DevUi.str("entity.list"), false))
+                .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
+    }
+
+    /**
+     * Which entity (an NPC binding's, a boss's, a waypoint's nearest one): one row with what it is in words ("Villager ·
+     * tag demo_elder"). A click opens its page ({@link #entityPage}), also when it is empty: how it is known is chosen
+     * there.
+     */
+    private void entityField(List<Object> path, String name, Node node, @Nullable JsonElement value, Component label, boolean required) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        JsonObject selector = value != null && value.isJsonObject() ? value.getAsJsonObject() : null;
+        Component summary = Component.literal(entitySummary(selector)).append(" ▸");
+        List<Object> at = with(path, name);
+        String title = fieldLabel(name, false).getString();
+        // Empty or set, straight to its page: how it is known is chosen there.
+        screen.add(Button.builder(summary, b -> push(at, node, title, !required))
+                .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
+    }
+
+    /** "Villager · tag demo_elder", "Cat · name «Murka»", "entity …a1b2"; "—" when nothing is set. */
+    private static String entitySummary(@Nullable JsonObject selector) {
+        if (selector == null || selector.isEmpty()) {
+            return "—";
+        }
+        List<String> parts = new ArrayList<>();
+        if (selector.has("uuid")) {
+            String uuid = selector.get("uuid").getAsString();
+            parts.add(DevUi.str("entity.summary.uuid", uuid.length() > 4 ? uuid.substring(uuid.length() - 4) : uuid));
+        } else if (selector.has("name")) {
+            parts.add(DevUi.str("entity.summary.name", selector.get("name").getAsString()));
+        } else if (selector.has("type")) {
+            List<String> names = new ArrayList<>();
+            JsonElement type = selector.get("type");
+            for (JsonElement one : type.isJsonArray() ? type.getAsJsonArray().asList() : List.of(type)) {
+                String id = one.getAsString();
+                ResourceLocation key = id.startsWith("#") ? null : ResourceLocation.tryParse(id);
+                names.add(key != null && BuiltInRegistries.ENTITY_TYPE.containsKey(key) ? BuiltInRegistries.ENTITY_TYPE.get(key).getDescription().getString() : id);
+            }
+            parts.add(String.join(", ", names));
+        }
+        if (selector.has("tag")) {
+            parts.add(DevUi.str("entity.summary.tag", selector.get("tag").getAsString()));
+        }
+        return String.join(" · ", parts);
+    }
+
+    /**
+     * An entity's page, in two parts: what it is known by, one of three, by a switch (its type, with the list of types;
+     * only one with this name from a name tag; one entity, picked by looking at it), and the scoreboard tag it carries.
+     * Switching clears what the previous way wrote, but the type a picked entity brought along stays (it reads well).
+     * A file that gives several ways at once shows the most exact one (the entity, then the name, then the type).
+     */
+    private void entityPage(List<Object> path) {
+        JsonObject selector = objectAt(path);
+        // What the file says first; when it says nothing yet, the way last switched to here.
+        String written = selector == null ? null : selector.has("uuid") ? "uuid" : selector.has("name") ? "name" : selector.has("type") ? "type" : null;
+        String mode = written != null ? written : entityModes.getOrDefault(path.toString(), "type");
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("entity.by"));
+            int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+            int modeW = Math.min(150, w * 2 / 5);
+            Button switcher = Button.builder(Component.literal(DevUi.str("entity.mode." + mode) + " ▸"), b -> {
+                JsonObject target = ensureObject(path);
+                String next = switch (mode) {
+                    case "type" -> {
+                        target.remove("type");
+                        yield "name";
+                    }
+                    case "name" -> {
+                        target.remove("name");
+                        yield "uuid";
+                    }
+                    default -> {
+                        target.remove("uuid");
+                        yield "type";
+                    }
+                };
+                // An empty way still shows as chosen: the switch writes nothing until the field is filled.
+                entityModes.put(path.toString(), next);
+                host.changed();
+            }).bounds(x, rowTop, modeW, CONTROL_H).build();
+            switcher.setTooltip(Tooltip.create(DevUi.text("entity.mode.tooltip")));
+            screen.add(switcher);
+            boolean button = !mode.equals("name");
+            int boxX = x + modeW + 4;
+            int boxW = w - modeW - 4 - (button ? 20 : 0);
+            String field = mode;
+            EditBox box = new EditBox(screen.font(), boxX, rowTop + 1, boxW, CONTROL_H - 2, DevUi.text("entity.mode." + field));
+            box.setMaxLength(256);
+            box.setValue(selector != null && selector.has(field) ? display(field.equals("type") ? Kind.ID_LIST : Kind.STRING, selector.get(field)) : "");
+            box.setResponder(text -> {
+                JsonObject target = ensureObject(path);
+                if (text.isBlank()) {
+                    target.remove(field);
+                    box.setTextColor(0xFFE0E0E0);
+                    host.edited();
+                    return;
+                }
+                JsonElement parsed = field.equals("type") ? parse(Kind.ID_LIST, text)
+                        : field.equals("uuid") && !text.trim().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}") ? null
+                        : new JsonPrimitive(text.trim());
+                box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
+                if (parsed != null) {
+                    target.add(field, parsed);
+                    host.edited();
+                }
+            });
+            box.setTooltip(Tooltip.create(DevUi.text("entity.field." + field)));
+            screen.add(box);
+            if (field.equals("type")) {
+                screen.add(Button.builder(Component.literal("…"), b -> screen.catalog().open(DevUi.text("entity.pick"), Catalog.Kind.MOB, (kind, entry) -> {
+                    ensureObject(path).addProperty("type", entry.id());
+                    host.changed();
+                })).tooltip(Tooltip.create(DevUi.text("form.pick"))).bounds(x + w - 18, rowTop - 1, 18, CONTROL_H).build());
+            } else if (field.equals("uuid")) {
+                screen.add(Button.builder(Component.literal("🎯"), b -> DevWorldPicker.pickEntity(screen, DevUi.text("picker.entity_prompt"), entity -> {
+                    JsonObject target = ensureObject(path);
+                    target.addProperty("uuid", entity.getUUID().toString());
+                    // The type goes along, so the file reads well and survives a typo in the uuid.
+                    target.addProperty("type", BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+                    host.changed();
+                })).tooltip(Tooltip.create(DevUi.text("form.pick_entity"))).bounds(x + w - 18, rowTop - 1, 18, CONTROL_H).build());
+            }
+        }
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("entity.tag"));
+            EditBox tag = new EditBox(screen.font(), x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H - 2, DevUi.text("entity.tag"));
+            tag.setMaxLength(256);
+            tag.setValue(selector != null && selector.has("tag") ? selector.get("tag").getAsString() : "");
+            tag.setResponder(text -> {
+                JsonObject target = ensureObject(path);
+                if (text.isBlank()) {
+                    target.remove("tag");
+                } else {
+                    target.addProperty("tag", text.trim());
+                }
+                host.edited();
+            });
+            tag.setTooltip(Tooltip.create(DevUi.text("entity.field.tag")));
+            screen.add(tag);
+        }
+    }
+
+    /** The way an entity is known by, chosen on its page before its field is filled (per path; the form's own state). */
+    private final Map<String, String> entityModes = new java.util.HashMap<>();
+
+    /** The NPC's relationship scale, with the binding's other yes/no fields: yes makes it, no deletes it if unused. */
+    private void relationshipField(ResourceLocation npc) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("relationship.field"));
+        boolean exists = RelationshipScales.exists(npc);
+        Button button = Button.builder(Component.literal(DevUi.yesNo(exists)), b -> {
+            if (RelationshipScales.exists(npc)) {
+                RelationshipScales.remove(screen, npc);
+            } else {
+                RelationshipScales.create(screen, npc);
+            }
+            screen.rebuild();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("relationship.tooltip", RelationshipScales.of(npc).toString())));
+        screen.add(button);
     }
 
     private void field(List<Object> path, String name, Node node, boolean required, Node owner) {
@@ -388,6 +694,14 @@ final class FormView {
                 : Tooltip.create(Component.literal(described(!node.description().isEmpty() ? node.description() : Schemas.resolve(node).description())));
         if (name.equals("difficulty") && path.isEmpty()) {
             difficultyField(name, value, label);
+            return;
+        }
+        if (isEntitySelector(node)) {
+            entityField(path, name, node, value, label, required);
+            return;
+        }
+        if (entityListItems(node) != null) {
+            entityListField(path, name, node, value, required);
             return;
         }
         // A waypoint (or add_waypoint): "target or search area" first; an area's radius and looks only for an area.
@@ -409,7 +723,7 @@ final class FormView {
         switch (kind) {
             case TEXT -> textField(path, name, label, tooltip);
             case ENUM -> enumField(path, name, node, required, value, label, tooltip);
-            case BOOLEAN -> booleanField(path, name, node, value, label, tooltip);
+            case BOOLEAN -> booleanField(path, name, node, value, needsKubeJs(path, name) ? DevUi.text("form.needs_kubejs", label) : label, tooltip);
             case ID, ID_LIST, STRING, INTEGER, NUMBER, LITERAL, POSITION, RAW -> inputField(path, name, node, kind, value, label, tooltip, owner);
             default -> {
                 if (row(CONTROL_H)) {
@@ -672,11 +986,24 @@ final class FormView {
         screen.add(button);
     }
 
+    /**
+     * An NPC binding's {@code custom} where the server has no KubeJS: its event would reach no script, so the field says
+     * so, greyed (it can still be switched, to take it back).
+     */
+    private boolean needsKubeJs(List<Object> path, String name) {
+        ClientDevStore.Scripts scripts = ClientDevStore.scripts();
+        return path.isEmpty() && name.equals("custom") && host.npcBinding() != null && scripts.known() && !scripts.kubejs();
+    }
+
     private void booleanField(List<Object> path, String name, Node node, @Nullable JsonElement value, Component label, @Nullable Tooltip tooltip) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
         }
-        labelRow(label);
+        if (needsKubeJs(path, name)) {
+            labels.add(new Label(label, x, rowY(LABEL_H + CONTROL_H), 0xFF78909C));
+        } else {
+            labelRow(label);
+        }
         JsonElement fallback = node.defaultValue();
         boolean byDefault = fallback != null && fallback.isJsonPrimitive() && fallback.getAsBoolean();
         boolean current = value != null && value.isJsonPrimitive() ? value.getAsBoolean() : byDefault;
@@ -933,8 +1260,16 @@ final class FormView {
             case TRIGGER -> Logic.TRIGGER;
             default -> null;
         };
+        boolean entities = isEntitySelector(items);
         screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> {
-            if (logic != null) {
+            if (entities) {
+                // Straight to its page: how it is known (type, name, one entity) is chosen there.
+                JsonArray list = ensureArray(path);
+                list.add(new JsonObject());
+                frames.push(new Frame(with(path, list.size() - 1), items, DevUi.str("entity.new"), false));
+                scroll = 0;
+                host.changed();
+            } else if (logic != null) {
                 pickType(logic, element -> {
                     String type = element.get("type").getAsString();
                     ensureArray(path).add(element);
@@ -1278,6 +1613,9 @@ final class FormView {
             return "#" + (index + 1);
         }
         JsonObject object = element.getAsJsonObject();
+        if (isEntitySelector(items)) {
+            return entitySummary(object);
+        }
         if ((kind == Kind.CONDITION || kind == Kind.ACTION || kind == Kind.TRIGGER) && object.has("type")) {
             Logic logic = kind == Kind.CONDITION ? Logic.CONDITION : kind == Kind.ACTION ? Logic.ACTION : Logic.TRIGGER;
             String main = mainValue(object);

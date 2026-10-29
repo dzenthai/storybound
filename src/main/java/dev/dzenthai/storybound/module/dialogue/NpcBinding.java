@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.module.dialogue;
 
+import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.logic.Condition;
@@ -11,15 +12,21 @@ import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.condition.LogicConditions;
 import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.Comparator;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ExtraCodecs;
 import net.minecraft.world.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * {@code data/<ns>/storybound/npc_bindings/<path>.json}: which entities talk, which dialogue they start and how.
  *
+ * @param entities  the binding is for any of them: one selector, or a list ({@code "entity"} takes both; a list since
+ *                  October 29, 2026, so one NPC file covers, say, the elder and his double in another village)
  * @param dialogues tried by priority (highest first); the first whose conditions pass is started
  * @param interact  right-click starts the dialogue
  * @param proximity coming close starts it
@@ -28,10 +35,15 @@ import org.jetbrains.annotations.Nullable;
  * @param busyDialogue what others get meanwhile, e.g. a bubble "Wait, I am busy"; without it, nothing
  * @param respawn   the NPC comes back where it died or disappeared (see {@link NpcRespawns})
  */
-public record NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity,
+public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity,
                          boolean custom, boolean overrideInteract, boolean exclusive, Optional<ResourceLocation> busyDialogue, boolean respawn) {
+    /** One selector, or a non-empty list of them; one is written back as an object, as files had it before lists. */
+    private static final Codec<List<EntitySelector>> ENTITIES = Codec.either(EntitySelector.CODEC, ExtraCodecs.nonEmptyList(EntitySelector.CODEC.listOf()))
+            .xmap(either -> either.map(List::of, Function.identity()),
+                    entities -> entities.size() == 1 ? Either.left(entities.getFirst()) : Either.right(entities));
+
     public static final Codec<NpcBinding> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            EntitySelector.CODEC.fieldOf("entity").forGetter(NpcBinding::entity),
+            ENTITIES.fieldOf("entity").forGetter(NpcBinding::entities),
             Entry.CODEC.listOf().optionalFieldOf("dialogues", List.of()).forGetter(NpcBinding::dialogues),
             Codec.BOOL.optionalFieldOf("interact", true).forGetter(NpcBinding::interact),
             Proximity.CODEC.optionalFieldOf("proximity").forGetter(NpcBinding::proximity),
@@ -43,7 +55,30 @@ public record NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean i
     ).apply(instance, NpcBinding::new));
 
     public NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity, boolean custom) {
-        this(entity, dialogues, interact, proximity, custom, false, false, Optional.empty(), false);
+        this(List.of(entity), dialogues, interact, proximity, custom, false, false, Optional.empty(), false);
+    }
+
+    /** Whether the binding is for the entity: any of its selectors matches. */
+    public boolean matches(Entity entity) {
+        return entities.stream().anyMatch(selector -> selector.matches(entity));
+    }
+
+    /**
+     * What keeps the entity from matching, for the trace: each selector's reason ({@link EntitySelector#mismatch}), the
+     * ones of other entity types left out unless all are; empty when it matches.
+     */
+    public String mismatch(Entity entity) {
+        if (matches(entity)) {
+            return "";
+        }
+        List<String> reasons = entities.stream().map(selector -> selector.mismatch(entity)).toList();
+        List<String> sameType = reasons.stream().filter(reason -> !reason.startsWith("type is ")).toList();
+        return String.join(" | or ", sameType.isEmpty() ? reasons : sameType);
+    }
+
+    /** The scoreboard tags its selectors look for. */
+    public Set<String> tags() {
+        return entities.stream().flatMap(selector -> selector.tag().stream()).collect(Collectors.toSet());
     }
 
     /** The dialogue to start for this player, if any entry's conditions pass. */

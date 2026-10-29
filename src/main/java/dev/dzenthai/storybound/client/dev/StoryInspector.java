@@ -6,8 +6,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import dev.dzenthai.storybound.client.document.DocumentTexts;
 import dev.dzenthai.storybound.core.dev.DevScripts;
-import dev.dzenthai.storybound.core.story.StoryLinks;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryLinks;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -101,6 +101,12 @@ final class StoryInspector {
                     view.changed(screen);
                 }
             }
+
+            @Override
+            public @Nullable ResourceLocation npcBinding() {
+                NodeKey key = view.selected;
+                return key != null && key.type().equals(ClientDevStore.TYPE_NPC) ? key.id() : null;
+            }
         });
     }
 
@@ -185,8 +191,6 @@ final class StoryInspector {
             buttons.add(test(screen, "🎒 ", "document.give", "document_give", key));
         } else if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
             buttons.add(test(screen, "⚡ ", "waypoint.teleport", "waypoint_tp", key));
-        } else if (type.equals(ClientDevStore.TYPE_NPC)) {
-            buttons.add(relationship(screen, key));
         }
         if (buttons.isEmpty()) {
             return y;
@@ -198,33 +202,6 @@ final class StoryInspector {
             screen.add(button);
         }
         return y + 24;
-    }
-
-    /**
-     * The NPC's relationship scale: a number flag {@code <ns>:rep/<npc>} per player, starting at 0. Once made, the
-     * lists of actions and conditions offer "+10 / -10" and "at least 20 / at most -20" for it.
-     */
-    private static Button relationship(DevModeScreen screen, NodeKey npc) {
-        ResourceLocation scale = ResourceLocation.fromNamespaceAndPath(npc.id().getNamespace(), FormView.RELATIONSHIP_PREFIX + npc.id().getPath());
-        boolean exists = ClientDevStore.getJson(ClientDevStore.TYPE_FLAG, scale) != null;
-        Component label = Component.literal("❤ ").append(DevUi.text(exists ? "relationship.exists" : "relationship.create"));
-        return Button.builder(label, b -> {
-            if (ClientDevStore.getJson(ClientDevStore.TYPE_FLAG, scale) != null) {
-                screen.status(DevUi.text("relationship.hint", scale.toString()), DevUi.NEUTRAL);
-                return;
-            }
-            JsonObject flag = new JsonObject();
-            flag.addProperty("type", "int");
-            flag.addProperty("default", 0);
-            flag.addProperty("scope", "player");
-            flag.addProperty("sync", true);
-            flag.addProperty("description", DevUi.str("relationship.description", npc.id().getPath()));
-            String json = DevUi.GSON.toJson(flag);
-            ClientDevStore.putLocal(ClientDevStore.TYPE_FLAG, scale, json);
-            DevRequests.save(ClientDevStore.TYPE_FLAG, scale, json, Optional.empty());
-            screen.status(DevUi.text("relationship.created", scale.toString()), DevUi.OK);
-            screen.rebuild();
-        }).tooltip(Tooltip.create(DevUi.text("relationship.tooltip", scale.toString()))).build();
     }
 
     private static Button test(DevModeScreen screen, String icon, String label, String action, NodeKey key) {

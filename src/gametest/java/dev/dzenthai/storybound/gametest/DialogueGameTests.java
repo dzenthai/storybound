@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -51,6 +52,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.animal.Cat;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Zombie;
@@ -811,6 +813,38 @@ public final class DialogueGameTests {
         helper.succeed();
     }
 
+    /**
+     * A binding for several entities talks through any of them; one alone is written back as an object, as files had it
+     * before lists, and an empty list is no binding at all.
+     */
+    @GameTest(template = "empty")
+    public static void aBindingForSeveralEntitiesTalksThroughEach(GameTestHelper helper) {
+        NpcBinding binding = NpcBinding.CODEC.parse(ops(helper), JsonParser.parseString("""
+                { "entity": [ { "type": "minecraft:villager", "tag": "elder" }, { "type": "minecraft:cat", "name": "Murka" } ],
+                  "dialogues": [ { "dialogue": "%s" } ] }
+                """.formatted(TALK))).getOrThrow(GameTestAssertException::new);
+        expect(helper, binding.tags(), Set.of("elder"), "the tags the validator knows the NPC by");
+        Villager elder = helper.spawn(EntityType.VILLAGER, new BlockPos(1, 2, 1));
+        Cat murka = helper.spawn(EntityType.CAT, new BlockPos(2, 2, 1));
+        Villager stranger = helper.spawn(EntityType.VILLAGER, new BlockPos(3, 2, 1));
+        elder.addTag("elder");
+        murka.setCustomName(Component.literal("Murka"));
+        helper.assertTrue(binding.matches(elder) && binding.matches(murka), "both entities of the list talk");
+        helper.assertFalse(binding.matches(stranger), "a villager without the tag does not");
+        String why = binding.mismatch(stranger);
+        helper.assertTrue(why.contains("tag elder missing") && !why.contains("type is"), "the cat's selector is left out of a villager's reasons: " + why);
+        NpcBinding single = NpcBinding.CODEC.parse(ops(helper), JsonParser.parseString("""
+                { "entity": [ { "tag": "elder" } ] }
+                """)).getOrThrow(GameTestAssertException::new);
+        JsonElement written = NpcBinding.CODEC.encodeStart(JsonOps.INSTANCE, single).getOrThrow(GameTestAssertException::new);
+        helper.assertTrue(written.getAsJsonObject().get("entity").isJsonObject(), "one entity is written as an object: " + written);
+        helper.assertTrue(NpcBinding.CODEC.parse(ops(helper), JsonParser.parseString("{ \"entity\": [] }")).isError(), "an empty list is refused");
+        elder.discard();
+        murka.discard();
+        stranger.discard();
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void aGoneDialogueIsPassedOverAndMismatchesAreExplained(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
@@ -822,12 +856,12 @@ public final class DialogueGameTests {
             expect(helper, binding.pick(StoryContext.of(player)), Optional.of(TALK), "the next entry talks when the first dialogue is gone");
             Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(1, 2, 1));
             villager.addTag("npc_4");
-            String why = binding.entity().mismatch(villager);
+            String why = binding.mismatch(villager);
             helper.assertTrue(why.contains("tag quest_man missing (has npc_4)") && why.contains("custom name is none, wanted Quest Man"),
                     "says what the villager lacks: " + why);
             villager.addTag("quest_man");
             villager.setCustomName(Component.literal("Quest Man"));
-            expect(helper, binding.entity().mismatch(villager), "", "nothing when it matches");
+            expect(helper, binding.mismatch(villager), "", "nothing when it matches");
             villager.discard();
         });
         helper.getLevel().getServer().getPlayerList().remove(player);

@@ -122,7 +122,7 @@
   "Prototyping only: not translatable.": "Только для черновиков: не переводится.",
   "Quests: progress in every scope, pins, rewards waiting to be claimed.": "Квесты: прогресс во всех областях, закрепления, награды, ждущие получения.",
   "Removes a waypoint added with the same id and visibility.": "Убирает метку, добавленную с тем же id и видимостью.",
-  "Right-click posts the KubeJS npcInteract event; the script decides.": "ПКМ отправляет событие KubeJS npcInteract; решает скрипт.",
+  "Talking to the NPC (talk key or right-click) fires the KubeJS event npcInteract. Its dialogues still start too while interact is on: for the script alone, turn interact off or leave dialogues empty. Needs KubeJS; only for binding files, not /storybound npc bind.": "Разговор с NPC (клавиша разговора или ПКМ) запускает событие KubeJS npcInteract. Диалоги при этом тоже запускаются, пока включён interact: чтобы отвечал только скрипт, выключите interact или оставьте список диалогов пустым. Нужен KubeJS; только для файлов привязок, не для /storybound npc bind.",
   "Right-click starts the dialogue and cancels the entity's vanilla interaction (e.g. villager trade menu).": "ПКМ начинает диалог и отменяет обычное взаимодействие сущности (например, меню торговли жителя).",
   "Right-click starts the dialogue.": "ПКМ начинает диалог.",
   "Run only once per this scope. Absent means every time.": "Выполнить только один раз на эту область. Если не задано — каждый раз.",
@@ -245,5 +245,6 @@
   "stars: 1 to 5, shown ★★★☆☆ as in Stardew Valley; levels: the level's name in its colour.": "stars: от 1 до 5, видно как ★★★☆☆, как в Stardew Valley; levels: название уровня его цветом.",
   "unknown resets the quest; active starts it (or reopens a finished one); completed runs on_complete and rewards.": "unknown сбрасывает квест; active запускает (или открывает заново завершённый); completed выполняет on_complete и награды.",
   "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:translation.key}, or plain text.": "{player}, {party}, {var:ns:key}, {flag:ns:key}, {key:ключ.перевода} или обычный текст.",
-  "Colours the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the maps. Left out, the marker keeps its own look. Xaero's Minimap shows only Minecraft's 16 text colours, any other as the nearest of them. #RRGGBB.": "Красит метку в мире (иконку, название, стрелку у края экрана, кольцо зоны поиска) и метку на картах. Без него метка остаётся как есть. Xaero показывает только 16 цветов текста Minecraft, любой другой — как ближайший из них. #RRGGBB."
+  "Colours the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the maps. Left out, the marker keeps its own look. Xaero's Minimap shows only Minecraft's 16 text colours, any other as the nearest of them. #RRGGBB.": "Красит метку в мире (иконку, название, стрелку у края экрана, кольцо зоны поиска) и метку на картах. Без него метка остаётся как есть. Xaero показывает только 16 цветов текста Minecraft, любой другой — как ближайший из них. #RRGGBB.",
+  "Which entities talk: one selector, or a list of them; the binding is for any entity that matches one.": "Какие существа говорят: одно описание или список; привязка действует на любое существо, подходящее под одно из них."
 }

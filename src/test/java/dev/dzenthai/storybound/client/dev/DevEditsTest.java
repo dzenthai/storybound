@@ -71,7 +71,12 @@ class DevEditsTest {
         Schemas.Node waypoint = Schemas.typed(Schemas.logic("action"), "add_waypoint");
         assertEquals(Schemas.Kind.POSITION, Schemas.kind(Schemas.properties(waypoint).get("pos")));
         // A uuid gets "point at an entity in the world" instead of the mob catalog.
-        Map<String, Schemas.Node> selector = Schemas.properties(Schemas.properties(Schemas.definition(ClientDevStore.TYPE_NPC)).get("entity"));
+        // An NPC binding's entity is one selector or a list of them.
+        List<Schemas.Node> entity = Schemas.variants(Schemas.properties(Schemas.definition(ClientDevStore.TYPE_NPC)).get("entity"));
+        assertEquals(2, entity.size());
+        assertEquals("entity_selector", entity.get(0).ref());
+        assertEquals("entity_selector", Schemas.resolve(Schemas.items(entity.get(1))).ref());
+        Map<String, Schemas.Node> selector = Schemas.properties(entity.get(0));
         assertTrue(Schemas.isUuid(selector.get("uuid")));
         assertFalse(Schemas.isUuid(selector.get("type")));
         assertFalse(Schemas.isUuid(selector.get("tag")));
