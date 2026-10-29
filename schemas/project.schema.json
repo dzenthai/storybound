@@ -6,6 +6,7 @@
   "properties": {
     "source_language": { "description": "The language authors write in.", "type": "string", "pattern": "^[a-z]{2,3}_[a-z0-9]{2,4}$" },
     "languages": { "description": "The story's languages, edited in the dev mode.", "type": "array", "items": { "type": "string", "pattern": "^[a-z]{2,3}_[a-z0-9]{2,4}$" } },
+    "namespace": { "description": "The story's namespace: the dev mode makes new nodes in it (their folder in the story folder). Not minecraft or demo.", "type": "string", "pattern": "^[a-z0-9_.-]+$", "default": "storybound" },
     "chapter_map": { "description": "Show players a Map tab: the dev mode's chapters with their quests where they were placed, arrows to the quests that follow, each coloured by the player's progress (as in FTB Quests). Quests in no chapter go to a last chapter.", "type": "boolean", "default": false },
     "difficulty": {
       "description": "How every quest shows its difficulty. Without it: levels easy (green), normal (yellow), hard (red), deadly (dark red).",

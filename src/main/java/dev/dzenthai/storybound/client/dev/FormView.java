@@ -13,6 +13,7 @@ import dev.dzenthai.storybound.client.dev.Schemas.Kind;
 import dev.dzenthai.storybound.client.dev.Schemas.Logic;
 import dev.dzenthai.storybound.client.dev.Schemas.Node;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
+import dev.dzenthai.storybound.core.story.StoryRenames;
 import dev.dzenthai.storybound.module.quest.DifficultyScale;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
@@ -22,6 +23,7 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -77,6 +79,14 @@ final class FormView {
         default @Nullable ResourceLocation npcBinding() {
             return null;
         }
+
+        /** The quest the form edits, for its stages' and objectives' names; null otherwise. */
+        default @Nullable ResourceLocation quest() {
+            return null;
+        }
+
+        /** Renames a stage of the quest ({@code objective} empty) or an objective of a stage, with what names it. */
+        default void renameInQuest(String stage, String objective, String to) {}
 
         /** Values for a field that names something inside the definition (a dialogue's nodes, its speakers); usually none. */
         default List<String> choices(String field) {
@@ -666,6 +676,78 @@ final class FormView {
     /** The way an entity is known by, chosen on its page before its field is filled (per path; the form's own state). */
     private final Map<String, String> entityModes = new java.util.HashMap<>();
 
+    /** "stage" for a quest stage's page ({@code stages/<i>}), "objective" for an objective's, null elsewhere. */
+    private static @Nullable String insideQuest(List<Object> path) {
+        boolean stage = path.size() >= 2 && "stages".equals(path.get(0)) && path.get(1) instanceof Integer;
+        if (stage && path.size() == 2) {
+            return "stage";
+        }
+        return stage && path.size() == 4 && "objectives".equals(path.get(2)) && path.get(3) instanceof Integer ? "objective" : null;
+    }
+
+    /** The names being typed for stages and objectives, by path, so rebuilding the form loses nothing. */
+    private final Map<String, String> insideNames = new java.util.HashMap<>();
+
+    /**
+     * A stage's or an objective's name, like a node's own: other stages' "next", conditions, waypoints and players' place
+     * and counters name it by it, so it is not typed over but renamed with ✓, with all of them (see
+     * {@link StoryRenames}). An objective without a name of its own is counted by its
+     * position, which the box shows greyed.
+     */
+    private void insideNameField(List<Object> path, String kind) {
+        if (!row(LABEL_H + CONTROL_H + LABEL_H)) {
+            return;
+        }
+        boolean objective = kind.equals("objective");
+        JsonObject quest = host.root();
+        JsonObject stageObject = objectAt(path.subList(0, 2));
+        String stage = stageObject != null && stageObject.get("id") instanceof JsonPrimitive id ? id.getAsString() : "";
+        JsonObject own = objectAt(path);
+        boolean named = own != null && own.get("id") instanceof JsonPrimitive;
+        String current = objective ? (named ? own.get("id").getAsString() : String.valueOf(path.get(3))) : stage;
+        labelRow(DevUi.text(objective ? "rename.objective" : "rename.stage"));
+        int rowTop = rowY(LABEL_H + CONTROL_H + LABEL_H) + LABEL_H;
+        String key = path.toString();
+        EditBox box = new EditBox(screen.font(), x, rowTop + 1, w - 22, CONTROL_H - 2, DevUi.text(objective ? "rename.objective" : "rename.stage"));
+        box.setMaxLength(64);
+        box.setValue(insideNames.getOrDefault(key, objective && !named ? "" : current));
+        if (objective && !named) {
+            box.setHint(DevUi.text("rename.by_position", current));
+        }
+        // Why the typed name cannot be, under the box; replaced in place as it is typed (the form is not rebuilt).
+        int reason = labels.size();
+        int reasonY = rowTop + CONTROL_H + 1;
+        labels.add(new Label(Component.empty(), x, reasonY, DevUi.ERROR));
+        Button apply = Button.builder(Component.literal("✓"), b -> {
+            String to = insideNames.getOrDefault(key, "").trim();
+            if (problem(quest, objective, stage, current, to).isEmpty()) {
+                insideNames.remove(key);
+                host.renameInQuest(stage, objective ? current : "", to);
+            }
+        }).tooltip(Tooltip.create(DevUi.text(objective ? "rename.objective_apply" : "rename.stage_apply"))).bounds(x + w - 20, rowTop, 20, CONTROL_H).build();
+        java.util.function.Consumer<String> check = text -> {
+            Optional<StoryRenames.Problem> problem = problem(quest, objective, stage, current, text);
+            boolean bad = problem.isPresent() && problem.get() != StoryRenames.Problem.SAME;
+            box.setTextColor(bad ? DevUi.ERROR : 0xFFE0E0E0);
+            apply.active = problem.isEmpty();
+            labels.set(reason, new Label(bad ? DevUi.text("rename.problem." + problem.get().name().toLowerCase(java.util.Locale.ROOT), "") : Component.empty(),
+                    x, reasonY, DevUi.ERROR));
+        };
+        box.setResponder(text -> {
+            insideNames.put(key, text);
+            check.accept(text);
+        });
+        check.accept(box.getValue());
+        box.setTooltip(Tooltip.create(DevUi.text(objective ? "rename.objective_tooltip" : "rename.stage_tooltip", current)));
+        screen.add(box);
+        screen.add(apply);
+    }
+
+    private static Optional<StoryRenames.Problem> problem(JsonObject quest, boolean objective, String stage, String current, String typed) {
+        return objective ? StoryRenames.objectiveProblem(quest, stage, current, typed)
+                : StoryRenames.stageProblem(quest, current, typed);
+    }
+
     /** The NPC's relationship scale, with the binding's other yes/no fields: yes makes it, no deletes it if unused. */
     private void relationshipField(ResourceLocation npc) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -702,6 +784,10 @@ final class FormView {
         }
         if (entityListItems(node) != null) {
             entityListField(path, name, node, value, required);
+            return;
+        }
+        if (name.equals("id") && host.quest() != null && insideQuest(path) != null) {
+            insideNameField(path, insideQuest(path));
             return;
         }
         // A waypoint (or add_waypoint): "target or search area" first; an area's radius and looks only for an area.
@@ -1502,7 +1588,7 @@ final class FormView {
     }
 
     /** Where relationship scales live: declared number flags named {@code <ns>:rep/<who>}. */
-    static final String RELATIONSHIP_PREFIX = "rep/";
+    static final String RELATIONSHIP_PREFIX = StoryRenames.RELATIONSHIP_PREFIX;
 
     /** The story's relationship scales, by id. */
     static List<ResourceLocation> relationshipScales() {

@@ -8,6 +8,7 @@ import dev.dzenthai.storybound.client.document.DocumentTexts;
 import dev.dzenthai.storybound.core.dev.DevScripts;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import dev.dzenthai.storybound.core.story.StoryLinks;
+import dev.dzenthai.storybound.core.story.StoryRenames;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -74,6 +76,9 @@ final class StoryInspector {
     private int scriptStateY;
     private final List<GiverRow> giverRows = new ArrayList<>();
     private @Nullable String giverTitle;
+    /** The name being typed for {@link #renameFor}, kept here so rebuilding the panel loses nothing. */
+    private @Nullable String renameText;
+    private @Nullable NodeKey renameFor;
     private int giverY;
 
     StoryInspector(StoryView view) {
@@ -99,6 +104,20 @@ final class StoryInspector {
             public void changed() {
                 if (screen != null) {
                     view.changed(screen);
+                }
+            }
+
+            @Override
+            public @Nullable ResourceLocation quest() {
+                NodeKey key = view.selected;
+                return key != null && key.type().equals(ClientDevStore.TYPE_QUEST) ? key.id() : null;
+            }
+
+            @Override
+            public void renameInQuest(String stage, String objective, String to) {
+                NodeKey key = view.selected;
+                if (screen != null && key != null) {
+                    view.renameInQuest(screen, key, stage, objective, to);
                 }
             }
 
@@ -151,6 +170,10 @@ final class StoryInspector {
         int x = screen.width - DevUi.RIGHT_PANEL_W + 8;
         int w = DevUi.RIGHT_PANEL_W - 16;
         int y = DevUi.TOP_BAR_H + 30;
+        if (renameable(key)) {
+            nameRow(screen, key, x, DevUi.TOP_BAR_H + 16, w);
+            y = DevUi.TOP_BAR_H + 46;
+        }
         y = quickTests(screen, key, x, y, w);
         giverRows.clear();
         giverTitle = null;
@@ -174,6 +197,48 @@ final class StoryInspector {
                 .bounds(x, screen.height - 26, w - 54, 20).build());
         screen.add(Button.builder(Component.literal("🗑"), b -> view.deleteSelected(screen))
                 .tooltip(Tooltip.create(DevUi.text("inspector.delete"))).bounds(x + w - 50, screen.height - 26, 50, 20).build());
+    }
+
+    private static boolean renameable(NodeKey key) {
+        return StoryRenames.RENAMEABLE.contains(key.type());
+    }
+
+    /**
+     * The node's name, at the very top: other nodes, texts and players' progress name it by it. Only the name: the
+     * namespace is the story's, set in the top bar. A new name is checked as it is typed (one word, not taken by the
+     * same kind), and ✓ renames the node with everything that names it.
+     */
+    private void nameRow(DevModeScreen screen, NodeKey key, int x, int y, int w) {
+        if (!key.equals(renameFor)) {
+            renameFor = key;
+            renameText = key.id().getPath();
+        }
+        EditBox box = new EditBox(screen.font(), x, y + 1, w - 22, 14, DevUi.text("rename.label"));
+        box.setMaxLength(256);
+        box.setValue(renameText != null ? renameText : key.id().getPath());
+        Button apply = Button.builder(Component.literal("✓"), b -> {
+            Optional<ResourceLocation> to = StoryRenames.parse(renameText != null ? renameText : "", key.id());
+            if (to.isPresent() && renameProblem(key).isEmpty()) {
+                view.rename(screen, key, to.get());
+            }
+        }).tooltip(Tooltip.create(DevUi.text("rename.apply"))).bounds(x + w - 20, y, 20, 16).build();
+        box.setResponder(text -> {
+            renameText = text;
+            Optional<StoryRenames.Problem> problem = renameProblem(key);
+            box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? 0xFFE0E0E0 : DevUi.ERROR);
+            apply.active = problem.isEmpty();
+        });
+        box.setTooltip(Tooltip.create(DevUi.text("rename.tooltip", key.id().getNamespace())));
+        Optional<StoryRenames.Problem> problem = renameProblem(key);
+        box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? 0xFFE0E0E0 : DevUi.ERROR);
+        apply.active = problem.isEmpty();
+        screen.add(box);
+        screen.add(apply);
+    }
+
+    private Optional<StoryRenames.Problem> renameProblem(NodeKey key) {
+        return StoryRenames.problem(key.type(), key.id(), renameText != null ? renameText : key.id().getPath(),
+                (type, id) -> ClientDevStore.getJson(type, id) != null);
     }
 
     /** Buttons that try the definition in game at once (they save it first). */
@@ -526,13 +591,24 @@ final class StoryInspector {
         if (key == null || view.editing == null) {
             return;
         }
-        Component header = view.selection.size() > 1 ? DevUi.text("inspector.header_many", view.selection.size()) : DevUi.text("inspector.header");
+        // The label of the name below; before, the panel's own title "Inspector", which said nothing.
+        Component header = view.selection.size() > 1 ? DevUi.text("inspector.header_many", view.selection.size()) : DevUi.text("rename.label");
         graphics.drawString(font, header, left + 8, DevUi.TOP_BAR_H + 6, DevUi.ACCENT, false);
         List<String> issues = ClientDevStore.issuesFor(key.type(), key.id());
-        // The id line turns into the first issue, in red, when the validator has something to say about this node.
-        String second = issues.isEmpty() ? key.id().toString() : "⚠ " + issues.getFirst();
-        graphics.drawString(font, font.plainSubstrByWidth(second, DevUi.RIGHT_PANEL_W - 16), left + 8, DevUi.TOP_BAR_H + 18,
-                issues.isEmpty() ? DevUi.MUTED : DevUi.BAD, false);
+        if (renameable(key)) {
+            // Under the name: why the typed one cannot be, else the validator's first word on the node.
+            Optional<StoryRenames.Problem> problem = key.equals(renameFor) ? renameProblem(key) : Optional.empty();
+            String line = problem.isPresent() && problem.get() != StoryRenames.Problem.SAME
+                    ? DevUi.str("rename.problem." + problem.get().name().toLowerCase(Locale.ROOT),
+                    StoryRenames.parse(renameText != null ? renameText : "", key.id()).map(StoryRenames::relationshipScale).map(Object::toString).orElse(""))
+                    : issues.isEmpty() ? "" : "⚠ " + issues.getFirst();
+            graphics.drawString(font, font.plainSubstrByWidth(line, DevUi.RIGHT_PANEL_W - 16), left + 8, DevUi.TOP_BAR_H + 34, DevUi.BAD, false);
+        } else {
+            // The id line turns into the first issue, in red, when the validator has something to say about this node.
+            String second = issues.isEmpty() ? key.id().toString() : "⚠ " + issues.getFirst();
+            graphics.drawString(font, font.plainSubstrByWidth(second, DevUi.RIGHT_PANEL_W - 16), left + 8, DevUi.TOP_BAR_H + 18,
+                    issues.isEmpty() ? DevUi.MUTED : DevUi.BAD, false);
+        }
         if (textLabel != null) {
             graphics.drawString(font, textLabel, left + 8, textLabelY, DevUi.LABEL, false);
         }

@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.story.StoryFlow;
 import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryRenames;
 import dev.dzenthai.storybound.client.dev.DevModeScreen.MenuItem;
 import dev.dzenthai.storybound.client.dev.NodeTemplates.Template;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
@@ -180,6 +181,19 @@ final class StoryView extends GraphView {
     void reload() {
         if (!Chapters.hidden(storyChapter) && ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, storyChapter) == null) {
             storyChapter = Chapters.QUESTS;
+        }
+        if (movedNamespace != null) {
+            // The story's nodes moved to another namespace: the selected ones stay selected under their new ids.
+            String[] move = movedNamespace;
+            java.util.function.UnaryOperator<NodeKey> moved = key -> key.id().getNamespace().equals(move[0]) && ClientDevStore.getJson(key.type(), key.id()) == null
+                    && ClientDevStore.getJson(key.type(), ResourceLocation.fromNamespaceAndPath(move[1], key.id().getPath())) != null
+                    ? new NodeKey(key.type(), ResourceLocation.fromNamespaceAndPath(move[1], key.id().getPath())) : key;
+            List<NodeKey> keys = new ArrayList<>(selection);
+            selection.clear();
+            keys.forEach(key -> selection.add(moved.apply(key)));
+            if (selected != null) {
+                selected = moved.apply(selected);
+            }
         }
         selection.removeIf(key -> ClientDevStore.getJson(key.type(), key.id()) == null);
         if (selected != null && ClientDevStore.getJson(selected.type(), selected.id()) == null) {
@@ -478,6 +492,120 @@ final class StoryView extends GraphView {
         }
         selected = key;
         editing = key != null ? ClientDevStore.parseObject(ClientDevStore.getJson(key.type(), key.id())) : null;
+    }
+
+    /**
+     * Gives the node a new id (see {@link StoryRenames}): unsaved edits go first, a
+     * node still being filled in is not renamed. One undoable step: undo renames it back.
+     */
+    void rename(DevModeScreen screen, NodeKey key, ResourceLocation to) {
+        saveEdits(screen);
+        if (dirty) {
+            screen.status(DevUi.text("rename.incomplete"), DevUi.WARN);
+            return;
+        }
+        NodeKey renamed = new NodeKey(key.type(), to);
+        requestRename(screen, key, to);
+        screen.remember(DevUi.str("history.rename", key.id().toString(), to.toString()),
+                () -> requestRename(screen, renamed, key.id()),
+                () -> requestRename(screen, key, to));
+    }
+
+    /**
+     * Renames here at once, as the server will (the node, an NPC's relationship scale, what names them), so the card
+     * keeps its place and stays selected; the server's snapshot follows, or puts the old name back if it refuses.
+     */
+    private void requestRename(DevModeScreen screen, NodeKey key, ResourceLocation to) {
+        NodeKey renamed = new NodeKey(key.type(), to);
+        List<StoryRenames.Rename> renames = StoryRenames.cascade(
+                new StoryRenames.Rename(key.type(), key.id(), to), (type, id) -> ClientDevStore.getJson(type, id) != null);
+        for (StoryRenames.Rename rename : renames) {
+            String json = ClientDevStore.getJson(rename.type(), rename.from());
+            if (json != null) {
+                ClientDevStore.removeLocal(rename.type(), rename.from());
+                ClientDevStore.putLocal(rename.type(), rename.to(), json);
+            }
+        }
+        ClientDevStore.all().forEach((type, definitions) -> {
+            if (StoryRenames.REFERRING.contains(type)) {
+                definitions.forEach((id, raw) -> {
+                    JsonObject json = ClientDevStore.parseObject(raw);
+                    if (StoryRenames.rewrite(type, json, renames) > 0) {
+                        ClientDevStore.putLocal(type, id, DevUi.GSON.toJson(json));
+                    }
+                });
+            }
+        });
+        if (selection.remove(key)) {
+            selection.add(renamed);
+        }
+        if (key.equals(selected)) {
+            selected = renamed;
+        }
+        editing = selected != null ? ClientDevStore.parseObject(ClientDevStore.getJson(selected.type(), selected.id())) : null;
+        dirty = false;
+        if (key.type().equals(ClientDevStore.TYPE_DIALOGUE)) {
+            screen.dialogueRenamed(key.id(), to);
+        }
+        DevRequests.rename(key.type(), key.id(), to);
+        loadChapter();
+        rebuildCards();
+        screen.status(DevUi.text("rename.sent", key.id().toString(), to.toString()), DevUi.OK);
+        screen.rebuild();
+    }
+
+    /**
+     * Renames a stage of the quest ({@code objective} empty) or an objective of a stage: unsaved edits go first, a quest
+     * still being filled in is not renamed. One undoable step: undo renames it back.
+     */
+    void renameInQuest(DevModeScreen screen, NodeKey quest, String stage, String objective, String to) {
+        saveEdits(screen);
+        if (dirty) {
+            screen.status(DevUi.text("rename.incomplete"), DevUi.WARN);
+            return;
+        }
+        requestRenameInQuest(screen, quest, stage, objective, to);
+        boolean ofStage = objective.isEmpty();
+        screen.remember(DevUi.str("history.rename", ofStage ? stage : objective, to),
+                () -> requestRenameInQuest(screen, quest, ofStage ? to : stage, ofStage ? "" : to, ofStage ? stage : objective),
+                () -> requestRenameInQuest(screen, quest, stage, objective, to));
+    }
+
+    /** Renames here at once, as the server will; its snapshot follows, or puts the old name back if it refuses. */
+    private void requestRenameInQuest(DevModeScreen screen, NodeKey quest, String stage, String objective, String to) {
+        JsonObject json = ClientDevStore.parseObject(ClientDevStore.getJson(quest.type(), quest.id()));
+        if (objective.isEmpty()) {
+            StoryRenames.renameStage(json, stage, to);
+            ClientDevStore.putLocal(quest.type(), quest.id(), DevUi.GSON.toJson(json));
+            ClientDevStore.all().forEach((type, definitions) -> {
+                if (StoryRenames.REFERRING.contains(type)) {
+                    definitions.forEach((id, raw) -> {
+                        JsonObject other = ClientDevStore.parseObject(raw);
+                        if (StoryRenames.rewriteStage(other, quest.id(), stage, to) > 0) {
+                            ClientDevStore.putLocal(type, id, DevUi.GSON.toJson(other));
+                        }
+                    });
+                }
+            });
+        } else {
+            StoryRenames.renameObjective(json, stage, objective, to);
+            ClientDevStore.putLocal(quest.type(), quest.id(), DevUi.GSON.toJson(json));
+        }
+        if (quest.equals(selected)) {
+            editing = ClientDevStore.parseObject(ClientDevStore.getJson(quest.type(), quest.id()));
+            dirty = false;
+        }
+        DevRequests.renameInQuest(quest.id(), stage, objective, to);
+        rebuildCards();
+        screen.status(DevUi.text("rename.sent", objective.isEmpty() ? stage : objective, to), DevUi.OK);
+        screen.rebuild();
+    }
+
+    /** The story's nodes are moving from one namespace to another: once they arrive, the selection follows them. */
+    private String @Nullable [] movedNamespace;
+
+    void namespaceMoved(String from, String to) {
+        movedNamespace = new String[]{from, to};
     }
 
     /** Re-reads the primary selection after the selection set changed. */

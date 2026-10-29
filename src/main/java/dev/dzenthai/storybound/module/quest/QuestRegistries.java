@@ -40,6 +40,25 @@ public final class QuestRegistries {
         QuestLogic.REGISTER_TRIGGERS.register(modBus);
         StoryMigrations.registerPlayer(QuestRegistries::migrate);
         StoryMigrations.registerServer((server, renames) -> QuestRewardsOwed.get(server).migrate(renames));
+        StoryMigrations.registerQuestShape(new StoryMigrations.QuestShape() {
+            @Override
+            public boolean defines(ResourceLocation quest) {
+                return QUESTS.serverStore().getOrNull(quest) != null;
+            }
+
+            @Override
+            public boolean hasStage(ResourceLocation quest, String stage) {
+                QuestDefinition definition = QUESTS.serverStore().getOrNull(quest);
+                return definition != null && definition.stages().stream().anyMatch(candidate -> candidate.id().equals(stage));
+            }
+
+            @Override
+            public boolean hasObjective(ResourceLocation quest, String stage, String objective) {
+                QuestDefinition definition = QUESTS.serverStore().getOrNull(quest);
+                return definition != null && definition.stages().stream().filter(candidate -> candidate.id().equals(stage))
+                        .anyMatch(found -> java.util.stream.IntStream.range(0, found.objectives().size()).anyMatch(i -> found.objectiveId(i).equals(objective)));
+            }
+        });
     }
 
     /** Renamed quests in the player's pins and waiting rewards. */

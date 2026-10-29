@@ -18,7 +18,7 @@ final class RelationshipScales {
     private RelationshipScales() {}
 
     static ResourceLocation of(ResourceLocation npc) {
-        return ResourceLocation.fromNamespaceAndPath(npc.getNamespace(), FormView.RELATIONSHIP_PREFIX + npc.getPath());
+        return dev.dzenthai.storybound.core.story.StoryRenames.relationshipScale(npc);
     }
 
     static boolean exists(ResourceLocation npc) {

@@ -47,6 +47,7 @@ public final class ClientDevStore {
     private static volatile List<String> issues = List.of();
     private static volatile String sourceLanguage = "en_us";
     private static volatile List<String> languages = List.of("en_us", "ru_ru");
+    private static volatile String namespace = Storybound.MOD_ID;
     private static String activeLanguage = "en_us";
     private static final Map<String, Map<String, String>> pendingTranslations = new LinkedHashMap<>();
     private static @Nullable Runnable listener;
@@ -72,6 +73,20 @@ public final class ClientDevStore {
 
     public static void setListener(@Nullable Runnable callback) {
         listener = callback;
+    }
+
+    /** The story's namespace (the project's setting), where new nodes are made. */
+    public static void setNamespace(String value) {
+        namespace = value;
+    }
+
+    public static String namespace() {
+        return namespace;
+    }
+
+    /** A new node's id, in the story's namespace. */
+    public static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(namespace, path);
     }
 
     public static String sourceLanguage() {

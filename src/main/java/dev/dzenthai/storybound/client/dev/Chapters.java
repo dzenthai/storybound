@@ -101,9 +101,9 @@ final class Chapters {
     /** A free id for a new chapter, after the one with the highest order. */
     static ResourceLocation nextId() {
         int number = sorted().stream().mapToInt(entry -> order(entry.getValue())).max().orElse(0) + 1;
-        while (ClientDevStore.byType(ClientDevStore.TYPE_CHAPTER).containsKey(Storybound.id("chapter_" + number))) {
+        while (ClientDevStore.byType(ClientDevStore.TYPE_CHAPTER).containsKey(ClientDevStore.id("chapter_" + number))) {
             number++;
         }
-        return Storybound.id("chapter_" + number);
+        return ClientDevStore.id("chapter_" + number);
     }
 }

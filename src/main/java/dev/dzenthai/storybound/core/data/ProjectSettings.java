@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import dev.dzenthai.storybound.core.story.StoryRenames;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -20,13 +21,16 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
- * The story's languages, in {@code config/storybound/project.json}:
- * {@code { "source_language": "en_us", "languages": ["en_us", "ru_ru"] }}. The source language is the one authors
+ * The story's languages and namespace, in {@code config/storybound/project.json}:
+ * {@code { "source_language": "en_us", "languages": ["en_us", "ru_ru"], "namespace": "my_story" }}. The namespace is
+ * where the dev mode makes new nodes (their folder in the story folder); {@code storybound} until the author sets one. The source language is the one authors
  * write in; the dev mode edits texts per language from the list. Without the file the languages are those with a
  * {@code lang/<language>.json}, and {@code en_us} is the source when present.
  */
-public record ProjectSettings(String sourceLanguage, List<String> languages) {
+public record ProjectSettings(String sourceLanguage, List<String> languages, String namespace) {
     public static final String DEFAULT_SOURCE = "en_us";
+    /** Where the dev mode makes new nodes until the author names the story's own namespace. */
+    public static final String DEFAULT_NAMESPACE = "storybound";
     public static final String FILE_NAME = "project.json";
 
     public static ProjectSettings load(Path root) {
@@ -63,7 +67,16 @@ public record ProjectSettings(String sourceLanguage, List<String> languages) {
                     }
                 }
                 languages.add(source);
-                return new ProjectSettings(source, new ArrayList<>(languages));
+                String namespace = DEFAULT_NAMESPACE;
+                if (json.has("namespace")) {
+                    String value = json.get("namespace").getAsString();
+                    if (StoryRenames.isStoryNamespace(value)) {
+                        namespace = value;
+                    } else {
+                        problems.accept("config/storybound/" + FILE_NAME + ": namespace \"" + value + "\" is not one a story may use");
+                    }
+                }
+                return new ProjectSettings(source, new ArrayList<>(languages), namespace);
             } catch (IOException | JsonParseException | IllegalStateException | UnsupportedOperationException e) {
                 problems.accept("Malformed config/storybound/" + FILE_NAME + ": " + e.getMessage());
             }
@@ -93,16 +106,17 @@ public record ProjectSettings(String sourceLanguage, List<String> languages) {
             detected.add("ru_ru");
         }
         String source = detected.contains(DEFAULT_SOURCE) ? DEFAULT_SOURCE : detected.iterator().next();
-        return new ProjectSettings(source, new ArrayList<>(detected));
+        return new ProjectSettings(source, new ArrayList<>(detected), DEFAULT_NAMESPACE);
     }
 
-    /** @throws IllegalArgumentException for a value that is not a language code */
+    /** @throws IllegalArgumentException for a value that is not a language code, or a namespace a story may not use */
     public static void save(Path root, ProjectSettings settings) throws IOException {
-        if (!ConfigStorySource.isLanguageCode(settings.sourceLanguage()) || !settings.languages().stream().allMatch(ConfigStorySource::isLanguageCode)) {
+        if (!ConfigStorySource.isLanguageCode(settings.sourceLanguage()) || !settings.languages().stream().allMatch(ConfigStorySource::isLanguageCode)
+                || !StoryRenames.isStoryNamespace(settings.namespace()) && !settings.namespace().equals(DEFAULT_NAMESPACE)) {
             throw new IllegalArgumentException("Not a language code in " + settings);
         }
         Path file = root.resolve(FILE_NAME);
-        // Only the languages change: other settings of the file (the difficulty scale) stay as written.
+        // Only the languages and the namespace change: other settings of the file (the difficulty scale) stay as written.
         JsonObject json = new JsonObject();
         if (Files.isRegularFile(file)) {
             try {
@@ -118,6 +132,7 @@ public record ProjectSettings(String sourceLanguage, List<String> languages) {
         JsonArray languages = new JsonArray();
         settings.languages().forEach(languages::add);
         json.add("languages", languages);
+        json.addProperty("namespace", settings.namespace());
         Files.createDirectories(file.getParent());
         Files.writeString(file, new GsonBuilder().setPrettyPrinting().create().toJson(json) + "\n", StandardCharsets.UTF_8);
     }

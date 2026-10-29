@@ -155,6 +155,13 @@ final class DialogueView extends GraphView {
         return selected != null && !screen.inspectorCollapsed();
     }
 
+    /** The open dialogue got a new id: it stays open under it. */
+    void renamed(ResourceLocation from, ResourceLocation to) {
+        if (from.equals(id)) {
+            id = to;
+        }
+    }
+
     /** Re-reads the dialogue and its layout; a dialogue deleted meanwhile closes the graph. */
     @Override
     void reload() {

@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.client.document.DocumentScreen;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
+import dev.dzenthai.storybound.core.story.StoryRenames;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,6 +75,14 @@ public class DevModeScreen extends Screen {
     private boolean languageOpen;
     private @Nullable EditBox languageBox;
     private Component languageError = Component.empty();
+    /**
+     * The modal window shows the story's namespace instead of a new language: first its box, then, after a change, the
+     * offer to move the nodes left in the old one ({@link #namespaceMoveFrom} set).
+     */
+    private boolean namespaceWindow;
+    private @Nullable String namespaceMoveFrom;
+    private int namespaceMoveCount;
+    private @Nullable EditBox namespaceBox;
 
     public DevModeScreen(@Nullable Screen parent) {
         super(DevUi.text("title"));
@@ -148,7 +157,11 @@ public class DevModeScreen extends Screen {
             return;
         }
         if (languageOpen) {
-            addLanguageWidgets();
+            if (namespaceWindow) {
+                addNamespaceWidgets();
+            } else {
+                addLanguageWidgets();
+            }
             return;
         }
         addTopBar();
@@ -237,6 +250,11 @@ public class DevModeScreen extends Screen {
         status(DevUi.text("status.editing_dialogue", dialogue.getPath()), DevUi.OK);
     }
 
+    /** A renamed dialogue stays open under its new id. */
+    void dialogueRenamed(ResourceLocation from, ResourceLocation to) {
+        DIALOGUE.renamed(from, to);
+    }
+
     void closeDialogue() {
         DIALOGUE.close(this);
         STORY.reload();
@@ -264,6 +282,15 @@ public class DevModeScreen extends Screen {
             languageError = Component.empty();
             rebuild();
         }).tooltip(Tooltip.create(DevUi.text("language.add_tooltip"))).bounds(x, 3, 18, 18).build());
+        x += 24;
+        Component story = DevUi.text("namespace.button", ClientDevStore.namespace());
+        add(Button.builder(story, b -> {
+            languageOpen = true;
+            namespaceWindow = true;
+            namespaceMoveFrom = null;
+            languageError = Component.empty();
+            rebuild();
+        }).tooltip(Tooltip.create(DevUi.text("namespace.tooltip"))).bounds(x, 3, font.width(story) + 12, 18).build());
     }
 
     private int topButton(Component label, boolean active, int x, Runnable action) {
@@ -427,7 +454,100 @@ public class DevModeScreen extends Screen {
 
     private void closeLanguage() {
         languageOpen = false;
+        namespaceWindow = false;
+        namespaceMoveFrom = null;
         rebuild();
+    }
+
+    // --- the story's namespace
+
+    private void addNamespaceWidgets() {
+        int left = languageLeft();
+        int top = languageTop();
+        add(Button.builder(Component.literal("✕"), b -> closeLanguage()).bounds(left + LANGUAGE_W - 22, top + 4, 18, 16).build());
+        if (namespaceMoveFrom != null) {
+            String from = namespaceMoveFrom;
+            String to = ClientDevStore.namespace();
+            add(Button.builder(DevUi.text("namespace.move"), b -> moveNamespace(from, to)).bounds(left + 16, top + 60, 100, 20).build());
+            add(Button.builder(DevUi.text("namespace.keep"), b -> closeLanguage()).bounds(left + 124, top + 60, 100, 20).build());
+            return;
+        }
+        namespaceBox = new EditBox(font, left + 16, top + 34, 208, 18, DevUi.text("namespace.title"));
+        namespaceBox.setMaxLength(64);
+        namespaceBox.setValue(ClientDevStore.namespace());
+        add(namespaceBox);
+        focus(namespaceBox);
+        add(Button.builder(DevUi.text("namespace.save"), b -> saveNamespace()).bounds(left + 16, top + 60, 100, 20).build());
+        add(Button.builder(DevUi.text("cancel"), b -> closeLanguage()).bounds(left + 124, top + 60, 100, 20).build());
+    }
+
+    /**
+     * Makes the story's namespace the typed one: new nodes go there from now on. When nodes are left in the old one
+     * (the demo's never are: it has its own), the window offers to move them.
+     */
+    private void saveNamespace() {
+        if (namespaceBox == null) {
+            return;
+        }
+        String value = namespaceBox.getValue().trim().toLowerCase(Locale.ROOT);
+        String old = ClientDevStore.namespace();
+        if (value.equals(old)) {
+            closeLanguage();
+            return;
+        }
+        if (!StoryRenames.isStoryNamespace(value)) {
+            languageError = DevUi.text("namespace.invalid");
+            return;
+        }
+        DevRequests.saveNamespace(value);
+        ClientDevStore.setNamespace(value);
+        status(DevUi.text("namespace.saved", value), DevUi.OK);
+        int left = 0;
+        for (ResourceLocation type : StoryRenames.RENAMEABLE) {
+            left += (int) ClientDevStore.byType(type).keySet().stream().filter(id -> id.getNamespace().equals(old)).count();
+        }
+        if (left > 0 && !old.equals("demo")) {
+            namespaceMoveFrom = old;
+            namespaceMoveCount = left;
+            languageError = Component.empty();
+            rebuild();
+        } else {
+            closeLanguage();
+        }
+    }
+
+    /** One undoable step: undo moves them back. */
+    private void moveNamespace(String from, String to) {
+        STORY.saveEdits(this);
+        requestMoveNamespace(from, to);
+        remember(DevUi.str("history.namespace", from, to), () -> requestMoveNamespace(to, from), () -> requestMoveNamespace(from, to));
+        closeLanguage();
+    }
+
+    private void requestMoveNamespace(String from, String to) {
+        STORY.namespaceMoved(from, to);
+        DevRequests.moveNamespace(from, to);
+        status(DevUi.text("namespace.moving", from, to), DevUi.OK);
+    }
+
+    private void renderNamespaceWindow(GuiGraphics graphics) {
+        int left = languageLeft();
+        int top = languageTop();
+        graphics.fill(0, 0, width, height, 0x88000000);
+        graphics.fill(left - 1, top - 1, left + LANGUAGE_W + 1, top + LANGUAGE_H + 1, 0xFF3A4150);
+        graphics.fill(left, top, left + LANGUAGE_W, top + LANGUAGE_H, 0xFF1C2026);
+        graphics.fill(left, top, left + LANGUAGE_W, top + 24, DevUi.ROW_HOVER);
+        graphics.drawString(font, DevUi.text("namespace.title"), left + 8, top + 8, DevUi.ACCENT, false);
+        if (namespaceMoveFrom != null) {
+            List<FormattedCharSequence> lines = font.split(DevUi.text("namespace.move_question", namespaceMoveFrom, namespaceMoveCount, ClientDevStore.namespace()), LANGUAGE_W - 32);
+            for (int i = 0; i < Math.min(2, lines.size()); i++) {
+                graphics.drawString(font, lines.get(i), left + 16, top + 30 + i * 11, DevUi.LABEL, false);
+            }
+            graphics.drawString(font, font.plainSubstrByWidth(DevUi.str("namespace.move_hint"), LANGUAGE_W - 32), left + 16, top + 86, DevUi.HINT, false);
+            return;
+        }
+        graphics.drawString(font, DevUi.text("namespace.label"), left + 16, top + 24, DevUi.HINT, false);
+        graphics.drawString(font, languageError, left + 16, top + 84, DevUi.ERROR, false);
     }
 
     private void renderLanguageWindow(GuiGraphics graphics) {
@@ -466,6 +586,8 @@ public class DevModeScreen extends Screen {
                 catalog.render(this, graphics, mouseX, mouseY);
             } else if (textEditor.isOpen()) {
                 textEditor.render(this, graphics);
+            } else if (namespaceWindow) {
+                renderNamespaceWindow(graphics);
             } else {
                 renderLanguageWindow(graphics);
             }
@@ -615,7 +737,11 @@ public class DevModeScreen extends Screen {
                 return true;
             }
             if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-                addLanguage();
+                if (!namespaceWindow) {
+                    addLanguage();
+                } else if (namespaceMoveFrom == null) {
+                    saveNamespace();
+                }
                 return true;
             }
             return super.keyPressed(keyCode, scanCode, modifiers);

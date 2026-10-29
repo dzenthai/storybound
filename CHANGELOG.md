@@ -77,6 +77,8 @@ Required on both client and server.
   (`-Dstorybound.validate`, JSON report, exit code); `/storybound lang extract` to move texts written in JSON into
   language files.
 - Migrations (`migrations/*.json`) that carry players' progress over when a quest, flag or dialogue is renamed.
+- Renaming any node in the editor: references, its texts, an NPC's relationship scale and players' saved progress
+  follow it (the migration is written for you).
 - Editor: places and entities picked in the world, long texts (documents with a preview, Codex sections, boss lore)
   in a text window, a view inside each quest, a player's progress on the quest map, relationship scales and NPC
   schedules, field tooltips in the game's language.

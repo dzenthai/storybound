@@ -43,13 +43,15 @@ public final class DevModePayloads {
         }
     }
 
-    public record Snapshot(Map<ResourceLocation, Map<ResourceLocation, String>> definitions, List<String> issues, String sourceLanguage, List<String> languages) implements CustomPacketPayload {
+    public record Snapshot(Map<ResourceLocation, Map<ResourceLocation, String>> definitions, List<String> issues, String sourceLanguage, List<String> languages,
+                           String namespace) implements CustomPacketPayload {
         public static final Type<Snapshot> TYPE = new Type<>(Storybound.id("dev_snapshot"));
         public static final StreamCodec<ByteBuf, Snapshot> STREAM_CODEC = StreamCodec.composite(
                 ByteBufCodecs.map(HashMap::new, ResourceLocation.STREAM_CODEC, DEFINITION_MAP), Snapshot::definitions,
                 ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), Snapshot::issues,
                 ByteBufCodecs.STRING_UTF8, Snapshot::sourceLanguage,
                 ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), Snapshot::languages,
+                ByteBufCodecs.STRING_UTF8, Snapshot::namespace,
                 Snapshot::new);
 
         @Override
@@ -58,6 +60,7 @@ public final class DevModePayloads {
         }
 
         public static void handleOnClient(Snapshot payload, IPayloadContext context) {
+            ClientDevStore.setNamespace(payload.namespace());
             ClientDevStore.setSnapshot(payload.definitions(), payload.issues(), payload.sourceLanguage(), payload.languages());
         }
     }
@@ -85,11 +88,12 @@ public final class DevModePayloads {
         }
     }
 
-    public record SaveProjectSettings(String sourceLanguage, List<String> languages) implements CustomPacketPayload {
+    public record SaveProjectSettings(String sourceLanguage, List<String> languages, String namespace) implements CustomPacketPayload {
         public static final Type<SaveProjectSettings> TYPE = new Type<>(Storybound.id("dev_save_project_settings"));
         public static final StreamCodec<ByteBuf, SaveProjectSettings> STREAM_CODEC = StreamCodec.composite(
                 ByteBufCodecs.STRING_UTF8, SaveProjectSettings::sourceLanguage,
                 ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), SaveProjectSettings::languages,
+                ByteBufCodecs.STRING_UTF8, SaveProjectSettings::namespace,
                 SaveProjectSettings::new);
 
         @Override
@@ -99,7 +103,7 @@ public final class DevModePayloads {
 
         public static void handleOnServer(SaveProjectSettings payload, IPayloadContext context) {
             if (context.player() instanceof ServerPlayer player) {
-                DevModeServer.saveProjectSettings(player, payload.sourceLanguage(), payload.languages());
+                DevModeServer.saveProjectSettings(player, payload.sourceLanguage(), payload.languages(), payload.namespace());
             }
         }
     }
@@ -159,6 +163,69 @@ public final class DevModePayloads {
         public static void handleOnServer(DeleteDefinition payload, IPayloadContext context) {
             if (context.player() instanceof ServerPlayer player) {
                 DevModeServer.deleteDefinition(player, payload.typeId(), payload.id());
+            }
+        }
+    }
+
+    /** The editor gives a node a new id; the server moves it and what names it, then sends a new snapshot. */
+    public record RenameDefinition(ResourceLocation typeId, ResourceLocation from, ResourceLocation to) implements CustomPacketPayload {
+        public static final Type<RenameDefinition> TYPE = new Type<>(Storybound.id("dev_rename_definition"));
+        public static final StreamCodec<ByteBuf, RenameDefinition> STREAM_CODEC = StreamCodec.composite(
+                ResourceLocation.STREAM_CODEC, RenameDefinition::typeId,
+                ResourceLocation.STREAM_CODEC, RenameDefinition::from,
+                ResourceLocation.STREAM_CODEC, RenameDefinition::to,
+                RenameDefinition::new);
+
+        @Override
+        public Type<RenameDefinition> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(RenameDefinition payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.renameDefinition(player, payload.typeId(), payload.from(), payload.to());
+            }
+        }
+    }
+
+    /** The editor renames a quest's stage ({@code objective} empty) or an objective of one of its stages. */
+    public record RenameInQuest(ResourceLocation quest, String stage, String objective, String to) implements CustomPacketPayload {
+        public static final Type<RenameInQuest> TYPE = new Type<>(Storybound.id("dev_rename_in_quest"));
+        public static final StreamCodec<ByteBuf, RenameInQuest> STREAM_CODEC = StreamCodec.composite(
+                ResourceLocation.STREAM_CODEC, RenameInQuest::quest,
+                ByteBufCodecs.STRING_UTF8, RenameInQuest::stage,
+                ByteBufCodecs.STRING_UTF8, RenameInQuest::objective,
+                ByteBufCodecs.STRING_UTF8, RenameInQuest::to,
+                RenameInQuest::new);
+
+        @Override
+        public Type<RenameInQuest> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(RenameInQuest payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.renameInQuest(player, payload.quest(), payload.stage(), payload.objective(), payload.to());
+            }
+        }
+    }
+
+    /** The editor moves every node of the story folder from one namespace to another (the story's changed). */
+    public record MoveNamespace(String from, String to) implements CustomPacketPayload {
+        public static final Type<MoveNamespace> TYPE = new Type<>(Storybound.id("dev_move_namespace"));
+        public static final StreamCodec<ByteBuf, MoveNamespace> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, MoveNamespace::from,
+                ByteBufCodecs.STRING_UTF8, MoveNamespace::to,
+                MoveNamespace::new);
+
+        @Override
+        public Type<MoveNamespace> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(MoveNamespace payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.moveNamespace(player, payload.from(), payload.to());
             }
         }
     }

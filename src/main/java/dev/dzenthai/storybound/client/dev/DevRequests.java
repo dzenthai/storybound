@@ -34,6 +34,14 @@ final class DevRequests {
         PacketDistributor.sendToServer(new DevModePayloads.DeleteDefinition(type, id));
     }
 
+    static void rename(ResourceLocation type, ResourceLocation from, ResourceLocation to) {
+        PacketDistributor.sendToServer(new DevModePayloads.RenameDefinition(type, from, to));
+    }
+
+    static void renameInQuest(ResourceLocation quest, String stage, String objective, String to) {
+        PacketDistributor.sendToServer(new DevModePayloads.RenameInQuest(quest, stage, objective, to));
+    }
+
     static void quickAction(String action, ResourceLocation target) {
         PacketDistributor.sendToServer(new DevModePayloads.QuickAction(action, target));
     }
@@ -57,6 +65,14 @@ final class DevRequests {
     }
 
     static void saveLanguages(String source, List<String> languages) {
-        PacketDistributor.sendToServer(new DevModePayloads.SaveProjectSettings(source, languages));
+        PacketDistributor.sendToServer(new DevModePayloads.SaveProjectSettings(source, languages, ClientDevStore.namespace()));
+    }
+
+    static void saveNamespace(String namespace) {
+        PacketDistributor.sendToServer(new DevModePayloads.SaveProjectSettings(ClientDevStore.sourceLanguage(), ClientDevStore.languages(), namespace));
+    }
+
+    static void moveNamespace(String from, String to) {
+        PacketDistributor.sendToServer(new DevModePayloads.MoveNamespace(from, to));
     }
 }

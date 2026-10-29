@@ -85,6 +85,21 @@ public final class StoryMigrations {
         int migrate(MinecraftServer server, Renames renames);
     }
 
+    /**
+     * What a quest has now, so a renamed stage or objective moves only where it still means the same thing (October 29,
+     * 2026; before, a rename of objective "0" moved every stage's "0", and a stage given the old name again was renamed
+     * away on every join).
+     */
+    public interface QuestShape {
+        /** Whether the quest is defined; for one that is not, renames move as written. */
+        boolean defines(ResourceLocation quest);
+
+        boolean hasStage(ResourceLocation quest, String stage);
+
+        /** Whether the stage has an objective of that id (its own, or its position when it has none). */
+        boolean hasObjective(ResourceLocation quest, String stage, String objective);
+    }
+
     /** Story values keyed {@code storybound:<prefix><ns>/<path>} and then {@code tail} more segments. */
     private record KeyPrefix(String prefix, Kind kind, int tail) {}
 
@@ -95,6 +110,7 @@ public final class StoryMigrations {
     private static final List<ServerMigrator> SERVER = new CopyOnWriteArrayList<>();
     private static final List<KeyPrefix> KEY_PREFIXES = new CopyOnWriteArrayList<>();
     private static volatile Renames current = Renames.NONE;
+    private static volatile @Nullable QuestShape questShape;
 
     private StoryMigrations() {}
 
@@ -111,6 +127,11 @@ public final class StoryMigrations {
 
     public static void registerServer(ServerMigrator migrator) {
         SERVER.add(migrator);
+    }
+
+    /** The quest module tells what its quests have; without it, renamed stages and objectives always move. */
+    public static void registerQuestShape(@Nullable QuestShape shape) {
+        questShape = shape;
     }
 
     /** Story values whose key carries an id: {@code storybound:<prefix><ns>/<path>}, then {@code tail} segments. */
@@ -323,16 +344,34 @@ public final class StoryMigrations {
             return key;
         }
 
-        /** A quest's progress (under its new id) with its stages and objectives renamed. */
+        /**
+         * A quest's progress (under its new id) with its stages and objectives renamed. A stage keeps its name while the
+         * quest still has a stage of that name (a new one took the old name), as an id still defined does. The counters
+         * are the current stage's, and objective ids repeat across stages ("0" in each): one moves only when the
+         * current stage has the new id and not the old one.
+         */
         public QuestProgress progress(ResourceLocation quest, QuestProgress progress) {
             if (!stages.containsKey(quest) && !objectives.containsKey(quest)) {
                 return progress;
             }
-            Optional<String> stage = progress.stage().map(current -> stage(quest, current));
+            QuestShape shape = questShape;
+            Optional<String> stage = progress.stage().map(current -> stageNow(shape, quest, current));
             Map<String, Integer> counts = new LinkedHashMap<>();
-            progress.objectives().forEach((objective, count) -> counts.merge(objective(quest, objective), count, Math::max));
-            List<String> log = new ArrayList<>(new LinkedHashSet<>(progress.log().stream().map(logged -> stage(quest, logged)).toList()));
+            progress.objectives().forEach((objective, count) -> counts.merge(objectiveNow(shape, quest, stage.orElse(null), objective), count, Math::max));
+            List<String> log = new ArrayList<>(new LinkedHashSet<>(progress.log().stream().map(logged -> stageNow(shape, quest, logged)).toList()));
             return new QuestProgress(progress.status(), stage, counts, log, progress.completions(), progress.startedAt(), progress.finishedAt());
+        }
+
+        private String stageNow(@Nullable QuestShape shape, ResourceLocation quest, String stage) {
+            return shape != null && shape.hasStage(quest, stage) ? stage : stage(quest, stage);
+        }
+
+        private String objectiveNow(@Nullable QuestShape shape, ResourceLocation quest, @Nullable String stage, String objective) {
+            String renamed = objective(quest, objective);
+            if (renamed.equals(objective) || shape == null || !shape.defines(quest)) {
+                return renamed;
+            }
+            return stage != null && shape.hasObjective(quest, stage, renamed) && !shape.hasObjective(quest, stage, objective) ? renamed : objective;
         }
 
         boolean chainLoops(Kind kind, ResourceLocation id) {

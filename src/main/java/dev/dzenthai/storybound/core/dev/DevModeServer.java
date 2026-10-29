@@ -20,6 +20,7 @@ import dev.dzenthai.storybound.core.data.ValidationReport;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.state.QuestStatus;
+import dev.dzenthai.storybound.core.story.StoryRenames;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
 import dev.dzenthai.storybound.module.boss.BossEvents;
 import dev.dzenthai.storybound.module.codex.CodexEvents;
@@ -83,7 +84,7 @@ public final class DevModeServer {
         ValidationReport report = ValidationService.current();
         List<String> issues = report.issues().stream().map(ValidationIssue::describe).toList();
         ProjectSettings settings = ProjectSettings.load(ConfigStorySource.root());
-        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages()));
+        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages(), settings.namespace()));
     }
 
     /**
@@ -154,7 +155,7 @@ public final class DevModeServer {
         sendSnapshot(player);
     }
 
-    public static void saveProjectSettings(ServerPlayer player, String sourceLanguage, List<String> languages) {
+    public static void saveProjectSettings(ServerPlayer player, String sourceLanguage, List<String> languages, String namespace) {
         if (!player.hasPermissions(2)) {
             return;
         }
@@ -162,8 +163,13 @@ public final class DevModeServer {
             player.sendSystemMessage(Component.literal("Not a language code in " + sourceLanguage + " / " + languages).withStyle(ChatFormatting.RED));
             return;
         }
+        if (!StoryRenames.isStoryNamespace(namespace) && !namespace.equals(ProjectSettings.DEFAULT_NAMESPACE)) {
+            player.sendSystemMessage(Component.literal("A story cannot use the namespace " + namespace).withStyle(ChatFormatting.RED));
+            sendSnapshot(player);
+            return;
+        }
         try {
-            ProjectSettings.save(ConfigStorySource.root(), new ProjectSettings(sourceLanguage, languages));
+            ProjectSettings.save(ConfigStorySource.root(), new ProjectSettings(sourceLanguage, languages, namespace));
         } catch (IOException e) {
             player.sendSystemMessage(Component.literal("Could not save project settings: " + e.getMessage()).withStyle(ChatFormatting.RED));
             return;
@@ -338,6 +344,27 @@ public final class DevModeServer {
         }
     }
 
+    /** Gives a node a new id, with everything that names it (see {@link DevRenames}). */
+    public static void renameDefinition(ServerPlayer player, ResourceLocation typeId, ResourceLocation from, ResourceLocation to) {
+        if (player.hasPermissions(2)) {
+            DevRenames.rename(player, typeId, from, to);
+        }
+    }
+
+    /** Moves every story-folder node of one namespace to another (see {@link DevRenames#moveNamespace}). */
+    public static void moveNamespace(ServerPlayer player, String from, String to) {
+        if (player.hasPermissions(2)) {
+            DevRenames.moveNamespace(player, from, to);
+        }
+    }
+
+    /** Renames a quest's stage ({@code objective} empty) or an objective of a stage (see {@link DevRenames#renameInQuest}). */
+    public static void renameInQuest(ServerPlayer player, ResourceLocation quest, String stage, String objective, String to) {
+        if (player.hasPermissions(2)) {
+            DevRenames.renameInQuest(player, quest, stage, objective, to);
+        }
+    }
+
     public static void deleteDefinition(ServerPlayer player, ResourceLocation typeId, ResourceLocation id) {
         if (!player.hasPermissions(2)) {
             return;
@@ -440,7 +467,7 @@ public final class DevModeServer {
         }
     }
 
-    private static void rebuildAndSync(MinecraftServer server) {
+    static void rebuildAndSync(MinecraftServer server) {
         StoryEvents.rebuild();
         QuestEvents.rebuild();
         CodexEvents.rebuild();
@@ -457,7 +484,7 @@ public final class DevModeServer {
         ChapterMap.refresh(server);
     }
 
-    private static DefinitionType<?> findType(ResourceLocation typeId) {
+    static @Nullable DefinitionType<?> findType(ResourceLocation typeId) {
         for (DefinitionType<?> type : DefinitionTypes.all()) {
             if (type.id().equals(typeId)) {
                 return type;

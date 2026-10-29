@@ -2,7 +2,6 @@ package dev.dzenthai.storybound.client.dev;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import java.util.List;
 import java.util.Optional;
@@ -48,17 +47,17 @@ final class NodeTemplates {
         return switch (template) {
             case QUEST_MAIN, QUEST_SIDE -> {
                 boolean main = template == Template.QUEST_MAIN;
-                ResourceLocation id = Storybound.id("quest_" + number);
+                ResourceLocation id = ClientDevStore.id("quest_" + number);
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_QUEST, id),
                         quest(id, main ? "main" : "side", texts.get(main ? "template.quest_main" : "template.quest_side", number),
                                 texts.get("template.quest_description"), "start", texts.get("template.quest_log")),
                         Optional.empty(), 0));
             }
             case CONTRACT -> {
-                ResourceLocation questId = Storybound.id("contract_quest_" + number);
+                ResourceLocation questId = ClientDevStore.id("contract_quest_" + number);
                 JsonObject quest = quest(questId, "contract", texts.get("template.contract_quest", number),
                         texts.get("template.contract_description"), "hunt", texts.get("template.contract_log"));
-                ResourceLocation noticeId = Storybound.id("contract_note_" + number);
+                ResourceLocation noticeId = ClientDevStore.id("contract_note_" + number);
                 JsonObject notice = new JsonObject();
                 notice.addProperty("kind", "contract");
                 ClientDevStore.writeStoryText(notice, "title", texts.get("template.contract_notice", number), key(ClientDevStore.TYPE_DOCUMENT, noticeId, "title"));
@@ -74,7 +73,7 @@ final class NodeTemplates {
             }
             case DIALOGUE_SCREEN, DIALOGUE_BUBBLE -> {
                 boolean bubble = template == Template.DIALOGUE_BUBBLE;
-                ResourceLocation id = Storybound.id("dialogue_" + number);
+                ResourceLocation id = ClientDevStore.id("dialogue_" + number);
                 JsonObject dialogue = new JsonObject();
                 dialogue.addProperty("presentation", bubble ? "bubble" : "screen");
                 dialogue.addProperty("camera", bubble ? "off" : "auto");
@@ -94,7 +93,7 @@ final class NodeTemplates {
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_DIALOGUE, id), dialogue, Optional.empty(), 0));
             }
             case NPC -> {
-                ResourceLocation id = Storybound.id("npc_" + number);
+                ResourceLocation id = ClientDevStore.id("npc_" + number);
                 JsonObject npc = new JsonObject();
                 StoryEdits.setEntityType(npc, "minecraft:villager", "npc_" + number);
                 npc.addProperty("interact", true);
@@ -103,14 +102,14 @@ final class NodeTemplates {
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_NPC, id), npc, Optional.empty(), 0));
             }
             case DOCUMENT -> {
-                ResourceLocation id = Storybound.id("document_" + number);
+                ResourceLocation id = ClientDevStore.id("document_" + number);
                 JsonObject document = new JsonObject();
                 document.addProperty("kind", "scroll");
                 ClientDevStore.writeStoryText(document, "title", texts.get("template.scroll", number), key(ClientDevStore.TYPE_DOCUMENT, id, "title"));
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_DOCUMENT, id), document, Optional.of(texts.get("template.scroll_text")), 0));
             }
             case WAYPOINT -> {
-                ResourceLocation id = Storybound.id("waypoint_" + number);
+                ResourceLocation id = ClientDevStore.id("waypoint_" + number);
                 JsonObject waypoint = new JsonObject();
                 ClientDevStore.writeStoryText(waypoint, "name", texts.get("template.search_area", number), key(ClientDevStore.TYPE_WAYPOINT, id, "name"));
                 JsonObject target = new JsonObject();
@@ -123,7 +122,7 @@ final class NodeTemplates {
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_WAYPOINT, id), waypoint, Optional.empty(), 0));
             }
             case BOSS -> {
-                ResourceLocation id = Storybound.id("boss_" + number);
+                ResourceLocation id = ClientDevStore.id("boss_" + number);
                 JsonObject boss = new JsonObject();
                 ClientDevStore.writeStoryText(boss, "title", texts.get("template.boss", number), key(ClientDevStore.TYPE_BOSS, id, "title"));
                 StoryEdits.setEntityType(boss, "minecraft:wolf", "boss_" + number);
@@ -134,7 +133,7 @@ final class NodeTemplates {
             }
             case SCRIPT -> {
                 // Its handler is its own id until a file is picked; "create the file" writes one registering it.
-                ResourceLocation id = Storybound.id("script_" + number);
+                ResourceLocation id = ClientDevStore.id("script_" + number);
                 JsonObject script = new JsonObject();
                 ClientDevStore.writeStoryText(script, "title", texts.get("template.script", number), key(ClientDevStore.TYPE_SCRIPT, id, "title"));
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_SCRIPT, id), script, Optional.empty(), 0));
