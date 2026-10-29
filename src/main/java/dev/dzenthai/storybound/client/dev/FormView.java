@@ -396,14 +396,16 @@ final class FormView {
     private void objectPage(List<Object> path, Node schema, Set<String> skip, @Nullable String typeField) {
         Set<String> required = Schemas.required(schema);
         boolean npc = path.isEmpty() && host.npcBinding() != null;
+        boolean waypoint = path.isEmpty() && Schemas.properties(schema).containsKey("target") && Schemas.properties(schema).containsKey("show_ring");
+        Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : Map.of();
         JsonObject object = objectAt(path);
         for (Map.Entry<String, Node> property : Schemas.properties(schema).entrySet()) {
             String name = property.getKey();
-            if (skip.contains(name) || name.equals(typeField) || npc && !npcFieldShown(name, object)) {
+            if (skip.contains(name) || name.equals(typeField) || npc && !npcFieldShown(name, object) || waypoint && !waypointFieldShown(name, object)) {
                 continue;
             }
-            if (npc && NPC_GROUPS.containsKey(name)) {
-                group(DevUi.text(NPC_GROUPS.get(name)));
+            if (groups.containsKey(name)) {
+                group(DevUi.text(groups.get(name)));
             }
             if (npc && name.equals("proximity")) {
                 proximityField(path, property.getValue(), object);
@@ -440,6 +442,21 @@ final class FormView {
 
     private static boolean flag(@Nullable JsonObject object, String name, boolean byDefault) {
         return object != null && object.get(name) instanceof JsonPrimitive value && value.isBoolean() ? value.getAsBoolean() : byDefault;
+    }
+
+    /**
+     * A waypoint's form in the order its author asks (October 29, 2026; before, the file's order: the colour before when
+     * it shows, point or area at the very bottom, the stage even without a quest): its name, where it points and whether
+     * a point or an area; how it looks; when it shows.
+     */
+    private static final Map<String, String> WAYPOINT_GROUPS = Map.of(
+            "color", "waypoint.group.look",
+            "quest", "waypoint.group.when");
+
+    /** The stage only with a quest (or when the file still names one). */
+    private static boolean waypointFieldShown(String name, @Nullable JsonObject waypoint) {
+        return !name.equals("stage") || waypoint != null && (waypoint.get("quest") instanceof JsonPrimitive quest && !quest.getAsString().isBlank()
+                || waypoint.has("stage"));
     }
 
     /** A heading over a group of fields. */
@@ -813,7 +830,9 @@ final class FormView {
             case ID, ID_LIST, STRING, INTEGER, NUMBER, LITERAL, POSITION, RAW -> inputField(path, name, node, kind, value, label, tooltip, owner);
             default -> {
                 if (row(CONTROL_H)) {
-                    Component summary = Component.empty().append(label).append(": ").append(summary(kind, node, value)).append(" ▸");
+                    Component shown = name.equals("target") && path.isEmpty() && Schemas.properties(owner).containsKey("show_ring")
+                            ? Component.literal(targetSummary(value)) : summary(kind, node, value);
+                    Component summary = Component.empty().append(label).append(": ").append(shown).append(" ▸");
                     Button button = Button.builder(summary, b -> {
                                 if (Schemas.isOldActionList(node, value)) {
                                     // Written the older way (only actions, given at once): the same as the object with them and no claim.
@@ -1495,15 +1514,61 @@ final class FormView {
             return;
         }
         int current = Schemas.variantOf(schema, get(path));
+        // A waypoint's target: "Points at: a point / one entity / the nearest structure / the nearest mob".
+        boolean target = path.size() == 1 && "target".equals(path.getFirst()) && host.root().has("name") && Schemas.properties(variants.get(0)).containsKey("pos");
         if (row(LABEL_H + CONTROL_H)) {
-            labelRow(DevUi.text("form.variant"));
-            screen.add(Button.builder(variantLabel(variants.get(current)), b -> {
+            labelRow(DevUi.text(target ? "waypoint.points_at" : "form.variant"));
+            Node shown = variants.get(current);
+            Component label = target && !Schemas.required(shown).isEmpty() ? DevUi.text("waypoint.kind." + Schemas.required(shown).iterator().next()) : variantLabel(shown);
+            screen.add(Button.builder(Component.empty().append(label).append(" ▸"), b -> {
                 Node next = variants.get((current + 1) % variants.size());
                 put(ensureParent(path), path, path.size() - 1, Schemas.skeleton(next));
                 host.changed();
             }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
         }
         objectPage(path, variants.get(current), Set.of(), null);
+    }
+
+    /**
+     * A waypoint's target in words: "point 120, 64, -30", "· the Nether" when not the overworld; "nearest village";
+     * "nearest Wolf · within 64"; "entity …a1b2". Before, only the kind ("Position").
+     */
+    private static String targetSummary(@Nullable JsonElement value) {
+        if (!(value instanceof JsonObject target) || target.isEmpty()) {
+            return "—";
+        }
+        String dimension = target.get("dimension") instanceof JsonPrimitive named && !named.getAsString().equals("minecraft:overworld")
+                ? " · " + dimensionName(named.getAsString()) : "";
+        if (target.get("pos") instanceof JsonArray pos && pos.size() == 3) {
+            List<String> parts = new ArrayList<>();
+            pos.forEach(part -> parts.add(format(part.getAsDouble())));
+            return DevUi.str("waypoint.target.pos", String.join(", ", parts)) + dimension;
+        }
+        if (target.get("entity") instanceof JsonPrimitive uuid) {
+            String id = uuid.getAsString();
+            return DevUi.str("waypoint.target.entity", id.length() > 4 ? id.substring(id.length() - 4) : id);
+        }
+        if (target.get("structure") instanceof JsonPrimitive structure) {
+            String id = structure.getAsString();
+            return DevUi.str("waypoint.target.structure", id.substring(id.indexOf(':') + 1).replace('_', ' ')) + dimension;
+        }
+        if (target.has("nearest")) {
+            JsonElement nearest = target.get("nearest");
+            // A type, a #tag or a list reads as a selector of only a type.
+            JsonObject selector = nearest instanceof JsonObject written ? written : new JsonObject();
+            if (!(nearest instanceof JsonObject)) {
+                selector.add("type", nearest);
+            }
+            String what = entitySummary(selector);
+            int range = target.get("range") instanceof JsonPrimitive number && number.isNumber() ? number.getAsInt() : 64;
+            return DevUi.str("waypoint.target.nearest", what, range);
+        }
+        return "—";
+    }
+
+    private static String dimensionName(String dimension) {
+        String key = "storybound.dev.dimension." + dimension.substring(dimension.indexOf(':') + 1);
+        return Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : dimension;
     }
 
     private static Component variantLabel(Node variant) {
