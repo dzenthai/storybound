@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.dzenthai.storybound.client.dev.DevModeScreen.MenuItem;
 import dev.dzenthai.storybound.client.dev.DialogueGraph.Edge;
+import dev.dzenthai.storybound.core.story.StoryRenames;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -15,6 +16,7 @@ import java.util.Set;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -33,6 +35,17 @@ final class DialogueView extends GraphView {
     static final int NODE_H = 46;
 
     private record Card(String id, String type, String title, String badge, int color, ItemStack icon, int x, int y, boolean start, boolean missingTranslation) {}
+
+    /**
+     * The card "Start" (October 29, 2026; before, "Make it the start" on every node and in its menu, useful once): it
+     * cannot be deleted, and its one arrow leads to the dialogue's first node; dragged to another node, it makes that
+     * one the first. Its place is kept in the layout under this key, which no node can have ({@code @} is for targets).
+     */
+    static final String START = "@start";
+
+    /** The name being typed for {@link #renameFor}, kept here so rebuilding the panel loses nothing. */
+    private @Nullable String renameText;
+    private @Nullable String renameFor;
 
     /** The dialogue and its layout as JSON, for undo and redo. */
     private record State(String dialogue, String layout) {}
@@ -59,6 +72,26 @@ final class DialogueView extends GraphView {
         public JsonObject root() {
             JsonObject node = selected != null ? DialogueGraph.node(json, selected) : null;
             return node != null ? node : new JsonObject();
+        }
+
+        @Override
+        public @Nullable JsonObject dialogue() {
+            return json;
+        }
+
+        @Override
+        public void revealNode(String node) {
+            if (screen != null) {
+                DevModeScreen at = screen;
+                saveEdits(at);
+                selected = node;
+                for (Card card : cards) {
+                    if (card.id().equals(node)) {
+                        centerOn(at, card.x() + NODE_W / 2.0, card.y() + NODE_H / 2.0);
+                    }
+                }
+                at.rebuild();
+            }
         }
 
         @Override
@@ -215,7 +248,18 @@ final class DialogueView extends GraphView {
                 cards.add(card(entry.getKey(), entry.getValue().getAsJsonObject(), entry.getKey().equals(start), pos[0], pos[1]));
             }
         }
-        edges = DialogueGraph.edges(json, ClientDevStore.activeLanguage());
+        // Left of the first node until it is moved.
+        int[] first = positions.get(start);
+        int[] at = positions.computeIfAbsent(START, key -> first != null ? new int[]{first[0] - NODE_W - 48, first[1]}
+                : new int[]{DialogueGraph.MARGIN, DialogueGraph.MARGIN});
+        boolean known = nodes.has(start);
+        cards.add(new Card(START, "start", known ? "→ " + start : DevUi.str("node.start_empty"), DevUi.str("node.start"), DevUi.ACCENT,
+                new ItemStack(Items.LIME_BANNER), at[0], at[1], false, false));
+        List<Edge> all = new ArrayList<>(DialogueGraph.edges(json, ClientDevStore.activeLanguage()));
+        if (known) {
+            all.add(new Edge(START, start, DialogueGraph.EdgeKind.NEXT, ""));
+        }
+        edges = all;
     }
 
     private static Card card(String id, JsonObject node, boolean start, int x, int y) {
@@ -236,7 +280,7 @@ final class DialogueView extends GraphView {
             case "condition" -> new Card(id, type, "→ " + (node.has("then") ? node.get("then").getAsString() : DialogueGraph.END),
                     DevUi.str("node.condition"), 0xFFAB47BC, new ItemStack(Items.COMPARATOR), x, y, start, false);
             case "action" -> new Card(id, type, "→ " + DialogueGraph.next(node), DevUi.str("node.action"), 0xFFFF7043, new ItemStack(Items.REDSTONE), x, y, start, false);
-            case "random" -> new Card(id, type, DevUi.str("node.branches"), DevUi.str("node.random"), 0xFF8E24AA, new ItemStack(Items.DISPENSER), x, y, start, false);
+            case "random" -> new Card(id, type, chances(node), DevUi.str("node.random"), 0xFF8E24AA, new ItemStack(Items.DISPENSER), x, y, start, false);
             case "jump" -> new Card(id, type, node.has("node") ? node.get("node").getAsString() : node.has("dialogue") ? node.get("dialogue").getAsString() : DialogueGraph.END,
                     DevUi.str("node.jump"), 0xFF00ACC1, new ItemStack(Items.ENDER_PEARL), x, y, start, false);
             case "call" -> new Card(id, type, node.has("dialogue") ? node.get("dialogue").getAsString() : "?",
@@ -250,6 +294,25 @@ final class DialogueView extends GraphView {
                         translating && untranslated(node, language));
             }
         };
+    }
+
+    /** A random node's branches with their chances: "67% few_hands · 33% cat". */
+    private static String chances(JsonObject node) {
+        JsonArray options = DialogueGraph.options(node);
+        int total = 0;
+        for (JsonElement option : options) {
+            total += weight(option);
+        }
+        List<String> parts = new ArrayList<>();
+        for (JsonElement option : options) {
+            String next = option instanceof JsonObject branch && branch.get("next") instanceof com.google.gson.JsonPrimitive target ? target.getAsString() : DialogueGraph.END;
+            parts.add(Math.round(100.0 * weight(option) / Math.max(1, total)) + "% " + next);
+        }
+        return parts.isEmpty() ? DevUi.str("node.branches") : String.join(" · ", parts);
+    }
+
+    private static int weight(JsonElement option) {
+        return option instanceof JsonObject branch && branch.get("weight") instanceof com.google.gson.JsonPrimitive weight && weight.isNumber() ? Math.max(1, weight.getAsInt()) : 1;
     }
 
     private static boolean untranslated(JsonObject owner, String language) {
@@ -277,7 +340,9 @@ final class DialogueView extends GraphView {
 
     private JsonObject layoutJson() {
         JsonObject nodes = new JsonObject();
-        for (String node : DialogueGraph.nodes(json).keySet()) {
+        List<String> placed = new ArrayList<>(DialogueGraph.nodes(json).keySet());
+        placed.add(START);
+        for (String node : placed) {
             int[] pos = positions.get(node);
             if (pos != null) {
                 JsonObject at = new JsonObject();
@@ -411,6 +476,7 @@ final class DialogueView extends GraphView {
     private void setStart(DevModeScreen screen, String node) {
         edit(screen, DevUi.str("history.dialogue_start"), () -> json.addProperty("start", node));
         screen.rebuild();
+        screen.status(DevUi.text("status.dialogue_start", node), DevUi.LINK);
     }
 
     // --- widgets
@@ -447,21 +513,107 @@ final class DialogueView extends GraphView {
         }
         int x = screen.width - DevUi.RIGHT_PANEL_W + 8;
         int w = DevUi.RIGHT_PANEL_W - 16;
-        int y = DevUi.TOP_BAR_H + 32;
+        nameRow(screen, nodeId, x, DevUi.TOP_BAR_H + 16, w);
+        int y = DevUi.TOP_BAR_H + 46;
         String formFor = nodeId + "/" + DialogueGraph.type(node);
         if (!formFor.equals(formShown)) {
             formShown = formFor;
             Schemas.Node schema = Schemas.definition("dialogue.schema.json", "node");
             form.reset(schema != null ? Schemas.typed(schema, DialogueGraph.type(node)) : null, nodeId, Set.of("type"));
         }
-        boolean start = nodeId.equals(DialogueGraph.start(json));
-        Button startButton = Button.builder(start ? Component.literal("★ ").append(DevUi.text("dialogue.is_start")) : DevUi.text("dialogue.set_start"),
-                b -> setStart(screen, nodeId)).bounds(x, y, w - 54, 18).build();
-        startButton.active = !start;
-        screen.add(startButton);
-        screen.add(Button.builder(Component.literal("🗑"), b -> deleteNode(screen, nodeId))
-                .tooltip(Tooltip.create(DevUi.text("dialogue.delete_node"))).bounds(x + w - 50, y, 50, 18).build());
-        form.addWidgets(screen, x, y + 24, w, screen.height - 8);
+        // Deleting is Delete or the node's menu, as for every other card (before, a button here as well).
+        form.addWidgets(screen, x, y, w, screen.height - 8);
+    }
+
+    /**
+     * The node's name, as a node's on the story canvas: arrows, other dialogues and players' marks of its options chosen
+     * once name it by it, so ✓ renames it with all of them (October 29, 2026; before, a node kept "line_3").
+     */
+    private void nameRow(DevModeScreen screen, String nodeId, int x, int y, int w) {
+        if (!nodeId.equals(renameFor)) {
+            renameFor = nodeId;
+            renameText = nodeId;
+        }
+        EditBox box = new EditBox(screen.font(), x, y + 1, w - 22, 14, DevUi.text("rename.label"));
+        box.setMaxLength(64);
+        box.setValue(renameText != null ? renameText : nodeId);
+        Button apply = Button.builder(Component.literal("✓"), b -> {
+            String to = renameText != null ? renameText.trim() : "";
+            if (StoryRenames.nodeProblem(json, nodeId, to).isEmpty()) {
+                renameNode(screen, nodeId, to);
+            }
+        }).tooltip(Tooltip.create(DevUi.text("rename.node_apply"))).bounds(x + w - 20, y, 20, 16).build();
+        Runnable check = () -> {
+            Optional<StoryRenames.Problem> problem = StoryRenames.nodeProblem(json, nodeId, renameText != null ? renameText : nodeId);
+            box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? 0xFFE0E0E0 : DevUi.ERROR);
+            apply.active = problem.isEmpty();
+        };
+        box.setResponder(text -> {
+            renameText = text;
+            check.run();
+        });
+        check.run();
+        box.setTooltip(Tooltip.create(DevUi.text("rename.node_tooltip")));
+        screen.add(box);
+        screen.add(apply);
+    }
+
+    /** Saves unsaved edits first; a dialogue still being filled in is not renamed. One undoable step: undo renames back. */
+    private void renameNode(DevModeScreen screen, String from, String to) {
+        if (id == null) {
+            return;
+        }
+        saveEdits(screen);
+        if (dirty) {
+            screen.status(DevUi.text("rename.incomplete"), DevUi.WARN);
+            return;
+        }
+        ResourceLocation dialogue = id;
+        requestNodeRename(screen, dialogue, from, to);
+        screen.remember(DevUi.str("history.rename", from, to), () -> requestNodeRename(screen, dialogue, to, from), () -> requestNodeRename(screen, dialogue, from, to));
+    }
+
+    /**
+     * Renames here at once, as the server will (the node, its place, the arrows, what names it elsewhere), so it stays
+     * selected where it was; the server's snapshot follows, or puts the old name back if it refuses. Not saved from
+     * here: the server renames the file it has.
+     */
+    private void requestNodeRename(DevModeScreen screen, ResourceLocation dialogue, String from, String to) {
+        boolean open = dialogue.equals(id);
+        JsonObject target = open ? json : ClientDevStore.parseObject(ClientDevStore.getJson(ClientDevStore.TYPE_DIALOGUE, dialogue));
+        StoryRenames.renameNode(target, dialogue, from, to);
+        ClientDevStore.putLocal(ClientDevStore.TYPE_DIALOGUE, dialogue, DevUi.GSON.toJson(target));
+        JsonObject layout = ClientDevStore.parseObject(ClientDevStore.getJson(ClientDevStore.TYPE_DIALOGUE_LAYOUT, dialogue));
+        if (StoryRenames.renameLayoutNode(layout, from, to)) {
+            ClientDevStore.putLocal(ClientDevStore.TYPE_DIALOGUE_LAYOUT, dialogue, DevUi.GSON.toJson(layout));
+        }
+        ClientDevStore.all().forEach((type, definitions) -> {
+            if (StoryRenames.REFERRING.contains(type)) {
+                definitions.forEach((definition, raw) -> {
+                    JsonObject other = ClientDevStore.parseObject(raw);
+                    if (StoryRenames.rewriteNode(other, dialogue, from, to) > 0) {
+                        ClientDevStore.putLocal(type, definition, DevUi.GSON.toJson(other));
+                    }
+                });
+            }
+        });
+        if (open) {
+            int[] place = positions.remove(from);
+            if (place != null) {
+                positions.put(to, place);
+            }
+            if (from.equals(selected)) {
+                selected = to;
+            }
+            formShown = "";
+            renameFor = null;
+            dirty = false;
+            saved = state();
+            rebuildCards();
+        }
+        DevRequests.renameInDialogue(dialogue, from, to);
+        screen.status(DevUi.text("rename.sent", from, to), DevUi.OK);
+        screen.rebuild();
     }
 
     /** The selected node's form changed it: saved at once, as one undoable step. */
@@ -513,9 +665,10 @@ final class DialogueView extends GraphView {
         for (Card card : cards) {
             boolean isSelected = card.id().equals(selected);
             boolean hovered = DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H);
-            int border = card.start() ? DevUi.WARN : isSelected ? 0xFF64B5F6 : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
-            DevUi.card(graphics, font, card.x(), card.y(), NODE_W, NODE_H, border, isSelected || card.start(), card.color(),
-                    (card.start() ? "★ " : "") + card.badge(), card.missingTranslation(), card.icon(), card.title(), card.id());
+            boolean startCard = card.id().equals(START);
+            int border = startCard ? DevUi.ACCENT : isSelected ? 0xFF64B5F6 : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
+            DevUi.card(graphics, font, card.x(), card.y(), NODE_W, NODE_H, border, isSelected || startCard, card.color(),
+                    card.badge(), card.missingTranslation(), card.icon(), card.title(), startCard ? "" : card.id());
         }
         endCanvas(graphics);
         renderNodeList(screen, graphics, mouseX, mouseY);
@@ -551,9 +704,10 @@ final class DialogueView extends GraphView {
     private void renderNodeList(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
         DevUi.sidePanel(graphics, 0, DevUi.LEFT_PANEL_W, screen.height, true);
-        graphics.drawString(font, DevUi.text("dialogue.nodes", cards.size()), 8, DevUi.TOP_BAR_H + 8, DevUi.ACCENT, false);
+        List<Card> listed = nodeCards();
+        graphics.drawString(font, DevUi.text("dialogue.nodes", listed.size()), 8, DevUi.TOP_BAR_H + 8, DevUi.ACCENT, false);
         int y = DevUi.TOP_BAR_H + 24;
-        for (Card card : cards) {
+        for (Card card : listed) {
             if (y > screen.height - 120) {
                 break;
             }
@@ -567,12 +721,22 @@ final class DialogueView extends GraphView {
         Font font = screen.font();
         int left = screen.width - DevUi.RIGHT_PANEL_W;
         DevUi.sidePanel(graphics, left, screen.width, screen.height, false);
-        if (selected == null) {
+        if (selected == null || screen.modalOpen()) {
             return;
         }
-        graphics.drawString(font, DevUi.text("dialogue.node"), left + 8, DevUi.TOP_BAR_H + 6, DevUi.ACCENT, false);
-        graphics.drawString(font, font.plainSubstrByWidth(selected, DevUi.RIGHT_PANEL_W - 16), left + 8, DevUi.TOP_BAR_H + 18, DevUi.MUTED, false);
+        graphics.drawString(font, DevUi.text("rename.label"), left + 8, DevUi.TOP_BAR_H + 6, DevUi.ACCENT, false);
+        // Under the name: why the typed one cannot be.
+        Optional<StoryRenames.Problem> problem = selected.equals(renameFor) && renameText != null ? StoryRenames.nodeProblem(json, selected, renameText) : Optional.empty();
+        if (problem.isPresent() && problem.get() != StoryRenames.Problem.SAME) {
+            String reason = DevUi.str("rename.problem." + problem.get().name().toLowerCase(java.util.Locale.ROOT), "");
+            graphics.drawString(font, font.plainSubstrByWidth(reason, DevUi.RIGHT_PANEL_W - 16), left + 8, DevUi.TOP_BAR_H + 34, DevUi.BAD, false);
+        }
         form.render(graphics, font);
+    }
+
+    /** The nodes' cards, without "Start". */
+    private List<Card> nodeCards() {
+        return cards.stream().filter(card -> !card.id().equals(START)).toList();
     }
 
     // --- input
@@ -601,8 +765,9 @@ final class DialogueView extends GraphView {
     boolean mouseClicked(DevModeScreen screen, double mouseX, double mouseY, int button) {
         if (mouseX < DevUi.LEFT_PANEL_W && mouseY >= DevUi.TOP_BAR_H + 24 && mouseY < screen.height - 100) {
             int row = ((int) mouseY - (DevUi.TOP_BAR_H + 24)) / 20;
-            if (row >= 0 && row < cards.size()) {
-                Card card = cards.get(row);
+            List<Card> listed = nodeCards();
+            if (row >= 0 && row < listed.size()) {
+                Card card = listed.get(row);
                 select(screen, card.id());
                 centerOn(screen, card.x() + NODE_W / 2.0, card.y() + NODE_H / 2.0);
                 screen.rebuild();
@@ -635,7 +800,8 @@ final class DialogueView extends GraphView {
                 return true;
             }
             if (DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H)) {
-                select(screen, card.id());
+                // "Start" moves but has nothing to edit.
+                select(screen, card.id().equals(START) ? null : card.id());
                 dragging = card.id();
                 dragBefore = state();
                 dragOffsetX = worldX - card.x();
@@ -653,16 +819,20 @@ final class DialogueView extends GraphView {
     private List<MenuItem> menu(DevModeScreen screen, @Nullable Card clicked) {
         String npc = speakers().getFirst();
         List<MenuItem> items = new ArrayList<>();
-        if (clicked != null) {
+        if (clicked != null && !clicked.id().equals(START)) {
             String node = clicked.id();
             select(screen, node);
             screen.rebuild();
-            items.add(MenuItem.of(Component.literal("★ ").append(DevUi.text("dialogue.set_start")), () -> setStart(screen, node)));
             items.add(MenuItem.of(Component.literal("💬 ").append(DevUi.text("dialogue.link_npc_line")), () -> createLinked(screen, node, "line", npc)));
             items.add(MenuItem.of(Component.literal("🗣 ").append(DevUi.text("dialogue.link_player_line")), () -> createLinked(screen, node, "line", "player")));
             items.add(MenuItem.of(Component.literal("❓ ").append(DevUi.text("dialogue.link_choice")), () -> createLinked(screen, node, "choice", null)));
             items.add(MenuItem.of(Component.literal("⚖ ").append(DevUi.text("dialogue.link_condition")), () -> createLinked(screen, node, "condition", null)));
             items.add(MenuItem.of(Component.literal("⚡ ").append(DevUi.text("dialogue.link_action")), () -> createLinked(screen, node, "action", null)));
+            items.add(MenuItem.of(Component.literal("🎲 ").append(DevUi.text("dialogue.link_random")), () -> createLinked(screen, node, "random", null)));
+            items.add(MenuItem.of(Component.literal("✂ ").append(DevUi.text("dialogue.unlink")), () -> {
+                edit(screen, DevUi.str("history.dialogue_unlink", node), () -> DialogueGraph.unlink(DialogueGraph.node(json, node)));
+                screen.rebuild();
+            }));
             items.add(MenuItem.danger(Component.literal("🗑 ").append(DevUi.text("dialogue.delete_named", node)), () -> deleteNode(screen, node)));
             return items;
         }
@@ -673,6 +843,9 @@ final class DialogueView extends GraphView {
         items.add(MenuItem.of(Component.literal("❓ ").append(DevUi.text("dialogue.add_choice")), () -> createNode(screen, "choice", null, x, y, null)));
         items.add(MenuItem.of(Component.literal("⚖ ").append(DevUi.text("dialogue.add_condition")), () -> createNode(screen, "condition", null, x, y, null)));
         items.add(MenuItem.of(Component.literal("⚡ ").append(DevUi.text("dialogue.add_action")), () -> createNode(screen, "action", null, x, y, null)));
+        items.add(MenuItem.of(Component.literal("🎲 ").append(DevUi.text("dialogue.add_random")), () -> createNode(screen, "random", null, x, y, null)));
+        items.add(MenuItem.of(Component.literal("↪ ").append(DevUi.text("dialogue.add_jump")), () -> createNode(screen, "jump", null, x, y, null)));
+        items.add(MenuItem.of(Component.literal("📞 ").append(DevUi.text("dialogue.add_call")), () -> createNode(screen, "call", null, x, y, null)));
         items.add(MenuItem.of(Component.literal("🏁 ").append(DevUi.text("dialogue.add_end")), () -> createNode(screen, "end", null, x, y, null)));
         items.add(MenuItem.of(Component.literal("📐 ").append(DevUi.text("dialogue.auto_layout")), () -> {
             edit(screen, DevUi.str("history.dialogue_layout"), () -> {
@@ -703,8 +876,12 @@ final class DialogueView extends GraphView {
             String from = linkingFrom;
             linkingFrom = null;
             Card target = cardAt(worldX(mouseX), worldY(mouseY));
-            if (target != null && !target.id().equals(from)) {
-                connect(screen, from, target.id());
+            if (target != null && !target.id().equals(from) && !target.id().equals(START)) {
+                if (from.equals(START)) {
+                    setStart(screen, target.id());
+                } else {
+                    connect(screen, from, target.id());
+                }
             }
             return true;
         }

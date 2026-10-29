@@ -39,6 +39,29 @@ class DevEditsTest {
         return JsonParser.parseString(text).getAsJsonObject();
     }
 
+    /** "Unlink the arrows" of a node: it ends the dialogue; what must lead somewhere leads to the end. */
+    @Test
+    void unlinkingANodeMakesItEndTheDialogue() {
+        JsonObject line = JsonParser.parseString("{ \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"Hi\", \"next\": \"ask\" }").getAsJsonObject();
+        DialogueGraph.unlink(line);
+        assertFalse(line.has("next"));
+        JsonObject condition = JsonParser.parseString("{ \"type\": \"condition\", \"then\": \"a\", \"else\": \"b\" }").getAsJsonObject();
+        DialogueGraph.unlink(condition);
+        assertEquals("@end", condition.get("then").getAsString());
+        assertEquals("@end", condition.get("else").getAsString());
+        JsonObject choice = JsonParser.parseString("""
+                { "type": "choice", "options": [ { "text": "A", "next": "a" } ], "timeout": { "seconds": 5, "next": "b" } }""").getAsJsonObject();
+        DialogueGraph.unlink(choice);
+        assertFalse(choice.getAsJsonArray("options").get(0).getAsJsonObject().has("next"));
+        assertEquals("@end", choice.getAsJsonObject("timeout").get("next").getAsString(), "the timer must lead somewhere");
+        JsonObject random = JsonParser.parseString("{ \"type\": \"random\", \"options\": [ { \"weight\": 2, \"next\": \"a\" } ] }").getAsJsonObject();
+        DialogueGraph.unlink(random);
+        assertEquals("@end", random.getAsJsonArray("options").get(0).getAsJsonObject().get("next").getAsString());
+        JsonObject jump = JsonParser.parseString("{ \"type\": \"jump\", \"node\": \"a\" }").getAsJsonObject();
+        DialogueGraph.unlink(jump);
+        assertEquals("a", jump.get("node").getAsString(), "a jump is its arrow");
+    }
+
     @Test
     void everyDefinitionHasASchemaForItsForm() {
         for (String type : List.of("quest", "dialogue", "npc_binding", "document", "waypoint", "boss", "codex", "event", "flag", "chapter", "dialogue_layout")) {

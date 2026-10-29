@@ -56,6 +56,8 @@ Required on both client and server.
 - NPC bindings by type, tag, name or uuid, for one entity or a list of them; NPCs that talk to one player at a time; different lines before, during and
   after a quest.
 - NPCs that come back (`"respawn": true`): the same NPC returns where it died or disappeared, and drops nothing.
+- Sounds of your own: `.ogg` files in `config/storybound/sounds/<namespace>/` play as `<namespace>:<name>`, picked
+  and heard in the editor; files that would not play are named with the reason.
 
 ### Journal, Codex, bosses, waypoints
 - Readable documents (books, letters, notes, contracts) in their own markup, kept in the Journal.

@@ -588,7 +588,7 @@ final class StoryInspector {
         NodeKey key = view.selected;
         int left = screen.width - DevUi.RIGHT_PANEL_W;
         DevUi.sidePanel(graphics, left, screen.width, screen.height, false);
-        if (key == null || view.editing == null) {
+        if (key == null || view.editing == null || screen.modalOpen()) {
             return;
         }
         // The label of the name below; before, the panel's own title "Inspector", which said nothing.

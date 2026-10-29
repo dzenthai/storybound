@@ -51,6 +51,7 @@ public final class StoryboundNetwork {
         registrar.playToServer(DevModePayloads.RenameDefinition.TYPE, DevModePayloads.RenameDefinition.STREAM_CODEC, DevModePayloads.RenameDefinition::handleOnServer);
         registrar.playToServer(DevModePayloads.RenameInQuest.TYPE, DevModePayloads.RenameInQuest.STREAM_CODEC, DevModePayloads.RenameInQuest::handleOnServer);
         registrar.playToServer(DevModePayloads.MoveNamespace.TYPE, DevModePayloads.MoveNamespace.STREAM_CODEC, DevModePayloads.MoveNamespace::handleOnServer);
+        registrar.playToServer(DevModePayloads.RenameInDialogue.TYPE, DevModePayloads.RenameInDialogue.STREAM_CODEC, DevModePayloads.RenameInDialogue::handleOnServer);
         registrar.playToServer(DevModePayloads.QuickAction.TYPE, DevModePayloads.QuickAction.STREAM_CODEC, DevModePayloads.QuickAction::handleOnServer);
         registrar.playToServer(DevModePayloads.RequestScripts.TYPE, DevModePayloads.RequestScripts.STREAM_CODEC, DevModePayloads.RequestScripts::handleOnServer);
         registrar.playToClient(DevModePayloads.Scripts.TYPE, DevModePayloads.Scripts.STREAM_CODEC, DevModePayloads.Scripts::handleOnClient);

@@ -1,5 +1,7 @@
 package dev.dzenthai.storybound.client.dev;
 
+import dev.dzenthai.storybound.client.sound.StorySoundFiles;
+import dev.dzenthai.storybound.client.sound.StorySounds;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -11,6 +13,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -38,7 +41,20 @@ final class Catalog {
     private static final int ROW_H = 19;
 
     /** What is picked; {@code LIST} is a list given by the caller (types, story nodes, dialogue nodes). */
-    enum Kind { STRUCTURE, BIOME, POI, MOB, ITEM, LIST }
+    enum Kind { STRUCTURE, BIOME, POI, MOB, ITEM, SOUND, LIST }
+
+    /** A file of the sounds folder that is not a sound, shown with why: picking it says how to fix it. */
+    static final String PROBLEM = "@problem:";
+    /**
+     * A row that is not picked: a section's heading ({@code @section:}), or a muted note under it ({@code @note:}), as
+     * the sound list's "The story's sounds" and "Minecraft's and mods' sounds" (October 30, 2026).
+     */
+    static final String SECTION = "@section:";
+    static final String NOTE = "@note:";
+
+    private static boolean pickable(Entry entry) {
+        return !entry.id().startsWith(SECTION) && !entry.id().startsWith(NOTE);
+    }
 
     /** @param held the stack in the player's hand, components and all (the first entry of the item catalog) */
     record Entry(String id, String label, ItemStack icon, boolean held) {
@@ -111,6 +127,9 @@ final class Catalog {
             close();
             screen.rebuild();
         }).bounds(left + WIDTH - 22, top + 4, 18, 16).build());
+        if (kind == Kind.SOUND) {
+            soundButtons(screen, left, top);
+        }
 
         int searchY = top + 24;
         EditBox search = new EditBox(screen.font(), left + 8, searchY, WIDTH - 84, 16, DevUi.text("catalog.search"));
@@ -134,6 +153,37 @@ final class Catalog {
         }).bounds(left + WIDTH - 72, searchY - 1, 64, 18).build());
     }
 
+    /**
+     * The sound list's own buttons, in its title bar (October 30, 2026; before, two rows of the list, and reloading
+     * closed the window): reloading the sounds keeps the window open and lists them again once loaded; the folder
+     * opens in the system's file manager.
+     */
+    private void soundButtons(DevModeScreen screen, int left, int top) {
+        int folderW = 64;
+        int reloadW = 76;
+        screen.add(Button.builder(Component.literal("📂 ").append(DevUi.text("sound.folder")), b -> {
+            java.nio.file.Path folder = StorySounds.folder();
+            try {
+                java.nio.file.Files.createDirectories(folder);
+                net.minecraft.Util.getPlatform().openPath(folder);
+            } catch (java.io.IOException e) {
+                screen.status(Component.literal(e.getMessage()), DevUi.BAD);
+            }
+        }).tooltip(Tooltip.create(DevUi.text("sound.open_folder"))).bounds(left + WIDTH - 24 - folderW, top + 3, folderW, 16).build());
+        screen.add(Button.builder(Component.literal("↻ ").append(DevUi.text("sound.refresh")), b -> {
+            screen.status(DevUi.text("sound.reloading"), DevUi.NEUTRAL);
+            Minecraft minecraft = Minecraft.getInstance();
+            minecraft.reloadResourcePacks().thenRun(() -> minecraft.execute(() -> {
+                if (open && kind == Kind.SOUND) {
+                    entries = entries(kind, minecraft.level);
+                    scroll = 0;
+                }
+                screen.status(DevUi.text("sound.reloaded", StorySounds.last().sounds().size()), DevUi.OK);
+                screen.rebuild();
+            }));
+        }).tooltip(Tooltip.create(DevUi.text("sound.reload"))).bounds(left + WIDTH - 26 - folderW - reloadW, top + 3, reloadW, 16).build());
+    }
+
     private void pick(DevModeScreen screen, Entry entry) {
         Callback picked = callback;
         close();
@@ -143,14 +193,22 @@ final class Catalog {
         screen.rebuild();
     }
 
+    /** What the search matches; a section's heading stays over what it found there, and goes with nothing found. */
     private List<Entry> filtered() {
         String query = filter.trim().toLowerCase(Locale.ROOT);
         if (query.isEmpty()) {
             return entries;
         }
         List<Entry> out = new ArrayList<>();
+        Entry heading = null;
         for (Entry entry : entries) {
-            if (entry.label().toLowerCase(Locale.ROOT).contains(query) || entry.id().toLowerCase(Locale.ROOT).contains(query)) {
+            if (entry.id().startsWith(SECTION)) {
+                heading = entry;
+            } else if (pickable(entry) && (entry.label().toLowerCase(Locale.ROOT).contains(query) || entry.id().toLowerCase(Locale.ROOT).contains(query))) {
+                if (heading != null) {
+                    out.add(heading);
+                    heading = null;
+                }
                 out.add(entry);
             }
         }
@@ -179,6 +237,15 @@ final class Catalog {
         for (int i = 0; i < rows() && scroll + i < shown.size(); i++) {
             Entry entry = shown.get(scroll + i);
             int y = listTop + i * ROW_H;
+            if (entry.id().startsWith(SECTION)) {
+                graphics.drawString(font, entry.label(), left + 12, y + 7, DevUi.ACCENT, false);
+                graphics.fill(left + 12, y + ROW_H - 3, left + WIDTH - 12, y + ROW_H - 2, 0xFF37474F);
+                continue;
+            }
+            if (entry.id().startsWith(NOTE)) {
+                graphics.drawString(font, font.plainSubstrByWidth(entry.label(), WIDTH - 40), left + 30, y + 5, DevUi.MUTED, false);
+                continue;
+            }
             boolean hover = DevUi.inside(mouseX, mouseY, left + 8, y, WIDTH - 16, ROW_H);
             if (hover) {
                 graphics.fill(left + 7, y, left + WIDTH - 7, y + ROW_H - 1, DevUi.ROW_SELECTED);
@@ -203,7 +270,9 @@ final class Catalog {
         int listTop = listTop(screen);
         for (int i = 0; i < rows() && scroll + i < shown.size(); i++) {
             if (DevUi.inside(mouseX, mouseY, left + 8, listTop + i * ROW_H, WIDTH - 16, ROW_H)) {
-                pick(screen, shown.get(scroll + i));
+                if (pickable(shown.get(scroll + i))) {
+                    pick(screen, shown.get(scroll + i));
+                }
                 return true;
             }
         }
@@ -218,9 +287,9 @@ final class Catalog {
             return true;
         }
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-            List<Entry> shown = filtered();
-            if (!shown.isEmpty()) {
-                pick(screen, shown.getFirst());
+            Entry first = filtered().stream().filter(Catalog::pickable).findFirst().orElse(null);
+            if (first != null) {
+                pick(screen, first);
                 return true;
             }
         }
@@ -309,6 +378,32 @@ final class Catalog {
                         .sorted(Comparator.comparing(entry -> entry.getKey().location().toString()))
                         .forEach(entry -> list.add(new Entry(entry.getKey().location().toString(),
                                 entry.getValue().getDescription().getString(), new ItemStack(entry.getValue()))));
+            }
+            case SOUND -> {
+                // The story's own sounds first (config/storybound/sounds), then every sound the game knows.
+                // The files that did not make it, and why, so a file dropped in is never just missing.
+                for (StorySoundFiles.Problem problem : StorySounds.last().problems()) {
+                    if (!problem.kind().equals("stereo")) {
+                        list.add(new Entry(PROBLEM + problem.kind(), "⚠ " + problem.file() + " — " + DevUi.str("sound.short." + problem.kind()),
+                                new ItemStack(Items.BARRIER)));
+                    }
+                }
+                Set<String> listed = new LinkedHashSet<>();
+                list.add(new Entry(SECTION + "story", DevUi.str("sound.section.story"), ItemStack.EMPTY));
+                for (StorySoundFiles.Sound sound : StorySounds.last().sounds()) {
+                    if (listed.add(sound.id())) {
+                        list.add(new Entry(sound.id(), sound.name(), new ItemStack(Items.NOTE_BLOCK)));
+                    }
+                }
+                if (listed.isEmpty()) {
+                    list.add(new Entry(NOTE + "story", DevUi.str("sound.section.story_empty"), ItemStack.EMPTY));
+                }
+                list.add(new Entry(SECTION + "game", DevUi.str("sound.section.game"), ItemStack.EMPTY));
+                sortedIds(new java.util.HashSet<>(Minecraft.getInstance().getSoundManager().getAvailableSounds())).forEach(id -> {
+                    if (listed.add(id.toString())) {
+                        list.add(new Entry(id.toString(), id.getPath(), new ItemStack(Items.JUKEBOX)));
+                    }
+                });
             }
             case LIST -> {}
         }

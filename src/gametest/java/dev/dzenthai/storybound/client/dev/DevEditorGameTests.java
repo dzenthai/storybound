@@ -109,6 +109,16 @@ public final class DevEditorGameTests {
         DialogueGraph.connect(dialogue, DIALOGUE, choice, reply, "option 3");
         DialogueGraph.connect(dialogue, DIALOGUE, condition, action, "option");
         DialogueGraph.connect(dialogue, DIALOGUE, action, end, "option");
+        // The kinds the menu makes since October 29, 2026: a random answer drawn to two nodes, a jump, a call once its
+        // dialogue is picked.
+        String random = DialogueGraph.createNode(dialogue, DIALOGUE, "random", null, "line", "option");
+        DialogueGraph.connect(dialogue, DIALOGUE, random, reply, "option");
+        DialogueGraph.connect(dialogue, DIALOGUE, random, end, "option");
+        DialogueGraph.connect(dialogue, DIALOGUE, random, greet, "option");
+        helper.assertTrue(DialogueGraph.node(dialogue, random).getAsJsonArray("options").size() == 3, "two branches drawn, a third added");
+        DialogueGraph.createNode(dialogue, DIALOGUE, "jump", null, "line", "option");
+        String call = DialogueGraph.createNode(dialogue, DIALOGUE, "call", null, "line", "option");
+        DialogueGraph.node(dialogue, call).addProperty("dialogue", Storybound.id("other").toString());
         StoryEdits.addQuestStart(dialogue, Storybound.id("edited_quest"));
         StoryEdits.addGiveDocument(dialogue, Storybound.id("letter"));
         DialogueGraph.sanitizeKeys(DIALOGUE, dialogue);

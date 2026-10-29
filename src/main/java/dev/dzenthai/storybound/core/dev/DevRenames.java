@@ -165,6 +165,79 @@ final class DevRenames {
     }
 
     /**
+     * Renames a node of a dialogue: the dialogue's file and layout, what names the node elsewhere (another dialogue's
+     * jump or call, the trigger "dialogue ended at a node") and, through {@code flags} migrations, players' marks of
+     * its options chosen once (their key carries the node's name).
+     */
+    static void renameInDialogue(ServerPlayer player, ResourceLocation dialogue, String from, String to) {
+        Path root = ConfigStorySource.root();
+        Path file = ConfigStorySource.fileFor(root, DevModeServer.findType(StoryLinks.DIALOGUE), dialogue);
+        if (!Files.isRegularFile(file)) {
+            refuse(player, "Cannot rename the node " + from + ": " + dialogue + " is not in the story folder");
+            return;
+        }
+        try {
+            JsonObject json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+            Optional<StoryRenames.Problem> problem = StoryRenames.nodeProblem(json, from, to);
+            if (problem.isPresent() || !(json.get("nodes") instanceof JsonObject nodes) || !nodes.has(from)) {
+                refuse(player, "Cannot rename the node " + from + " of " + dialogue + " to " + to + ": " + problem.map(Enum::name).orElse("no such node"));
+                return;
+            }
+            int references = applyInDialogue(root, dialogue, json, from, to.trim());
+            reload(player.server, List.of());
+            player.sendSystemMessage(Component.literal("Renamed the node " + from + " of " + dialogue + " to " + to.trim()
+                    + (references > 0 ? "; " + references + " references updated" : "")).withStyle(ChatFormatting.GREEN));
+        } catch (IOException | RuntimeException e) {
+            Storybound.LOGGER.error("Storybound: renaming the node {} of {} failed", from, dialogue, e);
+            refuse(player, "Renaming the node " + from + " failed: " + e.getMessage());
+        }
+    }
+
+    /** The file work of {@link #renameInDialogue}; returns how many arrows and references changed. Package-private for tests. */
+    static int applyInDialogue(Path root, ResourceLocation dialogue, JsonObject json, String from, String to) throws IOException {
+        // The options chosen once are remembered per player under a key with the node's name.
+        List<Rename> marks = new ArrayList<>();
+        if (json.getAsJsonObject("nodes").get(from) instanceof JsonObject node && node.get("options") instanceof JsonArray options) {
+            for (int i = 0; i < options.size(); i++) {
+                if (options.get(i) instanceof JsonObject option && option.get("once") instanceof JsonPrimitive once && once.getAsBoolean()) {
+                    String id = option.get("id") instanceof JsonPrimitive own ? own.getAsString() : String.valueOf(i);
+                    marks.add(new Rename(StoryRenames.FLAG, dev.dzenthai.storybound.module.dialogue.Dialogues.onceKey(dialogue, from, id),
+                            dev.dzenthai.storybound.module.dialogue.Dialogues.onceKey(dialogue, to, id)));
+                }
+            }
+        }
+        int references = StoryRenames.renameNode(json, dialogue, from, to) - 1;
+        write(ConfigStorySource.fileFor(root, DevModeServer.findType(StoryLinks.DIALOGUE), dialogue), json);
+        Path layoutFile = ConfigStorySource.fileFor(root, CoreDefinitions.DIALOGUE_LAYOUTS, dialogue);
+        if (Files.isRegularFile(layoutFile)) {
+            JsonObject layout = JsonParser.parseString(Files.readString(layoutFile, StandardCharsets.UTF_8)).getAsJsonObject();
+            if (StoryRenames.renameLayoutNode(layout, from, to)) {
+                write(layoutFile, layout);
+            }
+        }
+        for (DefinitionType<?> type : DefinitionTypes.all()) {
+            if (!StoryRenames.REFERRING.contains(type.id())) {
+                continue;
+            }
+            Map<ResourceLocation, JsonElement> files = new LinkedHashMap<>();
+            ConfigStorySource.scan(root, type, files, new ArrayList<ValidationIssue>());
+            for (Map.Entry<ResourceLocation, JsonElement> entry : files.entrySet()) {
+                int changed = StoryRenames.rewriteNode(entry.getValue(), dialogue, from, to);
+                if (changed > 0) {
+                    DevModeServer.writeJson(ConfigStorySource.fileFor(root, type, entry.getKey()), entry.getValue());
+                    references += changed;
+                }
+            }
+        }
+        if (!marks.isEmpty()) {
+            JsonObject migrations = readMigrations(root);
+            marks.forEach(mark -> StoryRenames.addMigration(migrations, "flags", mark.from(), mark.to()));
+            write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS), migrations);
+        }
+        return references;
+    }
+
+    /**
      * Renames a stage of a quest ({@code objective} empty) or an objective of a stage: the quest's file, what names the
      * stage elsewhere, and the migrations ({@code stages} / {@code objectives}) that move players' place and counters.
      */

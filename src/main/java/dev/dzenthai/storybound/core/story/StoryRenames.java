@@ -268,6 +268,98 @@ public final class StoryRenames {
         return changed;
     }
 
+    // --- inside a dialogue: its nodes (October 29, 2026; before, a node kept the id it was made with, "line_3")
+
+    public static Optional<Problem> nodeProblem(JsonObject dialogue, String current, String typed) {
+        String to = typed.trim();
+        if (to.equals(current)) {
+            return Optional.of(Problem.SAME);
+        }
+        if (!INSIDE_NAME.matcher(to).matches()) {
+            return Optional.of(Problem.FORMAT);
+        }
+        return dialogue.get("nodes") instanceof JsonObject nodes && nodes.has(to) ? Optional.of(Problem.TAKEN) : Optional.empty();
+    }
+
+    /**
+     * Renames the dialogue's node, keeping the nodes' order, and every arrow of the dialogue leading to it: {@code start},
+     * {@code next}, {@code then}, {@code else} (of nodes, options, a timeout, random branches) and a jump's or call's
+     * {@code node} into this dialogue. Returns how many values changed.
+     */
+    public static int renameNode(JsonObject dialogue, ResourceLocation id, String from, String to) {
+        if (!(dialogue.get("nodes") instanceof JsonObject nodes) || !nodes.has(from)) {
+            return 0;
+        }
+        JsonObject renamed = new JsonObject();
+        nodes.entrySet().forEach(entry -> renamed.add(entry.getKey().equals(from) ? to : entry.getKey(), entry.getValue()));
+        dialogue.add("nodes", renamed);
+        int changed = 1;
+        if (dialogue.get("start") instanceof JsonPrimitive start && start.getAsString().equals(from)) {
+            dialogue.addProperty("start", to);
+            changed++;
+        }
+        return changed + retarget(renamed, id, from, to);
+    }
+
+    private static int retarget(JsonElement element, ResourceLocation dialogue, String from, String to) {
+        int changed = 0;
+        if (element instanceof JsonArray array) {
+            for (JsonElement child : array) {
+                changed += retarget(child, dialogue, from, to);
+            }
+        } else if (element instanceof JsonObject object) {
+            for (String field : List.of("next", "then", "else")) {
+                if (object.get(field) instanceof JsonPrimitive target && target.isString() && target.getAsString().equals(from)) {
+                    object.addProperty(field, to);
+                    changed++;
+                }
+            }
+            boolean here = !(object.get("dialogue") instanceof JsonPrimitive other) || dialogue.equals(ResourceLocation.tryParse(other.getAsString()));
+            if (here && object.get("node") instanceof JsonPrimitive node && node.getAsString().equals(from)) {
+                object.addProperty("node", to);
+                changed++;
+            }
+            for (JsonElement child : object.asMap().values()) {
+                changed += retarget(child, dialogue, from, to);
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Rewrites what names the dialogue's node elsewhere, in place: an object with that {@code dialogue} and {@code node}
+     * (another dialogue's jump or call into it, the trigger "dialogue ended at a node").
+     */
+    public static int rewriteNode(JsonElement element, ResourceLocation dialogue, String from, String to) {
+        int changed = 0;
+        if (element instanceof JsonArray array) {
+            for (JsonElement child : array) {
+                changed += rewriteNode(child, dialogue, from, to);
+            }
+        } else if (element instanceof JsonObject object) {
+            if (object.get("node") instanceof JsonPrimitive node && node.getAsString().equals(from)
+                    && object.get("dialogue") instanceof JsonPrimitive named && dialogue.equals(ResourceLocation.tryParse(named.getAsString()))) {
+                object.addProperty("node", to);
+                changed++;
+            }
+            for (JsonElement child : object.asMap().values()) {
+                changed += rewriteNode(child, dialogue, from, to);
+            }
+        }
+        return changed;
+    }
+
+    /** The node's place in a dialogue's layout goes with its new name. */
+    public static boolean renameLayoutNode(JsonObject layout, String from, String to) {
+        if (!(layout.get("nodes") instanceof JsonObject nodes) || !nodes.has(from)) {
+            return false;
+        }
+        JsonObject renamed = new JsonObject();
+        nodes.entrySet().forEach(entry -> renamed.add(entry.getKey().equals(from) ? to : entry.getKey(), entry.getValue()));
+        layout.add("nodes", renamed);
+        return true;
+    }
+
     /** Adds a stage's or objective's rename to a migrations file ({@code stages} or {@code objectives}), as {@link #addMigration}. */
     public static void addInsideMigration(JsonObject migrations, String field, ResourceLocation quest, String from, String to) {
         JsonObject quests = migrations.get(field) instanceof JsonObject existing ? existing : new JsonObject();

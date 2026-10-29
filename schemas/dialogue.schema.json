@@ -7,32 +7,32 @@
   "required": ["start", "nodes"],
   "additionalProperties": false,
   "properties": {
+    "presentation": {
+      "description": "screen: a blocking dialogue screen. hud: subtitles, the player keeps moving (a choice still opens the screen). bubble: speech bubble above the speaker's head.",
+      "enum": ["screen", "hud", "bubble"],
+      "default": "screen"
+    },
+    "camera": {
+      "description": "auto: shot-reverse-shot on the dialogue screen, when the server config and the player allow it. off: the player's own view.",
+      "enum": ["auto", "off"],
+      "default": "auto"
+    },
+    "broadcast": { "description": "Nearby players see the lines as speech bubbles.", "type": "boolean", "default": true },
     "participants": {
       "description": "Who may speak besides 'player'. Default: { \"npc\": { \"type\": \"bound\" } }.",
       "type": "object",
       "propertyNames": { "not": { "const": "player" } },
       "additionalProperties": { "$ref": "#/definitions/participant" }
     },
-    "start": { "description": "The first node.", "type": "string" },
-    "nodes": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#/definitions/node" }
-    },
-    "presentation": {
-      "description": "screen: a blocking dialogue screen. hud: subtitles, the player keeps moving (a choice still opens the screen). bubble: speech bubble above the speaker's head.",
-      "enum": ["screen", "hud", "bubble"],
-      "default": "screen"
-    },
     "closable": { "description": "ESC leaves the dialogue (on_abort runs).", "type": "boolean", "default": true },
-    "broadcast": { "description": "Nearby players see the lines as speech bubbles.", "type": "boolean", "default": true },
     "on_abort": {
       "description": "Run when the dialogue is interrupted: ESC, walking away, damage, the NPC gone, logging out.",
       "$ref": "logic.schema.json#/definitions/actions"
     },
-    "camera": {
-      "description": "auto: shot-reverse-shot on the dialogue screen, when the server config and the player allow it. off: the player's own view.",
-      "enum": ["auto", "off"],
-      "default": "auto"
+    "start": { "description": "The first node.", "type": "string" },
+    "nodes": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/node" }
     }
   },
   "definitions": {
@@ -92,8 +92,8 @@
             "speaker": { "description": "'player' or a participant id.", "type": "string" },
             "text": { "$ref": "logic.schema.json#/definitions/story_text" },
             "next": { "$ref": "#/definitions/target", "default": "@end" },
-            "sound": { "description": "Played with the line, e.g. a voice clip from a resource pack.", "$ref": "logic.schema.json#/definitions/id" },
-            "duration": { "type": "number", "minimum": 0.1, "maximum": 600 },
+            "sound": { "description": "Played with the line, e.g. a voice clip: an .ogg (Ogg Vorbis, mono) in config/storybound/sounds/<namespace>/ is the sound <namespace>:<name>, or any sound the game knows.", "$ref": "logic.schema.json#/definitions/id" },
+            "duration": { "description": "Seconds after which the line moves on by itself (a click still moves on sooner). Empty: it waits for the player.", "type": "number", "minimum": 0.1, "maximum": 600 },
             "shot": {
               "description": "The camera for this line. auto: over the listener's shoulder at the speaker. two_shot: both from the side. close_up: the speaker's face. first_person: no camera movement.",
               "enum": ["auto", "two_shot", "close_up", "first_person"],

@@ -269,6 +269,20 @@ final class DialogueGraph {
                 node.add("actions", new JsonArray());
                 node.addProperty("next", END);
             }
+            case "random" -> {
+                // Two even branches, both ending until they are drawn (October 29, 2026; before, the kinds below
+                // could be written only by hand).
+                for (int i = 0; i < 2; i++) {
+                    JsonObject branch = new JsonObject();
+                    branch.addProperty("weight", 1);
+                    branch.addProperty("next", END);
+                    options(node).add(branch);
+                }
+            }
+            // Back to the first node until its arrow is drawn elsewhere (the usual way back to a hub of topics).
+            case "jump" -> node.addProperty("node", start(dialogue).isBlank() ? END : start(dialogue));
+            // The dialogue it runs is picked in its form; until then it is not saved.
+            case "call" -> node.addProperty("next", END);
             default -> {}
         }
         nodes.add(id, node);
@@ -290,6 +304,19 @@ final class DialogueGraph {
         }
         switch (type(node)) {
             case "line", "action", "call" -> node.addProperty("next", to);
+            case "random" -> {
+                // The first branch that ends, or a new one.
+                for (JsonElement element : options(node)) {
+                    if (element instanceof JsonObject branch && END.equals(next(branch))) {
+                        branch.addProperty("next", to);
+                        return;
+                    }
+                }
+                JsonObject branch = new JsonObject();
+                branch.addProperty("weight", 1);
+                branch.addProperty("next", to);
+                options(node).add(branch);
+            }
             case "jump" -> node.addProperty("node", to);
             case "condition" -> node.addProperty(END.equals(node.has("then") ? node.get("then").getAsString() : END) ? "then" : "else", to);
             case "choice" -> {
@@ -319,6 +346,41 @@ final class DialogueGraph {
         nodes.remove(id);
         if (id.equals(start(dialogue))) {
             dialogue.addProperty("start", nodes.isEmpty() ? "" : nodes.keySet().iterator().next());
+        }
+    }
+
+    /**
+     * Takes the node's arrows away, so it ends the dialogue: {@code next} left out; what must lead somewhere (a
+     * condition's yes and no, a random branch, the timer) to {@code @end}. A jump is its arrow and stays.
+     */
+    static void unlink(@Nullable JsonObject node) {
+        if (node == null) {
+            return;
+        }
+        switch (type(node)) {
+            case "condition" -> {
+                node.addProperty("then", END);
+                node.addProperty("else", END);
+            }
+            case "choice" -> {
+                for (JsonElement option : options(node)) {
+                    if (option instanceof JsonObject answer) {
+                        answer.remove("next");
+                    }
+                }
+                if (node.get("timeout") instanceof JsonObject timeout) {
+                    timeout.addProperty("next", END);
+                }
+            }
+            case "random" -> {
+                for (JsonElement option : options(node)) {
+                    if (option instanceof JsonObject branch) {
+                        branch.addProperty("next", END);
+                    }
+                }
+            }
+            case "jump" -> {}
+            default -> node.remove("next");
         }
     }
 

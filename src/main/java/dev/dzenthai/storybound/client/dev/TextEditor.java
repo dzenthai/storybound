@@ -32,7 +32,21 @@ final class TextEditor {
      * @param hint    shown while the text is empty: what to write, or the source language's text
      * @param preview opens the text on its reading screen; null when there is none (Codex, bosses)
      */
+    /** Whether the documents' markup line is shown under the box. */
+    private boolean markup = true;
+
     void open(Component title, String text, Component hint, Consumer<String> onSave, @Nullable Consumer<String> preview) {
+        this.markup = true;
+        show(title, text, hint, onSave, preview);
+    }
+
+    /** A text without the documents' markup (a dialogue line, a quest's description): the markup line is not shown. */
+    void openPlain(Component title, String text, Component hint, Consumer<String> onSave) {
+        this.markup = false;
+        show(title, text, hint, onSave, null);
+    }
+
+    private void show(Component title, String text, Component hint, Consumer<String> onSave, @Nullable Consumer<String> preview) {
         this.open = true;
         this.title = title;
         this.value = text;
@@ -106,8 +120,9 @@ final class TextEditor {
         graphics.fill(left, top, left + w, top + h, DevUi.PANEL);
         graphics.drawString(screen.font(), screen.font().plainSubstrByWidth(title.getString(), w - 16), left + 8, top + 8, DevUi.ACCENT, false);
         // The markup, so the author does not have to remember it.
-        String markup = DevUi.str("text.markup");
-        graphics.drawString(screen.font(), screen.font().plainSubstrByWidth(markup, w - 16), left + 8, top + h - 36, DevUi.HINT, false);
+        if (markup) {
+            graphics.drawString(screen.font(), screen.font().plainSubstrByWidth(DevUi.str("text.markup"), w - 16), left + 8, top + h - 36, DevUi.HINT, false);
+        }
     }
 
     /** ESC: give up the edit. */

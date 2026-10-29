@@ -176,6 +176,37 @@ class StoryRenamesTest {
     }
 
     @Test
+    void aRenamedDialogueNodeKeepsEveryArrowToIt() {
+        ResourceLocation talk = id("demo:talk");
+        JsonObject dialogue = JsonParser.parseString("""
+                { "start": "line_1", "nodes": {
+                    "line_1": { "type": "line", "text": "Hi", "next": "ask" },
+                    "ask": { "type": "choice", "options": [ { "text": "Again", "next": "line_1" }, { "text": "Bye" } ],
+                             "timeout": { "seconds": 5, "next": "line_1" } },
+                    "check": { "type": "condition", "then": "line_1", "else": "@end" },
+                    "luck": { "type": "random", "options": [ { "next": "line_1" }, { "next": "ask" } ] },
+                    "back": { "type": "jump", "node": "line_1" },
+                    "away": { "type": "call", "dialogue": "demo:other", "node": "line_1", "next": "line_1" } } }
+                """).getAsJsonObject();
+        assertEquals(Optional.of(Problem.TAKEN), StoryRenames.nodeProblem(dialogue, "line_1", "ask"));
+        assertEquals(Optional.of(Problem.FORMAT), StoryRenames.nodeProblem(dialogue, "line_1", "@end"));
+        assertEquals(Optional.empty(), StoryRenames.nodeProblem(dialogue, "line_1", "greeting"));
+
+        assertEquals(8, StoryRenames.renameNode(dialogue, talk, "line_1", "greeting"),
+                "the node, start, ask's option and timeout, then, random, jump, the call's next");
+        assertEquals(List.of("greeting", "ask", "check", "luck", "back", "away"), List.copyOf(dialogue.getAsJsonObject("nodes").keySet()), "in its place");
+        assertEquals("greeting", dialogue.get("start").getAsString());
+        assertEquals("line_1", dialogue.getAsJsonObject("nodes").getAsJsonObject("away").get("node").getAsString(), "the called dialogue's own line_1 stays");
+
+        JsonObject trigger = JsonParser.parseString("""
+                { "type": "dialogue_ended", "dialogue": "demo:talk", "node": "line_1" }""").getAsJsonObject();
+        assertEquals(1, StoryRenames.rewriteNode(trigger, talk, "line_1", "greeting"));
+        JsonObject layout = JsonParser.parseString("{ \"nodes\": { \"@start\": { \"x\": 0, \"y\": 0 }, \"line_1\": { \"x\": 8, \"y\": 8 } } }").getAsJsonObject();
+        assertTrue(StoryRenames.renameLayoutNode(layout, "line_1", "greeting"));
+        assertEquals("{\"@start\":{\"x\":0,\"y\":0},\"greeting\":{\"x\":8,\"y\":8}}", layout.get("nodes").toString(), "it keeps its place on the graph");
+    }
+
+    @Test
     void insideRenamesFollowTheirQuestsNewName() {
         JsonObject migrations = new JsonObject();
         StoryRenames.addInsideMigration(migrations, "stages", id("demo:hunt"), "a", "b");

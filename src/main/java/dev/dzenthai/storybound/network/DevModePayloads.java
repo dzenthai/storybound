@@ -230,6 +230,27 @@ public final class DevModePayloads {
         }
     }
 
+    /** The editor renames a node of a dialogue. */
+    public record RenameInDialogue(ResourceLocation dialogue, String from, String to) implements CustomPacketPayload {
+        public static final Type<RenameInDialogue> TYPE = new Type<>(Storybound.id("dev_rename_in_dialogue"));
+        public static final StreamCodec<ByteBuf, RenameInDialogue> STREAM_CODEC = StreamCodec.composite(
+                ResourceLocation.STREAM_CODEC, RenameInDialogue::dialogue,
+                ByteBufCodecs.STRING_UTF8, RenameInDialogue::from,
+                ByteBufCodecs.STRING_UTF8, RenameInDialogue::to,
+                RenameInDialogue::new);
+
+        @Override
+        public Type<RenameInDialogue> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(RenameInDialogue payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.renameInDialogue(player, payload.dialogue(), payload.from(), payload.to());
+            }
+        }
+    }
+
     public record QuickAction(String action, ResourceLocation targetId) implements CustomPacketPayload {
         public static final Type<QuickAction> TYPE = new Type<>(Storybound.id("dev_quick_action"));
         public static final StreamCodec<ByteBuf, QuickAction> STREAM_CODEC = StreamCodec.composite(

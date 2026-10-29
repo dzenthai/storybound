@@ -142,8 +142,24 @@ public class DevModeScreen extends Screen {
         box.setFocused(true);
     }
 
+    /** Which modal window the widgets were last built for ("" for none): see {@link #render}. */
+    private String builtFor = "";
+
+    /**
+     * Whether a modal window is open: the panels under it draw only their background, as their widgets are the window's
+     * now (before, the inspector's labels stayed without their fields).
+     */
+    boolean modalOpen() {
+        return !modalNow().isEmpty();
+    }
+
+    private String modalNow() {
+        return catalog.isOpen() ? "catalog" : textEditor.isOpen() ? "text" : languageOpen ? (namespaceWindow ? "namespace" : "language") : "";
+    }
+
     /** Builds the widgets again: those of an open modal window, or the top bar's and the view's. */
     void rebuild() {
+        builtFor = modalNow();
         // A removed text box must not keep the keyboard (Delete would go nowhere, snapshots would wait forever).
         setFocused(null);
         clearWidgets();
@@ -570,6 +586,12 @@ public class DevModeScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // A window opened or closed without a rebuild (the text window, the catalog: open() only marks them open) gets
+        // its widgets before anything can be clicked. Before (October 29, 2026), the text window showed but took no
+        // input, and the inspector's buttons under it stayed live: its Save rebuilt the screen, only then the window worked.
+        if (!modalNow().equals(builtFor)) {
+            rebuild();
+        }
         graphics.fill(0, 0, width, height, DevUi.BACKGROUND);
         GraphView view = view();
         view.render(this, graphics, mouseX, mouseY);

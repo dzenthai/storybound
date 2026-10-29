@@ -80,6 +80,14 @@ final class FormView {
             return null;
         }
 
+        /** The dialogue whose node the form edits (its presentation and camera decide what a line shows); null otherwise. */
+        default @Nullable JsonObject dialogue() {
+            return null;
+        }
+
+        /** Shows the dialogue's node on its graph, selected (an arrow's target, clicked in the form). */
+        default void revealNode(String node) {}
+
         /** The quest the form edits, for its stages' and objectives' names; null otherwise. */
         default @Nullable ResourceLocation quest() {
             return null;
@@ -397,11 +405,20 @@ final class FormView {
         Set<String> required = Schemas.required(schema);
         boolean npc = path.isEmpty() && host.npcBinding() != null;
         boolean waypoint = path.isEmpty() && Schemas.properties(schema).containsKey("target") && Schemas.properties(schema).containsKey("show_ring");
-        Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : Map.of();
+        boolean dialogue = path.isEmpty() && isDialogue(schema);
+        boolean participant = path.size() == 2 && "participants".equals(path.getFirst()) && Schemas.properties(schema).containsKey("portrait");
+        JsonObject inDialogue = host.dialogue();
+        String node = inDialogue != null && path.isEmpty() && host.root().get("type") instanceof JsonPrimitive type ? type.getAsString() : null;
+        boolean option = inDialogue != null && path.size() == 2 && "options".equals(path.getFirst()) && Schemas.properties(schema).containsKey("locked");
+        String form = node != null ? "node." + node : option ? "option" : null;
+        Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
+                : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
         JsonObject object = objectAt(path);
-        for (Map.Entry<String, Node> property : Schemas.properties(schema).entrySet()) {
+        for (Map.Entry<String, Node> property : ordered(Schemas.properties(schema), form != null ? NODE_ORDER.getOrDefault(form, List.of()) : List.of())) {
             String name = property.getKey();
-            if (skip.contains(name) || name.equals(typeField) || npc && !npcFieldShown(name, object) || waypoint && !waypointFieldShown(name, object)) {
+            if (skip.contains(name) || name.equals(typeField) || npc && !npcFieldShown(name, object) || waypoint && !waypointFieldShown(name, object)
+                    || dialogue && !dialogueFieldShown(name, object) || participant && !participantFieldShown(name, object)
+                    || form != null && !nodeFieldShown(form, name, object, inDialogue)) {
                 continue;
             }
             if (groups.containsKey(name)) {
@@ -409,6 +426,8 @@ final class FormView {
             }
             if (npc && name.equals("proximity")) {
                 proximityField(path, property.getValue(), object);
+            } else if ("node.choice".equals(form) && name.equals("timeout")) {
+                timeoutField(path, property.getValue(), object);
             } else {
                 field(path, name, property.getValue(), required.contains(name), schema);
             }
@@ -457,6 +476,251 @@ final class FormView {
     private static boolean waypointFieldShown(String name, @Nullable JsonObject waypoint) {
         return !name.equals("stage") || waypoint != null && (waypoint.get("quest") instanceof JsonPrimitive quest && !quest.getAsString().isBlank()
                 || waypoint.has("stage"));
+    }
+
+    /**
+     * A dialogue's own settings (its lines are on the graph) in the order its author asks (October 29, 2026; before, the
+     * file's order, who speaks first and the camera after what an interruption does): how it shows, with the camera
+     * only on the dialogue screen; who speaks; what an interruption does.
+     */
+    private static final Map<String, String> DIALOGUE_GROUPS = Map.of(
+            "participants", "dialogue.group.who",
+            "closable", "dialogue.group.abort");
+
+    private static boolean isDialogue(Node schema) {
+        Map<String, Node> properties = Schemas.properties(schema);
+        return properties.containsKey("presentation") && properties.containsKey("nodes") && properties.containsKey("participants");
+    }
+
+    /** The camera turns only on the dialogue screen (subtitles and bubbles keep the player's view). */
+    private static boolean dialogueFieldShown(String name, @Nullable JsonObject dialogue) {
+        boolean screen = !(dialogue != null && dialogue.get("presentation") instanceof JsonPrimitive shown) || shown.getAsString().equals("screen");
+        return !name.equals("camera") || screen || dialogue != null && dialogue.has("camera");
+    }
+
+    /** A portrait is for a speaker without an entity; one with an entity shows the entity. */
+    private static boolean participantFieldShown(String name, @Nullable JsonObject participant) {
+        boolean virtual = participant != null && participant.get("type") instanceof JsonPrimitive type && type.getAsString().equals("virtual");
+        return !name.equals("portrait") || virtual || participant != null && participant.has("portrait");
+    }
+
+    /**
+     * Who speaks besides the player, in words: "npc (started with) · narrator «Narrator»". Without any written, the
+     * default: the entity the dialogue was started with. Before, a count.
+     */
+    private static String participantsSummary(@Nullable JsonElement value) {
+        if (!(value instanceof JsonObject participants) || participants.isEmpty()) {
+            return DevUi.str("dialogue.participants.default");
+        }
+        List<String> parts = new ArrayList<>();
+        participants.entrySet().forEach(entry -> parts.add(participantSummary(entry.getKey(), entry.getValue())));
+        return String.join(" · ", parts);
+    }
+
+    private static String participantSummary(String key, JsonElement value) {
+        JsonObject participant = value instanceof JsonObject object ? object : new JsonObject();
+        boolean virtual = participant.get("type") instanceof JsonPrimitive type && type.getAsString().equals("virtual");
+        String name = ClientDevStore.readStoryText(participant, "name", "");
+        return key + " (" + DevUi.str(virtual ? "dialogue.participant.virtual" : "dialogue.participant.bound")
+                + (name.isBlank() ? "" : " «" + name + "»") + ")";
+    }
+
+    /**
+     * The nodes of a dialogue's graph and a choice's options, in the order their author asks (October 29, 2026; before,
+     * the file's order: an option's id first, a jump's node before its dialogue): what is said and where it goes first;
+     * then, in groups, the rest. A line's camera shows only where it turns (the dialogue screen with the camera on).
+     */
+    private static final Map<String, List<String>> NODE_ORDER = Map.of(
+            "node.jump", List.of("dialogue", "node"),
+            "option", List.of("text", "next", "conditions", "locked", "locked_text", "actions", "once", "think", "id"));
+
+    private static final Map<String, Map<String, String>> NODE_GROUPS = Map.of(
+            "node.line", Map.of("sound", "node.group.sound_time", "shot", "node.group.camera"),
+            "option", Map.of("conditions", "option.group.when", "actions", "option.group.chosen", "id", "option.group.other"));
+
+    private static boolean nodeFieldShown(String form, String name, @Nullable JsonObject object, @Nullable JsonObject dialogue) {
+        if (form.equals("node.line") && (name.equals("shot") || name.equals("transition"))) {
+            boolean screen = !(dialogue != null && dialogue.get("presentation") instanceof JsonPrimitive shown) || shown.getAsString().equals("screen");
+            boolean camera = !(dialogue != null && dialogue.get("camera") instanceof JsonPrimitive mode) || !mode.getAsString().equals("off");
+            return screen && camera || object != null && object.has(name);
+        }
+        if (form.equals("option") && name.equals("locked_text")) {
+            return object != null && (object.get("locked") instanceof JsonPrimitive locked && locked.getAsString().equals("show") || object.has("locked_text"));
+        }
+        return true;
+    }
+
+    /** The properties with {@code first} in front, in that order; the others after, as the schema has them. */
+    private static List<Map.Entry<String, Node>> ordered(Map<String, Node> properties, List<String> first) {
+        List<Map.Entry<String, Node>> entries = new ArrayList<>();
+        for (String name : first) {
+            if (properties.containsKey(name)) {
+                entries.add(Map.entry(name, properties.get(name)));
+            }
+        }
+        properties.entrySet().stream().filter(entry -> !first.contains(entry.getKey())).forEach(entries::add);
+        return entries;
+    }
+
+    /**
+     * A choice's timer: yes/no, and while yes what happens in words ("after 10 s → bye"), which opens it. Before, a row
+     * "1 ▸" or "—".
+     */
+    private void timeoutField(List<Object> path, Node node, @Nullable JsonObject choice) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("node.timeout"));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        JsonObject timeout = choice != null && choice.get("timeout") instanceof JsonObject value ? value : null;
+        boolean on = timeout != null;
+        int toggleW = on ? Math.min(60, w / 3) : w;
+        Button toggle = Button.builder(Component.literal(DevUi.yesNo(on)), b -> {
+            if (on) {
+                ensureObject(path).remove("timeout");
+            } else {
+                JsonObject created = new JsonObject();
+                created.addProperty("seconds", 10);
+                created.addProperty("next", DialogueGraph.END);
+                ensureObject(path).add("timeout", created);
+            }
+            host.changed();
+        }).bounds(x, rowTop, toggleW, CONTROL_H).build();
+        toggle.setTooltip(Tooltip.create(DevUi.text("node.timeout.tooltip")));
+        screen.add(toggle);
+        if (on) {
+            String seconds = timeout.get("seconds") instanceof JsonPrimitive value && value.isNumber() ? format(value.getAsDouble()) : "?";
+            String next = timeout.get("next") instanceof JsonPrimitive value ? choiceLabel(value.getAsString()) : "?";
+            Component summary = Component.empty().append(DevUi.text("node.timeout.summary", seconds, next)).append(" ▸");
+            screen.add(Button.builder(summary, b -> push(with(path, "timeout"), node, DevUi.str("node.timeout"), false))
+                    .bounds(x + toggleW + 2, rowTop, w - toggleW - 2, CONTROL_H).build());
+        }
+    }
+
+    /**
+     * Where an arrow of a dialogue node leads ({@code next}, {@code then}, {@code else}, an answer's, a branch's, the
+     * timer's): not typed but shown, as the graph's arrows are the way to draw them (October 29, 2026; before, a box
+     * for the node's id, the same as dragging an arrow). A click shows the node on the graph; ▾ picks another (the
+     * nodes by their name and first words, the end of the dialogue, leaving the whole conversation); ✕ unlinks it, so
+     * it ends the dialogue.
+     */
+    private void targetField(List<Object> path, String name, @Nullable JsonElement value, Component label, boolean required) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        String target = value instanceof JsonPrimitive written && !written.getAsString().isBlank() ? written.getAsString() : DialogueGraph.END;
+        JsonObject dialogue = host.dialogue();
+        boolean node = dialogue != null && DialogueGraph.node(dialogue, target) != null;
+        Button shown = Button.builder(Component.literal("→ " + targetLabel(dialogue, target)), b -> {
+            if (node) {
+                host.revealNode(target);
+            }
+        }).bounds(x, rowTop, w - 40, CONTROL_H).build();
+        shown.setTooltip(Tooltip.create(DevUi.text(node ? "target.reveal" : "target.none")));
+        screen.add(shown);
+        screen.add(Button.builder(Component.literal("▾"), b -> {
+            List<Entry> entries = new ArrayList<>();
+            if (dialogue != null) {
+                DialogueGraph.nodes(dialogue).keySet().forEach(id -> entries.add(new Entry(id, targetLabel(dialogue, id), new ItemStack(Items.PAPER))));
+            }
+            entries.add(new Entry(DialogueGraph.END, choiceLabel(DialogueGraph.END), new ItemStack(Items.BARRIER)));
+            entries.add(new Entry(DialogueGraph.EXIT, choiceLabel(DialogueGraph.EXIT), new ItemStack(Items.OAK_DOOR)));
+            screen.catalog().openList(fieldLabel(name, false), entries, (kind, entry) -> {
+                ensureObject(path).addProperty(name, entry.id());
+                host.changed();
+            });
+        }).tooltip(Tooltip.create(DevUi.text("target.pick"))).bounds(x + w - 38, rowTop, 18, CONTROL_H).build());
+        Button unlink = Button.builder(Component.literal("✕"), b -> {
+            // A required arrow (a condition's yes and no, the timer's) ends the dialogue explicitly; another one is left out.
+            if (required) {
+                ensureObject(path).addProperty(name, DialogueGraph.END);
+            } else {
+                ensureObject(path).remove(name);
+            }
+            host.changed();
+        }).tooltip(Tooltip.create(DevUi.text("target.unlink"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build();
+        unlink.active = !target.equals(DialogueGraph.END);
+        screen.add(unlink);
+    }
+
+    /** "few_hands · «Few hands, many…»"; the end and the exit in words; a node that is not there says so. */
+    private static String targetLabel(@Nullable JsonObject dialogue, String target) {
+        if (target.startsWith("@")) {
+            return choiceLabel(target);
+        }
+        JsonObject found = dialogue != null ? DialogueGraph.node(dialogue, target) : null;
+        if (found == null) {
+            return DevUi.str("target.missing", target);
+        }
+        String text = ClientDevStore.readStoryText(found, "text", "", ClientDevStore.activeLanguage()).strip();
+        if (text.isEmpty() && found.get("options") instanceof JsonArray options && !options.isEmpty() && options.get(0) instanceof JsonObject first) {
+            text = ClientDevStore.readStoryText(first, "text", "", ClientDevStore.activeLanguage()).strip();
+        }
+        return text.isEmpty() ? target : target + " · «" + (text.length() > 28 ? text.substring(0, 27) + "…" : text) + "»";
+    }
+
+    /**
+     * A sound (a line's, play_sound's...): its id, "…" to pick it from the story's own sounds and every sound the game
+     * knows, ▶ to hear it here. One the game does not know is red, and says why: a file of the story's that is not Ogg
+     * Vorbis or is wrongly named, or none at all (October 30, 2026; before, an id typed blind).
+     */
+    private void soundField(List<Object> path, String name, @Nullable JsonElement value, Component label) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        String current = value instanceof JsonPrimitive written ? written.getAsString() : "";
+        EditBox box = new EditBox(screen.font(), x, rowTop + 1, w - 40, CONTROL_H - 2, label);
+        box.setMaxLength(256);
+        box.setValue(current);
+        Runnable check = () -> {
+            String text = box.getValue().trim();
+            ResourceLocation id = ResourceLocation.tryParse(text);
+            boolean known = text.isEmpty() || id != null && Minecraft.getInstance().getSoundManager().getAvailableSounds().contains(id);
+            box.setTextColor(known ? 0xFFE0E0E0 : DevUi.ERROR);
+            dev.dzenthai.storybound.client.sound.StorySoundFiles.Problem problem = id != null
+                    ? dev.dzenthai.storybound.client.sound.StorySounds.last().problemOf(id.toString()) : null;
+            Component why = problem != null ? DevUi.text("sound.problem." + problem.kind())
+                    : known ? DevUi.text("sound.tooltip", dev.dzenthai.storybound.client.sound.StorySounds.folder().toString())
+                    : DevUi.text("sound.missing");
+            box.setTooltip(Tooltip.create(why));
+        };
+        box.setResponder(text -> {
+            JsonObject owner = ensureObject(path);
+            if (text.isBlank()) {
+                owner.remove(name);
+            } else {
+                owner.addProperty(name, text.trim());
+            }
+            check.run();
+            host.edited();
+        });
+        check.run();
+        screen.add(box);
+        screen.add(Button.builder(Component.literal("…"), b -> screen.catalog().open(DevUi.text("sound.pick"), Catalog.Kind.SOUND, (kind, entry) -> {
+            if (entry.id().startsWith(Catalog.PROBLEM)) {
+                screen.status(DevUi.text("sound.problem." + entry.id().substring(Catalog.PROBLEM.length())), DevUi.BAD);
+                return;
+            }
+            ensureObject(path).addProperty(name, entry.id());
+            host.changed();
+        })).tooltip(Tooltip.create(DevUi.text("sound.pick"))).bounds(x + w - 38, rowTop, 18, CONTROL_H).build());
+        screen.add(Button.builder(Component.literal("▶"), b -> {
+            ResourceLocation id = ResourceLocation.tryParse(box.getValue().trim());
+            if (id != null) {
+                Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+                        net.minecraft.sounds.SoundEvent.createVariableRangeEvent(id), 1f));
+            }
+        }).tooltip(Tooltip.create(DevUi.text("sound.play"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
+    }
+
+    /** A choice from a list in words where it has some: "@end" is "the end of the dialogue". */
+    private static String choiceLabel(String choice) {
+        String key = "storybound.dev.value." + choice;
+        return Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) + (choice.startsWith("@") ? " (" + choice + ")" : "") : choice;
     }
 
     /** A heading over a group of fields. */
@@ -807,6 +1071,10 @@ final class FormView {
             insideNameField(path, insideQuest(path));
             return;
         }
+        if (host.dialogue() != null && "target".equals(Schemas.resolve(node).ref())) {
+            targetField(path, name, value, label, required);
+            return;
+        }
         // A waypoint (or add_waypoint): "target or search area" first; an area's radius and looks only for an area.
         if (Schemas.properties(owner).containsKey("show_ring")) {
             if (name.equals("color")) {
@@ -827,11 +1095,20 @@ final class FormView {
             case TEXT -> textField(path, name, label, tooltip);
             case ENUM -> enumField(path, name, node, required, value, label, tooltip);
             case BOOLEAN -> booleanField(path, name, node, value, needsKubeJs(path, name) ? DevUi.text("form.needs_kubejs", label) : label, tooltip);
-            case ID, ID_LIST, STRING, INTEGER, NUMBER, LITERAL, POSITION, RAW -> inputField(path, name, node, kind, value, label, tooltip, owner);
+            case ID -> {
+                if (name.equals("sound")) {
+                    soundField(path, name, value, label);
+                } else {
+                    inputField(path, name, node, kind, value, label, tooltip, owner);
+                }
+            }
+            case ID_LIST, STRING, INTEGER, NUMBER, LITERAL, POSITION, RAW -> inputField(path, name, node, kind, value, label, tooltip, owner);
             default -> {
                 if (row(CONTROL_H)) {
                     Component shown = name.equals("target") && path.isEmpty() && Schemas.properties(owner).containsKey("show_ring")
-                            ? Component.literal(targetSummary(value)) : summary(kind, node, value);
+                            ? Component.literal(targetSummary(value))
+                            : name.equals("participants") && path.isEmpty() && isDialogue(owner) ? Component.literal(participantsSummary(value))
+                            : summary(kind, node, value);
                     Component summary = Component.empty().append(label).append(": ").append(shown).append(" ▸");
                     Button button = Button.builder(summary, b -> {
                                 if (Schemas.isOldActionList(node, value)) {
@@ -870,7 +1147,8 @@ final class FormView {
         }
         labelRow(label);
         JsonObject object = objectAt(path);
-        EditBox box = new EditBox(screen.font(), x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H - 2, label);
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        EditBox box = new EditBox(screen.font(), x, rowTop, w - 20, CONTROL_H - 2, label);
         box.setMaxLength(1024);
         box.setValue(object != null ? ClientDevStore.readStoryText(object, name, "", ClientDevStore.activeLanguage()) : "");
         if (!ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage()) && object != null) {
@@ -890,6 +1168,22 @@ final class FormView {
             box.setTooltip(tooltip);
         }
         screen.add(box);
+        // The same text in a window of its own, for a long line (October 29, 2026; before, only the one-line box).
+        screen.add(Button.builder(Component.literal("✎"), b -> {
+            JsonObject owner = objectAt(path);
+            String current = owner != null ? ClientDevStore.readStoryText(owner, name, "", ClientDevStore.activeLanguage()) : "";
+            String source = owner != null ? ClientDevStore.readStoryText(owner, name, "", ClientDevStore.sourceLanguage()) : "";
+            boolean translating = !ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage());
+            screen.textEditor().openPlain(label, current, translating && !source.isBlank() ? Component.literal(source) : DevUi.text("text.hint_plain"), text -> {
+                JsonObject target = ensureObject(path);
+                if (text.isEmpty() && !target.has(name)) {
+                    return;
+                }
+                String existing = ClientDevStore.getKey(target, name);
+                ClientDevStore.writeStoryText(target, name, text, existing != null && !existing.isBlank() ? existing : key);
+                host.changed();
+            });
+        }).tooltip(Tooltip.create(DevUi.text("text.open_window"))).bounds(x + w - 18, rowTop - 1, 18, CONTROL_H).build());
     }
 
     private void enumField(List<Object> path, String name, Node node, boolean required, @Nullable JsonElement value, Component label, @Nullable Tooltip tooltip) {
@@ -1431,7 +1725,10 @@ final class FormView {
                     continue;
                 }
                 int rowY = rowY(CONTROL_H);
-                screen.add(Button.builder(Component.literal(key + " ▸"), b -> push(with(path, key), values, key, false))
+                // A dialogue's participant says who it is: "narrator (no entity «Narrator»)".
+                String shown = path.size() == 1 && "participants".equals(path.getFirst()) && Schemas.properties(values).containsKey("portrait")
+                        ? participantSummary(key, map.get(key)) : key;
+                screen.add(Button.builder(Component.literal(shown + " ▸"), b -> push(with(path, key), values, key, false))
                         .bounds(x, rowY, w - 20, CONTROL_H).build());
                 screen.add(Button.builder(Component.literal("✕"), b -> {
                     ensureObject(path).remove(key);
@@ -1695,6 +1992,12 @@ final class FormView {
      * (on a waypoint, "conditions" is "show only if"), else the field's own.
      */
     private static Component fieldLabel(String name, boolean required, Node owner) {
+        // A dialogue's line and a player's option are spoken: "Line", not "Text".
+        Map<String, Node> properties = Schemas.properties(owner);
+        if (name.equals("text") && (properties.containsKey("speaker") || properties.containsKey("locked_text"))) {
+            Component line = DevUi.text("dialogue.line_text");
+            return required ? Component.empty().append(line).append(" *") : line;
+        }
         String context = context(owner);
         String key = "storybound.dev.field." + context + "." + name;
         if (context == null || !Language.getInstance().has(key)) {
@@ -1706,7 +2009,17 @@ final class FormView {
 
     /** Which form this is, where it needs its own words: a waypoint (or add_waypoint), or null. */
     private static @Nullable String context(Node owner) {
-        return Schemas.properties(owner).containsKey("show_ring") ? WAYPOINT : null;
+        Map<String, Node> properties = Schemas.properties(owner);
+        if (properties.containsKey("show_ring")) {
+            return WAYPOINT;
+        }
+        if (properties.containsKey("locked") && properties.containsKey("once")) {
+            return "option";
+        }
+        // A dialogue node's own words, by its type: "storybound.dev.field.node.call.next".
+        Node type = properties.get("type");
+        JsonObject typeJson = type != null ? Schemas.resolve(type).json() : null;
+        return typeJson != null && typeJson.get("const") instanceof JsonPrimitive constant && owner.file().startsWith("dialogue") ? "node." + constant.getAsString() : null;
     }
 
     /** The stages of the quest the form names, for a waypoint's {@code stage}; none until a quest is chosen. */
@@ -1766,6 +2079,10 @@ final class FormView {
         JsonObject object = element.getAsJsonObject();
         if (isEntitySelector(items)) {
             return entitySummary(object);
+        }
+        if (Schemas.properties(items).containsKey("weight") && object.get("next") instanceof JsonPrimitive next) {
+            int weight = object.get("weight") instanceof JsonPrimitive value && value.isNumber() ? value.getAsInt() : 1;
+            return DevUi.str("node.random_branch", weight, choiceLabel(next.getAsString()));
         }
         if ((kind == Kind.CONDITION || kind == Kind.ACTION || kind == Kind.TRIGGER) && object.has("type")) {
             Logic logic = kind == Kind.CONDITION ? Logic.CONDITION : kind == Kind.ACTION ? Logic.ACTION : Logic.TRIGGER;
@@ -1855,7 +2172,7 @@ final class FormView {
                     entries.add(new Entry(id.toString(), title, new ItemStack(Items.WRITABLE_BOOK)));
                 });
             } else {
-                picker.choices().forEach(choice -> entries.add(new Entry(choice, choice, new ItemStack(Items.PAPER))));
+                picker.choices().forEach(choice -> entries.add(new Entry(choice, choiceLabel(choice), new ItemStack(Items.PAPER))));
             }
             screen.catalog().openList(picker.title(), entries, (kind, entry) -> picked.accept(entry));
         }

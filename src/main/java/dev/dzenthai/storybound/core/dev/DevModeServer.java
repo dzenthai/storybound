@@ -358,6 +358,13 @@ public final class DevModeServer {
         }
     }
 
+    /** Renames a node of a dialogue (see {@link DevRenames#renameInDialogue}). */
+    public static void renameInDialogue(ServerPlayer player, ResourceLocation dialogue, String from, String to) {
+        if (player.hasPermissions(2)) {
+            DevRenames.renameInDialogue(player, dialogue, from, to);
+        }
+    }
+
     /** Renames a quest's stage ({@code objective} empty) or an objective of a stage (see {@link DevRenames#renameInQuest}). */
     public static void renameInQuest(ServerPlayer player, ResourceLocation quest, String stage, String objective, String to) {
         if (player.hasPermissions(2)) {

@@ -48,6 +48,32 @@ public final class DevRenamesGameTests {
         return Files.isRegularFile(ConfigStorySource.fileFor(root, definitions, id(id)));
     }
 
+    @GameTest(template = "empty")
+    public static void aRenamedDialogueNodeTakesItsPlaceAndMarksAlong(GameTestHelper helper) {
+        try {
+            Path root = Files.createTempDirectory("storybound-rename-node");
+            write(root, StoryLinks.DIALOGUE, "demo:talk", """
+                    { "start": "ask", "nodes": { "ask": { "type": "choice", "options": [
+                        { "text": "Gift", "once": true, "next": "@end" }, { "id": "bye", "text": "Bye", "once": true }, { "text": "Hm" } ] } } }""");
+            write(root, CoreDefinitions.DIALOGUE_LAYOUTS.id(), "demo:talk", """
+                    { "nodes": { "@start": { "x": 0, "y": 0 }, "ask": { "x": 200, "y": 40 } } }""");
+            write(root, StoryLinks.QUEST, "demo:chat", """
+                    { "stages": [ { "id": "talk", "objectives": [ { "trigger": { "type": "dialogue_ended", "dialogue": "demo:talk", "node": "ask" } } ] } ] }""");
+
+            int references = DevRenames.applyInDialogue(root, id("demo:talk"), read(root, StoryLinks.DIALOGUE, "demo:talk"), "ask", "offer");
+            helper.assertTrue(references == 2, "start and the quest's trigger; got " + references);
+            helper.assertTrue(read(root, StoryLinks.DIALOGUE, "demo:talk").getAsJsonObject("nodes").has("offer"), "renamed");
+            helper.assertTrue(read(root, CoreDefinitions.DIALOGUE_LAYOUTS.id(), "demo:talk").toString().contains("\"offer\":{\"x\":200,\"y\":40}"), "in its place");
+            helper.assertTrue(read(root, StoryLinks.QUEST, "demo:chat").toString().contains("\"node\":\"offer\""), "the quest's objective still counts");
+            JsonObject flags = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString()).getAsJsonObject("flags");
+            helper.assertTrue(flags.size() == 2 && flags.get("storybound:dialogue_once/demo/talk/ask/0").getAsString().equals("storybound:dialogue_once/demo/talk/offer/0")
+                    && flags.has("storybound:dialogue_once/demo/talk/ask/bye"), "the options chosen once stay chosen: " + flags);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        helper.succeed();
+    }
+
     /** The story's namespace changed: its nodes move to the new one; the demo's stay; a name taken there stops the move. */
     @GameTest(template = "empty")
     public static void theStorysNodesMoveToItsNewNamespace(GameTestHelper helper) {
