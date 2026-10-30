@@ -77,15 +77,37 @@ public final class DevEditorGameTests {
             for (NodeTemplates.Created created : NodeTemplates.create(template, 7, place, (key, args) -> key)) {
                 DefinitionType<?> type = DefinitionTypes.all().stream().filter(t -> t.id().equals(created.key().type())).findFirst()
                         .orElseThrow(() -> new GameTestAssertException("no definition type " + created.key().type()));
+                // A node that asks its one question at once is a draft until answered (October 30, 2026); answered as
+                // the editor's question does, it loads.
+                NodeTemplates.Ask ask = NodeTemplates.ask(template);
+                if (ask == NodeTemplates.Ask.ENTITY || ask == NodeTemplates.Ask.TRIGGER) {
+                    helper.assertTrue(type.codec().parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()), created.json()).error().isPresent(),
+                            template + " is a draft until its question is answered");
+                    answer(created.json(), ask);
+                }
                 parse(helper, type.codec(), created.json(), template + " " + created.key());
             }
         }
         helper.succeed();
     }
 
+    /** What the author answers to a new node's question: who it is, when it fires. */
+    private static void answer(JsonObject json, NodeTemplates.Ask ask) {
+        if (ask == NodeTemplates.Ask.ENTITY) {
+            JsonObject entity = new JsonObject();
+            entity.addProperty("type", "minecraft:villager");
+            json.add("entity", entity);
+        } else if (ask == NodeTemplates.Ask.TRIGGER) {
+            JsonObject trigger = new JsonObject();
+            trigger.addProperty("type", "logged_in");
+            json.add("trigger", trigger);
+        }
+    }
+
     @GameTest(template = "empty")
     public static void questGiverEntriesLoad(GameTestHelper helper) {
         JsonObject binding = NodeTemplates.create(NodeTemplates.Template.NPC, 1, new NodeTemplates.Place(null, ""), (key, args) -> key).getFirst().json();
+        answer(binding, NodeTemplates.Ask.ENTITY);
         ResourceLocation quest = ResourceLocation.fromNamespaceAndPath("gametest", "given");
         for (QuestGiver.Phase phase : QuestGiver.Phase.values()) {
             QuestGiver.addEntry(binding, ResourceLocation.fromNamespaceAndPath("gametest", "say_" + phase.name().toLowerCase(Locale.ROOT)), quest, phase);

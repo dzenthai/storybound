@@ -40,7 +40,7 @@ public final class CodexEvents {
 
     /**
      * The unlock sources are ordinary triggers: {@code seen} is {@code entity_seen}, {@code killed} is a shared
-     * {@code entity_killed}, {@code read:<doc>} is {@code document_read}. One subscription per entry and source,
+     * {@code entity_killed}, {@code observed:<seconds>} is {@code observed}, {@code read:<doc>} is {@code document_read}. One subscription per entry and source,
      * so a sighting is counted once however many sections wait for it.
      */
     public static void rebuild() {
@@ -119,9 +119,10 @@ public final class CodexEvents {
                 if (section.unlock().on().isEmpty()) {
                     sink.accept(ValidationIssue.error(type.id(), id, "Section '" + section.id() + "' has no unlock source; use \"manual\" for actions and commands"));
                 }
-                boolean needsEntity = section.unlock().on().stream().anyMatch(source -> source instanceof Unlock.Source.Seen || source instanceof Unlock.Source.Killed);
+                boolean needsEntity = section.unlock().on().stream().anyMatch(source -> source instanceof Unlock.Source.Seen || source instanceof Unlock.Source.Killed
+                        || source instanceof Unlock.Source.Observed);
                 if (needsEntity && entry.entity().isEmpty()) {
-                    sink.accept(ValidationIssue.error(type.id(), id, "Section '" + section.id() + "' opens on seen or killed, but the entry has no 'entity'"));
+                    sink.accept(ValidationIssue.error(type.id(), id, "Section '" + section.id() + "' opens on seen, killed or observed, but the entry has no 'entity'"));
                 }
             }
         });

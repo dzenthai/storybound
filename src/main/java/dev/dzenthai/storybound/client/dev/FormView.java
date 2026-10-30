@@ -455,9 +455,11 @@ final class FormView {
         boolean codex = path.isEmpty() && Schemas.properties(schema).containsKey("show_kills");
         boolean section = path.size() == 2 && "sections".equals(path.getFirst()) && Schemas.properties(schema).containsKey("unlock");
         boolean unlock = Schemas.properties(schema).containsKey("on") && Schemas.properties(schema).containsKey("count");
+        boolean observed = Schemas.properties(schema).containsKey("time") && Schemas.properties(schema).containsKey("distance")
+                && Schemas.properties(schema).containsKey("block");
         String rootForm = path.isEmpty() && inDialogue == null && host.node() != null ? ROOT_FORMS.get(host.node().type()) : null;
         String form = node != null ? "node." + node : option ? "option" : document ? "document" : journal ? "journal" : quest ? "quest"
-                : inside != null ? inside : boss ? "boss" : codex ? "codex" : section ? "codex.section" : unlock ? "unlock" : rootForm;
+                : inside != null ? inside : boss ? "boss" : codex ? "codex" : section ? "codex.section" : unlock ? "unlock" : observed ? "observed" : rootForm;
         Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
                 : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
         JsonObject object = objectAt(path);
@@ -490,6 +492,8 @@ final class FormView {
                 percentField(path, name, property.getValue(), object, fieldLabel(name, false, schema));
             } else if ("codex".equals(form) && name.equals("category")) {
                 codexCategoryField(path, object);
+            } else if ("codex".equals(form) && name.equals("sections")) {
+                codexSectionsField(path, property.getValue(), object);
             } else if ("unlock".equals(form) && name.equals("on")) {
                 unlockSourcesField(path, object, fieldLabel(name, false, schema));
             } else {
@@ -620,7 +624,9 @@ final class FormView {
             // and what; what the block is and where it leads, its file last; what the flag holds, then where.
             Map.entry("event", List.of("trigger", "conditions", "once", "actions", "on_fail")),
             Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
-            Map.entry("flag", List.of("description", "type", "default", "scope", "sync")));
+            Map.entry("flag", List.of("description", "type", "default", "scope", "sync")),
+            // The trigger "observed": what is looked at, how long and from how far, what the bar says.
+            Map.entry("observed", List.of("entity", "block", "pos", "dimension", "time", "distance", "text")));
 
     /** The forms known by the node they edit rather than by their fields. */
     private static final Map<ResourceLocation, String> ROOT_FORMS = Map.of(
@@ -640,7 +646,7 @@ final class FormView {
      */
     private static final Map<String, Map<String, String>> NODE_GROUPS = Map.ofEntries(
             Map.entry("boss", Map.of("title", "boss.group.who", "participation", "boss.group.victory")),
-            Map.entry("codex", Map.of("title", "codex.group.entry", "sections", "codex.group.sections")),
+            Map.entry("codex", Map.of("title", "codex.group.entry")),
             Map.entry("node.line", Map.of("speaker", "node.group.line", "sound", "node.group.sound_time", "shot", "node.group.camera")),
             // A dialogue's other nodes: under the name, a heading with what the node is.
             Map.entry("node.choice", Map.of("options", "node.group.choice")),
@@ -681,6 +687,17 @@ final class FormView {
         }
         if (form.equals("option") && name.equals("locked_text")) {
             return object != null && (object.get("locked") instanceof JsonPrimitive locked && locked.getAsString().equals("show") || object.has("locked_text"));
+        }
+        if (form.equals("observed")) {
+            // An entity, or a block: the other kind shows only while this one is empty (or both are written).
+            boolean entity = object != null && object.has("entity");
+            boolean block = object != null && (object.has("block") || object.has("pos"));
+            return switch (name) {
+                case "entity" -> !block || entity;
+                case "block", "pos" -> !entity || block;
+                case "dimension" -> object != null && (object.has("pos") || object.has("dimension"));
+                default -> true;
+            };
         }
         if (form.equals("codex") && name.equals("show_kills")) {
             // Kills are counted of the entry's entity.
@@ -895,6 +912,53 @@ final class FormView {
         return !title.isBlank() ? title : section != null && section.get("id") instanceof JsonPrimitive id ? id.getAsString() : "";
     }
 
+    /**
+     * A Codex entry's sections as its author thinks of them (October 30, 2026; before, one row "Sections" hiding them
+     * all, the main description among them, so an entry seemed to have no "Opens" of its own): the first section is
+     * the entry's main description, right here with its title, text and when it opens, under a word that the entry
+     * appears in the Codex when any section opens; the others behind a row of their own. An entry without sections
+     * offers to add the main description.
+     */
+    private void codexSectionsField(List<Object> path, Node node, @Nullable JsonObject entry) {
+        Node items = Schemas.items(node);
+        List<Object> sectionsPath = with(path, "sections");
+        JsonArray sections = entry != null && entry.get("sections") instanceof JsonArray list ? list : new JsonArray();
+        group(DevUi.text("codex.group.main"));
+        text(DevUi.text("codex.main_hint"), DevUi.MUTED);
+        if (!sections.isEmpty() && sections.get(0) instanceof JsonObject && items != null) {
+            objectPage(with(sectionsPath, 0), items, Set.of("id"), null);
+        } else if (row(CONTROL_H)) {
+            screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("codex.add_main")), b -> {
+                JsonObject main = new JsonObject();
+                main.addProperty("id", "base");
+                JsonObject unlock = new JsonObject();
+                JsonArray on = new JsonArray();
+                on.add(host.root().has("entity") ? "seen" : "manual");
+                unlock.add("on", on);
+                main.add("unlock", unlock);
+                JsonArray list = ensureArray(sectionsPath);
+                JsonArray reordered = new JsonArray();
+                reordered.add(main);
+                list.forEach(reordered::add);
+                ensureObject(path).add("sections", reordered);
+                host.changed();
+            }).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build());
+        }
+        group(DevUi.text("codex.group.more"));
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("codex.more_sections"));
+            List<String> names = new ArrayList<>();
+            for (int i = 1; i < sections.size(); i++) {
+                names.add(sectionName(sections.get(i) instanceof JsonObject object ? object : null));
+            }
+            Component summary = Component.literal((names.isEmpty() ? DevUi.str("none") : String.join(" · ", names)) + " ▸");
+            Button button = Button.builder(summary, b -> push(sectionsPath, node, fieldLabel("sections", false).getString(), false))
+                    .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            button.setTooltip(Tooltip.create(DevUi.text("codex.more_tooltip")));
+            screen.add(button);
+        }
+    }
+
     /** A Codex entry's sections by their titles: "Habits · Weaknesses". */
     private static String sectionsSummary(@Nullable JsonElement value) {
         List<String> names = new ArrayList<>();
@@ -970,6 +1034,9 @@ final class FormView {
 
     /** "on sight", "on a kill", "by an action", "on reading «Diary»". */
     private static String sourceName(String source) {
+        if (source.equals("observed") || source.startsWith("observed:")) {
+            return DevUi.str("unlock.source.observed", source.contains(":") ? source.substring(source.indexOf(':') + 1) : format(5));
+        }
         if (source.startsWith("read:")) {
             ResourceLocation document = ResourceLocation.tryParse(source.substring("read:".length()));
             String title = document == null ? source : StoryView.title(new StoryLinks.NodeKey(ClientDevStore.TYPE_DOCUMENT, document));
@@ -989,23 +1056,56 @@ final class FormView {
         if (row(LABEL_H + CONTROL_H)) {
             labelRow(label);
             int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
-            List<String> switches = List.of("seen", "killed", "manual");
-            int each = (w - 4) / 3;
+            // Two rows of two: seen, killed; studied, by an action.
+            List<String> switches = List.of("seen", "killed", "observed", "manual");
+            int each = (w - 2) / 2;
             for (int i = 0; i < switches.size(); i++) {
                 String source = switches.get(i);
-                boolean on = sources.contains(source);
+                String present = source.equals("observed") ? observedSource(sources) : sources.contains(source) ? source : null;
+                boolean on = present != null;
                 Button toggle = Button.builder(Component.literal((on ? "✓ " : "") + DevUi.str("unlock.switch." + source)), b -> {
                     List<String> next = new ArrayList<>(sources);
                     if (on) {
-                        next.remove(source);
+                        next.remove(present);
                     } else {
-                        next.add(source);
+                        next.add(source.equals("observed") ? "observed:" + format(5) : source);
                     }
                     writeSources(path, next);
-                }).bounds(x + i * (each + 2), rowTop, i == 2 ? w - 2 * (each + 2) : each, CONTROL_H).build();
+                }).bounds(x + (i % 2) * (each + 2), rowTop + (i / 2) * (CONTROL_H + 2), i % 2 == 1 ? w - each - 2 : each, CONTROL_H).build();
                 toggle.setTooltip(Tooltip.create(DevUi.text("unlock.source_tooltip." + source)));
                 screen.add(toggle);
             }
+        }
+        // The second row of switches.
+        row(CONTROL_H);
+        String study = observedSource(sources);
+        if (study != null && row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("unlock.observed_time"));
+            int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+            EditBox box = new EditBox(screen.font(), x, rowTop + 1, w, CONTROL_H - 2, DevUi.text("unlock.observed_time"));
+            box.setMaxLength(6);
+            box.setValue(study.contains(":") ? study.substring(study.indexOf(':') + 1) : format(5));
+            box.setResponder(text -> {
+                Double seconds = null;
+                try {
+                    double parsed = Double.parseDouble(text.trim().replace(',', '.'));
+                    seconds = parsed >= 0.25 && parsed <= 600 ? parsed : null;
+                } catch (NumberFormatException ignored) {
+                    // Red until it is a number.
+                }
+                box.setTextColor(seconds != null ? 0xFFE0E0E0 : DevUi.ERROR);
+                if (seconds != null) {
+                    JsonArray on = new JsonArray();
+                    for (String source : stringsOf(objectAt(path) != null ? objectAt(path).get("on") : null).isEmpty() ? sources
+                            : stringsOf(objectAt(path).get("on"))) {
+                        on.add(source.equals("observed") || source.startsWith("observed:") ? "observed:" + format(seconds) : source);
+                    }
+                    ensureObject(path).add("on", on);
+                    host.edited();
+                }
+            });
+            box.setTooltip(Tooltip.create(DevUi.text("unlock.source_tooltip.observed")));
+            screen.add(box);
         }
         for (String source : sources) {
             if (!source.startsWith("read:") || !row(CONTROL_H)) {
@@ -1043,6 +1143,96 @@ final class FormView {
             }
             screen.openMenu(x, rowTop + CONTROL_H, items);
         }).tooltip(Tooltip.create(DevUi.text("unlock.add_document_tooltip"))).bounds(x, rowTop, w, CONTROL_H).build());
+    }
+
+    /**
+     * A list of ids (mobs, biomes, blocks, places; each an id or a #tag): a row each by its name, which picks another in
+     * its place, ✕ to take it out, "+ Add" from the list (October 30, 2026; before, one line of ids typed with commas,
+     * against the rule that lists are added to). One is written alone, several as a list, as the files have them.
+     *
+     * @param label above the rows; null where the page already says it (an entity's type under its switch)
+     */
+    private void idListRows(List<Object> path, String name, Picker picker, @Nullable Component label) {
+        JsonObject owner = objectAt(path);
+        List<String> ids = owner == null ? List.of() : stringsOf(owner.get(name) instanceof JsonPrimitive one ? asList(one) : owner.get(name));
+        if (label != null && row(LABEL_H)) {
+            labels.add(new Label(label, x, rowY(LABEL_H), DevUi.LABEL));
+        }
+        for (int i = 0; i < ids.size(); i++) {
+            int index = i;
+            if (!row(CONTROL_H)) {
+                continue;
+            }
+            int rowTop = rowY(CONTROL_H);
+            screen.add(Button.builder(Component.literal(idName(ids.get(i), picker)), b -> pick(picker, entry -> {
+                List<String> next = new ArrayList<>(ids);
+                next.set(index, entry.id());
+                writeIds(path, name, next);
+            })).tooltip(Tooltip.create(Component.literal(ids.get(i)))).bounds(x, rowTop, w - 20, CONTROL_H).build());
+            screen.add(Button.builder(Component.literal("✕"), b -> {
+                List<String> next = new ArrayList<>(ids);
+                next.remove(index);
+                writeIds(path, name, next);
+            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
+        }
+        if (row(CONTROL_H)) {
+            screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> pick(picker, entry -> {
+                if (!ids.contains(entry.id())) {
+                    List<String> next = new ArrayList<>(ids);
+                    next.add(entry.id());
+                    writeIds(path, name, next);
+                }
+            })).tooltip(Tooltip.create(DevUi.text("form.add_from_list"))).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build());
+        }
+    }
+
+    private static JsonArray asList(JsonPrimitive one) {
+        JsonArray list = new JsonArray();
+        list.add(one);
+        return list;
+    }
+
+    private void writeIds(List<Object> path, String name, List<String> ids) {
+        JsonObject owner = ensureObject(path);
+        if (ids.isEmpty()) {
+            owner.remove(name);
+        } else if (ids.size() == 1) {
+            owner.addProperty(name, ids.getFirst());
+        } else {
+            JsonArray list = new JsonArray();
+            ids.forEach(list::add);
+            owner.add(name, list);
+        }
+        host.changed();
+    }
+
+    /** An id by its name where the game has one: "Zombie", "Plains", "Lectern"; a #tag as written. */
+    private static String idName(String id, Picker picker) {
+        for (Entry entry : picker.entries()) {
+            if (entry.id().equals(id)) {
+                return entry.label();
+            }
+        }
+        ResourceLocation key = id.startsWith("#") ? null : ResourceLocation.tryParse(id);
+        if (key == null) {
+            return id;
+        }
+        if (picker.kind() == Catalog.Kind.MOB && BuiltInRegistries.ENTITY_TYPE.containsKey(key)) {
+            return BuiltInRegistries.ENTITY_TYPE.get(key).getDescription().getString();
+        }
+        if (picker.kind() == Catalog.Kind.ITEM && BuiltInRegistries.ITEM.containsKey(key)) {
+            return BuiltInRegistries.ITEM.get(key).getDescription().getString();
+        }
+        if (picker.kind() == Catalog.Kind.BIOME) {
+            String translation = "biome." + key.getNamespace() + "." + key.getPath();
+            return Language.getInstance().has(translation) ? Language.getInstance().getOrDefault(translation) : id;
+        }
+        return id;
+    }
+
+    /** The "studied" source as written ({@code observed:5}), or null. */
+    private static @Nullable String observedSource(List<String> sources) {
+        return sources.stream().filter(source -> source.equals("observed") || source.startsWith("observed:")).findFirst().orElse(null);
     }
 
     private void writeSources(List<Object> path, List<String> sources) {
@@ -1114,7 +1304,9 @@ final class FormView {
         labelRow(DevUi.text("field.codex.category"));
         int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
         String current = entry != null && entry.get("category") instanceof JsonPrimitive written ? shortType(written.getAsString()) : "monsters";
-        java.util.Set<String> categories = new java.util.LinkedHashSet<>(List.of("monsters", "animals", "characters", "places", "lore"));
+        // The Codex is the bestiary: groups of creatures (October 30, 2026; before, also places and legends, which nothing
+        // in it records). Those stay offered where an entry already has them.
+        java.util.Set<String> categories = new java.util.LinkedHashSet<>(List.of("monsters", "animals", "characters", "companions"));
         ClientDevStore.byType(ClientDevStore.TYPE_CODEX).values().forEach(raw -> {
             if (ClientDevStore.parseObject(raw).get("category") instanceof JsonPrimitive category) {
                 categories.add(shortType(category.getAsString()));
@@ -1559,6 +1751,16 @@ final class FormView {
         return "entity_selector".equals(Schemas.resolve(node).ref());
     }
 
+    /**
+     * A field written as entity types (an id, a #tag or a list) or as a selector (a waypoint's nearest entity): edited
+     * as a selector, whose type is the same list (October 30, 2026; before, the types' variant had nothing to edit).
+     */
+    private static boolean isTypesOrSelector(Node node) {
+        List<Node> variants = Schemas.variants(node);
+        return variants.size() == 2 && variants.stream().anyMatch(FormView::isEntitySelector)
+                && variants.stream().anyMatch(variant -> "id_list".equals(Schemas.resolve(variant).ref()));
+    }
+
     /** The selector of a field written as one entity selector or a list of them (an NPC binding's); null for others. */
     private static @Nullable Node entityListItems(Node node) {
         List<Node> variants = Schemas.variants(node);
@@ -1670,39 +1872,37 @@ final class FormView {
                 host.changed();
             }).bounds(x, rowTop, modeW, CONTROL_H).build();
             switcher.setTooltip(Tooltip.create(DevUi.text("entity.mode.tooltip")));
-            screen.add(switcher);
-            boolean button = !mode.equals("name");
-            int boxX = x + modeW + 4;
-            int boxW = w - modeW - 4 - (button ? 20 : 0);
             String field = mode;
-            EditBox box = new EditBox(screen.font(), boxX, rowTop + 1, boxW, CONTROL_H - 2, DevUi.text("entity.mode." + field));
-            box.setMaxLength(256);
-            box.setValue(selector != null && selector.has(field) ? display(field.equals("type") ? Kind.ID_LIST : Kind.STRING, selector.get(field)) : "");
-            box.setResponder(text -> {
-                JsonObject target = ensureObject(path);
-                if (text.isBlank()) {
-                    target.remove(field);
-                    box.setTextColor(0xFFE0E0E0);
-                    host.edited();
-                    return;
-                }
-                JsonElement parsed = field.equals("type") ? parse(Kind.ID_LIST, text)
-                        : field.equals("uuid") && !text.trim().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}") ? null
-                        : new JsonPrimitive(text.trim());
-                box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
-                if (parsed != null) {
-                    target.add(field, parsed);
-                    host.edited();
-                }
-            });
-            box.setTooltip(Tooltip.create(DevUi.text("entity.field." + field)));
-            screen.add(box);
             if (field.equals("type")) {
-                screen.add(Button.builder(Component.literal("…"), b -> screen.catalog().open(DevUi.text("entity.pick"), Catalog.Kind.MOB, (kind, entry) -> {
-                    ensureObject(path).addProperty("type", entry.id());
-                    host.changed();
-                })).tooltip(Tooltip.create(DevUi.text("form.pick"))).bounds(x + w - 18, rowTop - 1, 18, CONTROL_H).build());
-            } else if (field.equals("uuid")) {
+                // The type is a list: a row each under the switch, added from the mobs, not typed with commas.
+                switcher.setWidth(w);
+            } else {
+                int boxX = x + modeW + 4;
+                int boxW = w - modeW - 4 - (field.equals("uuid") ? 20 : 0);
+                EditBox box = new EditBox(screen.font(), boxX, rowTop + 1, boxW, CONTROL_H - 2, DevUi.text("entity.mode." + field));
+                box.setMaxLength(256);
+                box.setValue(selector != null && selector.has(field) ? display(Kind.STRING, selector.get(field)) : "");
+                box.setResponder(text -> {
+                    JsonObject target = ensureObject(path);
+                    if (text.isBlank()) {
+                        target.remove(field);
+                        box.setTextColor(0xFFE0E0E0);
+                        host.edited();
+                        return;
+                    }
+                    JsonElement parsed = field.equals("uuid") && !text.trim().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}") ? null
+                            : new JsonPrimitive(text.trim());
+                    box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
+                    if (parsed != null) {
+                        target.add(field, parsed);
+                        host.edited();
+                    }
+                });
+                box.setTooltip(Tooltip.create(DevUi.text("entity.field." + field)));
+                screen.add(box);
+            }
+            screen.add(switcher);
+            if (field.equals("uuid")) {
                 screen.add(Button.builder(Component.literal("🎯"), b -> DevWorldPicker.pickEntity(screen, DevUi.text("picker.entity_prompt"), entity -> {
                     JsonObject target = ensureObject(path);
                     target.addProperty("uuid", entity.getUUID().toString());
@@ -1711,6 +1911,9 @@ final class FormView {
                     host.changed();
                 })).tooltip(Tooltip.create(DevUi.text("form.pick_entity"))).bounds(x + w - 18, rowTop - 1, 18, CONTROL_H).build());
             }
+        }
+        if (mode.equals("type")) {
+            idListRows(path, "type", new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick")), null);
         }
         if (row(LABEL_H + CONTROL_H)) {
             labelRow(DevUi.text("entity.tag"));
@@ -1854,6 +2057,20 @@ final class FormView {
             entityField(path, name, node, value, label, required);
             return;
         }
+        if (isTypesOrSelector(node)) {
+            Node selector = Schemas.variants(node).stream().filter(FormView::isEntitySelector).findFirst().orElseThrow();
+            JsonElement written = value;
+            if (written != null && !written.isJsonObject()) {
+                // Types alone are a selector of only a type: the same in game, and editable on the entity's page.
+                JsonObject wrapped = new JsonObject();
+                wrapped.add("type", written);
+                ensureObject(path).add(name, wrapped);
+                written = wrapped;
+                host.edited();
+            }
+            entityField(path, name, selector, written, label, required);
+            return;
+        }
         if (entityListItems(node) != null) {
             entityListField(path, name, node, value, required);
             return;
@@ -1899,6 +2116,13 @@ final class FormView {
                     return;
                 }
             } else if ((name.equals("show_radius") || name.equals("show_ring")) && !area) {
+                return;
+            }
+        }
+        if (kind == Kind.ID_LIST) {
+            Picker picker = picker(name, owner, path);
+            if (picker != null) {
+                idListRows(path, name, picker, label);
                 return;
             }
         }
@@ -2773,6 +2997,12 @@ final class FormView {
      */
     static List<Quick> quick(Logic logic) {
         List<Quick> lines = new ArrayList<>();
+        if (logic == Logic.TRIGGER) {
+            // Observing, on top: examining a clue or studying a creature is what a story asks for most after a kill.
+            JsonObject observed = new JsonObject();
+            observed.addProperty("type", "observed");
+            lines.add(new Quick("🔍 " + DevUi.str("quick.observe"), () -> new ItemStack(Items.SPYGLASS), observed));
+        }
         if (logic == Logic.CONDITION) {
             for (String period : List.of("day", "sunset", "night")) {
                 JsonObject time = new JsonObject();
@@ -2871,6 +3101,9 @@ final class FormView {
         }
         if (properties.containsKey("participation")) {
             return "boss";
+        }
+        if (properties.containsKey("time") && properties.containsKey("distance") && properties.containsKey("block")) {
+            return "observed";
         }
         if (properties.containsKey("show_kills")) {
             return "codex";
@@ -3289,6 +3522,18 @@ final class FormView {
                                 : id.getPath().contains("end") ? Items.END_STONE : Items.GRASS_BLOCK))));
             }
             return Picker.rows(rows, DevUi.text("pick.title.dimension"), DevUi.text("pick.empty"));
+        }
+        if (field.equals("block")) {
+            // Kinds of blocks, then the blocks; "…" adds to what is written.
+            List<Entry> rows = new ArrayList<>();
+            rows.add(new Entry(Catalog.SECTION + "tags", DevUi.str("pick.section.block_tags"), ItemStack.EMPTY));
+            BuiltInRegistries.BLOCK.getTagNames().map(tag -> tag.location().toString()).sorted()
+                    .forEach(tag -> rows.add(new Entry("#" + tag, "#" + tag, new ItemStack(Items.NAME_TAG))));
+            rows.add(new Entry(Catalog.SECTION + "blocks", DevUi.str("pick.section.blocks"), ItemStack.EMPTY));
+            BuiltInRegistries.BLOCK.entrySet().stream().sorted(java.util.Comparator.comparing(entry -> entry.getKey().location().toString()))
+                    .forEach(entry -> rows.add(new Entry(entry.getKey().location().toString(),
+                            entry.getValue().getName().getString() + " (" + entry.getKey().location() + ")", new ItemStack(entry.getValue().asItem()))));
+            return Picker.rows(rows, DevUi.text("pick.title.block"), DevUi.text("pick.empty"));
         }
         if (field.equals("effect")) {
             List<Entry> rows = new ArrayList<>();

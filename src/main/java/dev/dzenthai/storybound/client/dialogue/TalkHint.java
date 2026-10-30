@@ -26,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 public final class TalkHint {
     private static final int REQUERY_TICKS = 40;
     private static final int BELOW_CROSSHAIR = 14;
+    private static final int BOX_HEIGHT = 12;
     private static final long FADE_IN_MILLIS = 150;
 
     /** The entity last asked about, and when (game time); -1 for none. */
@@ -65,15 +66,28 @@ public final class TalkHint {
         talkable = yes ? entityId : -1;
     }
 
-    public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
+    /**
+     * Whether the hint is under the crosshair now: what else is drawn there (the observation's words) goes below it.
+     * Its bottom is {@link #bottom()} pixels under the screen's middle.
+     */
+    public static boolean visible() {
         Minecraft minecraft = Minecraft.getInstance();
         // Shown during a dialogue in subtitles (a monologue): talking to an NPC takes over from it.
         if (talkable < 0 || minecraft.options.hideGui || minecraft.screen != null
                 || ClientDialogue.isActive() && ClientDialogue.presentation() == Presentation.SCREEN || StoryboundClient.TALK.isUnbound()) {
-            return;
+            return false;
         }
         Entity target = target(minecraft);
-        if (target == null || target.getId() != talkable) {
+        return target != null && target.getId() == talkable;
+    }
+
+    public static int bottom() {
+        return BELOW_CROSSHAIR + BOX_HEIGHT;
+    }
+
+    public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!visible()) {
             return;
         }
         float alpha = Mth.clamp((Util.getMillis() - shownSince) / (float) FADE_IN_MILLIS, 0f, 1f);
@@ -85,7 +99,7 @@ public final class TalkHint {
         Component key = StoryboundClient.TALK.getTranslatedKeyMessage();
         Component label = Component.translatable("storybound.talk.hint");
         int boxWidth = font.width(key) + 7;
-        int boxHeight = 12;
+        int boxHeight = BOX_HEIGHT;
         int x = (graphics.guiWidth() - (boxWidth + 4 + font.width(label))) / 2;
         int y = graphics.guiHeight() / 2 + BELOW_CROSSHAIR;
         graphics.fill(x, y, x + boxWidth, y + boxHeight, faded(theme.hudBackground(), alpha));

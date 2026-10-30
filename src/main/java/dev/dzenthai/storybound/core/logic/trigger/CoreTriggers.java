@@ -161,9 +161,14 @@ public final class CoreTriggers {
                 Codec.floatRange(0.25f, 600f).optionalFieldOf("time", DEFAULT_TIME).forGetter(Observed::time),
                 Codec.doubleRange(1, 64).optionalFieldOf("distance", DEFAULT_DISTANCE).forGetter(Observed::distance),
                 StoryText.CODEC.optionalFieldOf("text").forGetter(Observed::text)
-        ).apply(instance, Observed::new)).validate(observed -> observed.entity().isPresent() == (observed.block().isPresent() || observed.pos().isPresent())
-                ? DataResult.error(() -> "observed needs 'entity', or 'block' and/or 'pos' (not both kinds)")
+        ).apply(instance, Observed::new)).validate(observed -> observed.entity().isPresent() && (observed.block().isPresent() || observed.pos().isPresent())
+                ? DataResult.error(() -> "observed takes 'entity', or 'block' and/or 'pos', not both kinds")
                 : DataResult.success(observed));
+
+        /** Without a target (just picked in the editor) it observes nothing until one is given. */
+        public boolean hasTarget() {
+            return entity.isPresent() || block.isPresent() || pos.isPresent();
+        }
 
         /** An entity the selector picks: for the Codex and Bosses, whose sections open on studying their creature. */
         public static Observed of(EntitySelector entity, float time) {
@@ -180,7 +185,7 @@ public final class CoreTriggers {
             if (target.entity() != null) {
                 return entity.map(selector -> selector.matches(target.entity())).orElse(false);
             }
-            if (entity.isPresent() || target.state() == null || target.pos() == null) {
+            if (!hasTarget() || entity.isPresent() || target.state() == null || target.pos() == null) {
                 return false;
             }
             return block.map(set -> set.contains(target.state().getBlockHolder())).orElse(true)

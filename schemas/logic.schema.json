@@ -673,6 +673,20 @@
           "additionalProperties": false
         },
         {
+          "description": "The player looks straight at the target (under the crosshair, no wall in between) for the time; a bar under the crosshair fills meanwhile, only while it would do something (an objective of the current stage, an event not run yet). An entity, or a kind of block and/or one block.",
+          "properties": {
+            "type": { "enum": ["observed", "storybound:observed"] },
+            "text": { "description": "What the bar says (\"Examine the tracks\"); without it, \"Observing: <the target>\".", "$ref": "#/definitions/story_text" },
+            "entity": { "description": "The entity to observe (as an NPC binding's: a type, a tag, a name, one entity).", "$ref": "#/definitions/entity_selector" },
+            "block": { "description": "A kind of block: an id, a #tag or a list.", "$ref": "#/definitions/id_list" },
+            "pos": { "description": "One block, by its position; with block, only while it is still such a block.", "type": "array", "items": { "type": "integer" }, "minItems": 3, "maxItems": 3 },
+            "dimension": { "$ref": "#/definitions/id" },
+            "time": { "description": "Seconds of looking at it. Looking away pauses the bar; 2 seconds later it is lost.", "type": "number", "minimum": 0.25, "maximum": 600, "default": 3 },
+            "distance": { "description": "From at most this many blocks.", "type": "number", "minimum": 1, "maximum": 64, "default": 16 }
+          },
+          "additionalProperties": false
+        },
+        {
           "description": "The player dealt the killing blow; with shared, also a party member of the killer nearby.",
           "properties": {
             "type": { "enum": ["entity_killed", "storybound:entity_killed"] },

@@ -40,7 +40,7 @@
   },
   "definitions": {
     "unlock": {
-      "description": "Any source reaching count (sightings or kills; a read counts once) opens the section, if the conditions hold then.",
+      "description": "Any source reaching count (sightings or kills; a read or a study counts once) opens the section, if the conditions hold then. observed:<seconds>: studied, looked straight at the creature that long.",
       "type": "object",
       "required": ["on"],
       "additionalProperties": false,
@@ -50,7 +50,7 @@
           "minItems": 1,
           "items": {
             "type": "string",
-            "pattern": "^(seen|killed|manual|read:([a-z0-9_.-]+:)?[a-z0-9_./-]+)$"
+            "pattern": "^(seen|killed|manual|observed(:[0-9]+(\\.[0-9]+)?)?|read:([a-z0-9_.-]+:)?[a-z0-9_./-]+)$"
           }
         },
         "count": { "type": "integer", "minimum": 1, "maximum": 100000, "default": 1 },

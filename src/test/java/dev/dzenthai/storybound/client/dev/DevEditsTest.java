@@ -261,7 +261,8 @@ class DevEditsTest {
         List<String> conditions = FormView.quick(Schemas.Logic.CONDITION).stream().map(line -> line.element().toString()).toList();
         assertTrue(conditions.contains("{\"type\":\"time\",\"period\":\"night\"}"), "an NPC's schedule: " + conditions);
         assertTrue(conditions.contains("{\"type\":\"var\",\"key\":\"mypack:rep/elder\",\"op\":\">=\",\"value\":20}"));
-        assertTrue(FormView.quick(Schemas.Logic.TRIGGER).isEmpty());
+        assertEquals(List.of("{\"type\":\"observed\"}"), FormView.quick(Schemas.Logic.TRIGGER).stream().map(line -> line.element().toString()).toList(),
+                "observing on top of every trigger list");
         ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
     }
 
