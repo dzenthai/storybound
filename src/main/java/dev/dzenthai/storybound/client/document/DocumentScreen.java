@@ -117,7 +117,7 @@ public class DocumentScreen extends Screen {
         top = (height - style.height() * scale) / 2f;
         if (printedSurface()) {
             var window = minecraft.getWindow();
-            BookViewport viewport = BookViewport.fit(window.getWidth(), window.getHeight(), window.getGuiScale());
+            BookViewport viewport = BookViewport.document(window.getWidth(), window.getHeight(), window.getGuiScale(), style.width(), style.height());
             scale = (float) viewport.scale();
             left = (float) viewport.toGuiX((BookViewport.WIDTH - style.width()) / 2);
             top = (float) viewport.toGuiY((BookViewport.HEIGHT - style.height()) / 2);
@@ -346,7 +346,9 @@ public class DocumentScreen extends Screen {
         drawLines(sheet, page.lines(), x, textTop() - scroll);
         sheet.disableScissor();
         if (maxScroll(page) > 0) {
-            int trackX = style.width() - style.padding().right() + 5;
+            // Where the style puts it (a framed sheet: on the margin outside the frame, October 30, 2026; before, inside
+            // the frame against its line and diamonds, reading as a second line of it), else just after the text.
+            int trackX = style.scrollbarX().orElse(style.width() - style.padding().right() + 5);
             int thumbHeight = Math.max(12, textHeight() * textHeight() / page.height());
             int thumbY = textTop() + (textHeight() - thumbHeight) * scroll / maxScroll(page);
             sheet.fill(trackX, textTop(), trackX + 2, textTop() + textHeight(), 0x30AE7C53);

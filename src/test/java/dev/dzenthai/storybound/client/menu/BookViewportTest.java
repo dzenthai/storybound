@@ -10,8 +10,9 @@ class BookViewportTest {
         JournalLayout book = JournalLayout.fit(BookViewport.MENU_WIDTH, BookViewport.MENU_HEIGHT);
         int[][] windows = {{1920, 1080}, {2560, 1440}, {3840, 2160}, {3440, 1440}, {1366, 768}, {1280, 720}, {1600, 900},
                 {1024, 768}, {854, 480}, {640, 360}};
-        // Window pixels per pixel of the 384×256 book.
-        double[][] expected = {{1920, 4}, {2560, 5}, {3840, 8}, {1366, 2}};
+        // Window pixels per pixel of the 384×256 book: at most 80% of the window's height (before October 31, 2026,
+        // 4, 5, 8 and 2, as large as the menu fitted).
+        double[][] expected = {{1920, 3}, {2560, 4}, {3840, 6}, {1366, 2}};
         for (int[] window : windows) {
             var reference = BookViewport.wholePixels(window[0], window[1], 1, JournalSkin.BOOK_WIDTH, book);
             for (int guiScale = 1; guiScale <= 6; guiScale++) {
@@ -32,6 +33,33 @@ class BookViewportTest {
                 for (double[] known : expected) {
                     if (known[0] == window[0]) {
                         assertEquals(known[1], perTexturePixel, 1e-9, "at " + window[0] + "x" + window[1]);
+                    }
+                }
+            }
+        }
+    }
+
+    /** A document's sheet: whole window pixels to its pixels, at most 80% of the window's height, centred, on a pixel. */
+    @Test
+    void documentsKeepTheirPixelsWholeAndLeaveTheWorldInSight() {
+        // Window height → window pixels per pixel of a 320 × 384 sheet (the letter).
+        double[][] expected = {{1080, 2}, {1440, 3}, {2160, 4}};
+        for (int[] window : new int[][]{{1920, 1080}, {2560, 1440}, {3840, 2160}, {1366, 768}, {1280, 720}, {854, 480}}) {
+            for (int guiScale = 1; guiScale <= 4; guiScale++) {
+                var viewport = BookViewport.document(window[0], window[1], guiScale, 320, 384);
+                double left = viewport.toGuiX((BookViewport.WIDTH - 320) / 2) * guiScale;
+                double top = viewport.toGuiY((BookViewport.HEIGHT - 384) / 2) * guiScale;
+                double perPixel = viewport.scale() * guiScale;
+                assertTrue(384 * perPixel <= 0.8 * window[1] + 1e-6, "at most 80% of the height at " + window[1]);
+                assertEquals(window[0] / 2.0, left + 160 * perPixel, 1.0, "centred");
+                if (perPixel >= 2) {
+                    assertEquals(Math.rint(perPixel), perPixel, 1e-9, "whole pixels");
+                    assertEquals(Math.rint(left), left, 1e-6, "on a window pixel");
+                    assertEquals(Math.rint(top), top, 1e-6);
+                }
+                for (double[] known : expected) {
+                    if (known[0] == window[1]) {
+                        assertEquals(known[1], perPixel, 1e-9, "at " + window[0] + "x" + window[1]);
                     }
                 }
             }
