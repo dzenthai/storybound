@@ -74,6 +74,10 @@ final class StoryInspector {
     /** The script block's state line, drawn where its panel starts; null for other nodes. */
     private @Nullable ClientDevStore.ScriptState scriptState;
     private int scriptStateY;
+    /** Where the heading over the quick tests is drawn; -1 without them. */
+    private int testsY = -1;
+    /** The colour of {@link #textLabel}: a label over one text, a heading over a Codex entry's several. */
+    private int textLabelColor = DevUi.LABEL;
     private final List<GiverRow> giverRows = new ArrayList<>();
     private @Nullable String giverTitle;
     /** The name being typed for {@link #renameFor}, kept here so rebuilding the panel loses nothing. */
@@ -118,6 +122,19 @@ final class StoryInspector {
                 NodeKey key = view.selected;
                 if (screen != null && key != null) {
                     view.renameInQuest(screen, key, stage, objective, to);
+                }
+            }
+
+            @Override
+            public @Nullable NodeKey node() {
+                return view.selected;
+            }
+
+            @Override
+            public void renameCodexSection(String from, String to) {
+                NodeKey key = view.selected;
+                if (screen != null && key != null) {
+                    view.renameCodexSection(screen, key, from, to);
                 }
             }
 
@@ -183,7 +200,7 @@ final class StoryInspector {
         if (key.type().equals(ClientDevStore.TYPE_DOCUMENT)) {
             y = documentText(screen, key, json, x, y + 10, w);
         }
-        if (key.type().equals(ClientDevStore.TYPE_CODEX) || key.type().equals(ClientDevStore.TYPE_BOSS)) {
+        if (key.type().equals(ClientDevStore.TYPE_CODEX)) {
             y = sectionTexts(screen, key, json, x, y + 6, w);
         }
         scriptState = null;
@@ -257,9 +274,13 @@ final class StoryInspector {
         } else if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
             buttons.add(test(screen, "⚡ ", "waypoint.teleport", "waypoint_tp", key));
         }
+        testsY = -1;
         if (buttons.isEmpty()) {
             return y;
         }
+        // Under a heading of their own, as the form's groups (October 30, 2026; before, a row of buttons without one).
+        testsY = y;
+        y += 12;
         int each = (w - (buttons.size() - 1) * 2) / buttons.size();
         for (int i = 0; i < buttons.size(); i++) {
             Button button = buttons.get(i);
@@ -281,6 +302,7 @@ final class StoryInspector {
     private int documentText(DevModeScreen screen, NodeKey key, JsonObject json, int x, int y, int w) {
         ResourceLocation textId = documentTextId(key.id(), json);
         textLabel = DevUi.text("document.text");
+        textLabelColor = DevUi.LABEL;
         textLabelY = y - 10;
         String current = pendingText != null ? pendingText : text(textId, ClientDevStore.activeLanguage()).orElse("");
         screen.add(textButton(screen, current, DevUi.text("document.text_hint"), () -> screen.textEditor().open(
@@ -296,25 +318,25 @@ final class StoryInspector {
         return y + 24;
     }
 
-    /** A Codex entry's sections or a boss's lore and tactics: a row each, saved on their own. */
+    /**
+     * A Codex entry's sections' texts, a row each by the section's title, saved on their own: one click each, as the
+     * sections' pages have them too. A boss's are in its form, under its sections (October 30, 2026).
+     */
     private int sectionTexts(DevModeScreen screen, NodeKey key, JsonObject json, int x, int y, int w) {
         Map<String, ResourceLocation> texts = new LinkedHashMap<>();
         textLabel = DevUi.text("text.sections");
+        textLabelColor = DevUi.ACCENT;
         textLabelY = y;
         y += 10;
         if (key.type().equals(ClientDevStore.TYPE_CODEX)) {
             if (json.get("sections") instanceof JsonArray sections) {
                 for (JsonElement element : sections) {
                     if (element instanceof JsonObject section && section.get("id") instanceof JsonPrimitive id) {
-                        texts.put(id.getAsString(), ownText(section).orElse(ResourceLocation.fromNamespaceAndPath(key.id().getNamespace(),
+                        String title = ClientDevStore.readStoryText(section, "title", "");
+                        texts.put(title.isBlank() ? id.getAsString() : title, ownText(section).orElse(ResourceLocation.fromNamespaceAndPath(key.id().getNamespace(),
                                 "codex/" + key.id().getPath() + "/" + id.getAsString())));
                     }
                 }
-            }
-        } else {
-            for (String section : List.of("lore", "tactics")) {
-                texts.put(section, (json.get(section) instanceof JsonObject object ? ownText(object) : Optional.<ResourceLocation>empty())
-                        .orElse(ResourceLocation.fromNamespaceAndPath(key.id().getNamespace(), "bosses/" + key.id().getPath() + "/" + section)));
             }
         }
         for (Map.Entry<String, ResourceLocation> entry : texts.entrySet()) {
@@ -347,7 +369,7 @@ final class StoryInspector {
     }
 
     /** What the window shows while the text is empty: the source language's text when another language is edited. */
-    private static Component hint(ResourceLocation textId) {
+    static Component hint(ResourceLocation textId) {
         String source = ClientDevStore.sourceLanguage();
         if (!ClientDevStore.activeLanguage().equalsIgnoreCase(source)) {
             Optional<String> original = text(textId, source);
@@ -610,7 +632,10 @@ final class StoryInspector {
                     issues.isEmpty() ? DevUi.MUTED : DevUi.BAD, false);
         }
         if (textLabel != null) {
-            graphics.drawString(font, textLabel, left + 8, textLabelY, DevUi.LABEL, false);
+            graphics.drawString(font, textLabel, left + 8, textLabelY, textLabelColor, false);
+        }
+        if (testsY >= 0) {
+            graphics.drawString(font, DevUi.text("inspector.tests"), left + 8, testsY + 1, DevUi.ACCENT, false);
         }
         renderScriptState(font, graphics, left);
         renderGiver(font, graphics, left);

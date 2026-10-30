@@ -26,6 +26,9 @@ public final class CodexRegistries {
         ATTACHMENT_TYPES.register(modBus);
         CodexLogic.REGISTER_CONDITIONS.register(modBus);
         CodexLogic.REGISTER_ACTIONS.register(modBus);
-        StoryMigrations.registerPlayer((player, renames) -> player.getData(DATA).migrate(renames));
+        StoryMigrations.registerPlayer((player, renames) -> player.getData(DATA).migrate(renames, (entry, section) -> {
+            CodexDefinition definition = CODEX.serverStore().getOrNull(entry);
+            return definition != null && definition.section(section).isPresent();
+        }));
     }
 }

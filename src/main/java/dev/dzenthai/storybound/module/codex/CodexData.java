@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import net.minecraft.resources.ResourceLocation;
 
 /** A player's Codex: open sections per entry, and sightings and kills counted towards the next ones. Always personal. */
@@ -97,9 +98,17 @@ public final class CodexData {
         return sections.size() != progress.sections().size();
     }
 
-    /** Renamed entries (see {@link StoryMigrations}); returns how many moved. */
-    int migrate(StoryMigrations.Renames renames) {
-        return StoryMigrations.renameKeys(entries, StoryMigrations.Kind.CODEX, renames);
+    /**
+     * Renamed entries and sections (see {@link StoryMigrations}); returns how many moved. An open section keeps its name
+     * while its entry still has a section of that name (a new one took the old name), as an id still defined does.
+     */
+    int migrate(StoryMigrations.Renames renames, BiPredicate<ResourceLocation, String> defines) {
+        return StoryMigrations.renameKeys(entries, id -> renames.id(StoryMigrations.Kind.CODEX, id), (id, progress) -> {
+            Set<String> sections = new LinkedHashSet<>();
+            progress.sections().forEach(section -> sections.add(defines.test(id, section) ? section : renames.codexSection(id, section)));
+            List<String> renamed = List.copyOf(sections);
+            return renamed.equals(progress.sections()) ? progress : new Progress(progress.id(), renamed, progress.seen(), progress.kills());
+        });
     }
 
     private Progress get(ResourceLocation entry) {

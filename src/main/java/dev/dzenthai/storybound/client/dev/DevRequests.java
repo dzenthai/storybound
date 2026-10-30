@@ -42,6 +42,10 @@ final class DevRequests {
         PacketDistributor.sendToServer(new DevModePayloads.RenameInQuest(quest, stage, objective, to));
     }
 
+    static void renameCodexSection(ResourceLocation entry, String from, String to) {
+        PacketDistributor.sendToServer(new DevModePayloads.RenameCodexSection(entry, from, to));
+    }
+
     static void renameInDialogue(ResourceLocation dialogue, String from, String to) {
         PacketDistributor.sendToServer(new DevModePayloads.RenameInDialogue(dialogue, from, to));
     }

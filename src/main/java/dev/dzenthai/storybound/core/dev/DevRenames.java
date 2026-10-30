@@ -300,6 +300,67 @@ final class DevRenames {
         return references;
     }
 
+    /** The migrations' field of renamed Codex sections. */
+    static final String CODEX_SECTIONS = "codex_sections";
+
+    /**
+     * Renames a section of a Codex entry: the entry's file, its text file when it names none of its own (in every
+     * language), what names the section elsewhere, and the migration ({@code codex_sections}) that moves players' open
+     * sections.
+     */
+    static void renameCodexSection(ServerPlayer player, ResourceLocation entry, String from, String to) {
+        Path root = ConfigStorySource.root();
+        Path file = ConfigStorySource.fileFor(root, DevModeServer.findType(StoryLinks.CODEX), entry);
+        if (!Files.isRegularFile(file)) {
+            refuse(player, "Cannot rename the section " + from + ": " + entry + " is not in the story folder");
+            return;
+        }
+        try {
+            JsonObject json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+            Optional<StoryRenames.Problem> problem = StoryRenames.codexSectionProblem(json, from, to);
+            if (problem.isPresent() || StoryRenames.codexSection(json, from) == null) {
+                refuse(player, "Cannot rename the section " + from + " of " + entry + " to " + to + ": " + problem.map(Enum::name).orElse("no such section"));
+                return;
+            }
+            int references = applyCodexSection(root, entry, json, from, to.trim());
+            reload(player.server, List.of());
+            player.sendSystemMessage(Component.literal("Renamed the section " + from + " of " + entry + " to " + to.trim()
+                    + (references > 0 ? "; " + references + " references updated" : "")).withStyle(ChatFormatting.GREEN));
+        } catch (IOException | RuntimeException e) {
+            Storybound.LOGGER.error("Storybound: renaming the section {} of {} failed", from, entry, e);
+            refuse(player, "Renaming the section " + from + " failed: " + e.getMessage());
+        }
+    }
+
+    /** The file work of {@link #renameCodexSection}; returns how many references changed. Package-private for tests. */
+    static int applyCodexSection(Path root, ResourceLocation entry, JsonObject json, String from, String to) throws IOException {
+        boolean ownText = StoryRenames.codexSection(json, from) instanceof JsonObject section && section.has("text");
+        StoryRenames.renameCodexSection(json, from, to);
+        write(ConfigStorySource.fileFor(root, DevModeServer.findType(StoryLinks.CODEX), entry), json);
+        if (!ownText) {
+            moveTextFiles(root, Map.of(codexText(entry, from), codexText(entry, to)));
+        }
+        int references = 0;
+        for (DefinitionType<?> type : DefinitionTypes.all()) {
+            if (!StoryRenames.REFERRING.contains(type.id())) {
+                continue;
+            }
+            Map<ResourceLocation, JsonElement> files = new LinkedHashMap<>();
+            ConfigStorySource.scan(root, type, files, new ArrayList<ValidationIssue>());
+            for (Map.Entry<ResourceLocation, JsonElement> other : files.entrySet()) {
+                int changed = StoryRenames.rewriteCodexSection(other.getValue(), entry, from, to);
+                if (changed > 0) {
+                    DevModeServer.writeJson(ConfigStorySource.fileFor(root, type, other.getKey()), other.getValue());
+                    references += changed;
+                }
+            }
+        }
+        JsonObject migrations = readMigrations(root);
+        StoryRenames.addInsideMigration(migrations, CODEX_SECTIONS, entry, from, to);
+        write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS), migrations);
+        return references;
+    }
+
     private static void refuse(ServerPlayer player, String message) {
         player.sendSystemMessage(Component.literal(message).withStyle(ChatFormatting.RED));
         // The editor showed the new name at once: this puts the old one back.
@@ -371,6 +432,11 @@ final class DevRenames {
                 }
             }
         }
+        moveTextFiles(root, texts);
+    }
+
+    /** Moves long texts ({@code .sbt}) from one id to another in every language of the story folder. */
+    private static void moveTextFiles(Path root, Map<ResourceLocation, ResourceLocation> texts) throws IOException {
         Path folder = root.resolve("texts");
         if (texts.isEmpty() || !Files.isDirectory(folder)) {
             return;
@@ -442,6 +508,9 @@ final class DevRenames {
             if (rename.type().equals(StoryLinks.QUEST)) {
                 // Stages and objectives are named by the quest's new id.
                 StoryRenames.moveInsideMigrations(migrations, rename.from(), rename.to());
+            }
+            if (rename.type().equals(StoryLinks.CODEX)) {
+                StoryRenames.moveInsideMigrations(migrations, List.of(CODEX_SECTIONS), rename.from(), rename.to());
             }
         }
         if (any) {

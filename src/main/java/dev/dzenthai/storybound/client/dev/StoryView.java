@@ -601,6 +601,43 @@ final class StoryView extends GraphView {
         screen.rebuild();
     }
 
+    void renameCodexSection(DevModeScreen screen, NodeKey entry, String from, String to) {
+        saveEdits(screen);
+        if (dirty) {
+            screen.status(DevUi.text("rename.incomplete"), DevUi.WARN);
+            return;
+        }
+        requestRenameCodexSection(screen, entry, from, to);
+        screen.remember(DevUi.str("history.rename", from, to),
+                () -> requestRenameCodexSection(screen, entry, to, from),
+                () -> requestRenameCodexSection(screen, entry, from, to));
+    }
+
+    /** Renames here at once, as the server will; its snapshot follows, or puts the old name back if it refuses. */
+    private void requestRenameCodexSection(DevModeScreen screen, NodeKey entry, String from, String to) {
+        JsonObject json = ClientDevStore.parseObject(ClientDevStore.getJson(entry.type(), entry.id()));
+        StoryRenames.renameCodexSection(json, from, to);
+        ClientDevStore.putLocal(entry.type(), entry.id(), DevUi.GSON.toJson(json));
+        ClientDevStore.all().forEach((type, definitions) -> {
+            if (StoryRenames.REFERRING.contains(type)) {
+                definitions.forEach((id, raw) -> {
+                    JsonObject other = ClientDevStore.parseObject(raw);
+                    if (StoryRenames.rewriteCodexSection(other, entry.id(), from, to) > 0) {
+                        ClientDevStore.putLocal(type, id, DevUi.GSON.toJson(other));
+                    }
+                });
+            }
+        });
+        if (entry.equals(selected)) {
+            editing = ClientDevStore.parseObject(ClientDevStore.getJson(entry.type(), entry.id()));
+            dirty = false;
+        }
+        DevRequests.renameCodexSection(entry.id(), from, to);
+        rebuildCards();
+        screen.status(DevUi.text("rename.sent", from, to), DevUi.OK);
+        screen.rebuild();
+    }
+
     /** The story's nodes are moving from one namespace to another: once they arrive, the selection follows them. */
     private String @Nullable [] movedNamespace;
 

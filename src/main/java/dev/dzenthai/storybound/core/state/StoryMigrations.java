@@ -149,6 +149,7 @@ public final class StoryMigrations {
         Map<Kind, Map<ResourceLocation, ResourceLocation>> ids = new EnumMap<>(Kind.class);
         Map<ResourceLocation, Map<String, String>> stages = new HashMap<>();
         Map<ResourceLocation, Map<String, String>> objectives = new HashMap<>();
+        Map<ResourceLocation, Map<String, String>> sections = new HashMap<>();
         new TreeMap<>(CoreDefinitions.MIGRATIONS.serverStore().all()).values().forEach(migration -> {
             for (Kind kind : Kind.values()) {
                 migration.renames(kind).forEach((from, to) -> {
@@ -159,8 +160,9 @@ public final class StoryMigrations {
             }
             migration.stages().forEach((quest, renames) -> renames.forEach((from, to) -> stages.computeIfAbsent(quest, q -> new HashMap<>()).putIfAbsent(from, to)));
             migration.objectives().forEach((quest, renames) -> renames.forEach((from, to) -> objectives.computeIfAbsent(quest, q -> new HashMap<>()).putIfAbsent(from, to)));
+            migration.codexSections().forEach((entry, renames) -> renames.forEach((from, to) -> sections.computeIfAbsent(entry, e -> new HashMap<>()).putIfAbsent(from, to)));
         });
-        current = new Renames(ids, stages, objectives);
+        current = new Renames(ids, stages, objectives, sections);
         return current;
     }
 
@@ -293,14 +295,21 @@ public final class StoryMigrations {
         private final Map<Kind, Map<ResourceLocation, ResourceLocation>> ids;
         private final Map<ResourceLocation, Map<String, String>> stages;
         private final Map<ResourceLocation, Map<String, String>> objectives;
+        private final Map<ResourceLocation, Map<String, String>> sections;
         private final boolean empty;
 
         public Renames(Map<Kind, Map<ResourceLocation, ResourceLocation>> ids, Map<ResourceLocation, Map<String, String>> stages,
                        Map<ResourceLocation, Map<String, String>> objectives) {
+            this(ids, stages, objectives, Map.of());
+        }
+
+        public Renames(Map<Kind, Map<ResourceLocation, ResourceLocation>> ids, Map<ResourceLocation, Map<String, String>> stages,
+                       Map<ResourceLocation, Map<String, String>> objectives, Map<ResourceLocation, Map<String, String>> sections) {
             this.ids = ids;
             this.stages = stages;
             this.objectives = objectives;
-            this.empty = ids.values().stream().allMatch(Map::isEmpty) && stages.isEmpty() && objectives.isEmpty();
+            this.sections = sections;
+            this.empty = ids.values().stream().allMatch(Map::isEmpty) && stages.isEmpty() && objectives.isEmpty() && sections.isEmpty();
         }
 
         public boolean isEmpty() {
@@ -319,6 +328,11 @@ public final class StoryMigrations {
 
         public String objective(ResourceLocation quest, String objective) {
             return follow(objectives.getOrDefault(quest, Map.of()), objective);
+        }
+
+        /** A section of the Codex entry (by its new id). */
+        public String codexSection(ResourceLocation entry, String section) {
+            return follow(sections.getOrDefault(entry, Map.of()), section);
         }
 
         /** A story value's key: a flag's own, or one a module builds from an id ({@code storybound:once/<ns>/<path>}). */

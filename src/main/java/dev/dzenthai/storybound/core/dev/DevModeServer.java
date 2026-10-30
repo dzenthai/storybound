@@ -365,6 +365,13 @@ public final class DevModeServer {
         }
     }
 
+    /** Renames a section of a Codex entry (see {@link DevRenames#renameCodexSection}). */
+    public static void renameCodexSection(ServerPlayer player, ResourceLocation entry, String from, String to) {
+        if (player.hasPermissions(2)) {
+            DevRenames.renameCodexSection(player, entry, from, to);
+        }
+    }
+
     /** Renames a quest's stage ({@code objective} empty) or an objective of a stage (see {@link DevRenames#renameInQuest}). */
     public static void renameInQuest(ServerPlayer player, ResourceLocation quest, String stage, String objective, String to) {
         if (player.hasPermissions(2)) {

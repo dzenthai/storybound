@@ -17,7 +17,8 @@
     "bosses": { "description": "Bosses: met, sections, victories.", "$ref": "#/definitions/renames" },
     "waypoints": { "description": "Waypoints added by add_waypoint.", "$ref": "#/definitions/renames" },
     "stages": { "description": "Stages inside a quest, named by the quest's new id: { \"mypack:hunt\": { \"old\": \"new\" } }. The current stage and the quest's log.", "$ref": "#/definitions/inside_quests" },
-    "objectives": { "description": "Objective ids inside a quest, named by the quest's new id; their counters move.", "$ref": "#/definitions/inside_quests" }
+    "objectives": { "description": "Objective ids inside a quest, named by the quest's new id; their counters move.", "$ref": "#/definitions/inside_quests" },
+    "codex_sections": { "description": "Section ids inside a Codex entry, named by the entry's new id; players' open sections move.", "$ref": "#/definitions/inside_quests" }
   },
   "definitions": {
     "renames": {

@@ -268,6 +268,66 @@ public final class StoryRenames {
         return changed;
     }
 
+    // --- inside a Codex entry: its sections (October 30, 2026; before, a section's id was a plain text field: changing it
+    // left its text file, the conditions and actions naming it and players' open sections behind)
+
+    /** The entry's section of that id, or null. */
+    public static @Nullable JsonObject codexSection(JsonObject entry, String id) {
+        if (entry.get("sections") instanceof JsonArray sections) {
+            for (JsonElement element : sections) {
+                if (element instanceof JsonObject section && section.get("id") instanceof JsonPrimitive own && own.getAsString().equals(id)) {
+                    return section;
+                }
+            }
+        }
+        return null;
+    }
+
+    public static Optional<Problem> codexSectionProblem(JsonObject entry, String current, String typed) {
+        String to = typed.trim();
+        if (to.isEmpty() || to.equals(current)) {
+            return Optional.of(Problem.SAME);
+        }
+        if (!INSIDE_NAME.matcher(to).matches()) {
+            return Optional.of(Problem.FORMAT);
+        }
+        return codexSection(entry, to) != null ? Optional.of(Problem.TAKEN) : Optional.empty();
+    }
+
+    /** Gives the section its new id; returns whether it found it. */
+    public static boolean renameCodexSection(JsonObject entry, String from, String to) {
+        JsonObject found = codexSection(entry, from);
+        if (found == null) {
+            return false;
+        }
+        found.addProperty("id", to);
+        return true;
+    }
+
+    /**
+     * Rewrites what names the entry's section elsewhere, in place: an object with that {@code entry} and {@code section}
+     * (the condition "Codex entry open", the action "Open a Codex section"); another entry's section of that name stays.
+     * An entry written without a namespace is the mod's, as the game reads it.
+     */
+    public static int rewriteCodexSection(JsonElement element, ResourceLocation entry, String from, String to) {
+        int changed = 0;
+        if (element instanceof JsonArray array) {
+            for (JsonElement child : array) {
+                changed += rewriteCodexSection(child, entry, from, to);
+            }
+        } else if (element instanceof JsonObject object) {
+            if (object.get("section") instanceof JsonPrimitive section && section.getAsString().equals(from)
+                    && object.get("entry") instanceof JsonPrimitive named && entry.equals(ResourceLocation.tryParse(named.getAsString()))) {
+                object.addProperty("section", to);
+                changed++;
+            }
+            for (JsonElement child : object.asMap().values()) {
+                changed += rewriteCodexSection(child, entry, from, to);
+            }
+        }
+        return changed;
+    }
+
     // --- inside a dialogue: its nodes (October 29, 2026; before, a node kept the id it was made with, "line_3")
 
     public static Optional<Problem> nodeProblem(JsonObject dialogue, String current, String typed) {
@@ -382,7 +442,12 @@ public final class StoryRenames {
 
     /** A renamed quest: its stages' and objectives' renames are named by its new id, as the game looks them up. */
     public static void moveInsideMigrations(JsonObject migrations, ResourceLocation from, ResourceLocation to) {
-        for (String field : List.of("stages", "objectives")) {
+        moveInsideMigrations(migrations, List.of("stages", "objectives"), from, to);
+    }
+
+    /** The renames inside a renamed node in these fields ({@code codex_sections} for a Codex entry), named by its new id. */
+    public static void moveInsideMigrations(JsonObject migrations, List<String> fields, ResourceLocation from, ResourceLocation to) {
+        for (String field : fields) {
             if (migrations.get(field) instanceof JsonObject quests && quests.remove(from.toString()) instanceof JsonObject moved) {
                 JsonObject target = quests.get(to.toString()) instanceof JsonObject existing ? existing : new JsonObject();
                 moved.entrySet().forEach(entry -> {

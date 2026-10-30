@@ -257,6 +257,38 @@ class StoryRenamesTest {
     }
 
     @Test
+    void aCodexSectionIsRenamedWithinItsEntryAndWhereItsEntryNamesIt() {
+        JsonObject entry = JsonParser.parseString("""
+                { "sections": [ { "id": "base", "unlock": { "on": ["seen"] } }, { "id": "habits", "unlock": { "on": ["killed"] } } ] }""").getAsJsonObject();
+        assertEquals(Optional.of(Problem.SAME), StoryRenames.codexSectionProblem(entry, "habits", " habits "));
+        assertEquals(Optional.of(Problem.SAME), StoryRenames.codexSectionProblem(entry, "habits", ""), "an empty box changes nothing");
+        assertEquals(Optional.of(Problem.FORMAT), StoryRenames.codexSectionProblem(entry, "habits", "Повадки"));
+        assertEquals(Optional.of(Problem.FORMAT), StoryRenames.codexSectionProblem(entry, "habits", "two words"));
+        assertEquals(Optional.of(Problem.TAKEN), StoryRenames.codexSectionProblem(entry, "habits", "base"));
+        assertEquals(Optional.empty(), StoryRenames.codexSectionProblem(entry, "habits", "povadki"));
+        assertTrue(StoryRenames.renameCodexSection(entry, "habits", "povadki"));
+        assertTrue(StoryRenames.codexSection(entry, "povadki") != null && StoryRenames.codexSection(entry, "habits") == null);
+        assertTrue(!StoryRenames.renameCodexSection(entry, "nothing", "x"), "no such section");
+
+        JsonObject quest = JsonParser.parseString("""
+                { "conditions": [ { "type": "codex_unlocked", "entry": "demo:zombie", "section": "habits" },
+                                  { "type": "codex_unlocked", "entry": "demo:skeleton", "section": "habits" },
+                                  { "type": "codex_unlocked", "entry": "zombie", "section": "habits" } ],
+                  "on_complete": { "type": "unlock_codex", "entry": "demo:zombie", "section": "habits" } }""").getAsJsonObject();
+        assertEquals(2, StoryRenames.rewriteCodexSection(quest, id("demo:zombie"), "habits", "povadki"), "the condition and the action of demo:zombie");
+        assertTrue(quest.toString().contains("\"entry\":\"demo:skeleton\",\"section\":\"habits\""), "another entry's section stays");
+        assertTrue(quest.toString().contains("\"entry\":\"zombie\",\"section\":\"habits\""), "zombie without a namespace is storybound:zombie");
+
+        JsonObject migrations = new JsonObject();
+        StoryRenames.addInsideMigration(migrations, "codex_sections", id("demo:zombie"), "habits", "povadki");
+        StoryRenames.moveInsideMigrations(migrations, List.of("codex_sections"), id("demo:zombie"), id("demo:undead"));
+        assertEquals("{\"demo:undead\":{\"habits\":\"povadki\"}}", migrations.get("codex_sections").toString(), "named by the entry's new id");
+        StoryRenames.addInsideMigration(migrations, "stages", id("demo:undead"), "a", "b");
+        StoryRenames.moveInsideMigrations(migrations, id("demo:undead"), id("demo:hunt"));
+        assertTrue(migrations.getAsJsonObject("codex_sections").has("demo:undead"), "a quest of the same id moves only its stages");
+    }
+
+    @Test
     void migrationsFollowChainsAndNeverLoop() {
         JsonObject migrations = new JsonObject();
         StoryRenames.addMigration(migrations, "quests", id("demo:a"), id("demo:b"));

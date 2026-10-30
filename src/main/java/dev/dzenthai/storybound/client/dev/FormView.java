@@ -13,6 +13,8 @@ import dev.dzenthai.storybound.client.dev.Schemas.Kind;
 import dev.dzenthai.storybound.client.dev.Schemas.Logic;
 import dev.dzenthai.storybound.client.dev.Schemas.Node;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
+import dev.dzenthai.storybound.client.document.DocumentTexts;
+import dev.dzenthai.storybound.core.story.StoryLinks;
 import dev.dzenthai.storybound.core.story.StoryRenames;
 import dev.dzenthai.storybound.module.quest.DifficultyScale;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
@@ -95,6 +97,14 @@ final class FormView {
 
         /** Renames a stage of the quest ({@code objective} empty) or an objective of a stage, with what names it. */
         default void renameInQuest(String stage, String objective, String to) {}
+
+        /** Renames a section of the Codex entry the form edits, with its text and what names it. */
+        default void renameCodexSection(String from, String to) {}
+
+        /** The story node the form edits (a boss's and a Codex entry's long texts are named after it); null otherwise. */
+        default @Nullable StoryLinks.NodeKey node() {
+            return null;
+        }
 
         /** Values for a field that names something inside the definition (a dialogue's nodes, its speakers); usually none. */
         default List<String> choices(String field) {
@@ -307,8 +317,11 @@ final class FormView {
                 screen.add(Button.builder(Component.literal("✕"), b -> remove(frame))
                         .tooltip(Tooltip.create(DevUi.text("form.remove_field"))).bounds(x + width - 16, y0, 16, 14).build());
             }
+            // Where the page is (greyed), then what it is, as a heading: every page goes on under one, as the node's
+            // form under its name (October 30, 2026; before, only the grey path, the page's own name last in it).
             labels.add(new Label(Component.literal(crumbs(screen.font(), width - 40)), x + 20, y0 + 3, DevUi.MUTED));
-            y0 += 18;
+            labels.add(new Label(Component.literal(screen.font().plainSubstrByWidth(frame.label(), width)), x, y0 + 18, DevUi.ACCENT));
+            y0 += 32;
         }
         this.top = y0;
         this.bottom = bottom;
@@ -327,10 +340,11 @@ final class FormView {
         }
     }
 
+    /** The way to the page from the node: the node and the pages above this one (its own name is its heading). */
     private String crumbs(Font font, int width) {
         StringBuilder out = new StringBuilder(rootLabel);
         List<Frame> list = new ArrayList<>(frames);
-        for (int i = list.size() - 1; i >= 0; i--) {
+        for (int i = list.size() - 1; i >= 1; i--) {
             out.append(" › ").append(list.get(i).label());
         }
         String text = out.toString();
@@ -412,7 +426,15 @@ final class FormView {
         boolean option = inDialogue != null && path.size() == 2 && "options".equals(path.getFirst()) && Schemas.properties(schema).containsKey("locked");
         boolean document = path.isEmpty() && Schemas.properties(schema).containsKey("journal") && Schemas.properties(schema).containsKey("kind");
         boolean journal = path.size() == 1 && "journal".equals(path.getFirst()) && Schemas.properties(schema).containsKey("add_on_read");
-        String form = node != null ? "node." + node : option ? "option" : document ? "document" : journal ? "journal" : null;
+        boolean quest = path.isEmpty() && Schemas.properties(schema).containsKey("stages") && Schemas.properties(schema).containsKey("fail_when");
+        String inside = Schemas.properties(schema).containsKey("objectives") || Schemas.properties(schema).containsKey("since_stage") ? insideQuest(path) : null;
+        boolean boss = path.isEmpty() && Schemas.properties(schema).containsKey("participation");
+        boolean codex = path.isEmpty() && Schemas.properties(schema).containsKey("show_kills");
+        boolean section = path.size() == 2 && "sections".equals(path.getFirst()) && Schemas.properties(schema).containsKey("unlock");
+        boolean unlock = Schemas.properties(schema).containsKey("on") && Schemas.properties(schema).containsKey("count");
+        String rootForm = path.isEmpty() && inDialogue == null && host.node() != null ? ROOT_FORMS.get(host.node().type()) : null;
+        String form = node != null ? "node." + node : option ? "option" : document ? "document" : journal ? "journal" : quest ? "quest"
+                : inside != null ? inside : boss ? "boss" : codex ? "codex" : section ? "codex.section" : unlock ? "unlock" : rootForm;
         Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
                 : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
         JsonObject object = objectAt(path);
@@ -435,6 +457,18 @@ final class FormView {
                 objectPage(with(path, "journal"), property.getValue(), Set.of(), null);
             } else if ("document".equals(form) && name.equals("custom_model_data")) {
                 iconField(path, name, object);
+            } else if ("quest".equals(form) && name.equals("repeatable")) {
+                repeatField(path, property.getValue(), object);
+            } else if ("quest".equals(form) && name.equals("category")) {
+                questTypeField(path, object);
+            } else if ("boss".equals(form) && BOSS_PARTS.contains(name)) {
+                bossPartField(path, name, property.getValue(), object);
+            } else if ("boss".equals(form) && name.equals("participation")) {
+                percentField(path, name, property.getValue(), object, fieldLabel(name, false, schema));
+            } else if ("codex".equals(form) && name.equals("category")) {
+                codexCategoryField(path, object);
+            } else if ("unlock".equals(form) && name.equals("on")) {
+                unlockSourcesField(path, object, fieldLabel(name, false, schema));
             } else {
                 field(path, name, property.getValue(), required.contains(name), schema);
             }
@@ -450,6 +484,7 @@ final class FormView {
      * starts; what happens with several players; the rest. Each group but the first opens with a heading at this field.
      */
     private static final Map<String, String> NPC_GROUPS = Map.of(
+            "entity", "npc.group.who",
             "interact", "npc.group.start",
             "exclusive", "npc.group.players",
             "respawn", "npc.group.other");
@@ -476,6 +511,7 @@ final class FormView {
      * a point or an area; how it looks; when it shows.
      */
     private static final Map<String, String> WAYPOINT_GROUPS = Map.of(
+            "name", "waypoint.group.where",
             "color", "waypoint.group.look",
             "quest", "waypoint.group.when");
 
@@ -491,6 +527,7 @@ final class FormView {
      * only on the dialogue screen; who speaks; what an interruption does.
      */
     private static final Map<String, String> DIALOGUE_GROUPS = Map.of(
+            "presentation", "dialogue.group.show",
             "participants", "dialogue.group.who",
             "closable", "dialogue.group.abort");
 
@@ -537,24 +574,79 @@ final class FormView {
      * the file's order: an option's id first, a jump's node before its dialogue): what is said and where it goes first;
      * then, in groups, the rest. A line's camera shows only where it turns (the dialogue screen with the camera on).
      */
-    private static final Map<String, List<String>> NODE_ORDER = Map.of(
-            "node.jump", List.of("dialogue", "node"),
-            "option", List.of("text", "next", "conditions", "locked", "locked_text", "actions", "once", "think", "id"),
+    private static final Map<String, List<String>> NODE_ORDER = Map.ofEntries(
+            Map.entry("node.jump", List.of("dialogue", "node")),
+            Map.entry("option", List.of("text", "next", "conditions", "locked", "locked_text", "actions", "once", "think", "id")),
             // A document (October 30, 2026; before, the file's order, the journal behind a row, the contract for every kind).
-            "document", List.of("title", "kind", "custom_model_data", "style", "journal", "on_read", "contract", "content"),
-            "journal", List.of("add_on_read", "category"));
+            Map.entry("document", List.of("title", "kind", "custom_model_data", "style", "journal", "on_read", "contract", "content")),
+            Map.entry("journal", List.of("add_on_read", "category")),
+            // A quest (October 30, 2026; before, the file's order: its group and scope before its title, its texts per
+            // state, start, stages and rewards shown as counts): what it is; how it goes; what it gives and changes;
+            // for whom. Then its stages and their objectives.
+            Map.entry("quest", List.of("title", "description", "text", "category", "difficulty", "start", "stages", "time_limit", "fail_when",
+                    "rewards", "on_start", "on_complete", "on_failed", "scope", "repeatable", "map_visibility", "notify")),
+            Map.entry("stage", List.of("id", "log", "objectives", "next", "waypoints", "on_enter")),
+            Map.entry("objective", List.of("id", "text", "trigger", "conditions", "count", "items", "since_stage", "optional", "hidden", "hint", "hints")),
+            // A boss and a Codex entry (October 30, 2026; before, the file's order, a section's text an id of a file):
+            // who or what it is; its sections in the tab, each with its text and when it opens; what a victory does.
+            Map.entry("boss", List.of("title", "entity", "notify", "lore", "tactics", "rewards", "participation", "on_first_kill", "on_kill")),
+            Map.entry("codex", List.of("title", "category", "entity", "show_kills", "notify", "sections")),
+            Map.entry("codex.section", List.of("title", "text", "unlock", "id")),
+            Map.entry("unlock", List.of("on", "count", "conditions")),
+            // A story event, a script block, a flag (October 30, 2026; before, the file's order without headings): when
+            // and what; what the block is and where it leads, its file last; what the flag holds, then where.
+            Map.entry("event", List.of("trigger", "conditions", "once", "actions", "on_fail")),
+            Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
+            Map.entry("flag", List.of("description", "type", "default", "scope", "sync")));
 
-    private static final Map<String, Map<String, String>> NODE_GROUPS = Map.of(
-            "node.line", Map.of("sound", "node.group.sound_time", "shot", "node.group.camera"),
-            "option", Map.of("conditions", "option.group.when", "actions", "option.group.chosen", "id", "option.group.other"),
-            "document", Map.of("custom_model_data", "document.group.look", "journal", "document.group.journal", "on_read", "document.group.read",
-                    "contract", "document.group.contract", "content", "document.group.other"));
+    /** The forms known by the node they edit rather than by their fields. */
+    private static final Map<ResourceLocation, String> ROOT_FORMS = Map.of(
+            ClientDevStore.TYPE_EVENT, "event",
+            ClientDevStore.TYPE_SCRIPT, "script",
+            ClientDevStore.TYPE_FLAG, "flag",
+            ClientDevStore.TYPE_CHAPTER, "chapter");
+
+    /** A boss's sections, each shown in its form under a heading of its own, with whether the entry has it. */
+    private static final Set<String> BOSS_PARTS = Set.of("lore", "tactics", "rewards");
+
+    /**
+     * The headings of a form's groups, each at its first field (October 30, 2026: the first group's too, so every form
+     * goes on from the name under a heading; before, its first fields read as the name's). A small page (a dialogue's
+     * jump, a condition) has none: its title says what it is. A lone field joins a neighbouring group rather than
+     * standing under a heading of its own, except a technical one at the end ("Other").
+     */
+    private static final Map<String, Map<String, String>> NODE_GROUPS = Map.ofEntries(
+            Map.entry("boss", Map.of("title", "boss.group.who", "participation", "boss.group.victory")),
+            Map.entry("codex", Map.of("title", "codex.group.entry", "sections", "codex.group.sections")),
+            Map.entry("node.line", Map.of("speaker", "node.group.line", "sound", "node.group.sound_time", "shot", "node.group.camera")),
+            // A dialogue's other nodes: under the name, a heading with what the node is.
+            Map.entry("node.choice", Map.of("options", "node.group.choice")),
+            Map.entry("node.condition", Map.of("conditions", "node.group.condition")),
+            Map.entry("node.action", Map.of("actions", "node.group.action")),
+            Map.entry("node.random", Map.of("options", "node.group.random")),
+            Map.entry("node.jump", Map.of("dialogue", "node.group.jump")),
+            Map.entry("node.call", Map.of("dialogue", "node.group.call")),
+            Map.entry("node.end", Map.of("actions", "node.group.end")),
+            Map.entry("option", Map.of("text", "option.group.answer", "conditions", "option.group.when", "actions", "option.group.chosen", "id", "option.group.other")),
+            Map.entry("document", Map.of("title", "document.group.what", "custom_model_data", "document.group.look", "journal", "document.group.journal",
+                    "on_read", "document.group.read", "contract", "document.group.contract", "content", "document.group.other")),
+            Map.entry("quest", Map.of("title", "quest.group.about", "start", "quest.group.flow", "rewards", "quest.group.reward", "scope", "quest.group.who")),
+            Map.entry("stage", Map.of("id", "stage.group.stage", "objectives", "stage.group.objectives", "waypoints", "stage.group.during")),
+            Map.entry("objective", Map.of("id", "objective.group.what", "trigger", "objective.group.counts", "optional", "objective.group.shown")),
+            Map.entry("event", Map.of("trigger", "event.group.when", "actions", "event.group.does")),
+            Map.entry("script", Map.of("title", "script.group.block", "leads_to", "script.group.leads", "file", "script.group.file")),
+            Map.entry("flag", Map.of("description", "flag.group.what", "scope", "flag.group.where")),
+            Map.entry("chapter", Map.of("title", "chapter.group.chapter")));
 
     private static boolean nodeFieldShown(String form, String name, @Nullable JsonObject object, @Nullable JsonObject dialogue) {
         if (form.equals("node.line") && (name.equals("shot") || name.equals("transition"))) {
             boolean screen = !(dialogue != null && dialogue.get("presentation") instanceof JsonPrimitive shown) || shown.getAsString().equals("screen");
             boolean camera = !(dialogue != null && dialogue.get("camera") instanceof JsonPrimitive mode) || !mode.getAsString().equals("off");
             return screen && camera || object != null && object.has(name);
+        }
+        if (form.equals("objective") && name.equals("since_stage")) {
+            // Only a trigger counts "since the stage".
+            return object != null && (object.has("trigger") || object.has("since_stage"));
         }
         if (form.equals("document") && name.equals("contract")) {
             // Only a contract has one.
@@ -567,7 +659,563 @@ final class FormView {
         if (form.equals("option") && name.equals("locked_text")) {
             return object != null && (object.get("locked") instanceof JsonPrimitive locked && locked.getAsString().equals("show") || object.has("locked_text"));
         }
+        if (form.equals("codex") && name.equals("show_kills")) {
+            // Kills are counted of the entry's entity.
+            return object != null && (object.has("entity") || object.has("show_kills"));
+        }
+        if (form.equals("unlock") && name.equals("count")) {
+            // A read counts once, an action opens at once: only sightings and kills are counted.
+            List<String> sources = stringsOf(object != null ? object.get("on") : null);
+            return sources.isEmpty() || sources.contains("seen") || sources.contains("killed") || object.has("count");
+        }
         return true;
+    }
+
+    /**
+     * A quest's parts in words, for the rows that open them: its stages by name ("find_tracks → kill → report"), its
+     * texts per state ("its own: active, completed"), its start ("when: talked to an NPC + conditions"), its rewards
+     * ("2 items, 1 of 3 to choose, 50 XP"), an objective's items ("5 × wolf hide, handed in"). Null for other rows.
+     */
+    private static @Nullable String questSummary(String name, Node owner, @Nullable JsonElement value) {
+        Map<String, Node> properties = Schemas.properties(owner);
+        boolean quest = properties.containsKey("stages") && properties.containsKey("fail_when");
+        if (quest && name.equals("stages")) {
+            List<String> ids = new ArrayList<>();
+            if (value instanceof JsonArray stages) {
+                stages.forEach(stage -> ids.add(stage instanceof JsonObject object && object.get("id") instanceof JsonPrimitive id ? id.getAsString() : "?"));
+            }
+            return ids.isEmpty() ? "—" : String.join(" → ", ids);
+        }
+        if (quest && name.equals("text")) {
+            List<String> states = new ArrayList<>();
+            if (value instanceof JsonObject texts) {
+                for (String state : List.of("active", "completed", "failed")) {
+                    if (texts.has(state)) {
+                        states.add(DevUi.str("field." + state).toLowerCase(java.util.Locale.ROOT));
+                    }
+                }
+            }
+            return states.isEmpty() ? DevUi.str("quest.texts_none") : DevUi.str("quest.texts_own", String.join(", ", states));
+        }
+        if (quest && name.equals("start")) {
+            if (!(value instanceof JsonObject start) || !(start.get("trigger") instanceof JsonObject trigger) || !trigger.has("type")) {
+                return DevUi.str("quest.start_none");
+            }
+            boolean conditions = start.get("conditions") instanceof JsonArray list ? !list.isEmpty() : start.get("conditions") instanceof JsonObject;
+            return DevUi.str("quest.start_when", typeName(Logic.TRIGGER, trigger.get("type").getAsString())) + (conditions ? DevUi.str("quest.and_conditions") : "");
+        }
+        if (quest && name.equals("rewards")) {
+            if (value == null) {
+                return "—";
+            }
+            if (value instanceof JsonArray || value instanceof JsonObject old && old.has("type")) {
+                return DevUi.str("quest.rewards_actions", value instanceof JsonArray list ? list.size() : 1);
+            }
+            JsonObject rewards = value.getAsJsonObject();
+            List<String> parts = new ArrayList<>();
+            if (rewards.get("items") instanceof JsonArray items && !items.isEmpty()) {
+                parts.add(DevUi.str("quest.rewards_items", items.size()));
+            }
+            if (rewards.get("choice") instanceof JsonArray choice && !choice.isEmpty()) {
+                parts.add(DevUi.str("quest.rewards_choice", choice.size()));
+            }
+            if (rewards.get("xp") instanceof JsonPrimitive xp && xp.isNumber() && xp.getAsInt() > 0) {
+                parts.add(DevUi.str("quest.rewards_xp", xp.getAsInt()));
+            }
+            if (rewards.has("loot")) {
+                parts.add(DevUi.str("quest.rewards_loot"));
+            }
+            if (rewards.get("actions") instanceof JsonArray actions && !actions.isEmpty() || rewards.get("actions") instanceof JsonObject) {
+                parts.add(DevUi.str("quest.rewards_more"));
+            }
+            if (parts.isEmpty()) {
+                return "—";
+            }
+            boolean claim = !(rewards.get("claim") instanceof JsonPrimitive claimed) || claimed.getAsBoolean();
+            return String.join(", ", parts) + (claim ? "" : DevUi.str("quest.rewards_at_once"));
+        }
+        if (name.equals("items") && properties.containsKey("since_stage") && value instanceof JsonObject items) {
+            String what = items.get("item") instanceof JsonPrimitive item ? item.getAsString() : items.get("tag") instanceof JsonPrimitive tag ? "#" + tag.getAsString() : "?";
+            boolean consume = items.get("consume") instanceof JsonPrimitive consumed && consumed.getAsBoolean();
+            return what + (consume ? DevUi.str("quest.items_handed_in") : DevUi.str("quest.items_had"));
+        }
+        return null;
+    }
+
+    /**
+     * A Codex section (the condition "Codex entry open", the action "Open a Codex section"): a button with it by its
+     * title and a dropdown of the chosen entry's sections, "The whole entry" first (October 30, 2026; before, its id
+     * typed blind).
+     */
+    private void codexSectionField(List<Object> path, String name, @Nullable JsonElement value, Component label) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        JsonObject owner = objectAt(path);
+        ResourceLocation entry = owner != null && owner.get("entry") instanceof JsonPrimitive id ? ResourceLocation.tryParse(id.getAsString()) : null;
+        Map<String, String> sections = new LinkedHashMap<>();
+        if (entry != null && ClientDevStore.parseObject(ClientDevStore.getJson(ClientDevStore.TYPE_CODEX, entry)).get("sections") instanceof JsonArray list) {
+            for (JsonElement element : list) {
+                if (element instanceof JsonObject section && section.get("id") instanceof JsonPrimitive id) {
+                    String title = ClientDevStore.readStoryText(section, "title", "");
+                    sections.put(id.getAsString(), title.isBlank() ? id.getAsString() : title + " (" + id.getAsString() + ")");
+                }
+            }
+        }
+        String current = value instanceof JsonPrimitive written ? written.getAsString() : "";
+        String shown = current.isEmpty() ? DevUi.str("codex.whole_entry") : sections.getOrDefault(current, DevUi.str("codex.no_such_section", current));
+        int buttonX = x;
+        Button button = Button.builder(Component.literal(shown + " ▾"), b -> {
+            List<DevModeScreen.MenuItem> items = new ArrayList<>();
+            items.add(DevModeScreen.MenuItem.of(Component.literal((current.isEmpty() ? "✓ " : "   ") + DevUi.str("codex.whole_entry")), () -> {
+                ensureObject(path).remove(name);
+                host.changed();
+            }));
+            sections.forEach((id, title) -> items.add(DevModeScreen.MenuItem.of(Component.literal((id.equals(current) ? "✓ " : "   ") + title), () -> {
+                ensureObject(path).addProperty(name, id);
+                host.changed();
+            })));
+            if (entry == null) {
+                screen.status(DevUi.text("codex.pick_entry_first"), DevUi.WARN);
+            }
+            screen.openMenu(buttonX, rowTop + CONTROL_H, items);
+        }).bounds(x, rowTop, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("codex.section_tooltip")));
+        screen.add(button);
+    }
+
+    /**
+     * A boss's section (lore, tactics, rewards) under a heading of its own: whether the entry has it (a section left out
+     * is not in the Bosses tab, whatever its text), and while it does its fields here, its text and when it opens first
+     * (October 30, 2026; before, a row each opening a page with the text as an id of a file).
+     */
+    private void bossPartField(List<Object> path, String name, Node node, @Nullable JsonObject boss) {
+        group(fieldLabel(name, false));
+        boolean on = boss != null && boss.get(name) instanceof JsonObject;
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("boss.part_shown"));
+            Button toggle = Button.builder(Component.literal(DevUi.yesNo(on)), b -> {
+                if (on) {
+                    // The text file stays: turning the section on again brings it back.
+                    ensureObject(path).remove(name);
+                } else {
+                    ensureObject(path).add(name, new JsonObject());
+                }
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            toggle.setTooltip(Tooltip.create(DevUi.text("boss.part_tooltip." + name)));
+            screen.add(toggle);
+        }
+        if (on) {
+            objectPage(with(path, name), node, Set.of(), null);
+        }
+    }
+
+    /**
+     * The long text ({@code .sbt}) a boss's section or a Codex section shows: its own {@code text}, else the one named
+     * after it ({@code <ns>:bosses/<boss>/<section>}, {@code <ns>:codex/<entry>/<section id>}). Null elsewhere, and for
+     * a Codex section without a name yet.
+     */
+    private @Nullable ResourceLocation longTextFile(List<Object> path) {
+        StoryLinks.NodeKey key = host.node();
+        if (key == null) {
+            return null;
+        }
+        JsonObject owner = objectAt(path);
+        ResourceLocation id = key.id();
+        String named;
+        if (key.type().equals(ClientDevStore.TYPE_BOSS) && path.size() == 1 && path.getFirst() instanceof String part && BOSS_PARTS.contains(part)) {
+            named = "bosses/" + id.getPath() + "/" + part;
+        } else if (key.type().equals(ClientDevStore.TYPE_CODEX) && path.size() == 2 && "sections".equals(path.getFirst())
+                && owner != null && owner.get("id") instanceof JsonPrimitive section && !section.getAsString().isBlank()) {
+            named = "codex/" + id.getPath() + "/" + section.getAsString();
+        } else {
+            return null;
+        }
+        ResourceLocation own = owner != null && owner.get("text") instanceof JsonPrimitive text ? ResourceLocation.tryParse(text.getAsString()) : null;
+        return own != null ? own : ResourceLocation.fromNamespaceAndPath(id.getNamespace(), named);
+    }
+
+    /**
+     * A section's long text: a button with its first line opens the text window (with markup), saved to its file at
+     * once. A boss's rewards show a text only when they name it, so the first one written names its file.
+     */
+    private void longTextFileField(List<Object> path, String name, Component label, ResourceLocation textId) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        String current = DocumentTexts.load(textId, ClientDevStore.activeLanguage()).orElse("");
+        String first = current.lines().filter(line -> !line.isBlank()).findFirst().orElse("");
+        String shown = screen.font().plainSubstrByWidth("✎ " + (first.isEmpty() ? DevUi.str("text.empty") : first), w - 8);
+        StoryLinks.NodeKey key = host.node();
+        String section = path.getLast() instanceof String part ? fieldLabel(part, false).getString() : sectionName(objectAt(path));
+        Button button = Button.builder(Component.literal(shown), b -> screen.textEditor().open(
+                DevUi.text("text.title_section", key != null ? StoryView.title(key) : "", section), current, StoryInspector.hint(textId),
+                text -> {
+                    DevRequests.saveText(textId, text);
+                    JsonObject owner = ensureObject(path);
+                    if ("rewards".equals(path.getLast()) && !owner.has(name) && !text.isBlank()) {
+                        owner.addProperty(name, textId.toString());
+                        host.changed();
+                    }
+                }, null)).bounds(x, rowTop, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("text.edit_tooltip", textId.toString())));
+        screen.add(button);
+    }
+
+    private static String sectionName(@Nullable JsonObject section) {
+        String title = section != null ? ClientDevStore.readStoryText(section, "title", "") : "";
+        return !title.isBlank() ? title : section != null && section.get("id") instanceof JsonPrimitive id ? id.getAsString() : "";
+    }
+
+    /** A Codex entry's sections by their titles: "Habits · Weaknesses". */
+    private static String sectionsSummary(@Nullable JsonElement value) {
+        List<String> names = new ArrayList<>();
+        if (value instanceof JsonArray sections) {
+            sections.forEach(section -> names.add(sectionName(section instanceof JsonObject object ? object : null)));
+        }
+        return names.isEmpty() ? "—" : String.join(" · ", names);
+    }
+
+    /**
+     * When a section opens, in words: "when seen or read «Diary» · 3 times + conditions", which opens its settings. A
+     * boss's section without its own opens as the game decides by default (lore when seen, tactics and rewards when
+     * killed), said so; the first change writes that default out, as the sources are required.
+     */
+    private void unlockField(List<Object> path, String name, Node node, @Nullable JsonElement value, Component label, @Nullable Tooltip tooltip) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        JsonObject unlock = value instanceof JsonObject object ? object : null;
+        List<String> written = stringsOf(unlock != null ? unlock.get("on") : null);
+        List<String> sources = written.isEmpty() ? defaultSources(path) : written;
+        StringBuilder words = new StringBuilder(DevUi.str("unlock.when", String.join(DevUi.str("unlock.or"), sources.stream().map(FormView::sourceName).toList())));
+        if (unlock != null && unlock.get("count") instanceof JsonPrimitive count && count.isNumber() && count.getAsInt() > 1) {
+            words.append(DevUi.str("unlock.times", count.getAsInt()));
+        }
+        if (unlock != null && (unlock.get("conditions") instanceof JsonArray list ? !list.isEmpty() : unlock.get("conditions") instanceof JsonObject)) {
+            words.append(DevUi.str("quest.and_conditions"));
+        }
+        if (written.isEmpty()) {
+            words.append(DevUi.str("unlock.by_default"));
+        }
+        Button button = Button.builder(Component.literal(words + " ▸"), b -> {
+            JsonObject opens = ensureObject(with(path, name));
+            if (stringsOf(opens.get("on")).isEmpty()) {
+                JsonArray on = new JsonArray();
+                sources.forEach(on::add);
+                opens.add("on", on);
+                host.edited();
+            }
+            push(with(path, name), node, fieldLabel(name, false).getString(), false);
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(tooltip != null ? tooltip : Tooltip.create(DevUi.text("unlock.tooltip")));
+        screen.add(button);
+    }
+
+    /** The sources a section opens on while it names none: a boss's lore on sight, the rest on a kill; a Codex section always names them. */
+    private List<String> defaultSources(List<Object> path) {
+        if (path.size() == 1 && "lore".equals(path.getFirst())) {
+            return List.of("seen");
+        }
+        if (path.size() == 1 && path.getFirst() instanceof String part && BOSS_PARTS.contains(part)) {
+            return List.of("killed");
+        }
+        return List.of(host.root().has("entity") ? "seen" : "manual");
+    }
+
+    private static List<String> stringsOf(@Nullable JsonElement value) {
+        List<String> strings = new ArrayList<>();
+        if (value instanceof JsonArray list) {
+            list.forEach(element -> {
+                if (element instanceof JsonPrimitive string) {
+                    strings.add(string.getAsString());
+                }
+            });
+        }
+        return strings;
+    }
+
+    private static String capitalized(String text) {
+        return text.isEmpty() ? text : text.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + text.substring(1);
+    }
+
+    /** "on sight", "on a kill", "by an action", "on reading «Diary»". */
+    private static String sourceName(String source) {
+        if (source.startsWith("read:")) {
+            ResourceLocation document = ResourceLocation.tryParse(source.substring("read:".length()));
+            String title = document == null ? source : StoryView.title(new StoryLinks.NodeKey(ClientDevStore.TYPE_DOCUMENT, document));
+            return DevUi.str("unlock.source.read", title);
+        }
+        return DevUi.str("unlock.source." + source);
+    }
+
+    /**
+     * What opens a section: switches for sight, a kill and an action, then the documents whose reading opens it, each
+     * removable, and "+ Read a document…" with the story's documents (October 30, 2026; before, a list of strings typed
+     * as "seen" or "read:storybound:diary"). The last source cannot go: a section must open somehow.
+     */
+    private void unlockSourcesField(List<Object> path, @Nullable JsonObject unlock, Component label) {
+        List<String> written = stringsOf(unlock != null ? unlock.get("on") : null);
+        List<String> sources = written.isEmpty() ? defaultSources(path.subList(0, Math.max(0, path.size() - 1))) : written;
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(label);
+            int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+            List<String> switches = List.of("seen", "killed", "manual");
+            int each = (w - 4) / 3;
+            for (int i = 0; i < switches.size(); i++) {
+                String source = switches.get(i);
+                boolean on = sources.contains(source);
+                Button toggle = Button.builder(Component.literal((on ? "✓ " : "") + DevUi.str("unlock.switch." + source)), b -> {
+                    List<String> next = new ArrayList<>(sources);
+                    if (on) {
+                        next.remove(source);
+                    } else {
+                        next.add(source);
+                    }
+                    writeSources(path, next);
+                }).bounds(x + i * (each + 2), rowTop, i == 2 ? w - 2 * (each + 2) : each, CONTROL_H).build();
+                toggle.setTooltip(Tooltip.create(DevUi.text("unlock.source_tooltip." + source)));
+                screen.add(toggle);
+            }
+        }
+        for (String source : sources) {
+            if (!source.startsWith("read:") || !row(CONTROL_H)) {
+                continue;
+            }
+            int rowTop = rowY(CONTROL_H);
+            screen.add(Button.builder(Component.literal("📄 " + capitalized(sourceName(source))), b -> {
+                ResourceLocation document = ResourceLocation.tryParse(source.substring("read:".length()));
+                if (document != null) {
+                    screen.status(DevUi.text("unlock.document_is", document.toString()), DevUi.LABEL);
+                }
+            }).bounds(x, rowTop, w - 20, CONTROL_H).build());
+            screen.add(Button.builder(Component.literal("✕"), b -> {
+                List<String> next = new ArrayList<>(sources);
+                next.remove(source);
+                writeSources(path, next);
+            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
+        }
+        if (!row(CONTROL_H)) {
+            return;
+        }
+        int rowTop = rowY(CONTROL_H);
+        screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("unlock.add_document")), b -> {
+            List<DevModeScreen.MenuItem> items = new ArrayList<>();
+            ClientDevStore.byType(ClientDevStore.TYPE_DOCUMENT).keySet().stream().sorted(java.util.Comparator.comparing(ResourceLocation::toString))
+                    .filter(document -> !sources.contains("read:" + document)).forEach(document -> items.add(DevModeScreen.MenuItem.of(
+                            Component.literal(StoryView.title(new StoryLinks.NodeKey(ClientDevStore.TYPE_DOCUMENT, document)) + " (" + document + ")"), () -> {
+                                List<String> next = new ArrayList<>(sources);
+                                next.add("read:" + document);
+                                writeSources(path, next);
+                            })));
+            if (items.isEmpty()) {
+                screen.status(DevUi.text("unlock.no_documents"), DevUi.WARN);
+                return;
+            }
+            screen.openMenu(x, rowTop + CONTROL_H, items);
+        }).tooltip(Tooltip.create(DevUi.text("unlock.add_document_tooltip"))).bounds(x, rowTop, w, CONTROL_H).build());
+    }
+
+    private void writeSources(List<Object> path, List<String> sources) {
+        if (sources.isEmpty()) {
+            screen.status(DevUi.text("unlock.need_one"), DevUi.WARN);
+            return;
+        }
+        JsonArray on = new JsonArray();
+        sources.forEach(on::add);
+        ensureObject(path).add("on", on);
+        host.changed();
+    }
+
+    /**
+     * A share written as a fraction, in percent: "5" for 0.05 (October 30, 2026; before, the fraction). Empty leaves it
+     * out (the default); a number off 0–100 turns red and is not written.
+     */
+    private void percentField(List<Object> path, String name, Node node, @Nullable JsonObject object, Component label) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        EditBox box = new EditBox(screen.font(), x, rowTop + 1, w, CONTROL_H - 2, label);
+        box.setMaxLength(8);
+        box.setValue(object != null && object.get(name) instanceof JsonPrimitive share && share.isNumber()
+                ? format(Math.round(share.getAsDouble() * 10000) / 100.0) : "");
+        JsonElement fallback = Schemas.resolve(node).defaultValue();
+        if (fallback != null && fallback.isJsonPrimitive()) {
+            box.setHint(DevUi.text("form.percent_default", format(Math.round(fallback.getAsDouble() * 10000) / 100.0))
+                    .copy().withStyle(style -> style.withColor(0xFF6B7380)));
+        }
+        box.setResponder(text -> {
+            JsonObject owner = ensureObject(path);
+            if (text.isBlank()) {
+                owner.remove(name);
+                box.setTextColor(0xFFE0E0E0);
+                host.edited();
+                return;
+            }
+            Double percent = null;
+            try {
+                double parsed = Double.parseDouble(text.trim().replace(',', '.'));
+                percent = parsed >= 0 && parsed <= 100 ? parsed : null;
+            } catch (NumberFormatException ignored) {
+                // Stays red until it is a number.
+            }
+            box.setTextColor(percent != null ? 0xFFE0E0E0 : DevUi.ERROR);
+            if (percent != null) {
+                owner.addProperty(name, percent / 100);
+                host.edited();
+            }
+        });
+        String description = !node.description().isEmpty() ? node.description() : Schemas.resolve(node).description();
+        if (!description.isEmpty()) {
+            box.setTooltip(Tooltip.create(Component.literal(described(description))));
+        }
+        screen.add(box);
+    }
+
+    /**
+     * A Codex entry's group in the Codex tab: a button with it by name and a dropdown of the built-in groups and those
+     * other entries have (October 30, 2026; before, an id typed, labelled "Section").
+     */
+    private void codexCategoryField(List<Object> path, @Nullable JsonObject entry) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("field.codex.category"));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        String current = entry != null && entry.get("category") instanceof JsonPrimitive written ? shortType(written.getAsString()) : "monsters";
+        java.util.Set<String> categories = new java.util.LinkedHashSet<>(List.of("monsters", "animals", "characters", "places", "lore"));
+        ClientDevStore.byType(ClientDevStore.TYPE_CODEX).values().forEach(raw -> {
+            if (ClientDevStore.parseObject(raw).get("category") instanceof JsonPrimitive category) {
+                categories.add(shortType(category.getAsString()));
+            }
+        });
+        categories.add(current);
+        int buttonX = x;
+        Button button = Button.builder(Component.literal(codexCategoryName(current) + " ▾"), b -> {
+            List<DevModeScreen.MenuItem> items = new ArrayList<>();
+            for (String category : categories) {
+                items.add(DevModeScreen.MenuItem.of(Component.literal((category.equals(current) ? "✓ " : "   ") + codexCategoryName(category)), () -> {
+                    JsonObject owner = ensureObject(path);
+                    if (category.equals("monsters")) {
+                        owner.remove("category");
+                    } else {
+                        owner.addProperty("category", category);
+                    }
+                    host.changed();
+                }));
+            }
+            screen.openMenu(buttonX, rowTop + CONTROL_H, items);
+        }).bounds(x, rowTop, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("codex.category_tooltip")));
+        screen.add(button);
+    }
+
+    /** "Monsters"; another group by its translation ({@code <ns>.codex.category.<path>}), or as it is. */
+    private static String codexCategoryName(String category) {
+        ResourceLocation id = ResourceLocation.tryParse(category.contains(":") ? category : "storybound:" + category);
+        String key = id == null ? "" : id.getNamespace() + ".codex.category." + id.getPath();
+        return Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : category;
+    }
+
+    /**
+     * The quest's type, its group in the Quests tab: a button with it by name and a dropdown of the types (main, side,
+     * contract, and those other quests have), October 30, 2026 (before, an id typed, labelled "Section").
+     */
+    private void questTypeField(List<Object> path, @Nullable JsonObject quest) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("quest.type"));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        String current = quest != null && quest.get("category") instanceof JsonPrimitive written ? written.getAsString() : "side";
+        java.util.Set<String> types = new java.util.LinkedHashSet<>(List.of("main", "side", "contract"));
+        ClientDevStore.byType(ClientDevStore.TYPE_QUEST).values().forEach(raw -> {
+            if (ClientDevStore.parseObject(raw).get("category") instanceof JsonPrimitive category) {
+                types.add(shortType(category.getAsString()));
+            }
+        });
+        int buttonX = x;
+        Button button = Button.builder(Component.literal(questTypeName(current) + " ▾"), b -> {
+            List<DevModeScreen.MenuItem> items = new ArrayList<>();
+            for (String type : types) {
+                items.add(DevModeScreen.MenuItem.of(Component.literal((type.equals(shortType(current)) ? "✓ " : "   ") + questTypeName(type)), () -> {
+                    JsonObject owner = ensureObject(path);
+                    if (type.equals("side")) {
+                        owner.remove("category");
+                    } else {
+                        owner.addProperty("category", type);
+                    }
+                    host.changed();
+                }));
+            }
+            screen.openMenu(buttonX, rowTop + CONTROL_H, items);
+        }).bounds(x, rowTop, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("quest.type_tooltip")));
+        screen.add(button);
+    }
+
+    /** {@code storybound:main} is written {@code main}, as the built-in types are; another namespace's stays whole. */
+    private static String shortType(String type) {
+        return type.startsWith("storybound:") ? type.substring("storybound:".length()) : type;
+    }
+
+    /** "Main quests"; another type by its translation, or as it is. */
+    private static String questTypeName(String type) {
+        ResourceLocation id = ResourceLocation.tryParse(type.contains(":") ? type : "storybound:" + type);
+        String key = id == null ? "" : id.getNamespace() + ".quest.category." + id.getPath();
+        return Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : type;
+    }
+
+    /**
+     * Whether the quest comes again: no, or yes with how in words ("at once, without a limit", "after 600 s, at most
+     * 3 times"), which opens its settings. Before, a switch between "true" and an object.
+     */
+    private void repeatField(List<Object> path, Node node, @Nullable JsonObject quest) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(fieldLabel("repeatable", false));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        JsonElement repeat = quest != null ? quest.get("repeatable") : null;
+        boolean on = repeat != null && !(repeat instanceof JsonPrimitive flag && !flag.getAsBoolean());
+        int toggleW = on ? Math.min(60, w / 3) : w;
+        Button toggle = Button.builder(Component.literal(DevUi.yesNo(on)), b -> {
+            if (on) {
+                ensureObject(path).remove("repeatable");
+            } else {
+                ensureObject(path).addProperty("repeatable", true);
+            }
+            host.changed();
+        }).bounds(x, rowTop, toggleW, CONTROL_H).build();
+        if (!node.description().isEmpty()) {
+            toggle.setTooltip(Tooltip.create(Component.literal(described(node.description()))));
+        }
+        screen.add(toggle);
+        if (on) {
+            JsonObject settings = repeat instanceof JsonObject object ? object : new JsonObject();
+            String cooldown = settings.get("cooldown") instanceof JsonPrimitive seconds && seconds.isNumber() && seconds.getAsDouble() > 0
+                    ? DevUi.str("quest.repeat_after", format(seconds.getAsDouble())) : DevUi.str("quest.repeat_at_once");
+            String times = settings.get("times") instanceof JsonPrimitive count && count.isNumber()
+                    ? DevUi.str("quest.repeat_times", count.getAsInt()) : DevUi.str("quest.repeat_unlimited");
+            Component summary = Component.literal(cooldown + ", " + times + " ▸");
+            screen.add(Button.builder(summary, b -> {
+                // "true" becomes the object its settings are written in.
+                if (!(ensureObject(path).get("repeatable") instanceof JsonObject)) {
+                    ensureObject(path).add("repeatable", new JsonObject());
+                    host.edited();
+                }
+                Node object = Schemas.variants(node).stream().filter(variant -> !Schemas.properties(variant).isEmpty()).findFirst().orElse(node);
+                push(with(path, "repeatable"), object, fieldLabel("repeatable", false).getString(), false);
+            }).bounds(x + toggleW + 2, rowTop, w - toggleW - 2, CONTROL_H).build());
+        }
     }
 
     /** The properties with {@code first} in front, in that order; the others after, as the schema has them. */
@@ -809,6 +1457,11 @@ final class FormView {
         return null;
     }
 
+    /** An empty "next" of a quest's stage: the following stage, or the quest completed after the last. */
+    private @Nullable Component stageDefault(String name, List<Object> path) {
+        return name.equals("next") && "stage".equals(insideQuest(path)) && host.quest() != null ? DevUi.text("quest.next_default") : null;
+    }
+
     /** A choice from a list in words where it has some: "@end" is "the end of the dialogue"; a style or a section by its name. */
     private static String choiceLabel(String choice) {
         String key = "storybound.dev.value." + choice;
@@ -817,7 +1470,11 @@ final class FormView {
         }
         ResourceLocation id = choice.contains(":") ? ResourceLocation.tryParse(choice) : null;
         String section = id != null ? id.getNamespace() + ".journal.category." + id.getPath() : "";
-        return id != null && Language.getInstance().has(section) ? Language.getInstance().getOrDefault(section) + " (" + choice + ")" : choice;
+        String questSection = id != null ? id.getNamespace() + ".quest.category." + id.getPath() : "";
+        if (id != null && Language.getInstance().has(section)) {
+            return Language.getInstance().getOrDefault(section) + " (" + choice + ")";
+        }
+        return id != null && Language.getInstance().has(questSection) ? Language.getInstance().getOrDefault(questSection) + " (" + choice + ")" : choice;
     }
 
     /** A heading over a group of fields. */
@@ -1073,9 +1730,6 @@ final class FormView {
      * position, which the box shows greyed.
      */
     private void insideNameField(List<Object> path, String kind) {
-        if (!row(LABEL_H + CONTROL_H + LABEL_H)) {
-            return;
-        }
         boolean objective = kind.equals("objective");
         JsonObject quest = host.root();
         JsonObject stageObject = objectAt(path.subList(0, 2));
@@ -1083,14 +1737,31 @@ final class FormView {
         JsonObject own = objectAt(path);
         boolean named = own != null && own.get("id") instanceof JsonPrimitive;
         String current = objective ? (named ? own.get("id").getAsString() : String.valueOf(path.get(3))) : stage;
-        labelRow(DevUi.text(objective ? "rename.objective" : "rename.stage"));
+        nameRow(path.toString(), DevUi.text(objective ? "rename.objective" : "rename.stage"),
+                DevUi.text(objective ? "rename.objective_tooltip" : "rename.stage_tooltip", current),
+                DevUi.text(objective ? "rename.objective_apply" : "rename.stage_apply"), current,
+                objective && !named ? DevUi.text("rename.by_position", current) : null,
+                typed -> problem(quest, objective, stage, current, typed), to -> host.renameInQuest(stage, objective ? current : "", to));
+    }
+
+    /**
+     * A name inside a definition (a quest's stage or objective, a Codex section) with ✓ that renames it with what names
+     * it: checked as it is typed, the reason under the box. {@code unnamed}: the hint of a box left empty (an objective
+     * named by its position), which then starts empty.
+     */
+    private void nameRow(String key, Component label, Component tooltip, Component applyTooltip, String current, @Nullable Component unnamed,
+                         java.util.function.Function<String, Optional<StoryRenames.Problem>> problemOf, Consumer<String> rename) {
+        if (!row(LABEL_H + CONTROL_H + LABEL_H)) {
+            return;
+        }
+        // The label at the top of this taller row (a reason may show under the box), not where a usual row has it.
+        labels.add(new Label(label, x, rowY(LABEL_H + CONTROL_H + LABEL_H), DevUi.LABEL));
         int rowTop = rowY(LABEL_H + CONTROL_H + LABEL_H) + LABEL_H;
-        String key = path.toString();
-        EditBox box = new EditBox(screen.font(), x, rowTop + 1, w - 22, CONTROL_H - 2, DevUi.text(objective ? "rename.objective" : "rename.stage"));
+        EditBox box = new EditBox(screen.font(), x, rowTop + 1, w - 22, CONTROL_H - 2, label);
         box.setMaxLength(64);
-        box.setValue(insideNames.getOrDefault(key, objective && !named ? "" : current));
-        if (objective && !named) {
-            box.setHint(DevUi.text("rename.by_position", current));
+        box.setValue(insideNames.getOrDefault(key, unnamed != null ? "" : current));
+        if (unnamed != null) {
+            box.setHint(unnamed);
         }
         // Why the typed name cannot be, under the box; replaced in place as it is typed (the form is not rebuilt).
         int reason = labels.size();
@@ -1098,13 +1769,13 @@ final class FormView {
         labels.add(new Label(Component.empty(), x, reasonY, DevUi.ERROR));
         Button apply = Button.builder(Component.literal("✓"), b -> {
             String to = insideNames.getOrDefault(key, "").trim();
-            if (problem(quest, objective, stage, current, to).isEmpty()) {
+            if (problemOf.apply(to).isEmpty()) {
                 insideNames.remove(key);
-                host.renameInQuest(stage, objective ? current : "", to);
+                rename.accept(to);
             }
-        }).tooltip(Tooltip.create(DevUi.text(objective ? "rename.objective_apply" : "rename.stage_apply"))).bounds(x + w - 20, rowTop, 20, CONTROL_H).build();
+        }).tooltip(Tooltip.create(applyTooltip)).bounds(x + w - 20, rowTop, 20, CONTROL_H).build();
         java.util.function.Consumer<String> check = text -> {
-            Optional<StoryRenames.Problem> problem = problem(quest, objective, stage, current, text);
+            Optional<StoryRenames.Problem> problem = problemOf.apply(text);
             boolean bad = problem.isPresent() && problem.get() != StoryRenames.Problem.SAME;
             box.setTextColor(bad ? DevUi.ERROR : 0xFFE0E0E0);
             apply.active = problem.isEmpty();
@@ -1116,7 +1787,7 @@ final class FormView {
             check.accept(text);
         });
         check.accept(box.getValue());
-        box.setTooltip(Tooltip.create(DevUi.text(objective ? "rename.objective_tooltip" : "rename.stage_tooltip", current)));
+        box.setTooltip(Tooltip.create(tooltip));
         screen.add(box);
         screen.add(apply);
     }
@@ -1168,6 +1839,26 @@ final class FormView {
             insideNameField(path, insideQuest(path));
             return;
         }
+        if (name.equals("id") && host.node() != null && host.node().type().equals(ClientDevStore.TYPE_CODEX)
+                && path.size() == 2 && "sections".equals(path.getFirst())) {
+            JsonObject entry = host.root();
+            String current = value instanceof JsonPrimitive id ? id.getAsString() : "";
+            nameRow(path.toString(), DevUi.text("rename.section"), DevUi.text("rename.section_tooltip", current), DevUi.text("rename.section_apply"),
+                    current, null, typed -> StoryRenames.codexSectionProblem(entry, current, typed), to -> host.renameCodexSection(current, to));
+            return;
+        }
+        if (name.equals("section") && Schemas.properties(owner).containsKey("entry") && kind == Kind.STRING) {
+            codexSectionField(path, name, value, label);
+            return;
+        }
+        if (name.equals("text") && kind == Kind.ID && longTextFile(path) != null) {
+            longTextFileField(path, name, label, longTextFile(path));
+            return;
+        }
+        if (name.equals("unlock") && Schemas.properties(node).containsKey("on")) {
+            unlockField(path, name, node, value, label, tooltip);
+            return;
+        }
         if (host.dialogue() != null && "target".equals(Schemas.resolve(node).ref())) {
             targetField(path, name, value, label, required);
             return;
@@ -1201,12 +1892,17 @@ final class FormView {
             }
             case ID_LIST, STRING, INTEGER, NUMBER, LITERAL, POSITION, RAW -> inputField(path, name, node, kind, value, label, tooltip, owner);
             default -> {
-                if (row(CONTROL_H)) {
+                // Under its label, as every other field (October 30, 2026; before, "Label: value ▸" in the button itself, the
+                // only fields without a label above: the eye found no column of names to run down).
+                if (row(LABEL_H + CONTROL_H)) {
+                    labelRow(label);
                     Component shown = name.equals("target") && path.isEmpty() && Schemas.properties(owner).containsKey("show_ring")
                             ? Component.literal(targetSummary(value))
                             : name.equals("participants") && path.isEmpty() && isDialogue(owner) ? Component.literal(participantsSummary(value))
+                            : questSummary(name, owner, value) != null ? Component.literal(questSummary(name, owner, value))
+                            : name.equals("sections") && Schemas.properties(owner).containsKey("show_kills") ? Component.literal(sectionsSummary(value))
                             : summary(kind, node, value);
-                    Component summary = Component.empty().append(label).append(": ").append(shown).append(" ▸");
+                    Component summary = Component.empty().append(shown).append(" ▸");
                     Button button = Button.builder(summary, b -> {
                                 if (Schemas.isOldActionList(node, value)) {
                                     // Written the older way (only actions, given at once): the same as the object with them and no claim.
@@ -1224,7 +1920,7 @@ final class FormView {
                                 }
                                 push(with(path, name), node, fieldLabel(name, false).getString(), !required);
                             })
-                            .bounds(x, rowY(CONTROL_H), w, CONTROL_H).build();
+                            .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
                     if (tooltip != null) {
                         button.setTooltip(tooltip);
                     }
@@ -1240,14 +1936,17 @@ final class FormView {
 
     /**
      * Whether a story text is written at length, so its field has the text window's ✎: a dialogue's line and answer, a
-     * quest's description, its texts per state and its stages' log. The rest (titles, names, a contract's lines, an
-     * objective's line, hints) is one line (October 30, 2026; before, ✎ on every text field).
+     * quest's description, its texts per state and its stages' log, an objective's hint and hints by circumstance. The
+     * rest (titles, names, a contract's lines, an objective's line) is one line (October 30, 2026; before, ✎ on every
+     * text field).
      */
     private static boolean longText(String name, Node owner) {
         Map<String, Node> properties = Schemas.properties(owner);
         return switch (name) {
             case "description", "log", "active", "completed", "failed" -> true;
-            case "text" -> properties.containsKey("speaker") || properties.containsKey("locked_text");
+            // An objective's hint and its hints by circumstance are sentences too; a contract's hint is one line.
+            case "hint" -> properties.containsKey("since_stage");
+            case "text" -> properties.containsKey("speaker") || properties.containsKey("locked_text") || properties.containsKey("after");
             default -> false;
         };
     }
@@ -1312,8 +2011,8 @@ final class FormView {
         String current = value != null && value.isJsonPrimitive() ? value.getAsString() : "";
         JsonElement fallback = node.defaultValue() != null ? node.defaultValue() : Schemas.resolve(node).defaultValue();
         Component shown = current.isEmpty()
-                ? DevUi.text("form.unset", fallback != null ? valueLabel(fallback.getAsString()) : DevUi.text("none"))
-                : valueLabel(current);
+                ? DevUi.text("form.unset", fallback != null ? enumLabel(name, fallback.getAsString()) : DevUi.text("none"))
+                : enumLabel(name, current);
         String byDefault = fallback != null && fallback.isJsonPrimitive() ? fallback.getAsString() : null;
         Button button = Button.builder(shown, b -> {
             String next = nextChoice(values, current, byDefault);
@@ -1547,7 +2246,7 @@ final class FormView {
         box.setMaxLength(4096);
         box.setValue(display(kind, value));
         JsonElement fallback = node.defaultValue() != null ? node.defaultValue() : Schemas.resolve(node).defaultValue();
-        Component byKind = documentDefault(name, path);
+        Component byKind = documentDefault(name, path) != null ? documentDefault(name, path) : stageDefault(name, path);
         if (byKind != null) {
             box.setHint(byKind.copy().withStyle(style -> style.withColor(0xFF6B7380)));
         } else if (fallback != null) {
@@ -1804,8 +2503,17 @@ final class FormView {
             } else {
                 JsonArray list = ensureArray(path);
                 JsonObject element = itemKind == Kind.OBJECT ? Schemas.skeleton(items) : new JsonObject();
-                if (Schemas.required(items).contains("id") && !element.has("id")) {
+                // A quest's objective gets a name too, though the schema does not ask for one: by position, players'
+                // counters would move to another objective when the list is reordered (October 30, 2026).
+                boolean named = Schemas.required(items).contains("id") || Schemas.properties(items).containsKey("since_stage");
+                if (named && !element.has("id")) {
                     element.addProperty("id", freeId(list, field));
+                }
+                // A Codex section must say how it opens: when its creature is seen, or (without one) by an action.
+                if (element.get("unlock") instanceof JsonObject opens && !opens.has("on")) {
+                    JsonArray on = new JsonArray();
+                    on.add(host.root().has("entity") ? "seen" : "manual");
+                    opens.add("on", on);
                 }
                 list.add(element);
                 frames.push(new Frame(with(path, list.size() - 1), items, itemSummary(element, items, list.size() - 1), false));
@@ -2130,8 +2838,29 @@ final class FormView {
         if (properties.containsKey("show_ring")) {
             return WAYPOINT;
         }
+        if (properties.containsKey("participation")) {
+            return "boss";
+        }
+        if (properties.containsKey("show_kills")) {
+            return "codex";
+        }
+        if (properties.containsKey("on") && properties.containsKey("count")) {
+            return "unlock";
+        }
+        if (properties.containsKey("unlock") && properties.containsKey("id")) {
+            return "section";
+        }
         if (properties.containsKey("reward") && properties.containsKey("hint") && properties.containsKey("quest")) {
             return "contract";
+        }
+        if (properties.containsKey("stages") && properties.containsKey("fail_when")) {
+            return "quest";
+        }
+        if (properties.containsKey("since_stage")) {
+            return "objective";
+        }
+        if (properties.containsKey("objectives") && properties.containsKey("on_enter")) {
+            return "stage";
         }
         if (properties.containsKey("locked") && properties.containsKey("once")) {
             return "option";
@@ -2166,24 +2895,48 @@ final class FormView {
         return required ? Component.empty().append(label).append(" *") : label;
     }
 
+    /** A value in the words of its field where it has some ("scope": "each player's own"), else in general ones. */
+    private static Component enumLabel(String field, String value) {
+        String key = "storybound.dev.value." + field + "." + value;
+        return Language.getInstance().has(key) ? Component.translatable(key) : valueLabel(value);
+    }
+
     private static Component valueLabel(String value) {
         String key = "storybound.dev.value." + value;
         return Language.getInstance().has(key) ? Component.translatable(key) : Component.literal(value);
     }
 
+    /**
+     * A part's value in words, for the button under its label: a list by its elements ("Quest: demo:hunt · Flag set"), a
+     * map by its keys, an object by how many of its fields are set; "None" when empty (before, a count: "2", "—").
+     */
     private Component summary(Kind kind, Node node, @Nullable JsonElement value) {
-        int count = value == null ? 0 : value.isJsonArray() ? value.getAsJsonArray().size() : value.isJsonObject() ? 1 : 0;
         return switch (kind) {
-            case CONDITIONS, ACTIONS, LIST -> count == 0 ? Component.literal("—") : Component.literal(String.valueOf(count));
-            case MAP -> Component.literal(value != null && value.isJsonObject() ? String.valueOf(value.getAsJsonObject().size()) : "—");
+            case CONDITIONS, ACTIONS, LIST -> {
+                Node items = kind == Kind.CONDITIONS ? Schemas.logic("condition") : kind == Kind.ACTIONS ? Schemas.logic("action") : Schemas.items(node);
+                List<JsonElement> elements = value == null ? List.of() : value.isJsonArray() ? value.getAsJsonArray().asList() : List.of(value);
+                if (elements.isEmpty()) {
+                    yield DevUi.text("none");
+                }
+                if (items == null) {
+                    yield Component.literal(String.valueOf(elements.size()));
+                }
+                List<String> parts = new ArrayList<>();
+                for (int i = 0; i < elements.size(); i++) {
+                    parts.add(itemSummary(elements.get(i), items, i));
+                }
+                yield Component.literal(String.join(" · ", parts));
+            }
+            case MAP -> value != null && value.isJsonObject() && !value.getAsJsonObject().isEmpty()
+                    ? Component.literal(String.join(" · ", value.getAsJsonObject().keySet())) : DevUi.text("none");
             case TRIGGER, CONDITION, ACTION -> {
                 Logic logic = kind == Kind.TRIGGER ? Logic.TRIGGER : kind == Kind.CONDITION ? Logic.CONDITION : Logic.ACTION;
                 yield value != null && value.isJsonObject() && value.getAsJsonObject().has("type")
-                        ? Component.literal(typeName(logic, value.getAsJsonObject().get("type").getAsString())) : Component.literal("—");
+                        ? Component.literal(typeName(logic, value.getAsJsonObject().get("type").getAsString())) : DevUi.text("none");
             }
-            case VARIANTS -> value != null ? variantLabel(Schemas.variants(node).get(Schemas.variantOf(node, value))) : Component.literal("—");
+            case VARIANTS -> value != null ? variantLabel(Schemas.variants(node).get(Schemas.variantOf(node, value))) : DevUi.text("none");
             default -> value != null && value.isJsonObject() && !value.getAsJsonObject().isEmpty()
-                    ? Component.literal(String.valueOf(value.getAsJsonObject().size())) : Component.literal("—");
+                    ? DevUi.text("form.fields_set", value.getAsJsonObject().size()) : DevUi.text("none");
         };
     }
 
@@ -2208,6 +2961,10 @@ final class FormView {
             Logic logic = kind == Kind.CONDITION ? Logic.CONDITION : kind == Kind.ACTION ? Logic.ACTION : Logic.TRIGGER;
             String main = mainValue(object);
             return typeName(logic, object.get("type").getAsString()) + (main.isEmpty() ? "" : ": " + main);
+        }
+        if (Schemas.properties(items).containsKey("unlock") && object.get("id") instanceof JsonPrimitive id) {
+            String title = ClientDevStore.readStoryText(object, "title", "");
+            return title.isBlank() ? id.getAsString() : title + " (" + id.getAsString() + ")";
         }
         if (object.has("id") && object.get("id").isJsonPrimitive()) {
             return object.get("id").getAsString();
@@ -2237,6 +2994,19 @@ final class FormView {
     private record Picker(@Nullable Catalog.Kind kind, @Nullable ResourceLocation storyType, List<String> choices, Component title) {}
 
     private @Nullable Picker picker(String field, Node owner, List<Object> path) {
+        if (field.equals("next") && Schemas.properties(owner).containsKey("objectives") && "stage".equals(insideQuest(path))) {
+            List<String> choices = new ArrayList<>();
+            if (host.root().get("stages") instanceof JsonArray stages) {
+                stages.forEach(stage -> {
+                    if (stage instanceof JsonObject object && object.get("id") instanceof JsonPrimitive id) {
+                        choices.add(id.getAsString());
+                    }
+                });
+            }
+            choices.add("@complete");
+            choices.add("@fail");
+            return new Picker(null, null, choices, DevUi.text("quest.pick_next"));
+        }
         if (WAYPOINT.equals(context(owner))) {
             List<String> choices = switch (field) {
                 case "stage" -> stagesOf(objectAt(path));

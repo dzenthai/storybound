@@ -9,17 +9,20 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * One migrations file ({@code migrations/<name>.json}): ids renamed since saves were made, by kind, old to new.
- * {@code stages} and {@code objectives} rename inside a quest, named by its new id:
+ * {@code stages} and {@code objectives} rename inside a quest, named by its new id; {@code codex_sections} inside a
+ * Codex entry, the same way:
  * <pre>
  * { "quests": { "mypack:hunt": "mypack:wolf_hunt" },
  *   "stages": { "mypack:wolf_hunt": { "start": "find_tracks" } },
+ *   "codex_sections": { "mypack:drowner": { "weakness": "weaknesses" } },
  *   "flags": { "mypack:met_elder": "mypack:elder_met" } }
  * </pre>
  *
  * @see StoryMigrations
  */
 public record Migration(Map<StoryMigrations.Kind, Map<ResourceLocation, ResourceLocation>> ids,
-                        Map<ResourceLocation, Map<String, String>> stages, Map<ResourceLocation, Map<String, String>> objectives) {
+                        Map<ResourceLocation, Map<String, String>> stages, Map<ResourceLocation, Map<String, String>> objectives,
+                        Map<ResourceLocation, Map<String, String>> codexSections) {
     private static final Codec<Map<ResourceLocation, ResourceLocation>> IDS = Codec.unboundedMap(ResourceLocation.CODEC, ResourceLocation.CODEC);
     private static final Codec<Map<ResourceLocation, Map<String, String>>> INSIDE_QUESTS =
             Codec.unboundedMap(ResourceLocation.CODEC, Codec.unboundedMap(Codec.STRING, Codec.STRING));
@@ -36,8 +39,9 @@ public record Migration(Map<StoryMigrations.Kind, Map<ResourceLocation, Resource
             field(StoryMigrations.Kind.BOSSES),
             field(StoryMigrations.Kind.WAYPOINTS),
             INSIDE_QUESTS.optionalFieldOf("stages", Map.of()).forGetter(Migration::stages),
-            INSIDE_QUESTS.optionalFieldOf("objectives", Map.of()).forGetter(Migration::objectives)
-    ).apply(instance, (flags, quests, events, dialogues, npcBindings, documents, notes, codex, bosses, waypoints, stages, objectives) -> {
+            INSIDE_QUESTS.optionalFieldOf("objectives", Map.of()).forGetter(Migration::objectives),
+            INSIDE_QUESTS.optionalFieldOf("codex_sections", Map.of()).forGetter(Migration::codexSections)
+    ).apply(instance, (flags, quests, events, dialogues, npcBindings, documents, notes, codex, bosses, waypoints, stages, objectives, codexSections) -> {
         Map<StoryMigrations.Kind, Map<ResourceLocation, ResourceLocation>> ids = new EnumMap<>(StoryMigrations.Kind.class);
         ids.put(StoryMigrations.Kind.FLAGS, flags);
         ids.put(StoryMigrations.Kind.QUESTS, quests);
@@ -49,13 +53,14 @@ public record Migration(Map<StoryMigrations.Kind, Map<ResourceLocation, Resource
         ids.put(StoryMigrations.Kind.CODEX, codex);
         ids.put(StoryMigrations.Kind.BOSSES, bosses);
         ids.put(StoryMigrations.Kind.WAYPOINTS, waypoints);
-        return new Migration(ids, stages, objectives);
+        return new Migration(ids, stages, objectives, codexSections);
     }));
 
     public Migration {
         ids = Map.copyOf(ids);
         stages = Map.copyOf(stages);
         objectives = Map.copyOf(objectives);
+        codexSections = Map.copyOf(codexSections);
     }
 
     public Map<ResourceLocation, ResourceLocation> renames(StoryMigrations.Kind kind) {

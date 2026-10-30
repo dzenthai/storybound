@@ -210,6 +210,27 @@ public final class DevModePayloads {
         }
     }
 
+    /** The editor renames a section of a Codex entry. */
+    public record RenameCodexSection(ResourceLocation entry, String from, String to) implements CustomPacketPayload {
+        public static final Type<RenameCodexSection> TYPE = new Type<>(Storybound.id("dev_rename_codex_section"));
+        public static final StreamCodec<ByteBuf, RenameCodexSection> STREAM_CODEC = StreamCodec.composite(
+                ResourceLocation.STREAM_CODEC, RenameCodexSection::entry,
+                ByteBufCodecs.STRING_UTF8, RenameCodexSection::from,
+                ByteBufCodecs.STRING_UTF8, RenameCodexSection::to,
+                RenameCodexSection::new);
+
+        @Override
+        public Type<RenameCodexSection> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(RenameCodexSection payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.renameCodexSection(player, payload.entry(), payload.from(), payload.to());
+            }
+        }
+    }
+
     /** The editor moves every node of the story folder from one namespace to another (the story's changed). */
     public record MoveNamespace(String from, String to) implements CustomPacketPayload {
         public static final Type<MoveNamespace> TYPE = new Type<>(Storybound.id("dev_move_namespace"));

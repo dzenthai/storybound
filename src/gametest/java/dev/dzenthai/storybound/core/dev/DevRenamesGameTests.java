@@ -149,6 +149,54 @@ public final class DevRenamesGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void aRenamedCodexSectionTakesItsTextAndReferencesAlong(GameTestHelper helper) {
+        try {
+            Path root = Files.createTempDirectory("storybound-rename-section");
+            write(root, StoryLinks.CODEX, "demo:zombie", """
+                    { "title": "Zombie", "sections": [ { "id": "habits", "unlock": { "on": ["killed"] } },
+                                                       { "id": "notes", "text": "demo:diary", "unlock": { "on": ["manual"] } } ] }""");
+            write(root, StoryLinks.QUEST, "demo:hunt", """
+                    { "stages": [ { "id": "go" } ], "on_complete": [ { "type": "unlock_codex", "entry": "demo:zombie", "section": "habits" },
+                                                                    { "type": "unlock_codex", "entry": "demo:skeleton", "section": "habits" } ] }""");
+            for (String language : List.of("en_us", "ru_ru")) {
+                for (String text : List.of("demo:codex/zombie/habits", "demo:diary")) {
+                    Path file = ConfigStorySource.sbtFileFor(root, language, id(text));
+                    Files.createDirectories(file.getParent());
+                    Files.writeString(file, text + " in " + language);
+                }
+            }
+
+            int references = DevRenames.applyCodexSection(root, id("demo:zombie"), read(root, StoryLinks.CODEX, "demo:zombie"), "habits", "povadki");
+            helper.assertTrue(references == 1, "the hunt's action; got " + references);
+            helper.assertTrue(read(root, StoryLinks.CODEX, "demo:zombie").toString().contains("\"id\":\"povadki\""), "the section has its new name");
+            String hunt = read(root, StoryLinks.QUEST, "demo:hunt").toString();
+            helper.assertTrue(hunt.contains("\"entry\":\"demo:zombie\",\"section\":\"povadki\"") && hunt.contains("\"entry\":\"demo:skeleton\",\"section\":\"habits\""),
+                    "only the zombie's section is renamed: " + hunt);
+            for (String language : List.of("en_us", "ru_ru")) {
+                helper.assertTrue(Files.isRegularFile(ConfigStorySource.sbtFileFor(root, language, id("demo:codex/zombie/povadki")))
+                        && !Files.exists(ConfigStorySource.sbtFileFor(root, language, id("demo:codex/zombie/habits"))), "the text moved in " + language);
+            }
+
+            // A section naming its own text keeps it where it is.
+            DevRenames.applyCodexSection(root, id("demo:zombie"), read(root, StoryLinks.CODEX, "demo:zombie"), "notes", "diary_notes");
+            helper.assertTrue(Files.isRegularFile(ConfigStorySource.sbtFileFor(root, "en_us", id("demo:diary"))), "its own text stays");
+            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString());
+            JsonObject sections = migrations.getAsJsonObject("codex_sections").getAsJsonObject("demo:zombie");
+            helper.assertTrue(sections.get("habits").getAsString().equals("povadki") && sections.get("notes").getAsString().equals("diary_notes"),
+                    "saves follow: " + migrations);
+
+            // The entry renamed afterwards: its sections' renames are named by its new id.
+            DevRenames.apply(root, List.of(new Rename(StoryLinks.CODEX, id("demo:zombie"), id("demo:undead"))));
+            JsonObject moved = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString()).getAsJsonObject("codex_sections");
+            helper.assertTrue(moved.has("demo:undead") && !moved.has("demo:zombie"), "moved: " + moved);
+            helper.assertTrue(Files.isRegularFile(ConfigStorySource.sbtFileFor(root, "ru_ru", id("demo:codex/undead/povadki"))), "the renamed section's text moved with the entry");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void aRenamedNodeTakesItsFilesAndReferencesAlong(GameTestHelper helper) {
         try {
             Path root = Files.createTempDirectory("storybound-rename");
