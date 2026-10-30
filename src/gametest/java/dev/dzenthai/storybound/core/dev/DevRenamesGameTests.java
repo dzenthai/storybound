@@ -149,6 +149,17 @@ public final class DevRenamesGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void theEditorGetsTheIdsOnlyTheServerKnows(GameTestHelper helper) {
+        java.util.Map<String, List<String>> lists = DevModeServer.serverLists(helper.getLevel().getServer());
+        List<String> advancements = lists.get("advancement");
+        List<String> lootTables = lists.get("loot_table");
+        helper.assertTrue(advancements.contains("minecraft:story/root"), "vanilla advancements are listed");
+        helper.assertTrue(advancements.stream().noneMatch(id -> id.contains(":recipes/")), "without the recipe book's");
+        helper.assertTrue(lootTables.contains("minecraft:chests/simple_dungeon"), "loot tables are listed");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void aRenamedCodexSectionTakesItsTextAndReferencesAlong(GameTestHelper helper) {
         try {
             Path root = Files.createTempDirectory("storybound-rename-section");

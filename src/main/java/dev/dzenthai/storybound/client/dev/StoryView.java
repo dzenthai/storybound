@@ -82,6 +82,8 @@ final class StoryView extends GraphView {
             new TemplateItem("📖", "menu.new.document", Template.DOCUMENT, ClientDevStore.TYPE_DOCUMENT),
             new TemplateItem("📍", "menu.new.waypoint", Template.WAYPOINT, ClientDevStore.TYPE_WAYPOINT),
             new TemplateItem("🐉", "menu.new.boss", Template.BOSS, ClientDevStore.TYPE_BOSS),
+            new TemplateItem("📚", "menu.new.codex", Template.CODEX, ClientDevStore.TYPE_CODEX),
+            new TemplateItem("⚡", "menu.new.event", Template.EVENT, ClientDevStore.TYPE_EVENT),
             new TemplateItem("⚙", "menu.new.script", Template.SCRIPT, ClientDevStore.TYPE_SCRIPT));
 
     /**
@@ -666,8 +668,9 @@ final class StoryView extends GraphView {
         }
         Optional<String> problem = DevChecks.problem(selected.type(), editing);
         if (problem.isPresent()) {
-            // Still being filled in: kept here, sent once it loads.
+            // Still being filled in: kept here (over the snapshots too), sent once it loads.
             dirty = true;
+            ClientDevStore.putDraft(selected.type(), selected.id(), DevUi.GSON.toJson(editing));
             screen.status(DevUi.text("status.incomplete", DevChecks.shorten(problem.get())), DevUi.WARN);
             return;
         }
@@ -752,7 +755,33 @@ final class StoryView extends GraphView {
             // A contract on the map: its quest is what the map shows, the notice is in the library.
             select(screen, shown);
         }
+        if (last != null) {
+            ask(screen, last, NodeTemplates.ask(template));
+        }
         return last;
+    }
+
+    /** A new node's first question: who it is (its entity's page), which creature (the mobs), when it fires (the triggers). */
+    private void ask(DevModeScreen screen, NodeKey key, NodeTemplates.Ask ask) {
+        switch (ask) {
+            case ENTITY, TRIGGER -> inspector.ask(key, ask);
+            case CREATURE -> screen.catalog().open(DevUi.text("template.ask_creature"), Catalog.Kind.MOB, (kind, entry) -> {
+                if (!key.equals(selected) || editing == null) {
+                    return;
+                }
+                editing.addProperty("entity", entry.id());
+                // Its section now opens on sight instead of by an action alone.
+                if (editing.get("sections") instanceof com.google.gson.JsonArray sections && !sections.isEmpty()
+                        && sections.get(0) instanceof JsonObject first && first.get("unlock") instanceof JsonObject unlock) {
+                    com.google.gson.JsonArray on = new com.google.gson.JsonArray();
+                    on.add("seen");
+                    unlock.add("on", on);
+                }
+                changed(screen);
+            });
+            default -> {
+            }
+        }
     }
 
     /** The template's definitions with ids nothing has yet, placed where the author stands (for waypoints). */

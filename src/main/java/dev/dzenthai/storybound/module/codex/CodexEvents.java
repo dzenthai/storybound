@@ -7,6 +7,7 @@ import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.Trigger;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.trigger.CoreTriggers;
 import dev.dzenthai.storybound.core.logic.trigger.Subscription;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
@@ -57,6 +58,8 @@ public final class CodexEvents {
                         case Unlock.Source.Seen seen -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntitySeen(Optional.of(set))).orElse(null);
                         case Unlock.Source.Killed killed -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntityKilled(Optional.of(set), true)).orElse(null);
                         case Unlock.Source.Read read -> new DocumentLogic.Read(Optional.of(read.document()), false);
+                        case Unlock.Source.Observed observed -> definition.entity().<Trigger<?>>map(set -> CoreTriggers.Observed.of(
+                                new EntitySelector(Optional.of(set), Optional.empty(), Optional.empty(), Optional.empty()), observed.seconds())).orElse(null);
                         case Unlock.Source.Manual manual -> null;
                     };
                     if (trigger != null) {
@@ -69,7 +72,7 @@ public final class CodexEvents {
     }
 
     private static <E> Subscription<E> subscribe(String name, Trigger<E> trigger, ResourceLocation entry, Unlock.Source source) {
-        return new Subscription<>(name, trigger, context -> Codex.observed(context, entry, source));
+        return new Subscription<>(name, trigger, context -> Codex.observed(context, entry, source), context -> Codex.wouldOpen(context, entry, source));
     }
 
     private static void onTagsUpdated(TagsUpdatedEvent event) {

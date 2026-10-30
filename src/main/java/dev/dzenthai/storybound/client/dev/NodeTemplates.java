@@ -17,7 +17,22 @@ final class NodeTemplates {
     }
 
     enum Template {
-        QUEST_MAIN, QUEST_SIDE, CONTRACT, DIALOGUE_SCREEN, DIALOGUE_BUBBLE, NPC, DOCUMENT, WAYPOINT, BOSS, SCRIPT
+        QUEST_MAIN, QUEST_SIDE, CONTRACT, DIALOGUE_SCREEN, DIALOGUE_BUBBLE, NPC, DOCUMENT, WAYPOINT, BOSS, CODEX, EVENT, SCRIPT
+    }
+
+    /**
+     * The question a new node is asked at once, its one thing no default can stand for (October 30, 2026; before, an
+     * NPC was a villager tagged npc_1 and a boss a wolf, stand-ins easy to leave and that matched nothing in game).
+     */
+    enum Ask { NONE, ENTITY, CREATURE, TRIGGER }
+
+    static Ask ask(Template template) {
+        return switch (template) {
+            case NPC, BOSS -> Ask.ENTITY;
+            case CODEX -> Ask.CREATURE;
+            case EVENT -> Ask.TRIGGER;
+            default -> Ask.NONE;
+        };
     }
 
     /**
@@ -94,8 +109,8 @@ final class NodeTemplates {
             }
             case NPC -> {
                 ResourceLocation id = ClientDevStore.id("npc_" + number);
+                // Who it is is asked at once; until then it is a draft the server does not get.
                 JsonObject npc = new JsonObject();
-                StoryEdits.setEntityType(npc, "minecraft:villager", "npc_" + number);
                 npc.addProperty("interact", true);
                 npc.addProperty("override_interact", true);
                 npc.add("dialogues", new JsonArray());
@@ -125,11 +140,35 @@ final class NodeTemplates {
                 ResourceLocation id = ClientDevStore.id("boss_" + number);
                 JsonObject boss = new JsonObject();
                 ClientDevStore.writeStoryText(boss, "title", texts.get("template.boss", number), key(ClientDevStore.TYPE_BOSS, id, "title"));
-                StoryEdits.setEntityType(boss, "minecraft:wolf", "boss_" + number);
                 // Sections with their default long texts (texts/<lang>/<ns>/bosses/<path>/lore.sbt...) and unlock rules.
                 boss.add("lore", new JsonObject());
                 boss.add("tactics", new JsonObject());
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_BOSS, id), boss, Optional.empty(), 0));
+            }
+            case CODEX -> {
+                // One section, opened by an action until a creature is picked (then on sight): a place or a legend has none.
+                ResourceLocation id = ClientDevStore.id("codex_" + number);
+                JsonObject entry = new JsonObject();
+                ClientDevStore.writeStoryText(entry, "title", texts.get("template.codex", number), key(ClientDevStore.TYPE_CODEX, id, "title"));
+                JsonObject section = new JsonObject();
+                section.addProperty("id", "base");
+                ClientDevStore.writeStoryText(section, "title", texts.get("template.codex_section"), key(ClientDevStore.TYPE_CODEX, id, "sections.base.title"));
+                JsonObject unlock = new JsonObject();
+                JsonArray on = new JsonArray();
+                on.add("manual");
+                unlock.add("on", on);
+                section.add("unlock", unlock);
+                JsonArray sections = new JsonArray();
+                sections.add(section);
+                entry.add("sections", sections);
+                yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_CODEX, id), entry, Optional.empty(), 0));
+            }
+            case EVENT -> {
+                // When it fires is asked at once; until then it is a draft.
+                ResourceLocation id = ClientDevStore.id("event_" + number);
+                JsonObject event = new JsonObject();
+                event.add("actions", new JsonArray());
+                yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_EVENT, id), event, Optional.empty(), 0));
             }
             case SCRIPT -> {
                 // Its handler is its own id until a file is picked; "create the file" writes one registering it.

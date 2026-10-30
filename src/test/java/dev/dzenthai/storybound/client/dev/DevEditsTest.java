@@ -497,4 +497,27 @@ class DevEditsTest {
         assertTrue(notice.text().isPresent());
         assertEquals("storybound.document.contract_note_3.title", notice.json().get("title").getAsString());
     }
+
+    @Test
+    void newNodesAskTheirOneQuestionInsteadOfAStandIn() {
+        NodeTemplates.Place nowhere = new NodeTemplates.Place(null, "minecraft:overworld");
+        JsonObject npc = NodeTemplates.create(NodeTemplates.Template.NPC, 1, nowhere, (key, args) -> key).getFirst().json();
+        JsonObject boss = NodeTemplates.create(NodeTemplates.Template.BOSS, 1, nowhere, (key, args) -> key).getFirst().json();
+        assertTrue(!npc.has("entity") && !boss.has("entity"), "no villager or wolf to forget: who it is is asked");
+        assertEquals(NodeTemplates.Ask.ENTITY, NodeTemplates.ask(NodeTemplates.Template.NPC));
+        assertEquals(NodeTemplates.Ask.ENTITY, NodeTemplates.ask(NodeTemplates.Template.BOSS));
+
+        NodeTemplates.Created codex = NodeTemplates.create(NodeTemplates.Template.CODEX, 2, nowhere, (key, args) -> key).getFirst();
+        assertEquals(ClientDevStore.TYPE_CODEX, codex.key().type());
+        JsonObject section = codex.json().getAsJsonArray("sections").get(0).getAsJsonObject();
+        assertEquals("base", section.get("id").getAsString());
+        assertEquals("[\"manual\"]", section.getAsJsonObject("unlock").get("on").toString(), "opens by an action until a creature is picked");
+        assertEquals(NodeTemplates.Ask.CREATURE, NodeTemplates.ask(NodeTemplates.Template.CODEX));
+
+        NodeTemplates.Created event = NodeTemplates.create(NodeTemplates.Template.EVENT, 2, nowhere, (key, args) -> key).getFirst();
+        assertEquals(ClientDevStore.TYPE_EVENT, event.key().type());
+        assertTrue(!event.json().has("trigger") && event.json().getAsJsonArray("actions").isEmpty(), "its trigger is asked");
+        assertEquals(NodeTemplates.Ask.TRIGGER, NodeTemplates.ask(NodeTemplates.Template.EVENT));
+        assertEquals(NodeTemplates.Ask.NONE, NodeTemplates.ask(NodeTemplates.Template.QUEST_MAIN), "a quest's example texts stay");
+    }
 }

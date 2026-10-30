@@ -54,9 +54,45 @@ public final class ClientDevStore {
 
     private ClientDevStore() {}
 
+    /**
+     * Definitions being filled in, which the server would refuse (a new NPC before it is told who it is): kept here over
+     * every snapshot until they load, then sent (October 30, 2026; before, the next snapshot dropped them).
+     */
+    private static final Map<ResourceLocation, Map<ResourceLocation, String>> DRAFTS = new LinkedHashMap<>();
+    /** The ids the last snapshot had: a draft the server never got is deleted here alone. */
+    private static volatile Map<ResourceLocation, java.util.Set<ResourceLocation>> onServer = Map.of();
+
+    public static void putDraft(ResourceLocation type, ResourceLocation id, String json) {
+        DRAFTS.computeIfAbsent(type, k -> new LinkedHashMap<>()).put(id, json);
+        putLocal(type, id, json);
+    }
+
+    public static void dropDraft(ResourceLocation type, ResourceLocation id) {
+        Map<ResourceLocation, String> drafts = DRAFTS.get(type);
+        if (drafts != null) {
+            drafts.remove(id);
+        }
+    }
+
+    public static boolean isDraft(ResourceLocation type, ResourceLocation id) {
+        return DRAFTS.getOrDefault(type, Map.of()).containsKey(id);
+    }
+
+    public static boolean onServer(ResourceLocation type, ResourceLocation id) {
+        return onServer.getOrDefault(type, java.util.Set.of()).contains(id);
+    }
+
     public static void setSnapshot(Map<ResourceLocation, Map<ResourceLocation, String>> newDefinitions, List<String> newIssues, String srcLang, List<String> langs) {
+        Map<ResourceLocation, java.util.Set<ResourceLocation>> known = new LinkedHashMap<>();
+        newDefinitions.forEach((type, map) -> known.put(type, java.util.Set.copyOf(map.keySet())));
+        onServer = known;
         Map<ResourceLocation, Map<ResourceLocation, String>> copy = new LinkedHashMap<>();
-        newDefinitions.forEach((type, map) -> copy.put(type, Collections.unmodifiableMap(new LinkedHashMap<>(map))));
+        newDefinitions.forEach((type, map) -> {
+            Map<ResourceLocation, String> withDrafts = new LinkedHashMap<>(map);
+            withDrafts.putAll(DRAFTS.getOrDefault(type, Map.of()));
+            copy.put(type, Collections.unmodifiableMap(withDrafts));
+        });
+        DRAFTS.forEach((type, drafts) -> copy.putIfAbsent(type, Collections.unmodifiableMap(new LinkedHashMap<>(drafts))));
         definitions = Collections.unmodifiableMap(copy);
         refreshDerivedScripts();
         issues = List.copyOf(newIssues);
@@ -82,6 +118,19 @@ public final class ClientDevStore {
 
     public static String namespace() {
         return namespace;
+    }
+
+    private static volatile Map<String, List<String>> serverLists = Map.of();
+
+    /** Ids only the server knows (advancements, loot tables), sent with the snapshot for the pickers. */
+    public static void setServerLists(Map<String, List<String>> lists) {
+        Map<String, List<String>> copy = new LinkedHashMap<>();
+        lists.forEach((kind, ids) -> copy.put(kind, List.copyOf(ids)));
+        serverLists = Collections.unmodifiableMap(copy);
+    }
+
+    public static List<String> serverList(String kind) {
+        return serverLists.getOrDefault(kind, List.of());
     }
 
     /** A new node's id, in the story's namespace. */
@@ -161,7 +210,14 @@ public final class ClientDevStore {
 
     public static List<String> issuesFor(ResourceLocation type, ResourceLocation id) {
         String needle = type + " " + id + ":";
-        return issues.stream().filter(line -> line.contains(needle)).toList();
+        List<String> found = new java.util.ArrayList<>();
+        // A draft first: it is not in the game at all yet.
+        String draft = DRAFTS.getOrDefault(type, Map.of()).get(id);
+        if (draft != null) {
+            found.add(DevUi.str("draft.issue", DevChecks.problem(type, parseObject(draft)).map(DevChecks::shorten).orElse("")));
+        }
+        issues.stream().filter(line -> line.contains(needle)).forEach(found::add);
+        return found;
     }
 
     public static JsonObject parseObject(@Nullable String raw) {

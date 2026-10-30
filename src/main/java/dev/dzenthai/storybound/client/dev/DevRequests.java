@@ -12,8 +12,17 @@ import net.neoforged.neoforge.network.PacketDistributor;
 final class DevRequests {
     private DevRequests() {}
 
-    /** Saves a definition together with the texts edited in the active language since the last save. */
+    /**
+     * Saves a definition together with the texts edited in the active language since the last save. One the game would
+     * not load yet (a new NPC before it is told who it is, an NPC linked to a dialogue meanwhile) stays a draft here,
+     * texts and all, and goes once it is complete, instead of the server refusing it.
+     */
     static void save(ResourceLocation type, ResourceLocation id, String json, Optional<String> text) {
+        if (DevChecks.problem(type, ClientDevStore.parseObject(json)).isPresent()) {
+            ClientDevStore.putDraft(type, id, json);
+            return;
+        }
+        ClientDevStore.dropDraft(type, id);
         String language = ClientDevStore.activeLanguage();
         Map<String, String> translations = new HashMap<>(ClientDevStore.pendingTranslationsFor(language));
         PacketDistributor.sendToServer(new DevModePayloads.SaveDefinition(type, id, json, text, language, translations));
@@ -22,6 +31,11 @@ final class DevRequests {
 
     /** Saves a definition as it was (undo and redo): its texts stay as they are. */
     static void restore(ResourceLocation type, ResourceLocation id, String json, Optional<String> text) {
+        if (DevChecks.problem(type, ClientDevStore.parseObject(json)).isPresent()) {
+            ClientDevStore.putDraft(type, id, json);
+            return;
+        }
+        ClientDevStore.dropDraft(type, id);
         PacketDistributor.sendToServer(new DevModePayloads.SaveDefinition(type, id, json, text, ClientDevStore.activeLanguage(), Map.of()));
     }
 
@@ -31,6 +45,13 @@ final class DevRequests {
     }
 
     static void delete(ResourceLocation type, ResourceLocation id) {
+        boolean draftOnly = ClientDevStore.isDraft(type, id) && !ClientDevStore.onServer(type, id);
+        ClientDevStore.dropDraft(type, id);
+        if (draftOnly) {
+            // The server never had it.
+            ClientDevStore.removeLocal(type, id);
+            return;
+        }
         PacketDistributor.sendToServer(new DevModePayloads.DeleteDefinition(type, id));
     }
 

@@ -51,5 +51,8 @@ public final class BuiltinTriggers {
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<ProgressTriggers.StatReached, ProgressTriggers.StatChange>> STAT_REACHED =
             REGISTER.register("stat_reached", () -> new TriggerType<>(ProgressTriggers.StatReached.CODEC));
 
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.Observed, CoreTriggers.Observation>> OBSERVED =
+            REGISTER.register("observed", () -> new TriggerType<>(CoreTriggers.Observed.CODEC));
+
     private BuiltinTriggers() {}
 }

@@ -74,6 +74,9 @@ final class StoryInspector {
     /** The script block's state line, drawn where its panel starts; null for other nodes. */
     private @Nullable ClientDevStore.ScriptState scriptState;
     private int scriptStateY;
+    /** A new node's first question, asked when its form is first built. */
+    private @Nullable NodeKey askFor;
+    private NodeTemplates.Ask ask = NodeTemplates.Ask.NONE;
     /** Where the heading over the quick tests is drawn; -1 without them. */
     private int testsY = -1;
     /** The colour of {@link #textLabel}: a label over one text, a heading over a Codex entry's several. */
@@ -160,6 +163,11 @@ final class StoryInspector {
         form.scroll(amount);
     }
 
+    void ask(NodeKey key, NodeTemplates.Ask question) {
+        askFor = key;
+        ask = question;
+    }
+
     /** Fields edited elsewhere (the canvas, a dialogue's graph) or kept out of the form. */
     private static Set<String> hidden(ResourceLocation type) {
         if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
@@ -183,6 +191,14 @@ final class StoryInspector {
         if (!key.equals(shown)) {
             shown = key;
             form.reset(Schemas.definition(key.type()), key.id().getPath(), hidden(key.type()));
+        }
+        boolean askTrigger = false;
+        if (key.equals(askFor)) {
+            if (ask == NodeTemplates.Ask.ENTITY) {
+                form.openRoot("entity", DevUi.str(key.type().equals(ClientDevStore.TYPE_BOSS) ? "template.ask_boss" : "template.ask_npc"));
+            }
+            askTrigger = ask == NodeTemplates.Ask.TRIGGER;
+            askFor = null;
         }
         int x = screen.width - DevUi.RIGHT_PANEL_W + 8;
         int w = DevUi.RIGHT_PANEL_W - 16;
@@ -210,6 +226,10 @@ final class StoryInspector {
         addLinks(screen, key, json, x, w);
         int formBottom = links.isEmpty() ? screen.height - 34 : linksTop - 16;
         form.addWidgets(screen, x, y, w, formBottom);
+        if (askTrigger) {
+            // The list of triggers opens over the screen once it is built.
+            Minecraft.getInstance().tell(() -> form.askTrigger("trigger"));
+        }
         screen.add(Button.builder(Component.literal("💾 ").append(DevUi.text("inspector.save")), b -> view.save(screen))
                 .bounds(x, screen.height - 26, w - 54, 20).build());
         screen.add(Button.builder(Component.literal("🗑"), b -> view.deleteSelected(screen))

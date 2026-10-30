@@ -203,6 +203,23 @@ public final class Bosses {
         sync(context.player());
     }
 
+    /** Whether the source would open a section of the boss now: one waiting for it, its conditions holding (quietly). */
+    static boolean wouldOpen(StoryContext context, ResourceLocation boss, Unlock.Source source) {
+        BossDefinition definition = definition(boss);
+        if (definition == null || !isEnabled()) {
+            return false;
+        }
+        BossData.Record record = data(context.player()).get(boss);
+        for (String section : BossDefinition.SECTIONS) {
+            Unlock unlock = definition.unlock(section).orElse(null);
+            if (unlock != null && !record.isUnlocked(section) && unlock.on().contains(source) && unlock.conditions().test(context)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A source that counts once: a document read, the boss studied. */
     static void read(StoryContext context, ResourceLocation boss, Unlock.Source source) {
         BossDefinition definition = definition(boss);
         // Read before meeting the boss: the section waits, the entry shows up once the boss is encountered.

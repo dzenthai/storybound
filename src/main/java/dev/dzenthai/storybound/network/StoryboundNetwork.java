@@ -8,7 +8,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class StoryboundNetwork {
     /** Bumped on any incompatible packet change; a client with another version cannot connect. */
-    public static final String PROTOCOL_VERSION = "16";
+    public static final String PROTOCOL_VERSION = "18";
 
     private StoryboundNetwork() {}
 
@@ -21,6 +21,7 @@ public final class StoryboundNetwork {
         registrar.playToClient(ModulesPayload.TYPE, ModulesPayload.STREAM_CODEC, ModulesPayload::handleOnClient);
         registrar.playToClient(QuestSyncPayload.TYPE, QuestSyncPayload.STREAM_CODEC, QuestSyncPayload::handleOnClient);
         registrar.playToClient(QuestHintsPayload.TYPE, QuestHintsPayload.STREAM_CODEC, QuestHintsPayload::handleOnClient);
+        registrar.playToClient(ObservationPayload.TYPE, ObservationPayload.STREAM_CODEC, ObservationPayload::handleOnClient);
         registrar.playToClient(ChapterMapPayload.TYPE, ChapterMapPayload.STREAM_CODEC, ChapterMapPayload::handleOnClient);
         registrar.playToClient(DebugPayload.TYPE, DebugPayload.STREAM_CODEC, DebugPayload::handleOnClient);
         registrar.playToClient(NotifyPayload.TYPE, NotifyPayload.STREAM_CODEC, NotifyPayload::handleOnClient);

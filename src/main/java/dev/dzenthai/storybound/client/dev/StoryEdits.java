@@ -28,15 +28,6 @@ final class StoryEdits {
         return owner.getAsJsonObject("entity");
     }
 
-    /** Sets the entity type; an entity without a tag gets {@code defaultTag}, so the selector matches only the tagged one. */
-    static void setEntityType(JsonObject owner, String type, String defaultTag) {
-        JsonObject entity = entity(owner);
-        entity.addProperty("type", type);
-        if (!entity.has("tag") || entity.get("tag").getAsString().isBlank()) {
-            entity.addProperty("tag", defaultTag);
-        }
-    }
-
     /** A waypoint's search radius; 0 for a point. */
     static double radius(JsonObject waypoint) {
         return waypoint.has("radius") && waypoint.get("radius").isJsonPrimitive() ? waypoint.get("radius").getAsDouble() : 0;

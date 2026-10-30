@@ -95,6 +95,7 @@ public final class TriggerEvents {
             }
         }
         SeenTracker.tick(event.getServer());
+        ObservationTracker.tick(event.getServer());
     }
 
     private static void onItemPickup(ItemEntityPickupEvent.Post event) {
@@ -141,6 +142,7 @@ public final class TriggerEvents {
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         TriggerDispatcher.forget(event.getEntity().getUUID());
         SeenTracker.forget(event.getEntity().getUUID());
+        ObservationTracker.forget(event.getEntity().getUUID());
         StoryEvents.forget(event.getEntity().getUUID());
     }
 
@@ -148,6 +150,7 @@ public final class TriggerEvents {
         StoryTrace.stop();
         TriggerDispatcher.reset();
         SeenTracker.reset();
+        ObservationTracker.reset();
         StoryEvents.reset();
     }
 }

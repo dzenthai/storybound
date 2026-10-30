@@ -210,7 +210,13 @@ public final class StoryEvents {
     }
 
     private static <E> Subscription<E> subscribe(ResourceLocation id, StoryEvent event, Trigger<E> trigger) {
-        return new Subscription<>("story event " + id, trigger, context -> run(id, event, context));
+        return new Subscription<>("story event " + id, trigger, context -> run(id, event, context), context -> wouldRun(id, event, context));
+    }
+
+    /** Whether the event would run now: not run already when it runs once, its conditions holding (tested quietly). */
+    static boolean wouldRun(ResourceLocation id, StoryEvent event, StoryContext context) {
+        return (event.once().isEmpty() || StoryState.getStored(context.player(), event.once().get(), onceKey(id)).isEmpty())
+                && event.conditions().test(context);
     }
 
     private static void setDone(ResourceLocation id, StoryScope scope, StoryContext context, boolean done) {

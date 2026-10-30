@@ -41,6 +41,17 @@ public final class Codex {
      * A source of the entry happened for the player (they saw or killed its entity, read a document):
      * counts it and opens every section it now satisfies.
      */
+    /** Whether the source would open a section of the entry now: one waiting for it, its conditions holding (quietly). */
+    static boolean wouldOpen(StoryContext context, ResourceLocation entry, Unlock.Source source) {
+        CodexDefinition definition = definition(entry);
+        if (definition == null || !isEnabled()) {
+            return false;
+        }
+        CodexData data = data(context.player());
+        return definition.sections().stream().anyMatch(section -> !data.isUnlocked(entry, section.id()) && section.unlock().on().contains(source)
+                && section.unlock().conditions().test(context));
+    }
+
     static void observed(StoryContext context, ResourceLocation entry, Unlock.Source source) {
         CodexDefinition definition = definition(entry);
         if (definition == null || !isEnabled()) {
@@ -51,6 +62,7 @@ public final class Codex {
             case Unlock.Source.Seen seen -> data.countSeen(entry);
             case Unlock.Source.Killed killed -> data.countKill(entry);
             case Unlock.Source.Read read -> Integer.MAX_VALUE;
+            case Unlock.Source.Observed observed -> Integer.MAX_VALUE;
             case Unlock.Source.Manual manual -> 0;
         };
         boolean wasNew = data.sections(entry).isEmpty();

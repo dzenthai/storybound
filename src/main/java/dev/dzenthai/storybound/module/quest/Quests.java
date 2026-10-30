@@ -318,6 +318,26 @@ public final class Quests {
     }
 
     /** An objective's trigger fired for a player; counts it if the quest is at that stage. */
+    /**
+     * Whether the objective would count for the player now, as {@link #objectiveTriggered} decides, but quietly: the
+     * quest active at that stage, the objective not done, its conditions holding. For detectors showing progress first
+     * (an observation's bar).
+     */
+    static boolean wouldCount(StoryContext context, ResourceLocation quest, String stageId, int objectiveIndex) {
+        QuestDefinition definition = definition(quest);
+        if (definition == null || !isEnabled()) {
+            return false;
+        }
+        QuestDefinition.Stage stage = definition.stage(stageId).orElse(null);
+        Optional<QuestProgress> current = StoryState.getQuest(context.player(), definition.scope(), quest);
+        if (stage == null || current.isEmpty() || current.get().status() != QuestStatus.ACTIVE || !current.get().stage().equals(Optional.of(stageId))) {
+            return false;
+        }
+        QuestDefinition.Objective objective = stage.objectives().get(objectiveIndex);
+        return current.get().count(stage.objectiveId(objectiveIndex)) < objective.count() && objective.items().isEmpty()
+                && objective.conditions().test(context);
+    }
+
     static void objectiveTriggered(StoryContext context, ResourceLocation quest, String stageId, int objectiveIndex) {
         QuestDefinition definition = definition(quest);
         if (definition == null || !isEnabled()) {

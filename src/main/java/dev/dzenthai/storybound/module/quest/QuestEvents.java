@@ -78,13 +78,14 @@ public final class QuestEvents {
                     } else if (Conditions.check(start.conditions(), context, "quest " + quest + " start")) {
                         Quests.start(context.player(), quest);
                     }
-                })));
+                }, context -> Quests.whyNotStart(context.player(), quest) == null && start.conditions().test(context))));
                 for (QuestDefinition.Stage stage : definition.stages()) {
                     for (int i = 0; i < stage.objectives().size(); i++) {
                         int index = i;
                         stage.objectives().get(i).trigger().ifPresent(trigger -> subscriptions.add(subscribe(
                                 "quest " + quest + " objective " + stage.id() + "/" + stage.objectiveId(index), trigger,
-                                context -> Quests.objectiveTriggered(context, quest, stage.id(), index))));
+                                context -> Quests.objectiveTriggered(context, quest, stage.id(), index),
+                                context -> Quests.wouldCount(context, quest, stage.id(), index))));
                     }
                 }
             });
@@ -144,8 +145,8 @@ public final class QuestEvents {
         }
     }
 
-    private static <E> Subscription<E> subscribe(String name, Trigger<E> trigger, Subscription.Listener listener) {
-        return new Subscription<>(name, trigger, listener);
+    private static <E> Subscription<E> subscribe(String name, Trigger<E> trigger, Subscription.Listener listener, Subscription.Active active) {
+        return new Subscription<>(name, trigger, listener, active);
     }
 
     /**

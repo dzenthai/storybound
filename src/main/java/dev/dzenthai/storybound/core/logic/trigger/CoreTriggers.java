@@ -1,11 +1,13 @@
 package dev.dzenthai.storybound.core.logic.trigger;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.event.PartyEvent;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
 import dev.dzenthai.storybound.core.logic.Area;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.ItemMatcher;
 import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
@@ -17,7 +19,9 @@ import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.state.StoryValues;
+import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.registries.Registries;
@@ -30,6 +34,9 @@ import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import org.jetbrains.annotations.Nullable;
 
 /** Triggers backed by core systems and vanilla events. Module triggers live with their modules. */
 public final class CoreTriggers {
@@ -124,6 +131,61 @@ public final class CoreTriggers {
         @Override
         public boolean matches(StoryContext context, Entity seen) {
             return entityMatches(entity, seen);
+        }
+    }
+
+    /**
+     * What the player looks straight at, for {@code observed}: an entity, or else a block with where it is.
+     *
+     * @param entity the entity under the crosshair; null for a block
+     */
+    public record Observation(@Nullable Entity entity, @Nullable BlockPos pos, @Nullable BlockState state, ResourceLocation dimension) {}
+
+    /**
+     * The player looked straight at the target for {@code time} seconds from at most {@code distance} blocks (see
+     * {@link ObservationTracker}; a bar under the crosshair fills meanwhile): an entity ({@code entity}, the selector of
+     * NPC bindings), a kind of block ({@code block}: an id, a #tag or a list), or one block ({@code pos}, with
+     * {@code dimension}); {@code block} and {@code pos} together: that block, if it is still such a one.
+     *
+     * @param text what the bar says ("Examine the tracks"); without one, "Observing: <the target>"
+     */
+    public record Observed(Optional<EntitySelector> entity, Optional<HolderSet<Block>> block, Optional<BlockPos> pos, Optional<ResourceLocation> dimension,
+                           float time, double distance, Optional<StoryText> text) implements Trigger<Observation> {
+        public static final float DEFAULT_TIME = 3;
+        public static final double DEFAULT_DISTANCE = 16;
+        public static final MapCodec<Observed> CODEC = RecordCodecBuilder.<Observed>mapCodec(instance -> instance.group(
+                EntitySelector.CODEC.optionalFieldOf("entity").forGetter(Observed::entity),
+                RegistryCodecs.homogeneousList(Registries.BLOCK).optionalFieldOf("block").forGetter(Observed::block),
+                BlockPos.CODEC.optionalFieldOf("pos").forGetter(Observed::pos),
+                ResourceLocation.CODEC.optionalFieldOf("dimension").forGetter(Observed::dimension),
+                Codec.floatRange(0.25f, 600f).optionalFieldOf("time", DEFAULT_TIME).forGetter(Observed::time),
+                Codec.doubleRange(1, 64).optionalFieldOf("distance", DEFAULT_DISTANCE).forGetter(Observed::distance),
+                StoryText.CODEC.optionalFieldOf("text").forGetter(Observed::text)
+        ).apply(instance, Observed::new)).validate(observed -> observed.entity().isPresent() == (observed.block().isPresent() || observed.pos().isPresent())
+                ? DataResult.error(() -> "observed needs 'entity', or 'block' and/or 'pos' (not both kinds)")
+                : DataResult.success(observed));
+
+        /** An entity the selector picks: for the Codex and Bosses, whose sections open on studying their creature. */
+        public static Observed of(EntitySelector entity, float time) {
+            return new Observed(Optional.of(entity), Optional.empty(), Optional.empty(), Optional.empty(), time, DEFAULT_DISTANCE, Optional.empty());
+        }
+
+        @Override
+        public TriggerType<?, Observation> type() {
+            return BuiltinTriggers.OBSERVED.get();
+        }
+
+        @Override
+        public boolean matches(StoryContext context, Observation target) {
+            if (target.entity() != null) {
+                return entity.map(selector -> selector.matches(target.entity())).orElse(false);
+            }
+            if (entity.isPresent() || target.state() == null || target.pos() == null) {
+                return false;
+            }
+            return block.map(set -> set.contains(target.state().getBlockHolder())).orElse(true)
+                    && pos.map(target.pos()::equals).orElse(true)
+                    && dimension.map(target.dimension()::equals).orElse(true);
         }
     }
 

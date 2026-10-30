@@ -27,7 +27,11 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
         return new Unlock(List.of(source), 1, LogicConditions.ALWAYS);
     }
 
-    /** {@code seen}, {@code killed}, {@code read:<document>} or {@code manual} (only actions, commands and scripts). */
+    /**
+     * {@code seen}, {@code killed}, {@code observed:<seconds>} (studied: looked straight at the creature that long, see
+     * {@code observed}; {@code observed} alone is 5 seconds), {@code read:<document>} or {@code manual} (only actions,
+     * commands and scripts).
+     */
     public sealed interface Source {
         Source SEEN = new Seen();
         Source KILLED = new Killed();
@@ -40,12 +44,22 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
                 case "seen" -> DataResult.success(SEEN);
                 case "killed" -> DataResult.success(KILLED);
                 case "manual" -> DataResult.success(MANUAL);
+                case "observed" -> DataResult.success(new Observed(Observed.DEFAULT_TIME));
                 default -> {
+                    if (value.startsWith("observed:")) {
+                        try {
+                            float seconds = Float.parseFloat(value.substring("observed:".length()));
+                            yield seconds >= 0.25f && seconds <= 600f ? DataResult.success(new Observed(seconds))
+                                    : DataResult.error(() -> "Observing takes 0.25 to 600 seconds, not " + value);
+                        } catch (NumberFormatException e) {
+                            yield DataResult.error(() -> "Bad number of seconds in " + value);
+                        }
+                    }
                     if (value.startsWith("read:")) {
                         ResourceLocation document = ResourceLocation.tryParse(value.substring(5));
                         yield document != null ? DataResult.success(new Read(document)) : DataResult.error(() -> "Bad document id in " + value);
                     }
-                    yield DataResult.error(() -> "Unknown unlock source '" + value + "': use seen, killed, read:<document> or manual");
+                    yield DataResult.error(() -> "Unknown unlock source '" + value + "': use seen, killed, observed:<seconds>, read:<document> or manual");
                 }
             };
         }
@@ -56,6 +70,8 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
                 case Killed killed -> "killed";
                 case Manual manual -> "manual";
                 case Read read -> "read:" + read.document();
+                case Observed observed -> "observed:" + (observed.seconds() == Math.rint(observed.seconds())
+                        ? String.valueOf((long) observed.seconds()) : String.valueOf(observed.seconds()));
             };
         }
 
@@ -66,5 +82,10 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
         record Manual() implements Source {}
 
         record Read(ResourceLocation document) implements Source {}
+
+        /** Studied: the player looked straight at the creature for {@code seconds}; once is enough, as a read. */
+        record Observed(float seconds) implements Source {
+            public static final float DEFAULT_TIME = 5;
+        }
     }
 }

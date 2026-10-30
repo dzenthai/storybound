@@ -84,7 +84,20 @@ public final class DevModeServer {
         ValidationReport report = ValidationService.current();
         List<String> issues = report.issues().stream().map(ValidationIssue::describe).toList();
         ProjectSettings settings = ProjectSettings.load(ConfigStorySource.root());
-        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages(), settings.namespace()));
+        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages(), settings.namespace(),
+                serverLists(player.server)));
+    }
+
+    /**
+     * Ids only the server knows, for the editor's pickers: advancements (without the recipe book's, a thousand of them)
+     * and loot tables.
+     */
+    static Map<String, List<String>> serverLists(net.minecraft.server.MinecraftServer server) {
+        List<String> advancements = server.getAdvancements().getAllAdvancements().stream().map(holder -> holder.id())
+                .filter(id -> !id.getPath().startsWith("recipes/")).map(ResourceLocation::toString).sorted().toList();
+        List<String> lootTables = server.reloadableRegistries().getKeys(net.minecraft.core.registries.Registries.LOOT_TABLE).stream()
+                .map(ResourceLocation::toString).sorted().toList();
+        return Map.of("advancement", advancements, "loot_table", lootTables);
     }
 
     /**

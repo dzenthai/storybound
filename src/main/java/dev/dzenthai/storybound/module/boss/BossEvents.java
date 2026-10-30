@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.EntitySelector;
+import dev.dzenthai.storybound.core.logic.trigger.CoreTriggers;
 import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
@@ -60,12 +61,20 @@ public final class BossEvents {
             BossRegistries.BOSSES.serverStore().all().forEach((boss, definition) -> {
                 subscriptions.add(new Subscription<>("boss " + boss + " seen", new SeenBoss(definition.entity()), context -> Bosses.sighted(context, boss)));
                 Set<ResourceLocation> documents = new LinkedHashSet<>();
+                Set<Unlock.Source.Observed> studies = new LinkedHashSet<>();
                 for (String section : BossDefinition.SECTIONS) {
                     definition.unlock(section).ifPresent(unlock -> unlock.on().forEach(source -> {
                         if (source instanceof Unlock.Source.Read read) {
                             documents.add(read.document());
+                        } else if (source instanceof Unlock.Source.Observed observed) {
+                            studies.add(observed);
                         }
                     }));
+                }
+                // Studying the boss: looked straight at it that long (a bar under the crosshair while it is worth it).
+                for (Unlock.Source.Observed study : studies) {
+                    subscriptions.add(new Subscription<>("boss " + boss + " observed " + study.seconds(), CoreTriggers.Observed.of(definition.entity(), study.seconds()),
+                            context -> Bosses.read(context, boss, study), context -> Bosses.wouldOpen(context, boss, study)));
                 }
                 for (ResourceLocation document : documents) {
                     subscriptions.add(new Subscription<>("boss " + boss + " read " + document, new DocumentLogic.Read(Optional.of(document), false),

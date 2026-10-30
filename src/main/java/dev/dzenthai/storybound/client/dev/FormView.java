@@ -355,6 +355,29 @@ final class FormView {
         return text;
     }
 
+    /** Opens a field of the node on its own page at once: a new node's first question ("Who is this NPC?"). */
+    void openRoot(String name, String label) {
+        Node node = rootSchema == null ? null : Schemas.properties(rootSchema).get(name);
+        if (node == null) {
+            return;
+        }
+        Node items = entityListItems(node);
+        frames.clear();
+        frames.push(new Frame(List.of(name), items != null ? items : node, label, false));
+        scroll = 0;
+    }
+
+    /** Lists the triggers at once for the node's trigger: a new story event's first question. */
+    void askTrigger(String name) {
+        if (screen == null) {
+            return;
+        }
+        pickType(Logic.TRIGGER, element -> {
+            host.root().add(name, element);
+            host.changed();
+        });
+    }
+
     private void push(List<Object> path, Node schema, String label, boolean removable) {
         frames.push(new Frame(path, schema, label, removable));
         scroll = 0;
@@ -2476,8 +2499,16 @@ final class FormView {
             default -> null;
         };
         boolean entities = isEntitySelector(items);
+        boolean stacks = stackList(field, items);
         screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> {
-            if (entities) {
+            if (stacks) {
+                // Rewards: straight to the items (the one in hand first, with its count and components), not a blank row.
+                screen.catalog().open(DevUi.text("form.pick_title.item"), Catalog.Kind.ITEM, (kind, entry) -> {
+                    ensureArray(path).add(stack(items, entry));
+                    host.changed();
+                });
+                screen.rebuild();
+            } else if (entities) {
                 // Straight to its page: how it is known (type, name, one entity) is chosen there.
                 JsonArray list = ensureArray(path);
                 list.add(new JsonObject());
@@ -2962,6 +2993,13 @@ final class FormView {
             String main = mainValue(object);
             return typeName(logic, object.get("type").getAsString()) + (main.isEmpty() ? "" : ": " + main);
         }
+        if (Schemas.properties(items).containsKey("count") && (object.get("item") instanceof JsonPrimitive || object.get("id") instanceof JsonPrimitive)) {
+            String item = (object.get("item") instanceof JsonPrimitive named ? named : object.get("id").getAsJsonPrimitive()).getAsString();
+            ResourceLocation id = ResourceLocation.tryParse(item);
+            String name = id != null && BuiltInRegistries.ITEM.containsKey(id) ? BuiltInRegistries.ITEM.get(id).getDescription().getString() : item;
+            int count = object.get("count") instanceof JsonPrimitive written && written.isNumber() ? written.getAsInt() : 1;
+            return count > 1 ? name + " × " + count : name;
+        }
         if (Schemas.properties(items).containsKey("unlock") && object.get("id") instanceof JsonPrimitive id) {
             String title = ClientDevStore.readStoryText(object, "title", "");
             return title.isBlank() ? id.getAsString() : title + " (" + id.getAsString() + ")";
@@ -2990,8 +3028,25 @@ final class FormView {
 
     // --- pickers
 
-    /** What a field can be picked from. */
-    private record Picker(@Nullable Catalog.Kind kind, @Nullable ResourceLocation storyType, List<String> choices, Component title) {}
+    /**
+     * What a field can be picked from: a catalog, the story's nodes of a kind, plain choices or prepared rows.
+     *
+     * @param empty what to say when there is nothing to pick (a stage before the quest is chosen); null: no button then
+     */
+    private record Picker(@Nullable Catalog.Kind kind, @Nullable ResourceLocation storyType, List<String> choices, Component title,
+                          List<Entry> entries, @Nullable Component empty) {
+        Picker(@Nullable Catalog.Kind kind, @Nullable ResourceLocation storyType, List<String> choices, Component title) {
+            this(kind, storyType, choices, title, List.of(), null);
+        }
+
+        static Picker rows(List<Entry> entries, Component title, Component empty) {
+            return new Picker(null, null, List.of(), title, entries, empty);
+        }
+
+        static Picker choices(List<String> choices, Component title, Component empty) {
+            return new Picker(null, null, choices, title, List.of(), empty);
+        }
+    }
 
     private @Nullable Picker picker(String field, Node owner, List<Object> path) {
         if (field.equals("next") && Schemas.properties(owner).containsKey("objectives") && "stage".equals(insideQuest(path))) {
@@ -3016,7 +3071,132 @@ final class FormView {
                 return new Picker(null, null, choices, fieldLabel(field, false, owner));
             }
         }
-        return picker(field, owner);
+        Picker dependent = dependentPicker(field, owner, objectAt(path));
+        return dependent != null ? dependent : picker(field, owner);
+    }
+
+    /**
+     * What depends on another field of the same object (October 30, 2026; before, typed): a quest's stage (the condition
+     * "quest at stage", set_quest_stage, the trigger "stage changed"), a dialogue's node (the trigger "dialogue ended",
+     * a jump or call to another dialogue), a statistic of its kind, a script's handler, a KubeJS handler, a waypoint
+     * added by an action, a Journal entry's section. Without the field it depends on, the button says to pick that first.
+     */
+    private @Nullable Picker dependentPicker(String field, Node owner, @Nullable JsonObject object) {
+        Map<String, Node> properties = Schemas.properties(owner);
+        String type = object != null && object.get("type") instanceof JsonPrimitive written ? written.getAsString() : "";
+        if (field.equals("stage") && properties.containsKey("quest")) {
+            boolean quest = object != null && object.get("quest") instanceof JsonPrimitive named && !named.getAsString().isBlank();
+            return Picker.choices(stagesOf(object), DevUi.text("pick.title.stage"), DevUi.text(quest ? "pick.no_stages" : "pick.need_quest"));
+        }
+        if (field.equals("node") && properties.containsKey("dialogue")) {
+            ResourceLocation dialogue = object != null && object.get("dialogue") instanceof JsonPrimitive named ? ResourceLocation.tryParse(named.getAsString()) : null;
+            if (dialogue != null) {
+                List<String> nodes = new ArrayList<>(ClientDevStore.parseObject(ClientDevStore.getJson(ClientDevStore.TYPE_DIALOGUE, dialogue)).get("nodes")
+                        instanceof JsonObject all ? all.keySet() : java.util.Set.of());
+                return Picker.choices(nodes, DevUi.text("pick.title.node"), DevUi.text("pick.no_nodes"));
+            }
+            // A jump within the dialogue being edited: its own nodes.
+            if (host.dialogue() == null) {
+                return Picker.choices(List.of(), DevUi.text("pick.title.node"), DevUi.text("pick.need_dialogue"));
+            }
+        }
+        if (field.equals("stat") && properties.containsKey("stat_type")) {
+            ResourceLocation statType = object != null && object.get("stat_type") instanceof JsonPrimitive named ? ResourceLocation.tryParse(named.getAsString()) : null;
+            return statPicker(statType);
+        }
+        if (field.equals("hook") && properties.containsKey("file")) {
+            String file = object != null && object.get("file") instanceof JsonPrimitive named ? named.getAsString() : "";
+            return Picker.rows(handlers(file), DevUi.text("pick.title.handler"), DevUi.text("pick.no_handlers"));
+        }
+        if (field.equals("id") && type.equals("kubejs")) {
+            return Picker.rows(handlers(""), DevUi.text("pick.title.handler"), DevUi.text("pick.no_handlers"));
+        }
+        if (field.equals("id") && type.equals("remove_waypoint")) {
+            List<String> added = new ArrayList<>(new java.util.TreeSet<>(addedWaypoints()));
+            return Picker.choices(added, DevUi.text("pick.title.added_waypoint"), DevUi.text("pick.no_added_waypoints"));
+        }
+        if (field.equals("category") && type.equals("journal_entry")) {
+            return new Picker(null, null, journalSections(), DevUi.text("document.pick_section"));
+        }
+        return null;
+    }
+
+    /** A statistic of its kind: an item or a mob from their catalogs, the rest (the custom ones: jumps, time played) listed. */
+    private static Picker statPicker(@Nullable ResourceLocation statType) {
+        net.minecraft.stats.StatType<?> kind = statType == null ? null : BuiltInRegistries.STAT_TYPE.get(statType);
+        if (kind == null) {
+            return Picker.rows(List.of(), DevUi.text("pick.title.stat"), DevUi.text("pick.need_stat_type"));
+        }
+        if (kind.getRegistry() == BuiltInRegistries.ITEM) {
+            return new Picker(Catalog.Kind.ITEM, null, List.of(), DevUi.text("pick.title.stat"));
+        }
+        if (kind.getRegistry() == BuiltInRegistries.ENTITY_TYPE) {
+            return new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("pick.title.stat"));
+        }
+        List<Entry> rows = new ArrayList<>();
+        kind.getRegistry().keySet().stream().sorted(java.util.Comparator.comparing(ResourceLocation::toString)).forEach(id -> {
+            String key = "stat." + id.toLanguageKey();
+            String name = Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) + " (" + id + ")" : id.toString();
+            rows.add(new Entry(id.toString(), name, new ItemStack(Items.PAPER)));
+        });
+        return Picker.rows(rows, DevUi.text("pick.title.stat"), DevUi.text("pick.empty"));
+    }
+
+    /** The KubeJS handlers the server found, of one file or all: conditions, then actions, under headings. */
+    private static List<Entry> handlers(String file) {
+        List<Entry> conditions = new ArrayList<>();
+        List<Entry> actions = new ArrayList<>();
+        for (StoryLinks.ScriptFile script : ClientDevStore.scripts().files().values()) {
+            if (!file.isBlank() && !script.path().equals(file)) {
+                continue;
+            }
+            script.conditions().forEach(hook -> conditions.add(new Entry(hook, hook + "  (" + script.path() + ")", new ItemStack(Items.COMPARATOR))));
+            script.actions().forEach(hook -> actions.add(new Entry(hook, hook + "  (" + script.path() + ")", new ItemStack(Items.REDSTONE_TORCH))));
+        }
+        List<Entry> rows = new ArrayList<>();
+        if (!conditions.isEmpty()) {
+            rows.add(new Entry(Catalog.SECTION + "conditions", DevUi.str("pick.section.conditions"), ItemStack.EMPTY));
+            rows.addAll(conditions);
+        }
+        if (!actions.isEmpty()) {
+            rows.add(new Entry(Catalog.SECTION + "actions", DevUi.str("pick.section.actions"), ItemStack.EMPTY));
+            rows.addAll(actions);
+        }
+        return rows;
+    }
+
+    /** The ids the story's add_waypoint actions give, which remove_waypoint names. */
+    private static List<String> addedWaypoints() {
+        List<String> ids = new ArrayList<>();
+        ClientDevStore.all().values().forEach(definitions -> definitions.values().forEach(raw -> collectAdded(ClientDevStore.parseObject(raw), ids)));
+        return ids;
+    }
+
+    private static void collectAdded(JsonElement element, List<String> ids) {
+        if (element instanceof JsonArray array) {
+            array.forEach(child -> collectAdded(child, ids));
+        } else if (element instanceof JsonObject object) {
+            if (object.get("type") instanceof JsonPrimitive type && type.getAsString().equals("add_waypoint")
+                    && object.get("id") instanceof JsonPrimitive id && !ids.contains(id.getAsString())) {
+                ids.add(id.getAsString());
+            }
+            object.asMap().values().forEach(child -> collectAdded(child, ids));
+        }
+    }
+
+    /** The Journal's sections: the document kinds' own, then those the story's documents name. */
+    private static List<String> journalSections() {
+        java.util.Set<String> sections = new java.util.LinkedHashSet<>(List.of("storybound:books", "storybound:scrolls", "storybound:notes",
+                "storybound:letters", "storybound:contracts"));
+        ClientDevStore.byType(ClientDevStore.TYPE_DOCUMENT).values().forEach(raw -> {
+            if (ClientDevStore.parseObject(raw).get("journal") instanceof JsonObject settings && settings.get("category") instanceof JsonPrimitive category) {
+                ResourceLocation id = ResourceLocation.tryParse(category.getAsString().contains(":") ? category.getAsString() : "storybound:" + category.getAsString());
+                if (id != null) {
+                    sections.add(id.toString());
+                }
+            }
+        });
+        return List.copyOf(sections);
     }
 
     private @Nullable Picker picker(String field, Node owner) {
@@ -3037,18 +3217,11 @@ final class FormView {
             return new Picker(null, null, styles, DevUi.text("document.pick_style"));
         }
         if (field.equals("category") && Schemas.properties(owner).containsKey("add_on_read")) {
-            // The kinds' own sections, then those other documents name.
-            java.util.Set<String> sections = new java.util.LinkedHashSet<>(List.of("storybound:books", "storybound:scrolls", "storybound:notes",
-                    "storybound:letters", "storybound:contracts"));
-            ClientDevStore.byType(ClientDevStore.TYPE_DOCUMENT).values().forEach(raw -> {
-                if (ClientDevStore.parseObject(raw).get("journal") instanceof JsonObject settings && settings.get("category") instanceof JsonPrimitive category) {
-                    ResourceLocation id = ResourceLocation.tryParse(category.getAsString().contains(":") ? category.getAsString() : "storybound:" + category.getAsString());
-                    if (id != null) {
-                        sections.add(id.toString());
-                    }
-                }
-            });
-            return new Picker(null, null, List.copyOf(sections), DevUi.text("document.pick_section"));
+            return new Picker(null, null, journalSections(), DevUi.text("document.pick_section"));
+        }
+        Picker known = knownPicker(field, owner);
+        if (known != null) {
+            return known;
         }
         ResourceLocation story = switch (field) {
             case "content" -> Schemas.properties(owner).containsKey("journal") ? ClientDevStore.TYPE_DOCUMENT : null;
@@ -3058,7 +3231,7 @@ final class FormView {
             case "boss" -> ClientDevStore.TYPE_BOSS;
             case "entry" -> ClientDevStore.TYPE_CODEX;
             case "waypoint" -> ClientDevStore.TYPE_WAYPOINT;
-            case "key" -> ClientDevStore.TYPE_FLAG;
+            case "key", "variant_by" -> ClientDevStore.TYPE_FLAG;
             default -> null;
         };
         if (story != null) {
@@ -3068,8 +3241,103 @@ final class FormView {
         return choices.isEmpty() ? null : new Picker(null, null, choices, fieldLabel(field, false));
     }
 
+    /** Whether the list holds item stacks (a quest's or a boss's rewards): "+ Add" opens the items at once. */
+    private static boolean stackList(String field, @Nullable Node items) {
+        if (items == null || !(field.equals("items") || field.equals("choice"))) {
+            return false;
+        }
+        if (Schemas.properties(items).containsKey("count")) {
+            return true;
+        }
+        return Schemas.variants(items).stream().anyMatch(variant -> Schemas.properties(variant).containsKey("count"));
+    }
+
+    /**
+     * The picked item as a list element: a quest's reward {@code {"item": …}}, a boss's an id; with the held stack's
+     * count and components when it has them (a boss's then becomes the object form).
+     */
+    private static JsonElement stack(Node items, Entry entry) {
+        Node object = Schemas.properties(items).containsKey("count") ? items
+                : Schemas.variants(items).stream().filter(variant -> Schemas.properties(variant).containsKey("count")).findFirst().orElse(items);
+        boolean named = Schemas.properties(object).containsKey("item");
+        JsonObject element = new JsonObject();
+        element.addProperty(named ? "item" : "id", entry.id());
+        if (entry.held()) {
+            held(element, object, entry.icon());
+        }
+        if (element.has("count") && element.get("count").getAsInt() == 1) {
+            element.remove("count");
+        }
+        // A boss's plain item stays a plain id, as such lists are written by hand.
+        return !named && element.size() == 1 && object != items ? new JsonPrimitive(entry.id()) : element;
+    }
+
+    /**
+     * Fields naming something the game or the server knows (October 30, 2026; before, typed): a dimension, an effect, an
+     * item tag, a kind of statistic, an advancement and a loot table (both listed by the server), a script file, a
+     * chapter's icon.
+     */
+    private static @Nullable Picker knownPicker(String field, Node owner) {
+        Map<String, Node> properties = Schemas.properties(owner);
+        boolean dimension = field.equals("dimension") || (field.equals("from") || field.equals("to")) && properties.containsKey("from") && properties.containsKey("to");
+        if (dimension) {
+            List<Entry> rows = new ArrayList<>();
+            var connection = Minecraft.getInstance().getConnection();
+            if (connection != null) {
+                connection.levels().stream().map(level -> level.location()).sorted(java.util.Comparator.comparing(ResourceLocation::toString))
+                        .forEach(id -> rows.add(new Entry(id.toString(), id.toString(), new ItemStack(id.getPath().contains("nether") ? Items.NETHERRACK
+                                : id.getPath().contains("end") ? Items.END_STONE : Items.GRASS_BLOCK))));
+            }
+            return Picker.rows(rows, DevUi.text("pick.title.dimension"), DevUi.text("pick.empty"));
+        }
+        if (field.equals("effect")) {
+            List<Entry> rows = new ArrayList<>();
+            BuiltInRegistries.MOB_EFFECT.entrySet().stream().sorted(java.util.Comparator.comparing(entry -> entry.getKey().location().toString()))
+                    .forEach(entry -> rows.add(new Entry(entry.getKey().location().toString(),
+                            Component.translatable(entry.getValue().getDescriptionId()).getString() + " (" + entry.getKey().location() + ")", new ItemStack(Items.POTION))));
+            return Picker.rows(rows, DevUi.text("pick.title.effect"), DevUi.text("pick.empty"));
+        }
+        if (field.equals("tag") && properties.containsKey("item")) {
+            List<Entry> rows = new ArrayList<>();
+            BuiltInRegistries.ITEM.getTagNames().map(tag -> tag.location().toString()).sorted()
+                    .forEach(tag -> rows.add(new Entry(tag, "#" + tag, new ItemStack(Items.NAME_TAG))));
+            return Picker.rows(rows, DevUi.text("pick.title.item_tag"), DevUi.text("pick.empty"));
+        }
+        if (field.equals("stat_type")) {
+            List<Entry> rows = new ArrayList<>();
+            BuiltInRegistries.STAT_TYPE.keySet().stream().sorted(java.util.Comparator.comparing(ResourceLocation::toString)).forEach(id -> {
+                net.minecraft.stats.StatType<?> kind = BuiltInRegistries.STAT_TYPE.get(id);
+                String name = kind != null ? kind.getDisplayName().getString() + " (" + id + ")" : id.toString();
+                rows.add(new Entry(id.toString(), name, new ItemStack(Items.PAPER)));
+            });
+            return Picker.rows(rows, DevUi.text("pick.title.stat_type"), DevUi.text("pick.empty"));
+        }
+        if (field.equals("advancement") || field.equals("loot")) {
+            String list = field.equals("loot") ? "loot_table" : "advancement";
+            List<Entry> rows = new ArrayList<>();
+            ClientDevStore.serverList(list).forEach(id -> rows.add(new Entry(id, id, new ItemStack(field.equals("loot") ? Items.CHEST : Items.KNOWLEDGE_BOOK))));
+            return Picker.rows(rows, DevUi.text("pick.title." + list), DevUi.text("pick.no_server_list"));
+        }
+        if (field.equals("file") && properties.containsKey("hook")) {
+            List<Entry> rows = new ArrayList<>();
+            ClientDevStore.scripts().files().keySet().stream().sorted().forEach(file -> rows.add(new Entry(file, file, new ItemStack(Items.PAPER))));
+            return Picker.rows(rows, DevUi.text("script.pick_file_title"), DevUi.text("pick.no_scripts"));
+        }
+        if (field.equals("icon") && properties.containsKey("order")) {
+            return new Picker(Catalog.Kind.ITEM, null, List.of(), DevUi.text("form.pick_title.item"));
+        }
+        return null;
+    }
+
     private void pick(Picker picker, Consumer<Entry> picked) {
-        if (picker.kind() != null) {
+        if (picker.kind() == null && picker.storyType() == null && picker.entries().isEmpty() && picker.choices().isEmpty()) {
+            // Nothing to pick yet: say why rather than open an empty list.
+            screen.status(picker.empty() != null ? picker.empty() : DevUi.text("pick.empty"), DevUi.WARN);
+            return;
+        }
+        if (!picker.entries().isEmpty()) {
+            screen.catalog().openList(picker.title(), picker.entries(), (kind, entry) -> picked.accept(entry));
+        } else if (picker.kind() != null) {
             screen.catalog().open(picker.title(), picker.kind(), (kind, entry) -> picked.accept(entry));
         } else {
             List<Entry> entries = new ArrayList<>();

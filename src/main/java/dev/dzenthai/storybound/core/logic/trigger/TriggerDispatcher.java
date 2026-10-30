@@ -97,6 +97,27 @@ public final class TriggerDispatcher {
     }
 
     /**
+     * Fires one subscription alone: a detector that measures each subscription on its own (an observation of 3 seconds
+     * and one of 10 on the same zombie end at different moments) tells only the one that is done.
+     */
+    public static <E> void fireOne(Subscription<E> subscription, StoryContext context, E event) {
+        if (!enter(subscription.trigger().type())) {
+            return;
+        }
+        long previous = current;
+        Set<UUID> previousCounted = countedBefore;
+        current = ++occurrences;
+        countedBefore = Set.of();
+        try {
+            notify(subscription, context, event);
+        } finally {
+            depth--;
+            current = previous;
+            countedBefore = previousCounted;
+        }
+    }
+
+    /**
      * Fires what {@code fires} fires as one happening in the world: a kill shared with the killer's party, a boss's
      * victory for each credited player, a party quest's or flag's change for each member online fire one trigger for
      * several players, and progress those players share (a party's, the world's) counts it once (October 29, 2026;
