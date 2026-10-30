@@ -5,7 +5,6 @@
   "texture_width": 256,
   "texture_height": 320,
   "padding": { "left": 56, "top": 66, "right": 66, "bottom": 65 },
-  "scrollbar_x": 205,
   "font": "minecraft:default",
   "color": "#463626",
   "line_height": 13,

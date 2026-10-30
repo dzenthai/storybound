@@ -28,7 +28,6 @@
     "line_height": { "type": "integer", "minimum": 6, "maximum": 64, "default": 10 },
     "show_title": { "type": "boolean", "default": true, "description": "Print the document title at the top of the text." },
     "open_sound": { "type": "string" },
-    "turn_sound": { "type": "string" },
-    "scrollbar_x": { "description": "Where a long text's scrollbar stands, in the texture's pixels; a framed sheet puts it on the margin outside the frame. Without it: just after the text.", "type": "integer", "minimum": 0, "maximum": 1024 }
+    "turn_sound": { "type": "string" }
   }
 }

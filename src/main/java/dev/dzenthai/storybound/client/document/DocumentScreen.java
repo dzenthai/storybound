@@ -13,6 +13,8 @@ import dev.dzenthai.storybound.module.document.sbt.SbtParser;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import net.minecraft.Util;
+import net.minecraft.util.Mth;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -21,6 +23,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
@@ -72,7 +75,13 @@ public class DocumentScreen extends Screen {
     private int scrollTitleScale = 1;
     private int scrollHeaderHeight;
     private int spread;
+    /** Where the text is scrolled to; {@link #shownScroll} follows it smoothly. */
     private int scroll;
+    private double shownScroll;
+    private long lastFrame;
+    /** The scroll arrows' fade, 0 to 1. */
+    private float upAlpha;
+    private float downAlpha;
     private float scale = 1;
     private float left;
     private float top;
@@ -232,11 +241,11 @@ public class DocumentScreen extends Screen {
             return;
         }
         if (printedSheet()) {
-            renderPrintedSheet(graphics);
+            renderPrintedSheet(graphics, mouseX, mouseY);
             return;
         }
         if (!book) {
-            renderScrolling(graphics);
+            renderScrolling(graphics, mouseX, mouseY);
             return;
         }
         float sheetX = (mouseX - left) / scale;
@@ -288,9 +297,10 @@ public class DocumentScreen extends Screen {
         }
     }
 
-    private void renderScrolling(GuiGraphics graphics) {
+    private void renderScrolling(GuiGraphics graphics, int mouseX, int mouseY) {
         SbtLayout.Page page = pages.isEmpty() ? new SbtLayout.Page(List.of()) : pages.getFirst();
         scroll = Math.max(0, Math.min(scroll, maxScroll(page)));
+        float frame = ease();
         graphics.pose().pushPose();
         graphics.pose().translate(left, top, 0);
         graphics.pose().scale(scale, scale, 1);
@@ -299,32 +309,86 @@ public class DocumentScreen extends Screen {
 
         // Scissor works in screen coordinates and ignores the pose, so it is set outside of it.
         DocumentStyle.Padding padding = style.padding();
-        graphics.enableScissor((int) (left + padding.left() * scale), (int) (top + padding.top() * scale),
-                (int) Math.ceil(left + (style.width() - padding.right()) * scale), (int) Math.ceil(top + (style.height() - padding.bottom()) * scale));
+        graphics.enableScissor((int) (left + padding.left() * scale), (int) (top + viewTop(page) * scale),
+                (int) Math.ceil(left + (style.width() - padding.right()) * scale), (int) Math.ceil(top + (viewTop(page) + viewHeight(page)) * scale));
         graphics.pose().pushPose();
         graphics.pose().translate(left, top, 0);
         graphics.pose().scale(scale, scale, 1);
-        drawLines(graphics, page.lines(), padding.left(), padding.top() - scroll);
+        drawScrolledLines(graphics, page.lines(), padding.left(), viewTop(page));
         graphics.pose().popPose();
         graphics.disableScissor();
 
-        if (maxScroll(page) > 0) {
-            int trackHeight = textHeight();
-            int thumbHeight = Math.max(8, trackHeight * trackHeight / page.height());
-            int thumbY = padding.top() + (trackHeight - thumbHeight) * scroll / maxScroll(page);
-            // Just right of the text column: the sheet's edge may be a frame, a roller or a ribbon.
-            int x = style.width() - padding.right() + 3;
-            graphics.pose().pushPose();
-            graphics.pose().translate(left, top, 0);
-            graphics.pose().scale(scale, scale, 1);
-            graphics.fill(x, thumbY, x + 2, thumbY + thumbHeight, 0x80000000 | (style.color() & 0xFFFFFF));
-            graphics.pose().popPose();
-        }
+        graphics.pose().pushPose();
+        graphics.pose().translate(left, top, 0);
+        graphics.pose().scale(scale, scale, 1);
+        drawArrows(graphics, page, frame, (mouseX - left) / scale, (mouseY - top) / scale);
+        graphics.pose().popPose();
     }
 
-    private void renderPrintedSheet(GuiGraphics graphics) {
+    /**
+     * Moves {@link #shownScroll} towards {@link #scroll}, quickly at first and softly at the end, so the wheel, the keys
+     * and the arrows scroll smoothly (October 31, 2026; before, in jumps of three lines); returns the frame's length.
+     */
+    private float ease() {
+        long now = Util.getMillis();
+        float frame = lastFrame == 0 ? 0 : Math.min(100, now - lastFrame);
+        lastFrame = now;
+        shownScroll += (scroll - shownScroll) * (1 - Math.exp(-frame / 70.0));
+        if (Math.abs(scroll - shownScroll) < 0.05) {
+            shownScroll = scroll;
+        }
+        return frame;
+    }
+
+    /** The lines where they are scrolled to now, by parts of a pixel while moving. */
+    private void drawScrolledLines(GuiGraphics graphics, List<SbtLayout.Line> lines, int x, int textTop) {
+        int whole = (int) Math.floor(shownScroll);
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, -(shownScroll - whole), 0);
+        drawLines(graphics, lines, x, textTop - whole);
+        graphics.pose().popPose();
+    }
+
+    /**
+     * The room the arrows take above and below a text that does not fit (none for one that does, laid out as before):
+     * they stand in the middle, over and under it, not on its lines (October 31, 2026; before, the same day, at its
+     * right, and earlier a scrollbar there).
+     */
+    private int arrowRoom(SbtLayout.Page page) {
+        return page.height() > textHeight() ? ScrollArrows.room() : 0;
+    }
+
+    /** Where the scrolled text shows: the text's room less the arrows'. */
+    private int viewTop(SbtLayout.Page page) {
+        return textTop() + arrowRoom(page);
+    }
+
+    private int viewHeight(SbtLayout.Page page) {
+        return textHeight() - 2 * arrowRoom(page);
+    }
+
+    /** The middle of the text column, where the arrows stand. */
+    private int arrowsX() {
+        return style.padding().left() + pageWidth() / 2;
+    }
+
+    private int downArrowTop() {
+        return textTop() + textHeight() - ScrollArrows.HEIGHT;
+    }
+
+    /** The arrows, each while there is text its way, faded in and out; {@code mouseX}, {@code mouseY} in the sheet's pixels. */
+    private void drawArrows(GuiGraphics graphics, SbtLayout.Page page, float frame, double mouseX, double mouseY) {
+        float step = frame / 150f;
+        upAlpha = Mth.clamp(upAlpha + (scroll > 0 ? step : -step), 0, 1);
+        downAlpha = Mth.clamp(downAlpha + (scroll < maxScroll(page) ? step : -step), 0, 1);
+        ScrollArrows.draw(graphics, arrowsX(), textTop(), 1, true, upAlpha, ScrollArrows.contains(arrowsX(), textTop(), 1, mouseX, mouseY));
+        ScrollArrows.draw(graphics, arrowsX(), downArrowTop(), 1, false, downAlpha, ScrollArrows.contains(arrowsX(), downArrowTop(), 1, mouseX, mouseY));
+    }
+
+    private void renderPrintedSheet(GuiGraphics graphics, int mouseX, int mouseY) {
         SbtLayout.Page page = pages.isEmpty() ? new SbtLayout.Page(List.of()) : pages.getFirst();
         scroll = Math.max(0, Math.min(scroll, maxScroll(page)));
+        float frame = ease();
         GuiGraphics sheet = new BookGuiGraphics(minecraft, graphics, new BookViewport(scale, left, top));
         drawSheet(sheet);
         int x = style.padding().left();
@@ -342,18 +406,10 @@ public class DocumentScreen extends Screen {
             JournalSkin.titleRule(sheet, x, textTop() - 12, pageWidth(), 0xFFAE7C53);
             sheet.disableScissor();
         }
-        sheet.enableScissor(x, textTop(), x + pageWidth(), textTop() + textHeight());
-        drawLines(sheet, page.lines(), x, textTop() - scroll);
+        sheet.enableScissor(x, viewTop(page), x + pageWidth(), viewTop(page) + viewHeight(page));
+        drawScrolledLines(sheet, page.lines(), x, viewTop(page));
         sheet.disableScissor();
-        if (maxScroll(page) > 0) {
-            // Where the style puts it (a framed sheet: on the margin outside the frame, October 30, 2026; before, inside
-            // the frame against its line and diamonds, reading as a second line of it), else just after the text.
-            int trackX = style.scrollbarX().orElse(style.width() - style.padding().right() + 5);
-            int thumbHeight = Math.max(12, textHeight() * textHeight() / page.height());
-            int thumbY = textTop() + (textHeight() - thumbHeight) * scroll / maxScroll(page);
-            sheet.fill(trackX, textTop(), trackX + 2, textTop() + textHeight(), 0x30AE7C53);
-            sheet.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, 0xFFAE7C53);
-        }
+        drawArrows(sheet, page, frame, (mouseX - left) / scale, (mouseY - top) / scale);
         sheet.flush();
     }
 
@@ -427,7 +483,7 @@ public class DocumentScreen extends Screen {
     }
 
     private int maxScroll(SbtLayout.Page page) {
-        return Math.max(0, page.height() - textHeight());
+        return Math.max(0, page.height() - viewHeight(page));
     }
 
     private boolean hasNextSpread() {
@@ -456,6 +512,18 @@ public class DocumentScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (!book && definition != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            double x = (mouseX - left) / scale;
+            double y = (mouseY - top) / scale;
+            SbtLayout.Page page = pages.isEmpty() ? new SbtLayout.Page(List.of()) : pages.getFirst();
+            boolean up = scroll > 0 && ScrollArrows.contains(arrowsX(), textTop(), 1, x, y);
+            boolean down = scroll < maxScroll(page) && ScrollArrows.contains(arrowsX(), downArrowTop(), 1, x, y);
+            if (up || down) {
+                scroll += (down ? 1 : -1) * style.lineHeight() * SCROLL_LINES;
+                minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.4f, 0.25f));
+                return true;
+            }
+        }
         if (book && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             float x = (float) ((mouseX - left) / scale);
             float y = (float) ((mouseY - top) / scale);

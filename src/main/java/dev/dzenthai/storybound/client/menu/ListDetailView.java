@@ -1,13 +1,19 @@
 package dev.dzenthai.storybound.client.menu;
 
+import dev.dzenthai.storybound.client.document.ScrollArrows;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.ChatFormatting;
+import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.locale.Language;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Mth;
 import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,6 +33,23 @@ public abstract class ListDetailView<E> extends MenuView {
     private int version = Integer.MIN_VALUE;
     private int listScroll;
     private int detailScroll;
+    /**
+     * Where the list (in rows) and the detail (in units) show now, following {@link #listScroll} and {@link #detailScroll}
+     * smoothly, as the documents do (October 31, 2026; before, in jumps).
+     */
+    private double shownList;
+    private double shownDetail;
+    private long lastFrame;
+    private float frame;
+    /** The scroll arrows' fade, and the room they take over and under the list and the detail (0 when it all fits). */
+    private float listUp;
+    private float listDown;
+    private float detailUp;
+    private float detailDown;
+    private int listRoom;
+    private int listMax;
+    private int detailMax;
+    private int detailRoom;
     private @Nullable Component rowTooltip;
 
     /** Changes whenever the data behind the rows may have changed. */
@@ -90,6 +113,7 @@ public abstract class ListDetailView<E> extends MenuView {
         if (selected == null) {
             selected = preferredSelection(entries);
             detailScroll = 0;
+            shownDetail = 0;
         }
         if (selected != null) {
             markSeen(selected);
@@ -101,6 +125,7 @@ public abstract class ListDetailView<E> extends MenuView {
     private void select(E entry) {
         selected = entry;
         detailScroll = 0;
+        shownDetail = 0;
         markSeen(entry);
         rebuildDetail();
         selectionChanged();
@@ -151,24 +176,64 @@ public abstract class ListDetailView<E> extends MenuView {
 
     private void renderList(GuiGraphics graphics, MenuTheme theme, int mouseX, int mouseY) {
         rowTooltip = null;
+        long now = Util.getMillis();
+        frame = lastFrame == 0 ? 0 : Math.min(100, now - lastFrame);
+        lastFrame = now;
         int rowHeight = rowHeight();
-        int visible = Math.max(1, height / rowHeight);
-        listScroll = Math.max(0, Math.min(listScroll, Math.max(0, rows.size() - visible)));
-        graphics.enableScissor(left, top, left + listWidth(), top + height);
-        for (int i = listScroll; i < rows.size() && i < listScroll + visible; i++) {
+        // A list longer than the page: arrows in the middle over and under it, in the room they take (before October
+        // 31, 2026, a scrollbar at its right).
+        listRoom = screen.bookLayout() != null && rows.size() * rowHeight > height ? arrowRoom() : 0;
+        int viewTop = top + listRoom;
+        int viewHeight = height - 2 * listRoom;
+        int visible = Math.max(1, viewHeight / rowHeight);
+        int maxScroll = Math.max(0, rows.size() - visible);
+        listScroll = Math.max(0, Math.min(listScroll, maxScroll));
+        listMax = maxScroll;
+        shownList = ease(shownList, listScroll);
+        graphics.enableScissor(left, viewTop, left + listWidth(), viewTop + viewHeight);
+        int first = (int) Math.floor(shownList);
+        for (int i = Math.max(0, first); i < rows.size() && i <= first + visible; i++) {
             Row<E> row = rows.get(i);
-            int y = top + (i - listScroll) * rowHeight;
-            boolean hovered = mouseX >= left && mouseX < left + listWidth() && mouseY >= y && mouseY < y + rowHeight;
+            int y = viewTop + (int) Math.round((i - shownList) * rowHeight);
+            boolean hovered = mouseX >= left && mouseX < left + listWidth() && mouseY >= Math.max(y, viewTop) && mouseY < Math.min(y + rowHeight, viewTop + viewHeight);
             renderListRow(graphics, theme, row, y, row.entry() != null && row.entry() == selected, hovered);
         }
         graphics.disableScissor();
-        if (screen.bookLayout() != null && rows.size() > visible) {
-            int trackX = left + listWidth() + 2;
-            int thumbHeight = Math.max(6, height * visible / rows.size());
-            int thumbY = top + (height - thumbHeight) * listScroll / Math.max(1, rows.size() - visible);
-            graphics.fill(trackX, top, trackX + 1, top + height, (theme.divider() & 0xFFFFFF) | 0x50000000);
-            graphics.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, theme.divider());
+        if (listRoom > 0) {
+            listUp = fade(listUp, listScroll > 0);
+            listDown = fade(listDown, listScroll < maxScroll);
+            drawArrows(graphics, left + listWidth() / 2.0, top, top + height, listUp, listDown, mouseX, mouseY);
         }
+    }
+
+    /** The room an arrow takes over or under a text, in the menu's units. */
+    private int arrowRoom() {
+        return (int) Math.ceil(ScrollArrows.room() * screen.bookLayout().bookPixel());
+    }
+
+    private double ease(double shown, int target) {
+        double next = shown + (target - shown) * (1 - Math.exp(-frame / 70.0));
+        return Math.abs(target - next) < 0.01 ? target : next;
+    }
+
+    private float fade(float alpha, boolean shown) {
+        return Mth.clamp(alpha + (shown ? 1 : -1) * frame / 150f, 0, 1);
+    }
+
+    private void drawArrows(GuiGraphics graphics, double centerX, int top, int bottom, float up, float down, int mouseX, int mouseY) {
+        double pixel = screen.bookLayout().bookPixel();
+        double downTop = bottom - ScrollArrows.HEIGHT * pixel;
+        ScrollArrows.draw(graphics, centerX, top, pixel, true, up, ScrollArrows.contains(centerX, top, pixel, mouseX, mouseY));
+        ScrollArrows.draw(graphics, centerX, downTop, pixel, false, down, ScrollArrows.contains(centerX, downTop, pixel, mouseX, mouseY));
+    }
+
+    /** -1 for the upward arrow, 1 for the downward one, 0 for neither (or one that is hidden). */
+    private int arrowAt(double centerX, int top, int bottom, boolean canUp, boolean canDown, double mouseX, double mouseY) {
+        double pixel = screen.bookLayout().bookPixel();
+        if (canUp && ScrollArrows.contains(centerX, top, pixel, mouseX, mouseY)) {
+            return -1;
+        }
+        return canDown && ScrollArrows.contains(centerX, bottom - ScrollArrows.HEIGHT * pixel, pixel, mouseX, mouseY) ? 1 : 0;
     }
 
     /** Presentation hook; row selection and data handling remain in the common view. */
@@ -231,13 +296,19 @@ public abstract class ListDetailView<E> extends MenuView {
         int bottom = detailBottom();
         int top = detailTop();
         int contentHeight = detail.stream().mapToInt(Line::height).sum();
-        detailScroll = Math.max(0, Math.min(detailScroll, Math.max(0, contentHeight - (bottom - top))));
-        graphics.enableScissor(x, top, x + detailWidth(), bottom);
-        int y = top - detailScroll;
+        detailRoom = screen.bookLayout() != null && contentHeight > bottom - top ? arrowRoom() : 0;
+        int viewTop = top + detailRoom;
+        int viewBottom = bottom - detailRoom;
+        int maxScroll = Math.max(0, contentHeight - (viewBottom - viewTop));
+        detailScroll = Math.max(0, Math.min(detailScroll, maxScroll));
+        detailMax = maxScroll;
+        shownDetail = ease(shownDetail, detailScroll);
+        graphics.enableScissor(x, viewTop, x + detailWidth(), viewBottom);
+        int y = viewTop - (int) Math.round(shownDetail);
         for (Line line : detail) {
-            if (line.block() != null && y + line.height() > top && y < bottom) {
+            if (line.block() != null && y + line.height() > viewTop && y < viewBottom) {
                 line.block().render(graphics, x, y, detailWidth(), mouseX, mouseY, partialTick);
-            } else if (line.text() != null && y + line.height() > top && y < bottom) {
+            } else if (line.text() != null && y + line.height() > viewTop && y < viewBottom) {
                 if (line.click() != null && mouseX >= x && mouseX < x + detailWidth() && mouseY >= y && mouseY < y + line.height()) {
                     graphics.fill(x - 2, y - 1, x + detailWidth(), y + line.height() - 1, theme().hover());
                 }
@@ -252,18 +323,29 @@ public abstract class ListDetailView<E> extends MenuView {
             renderDetailRemainder(graphics, x, top + contentHeight + 6, detailWidth(), bottom - top - contentHeight - 6);
         }
         graphics.disableScissor();
-        if (screen.bookLayout() != null && contentHeight > bottom - top) {
-            int thumbHeight = Math.max(6, (bottom - top) * (bottom - top) / contentHeight);
-            int thumbY = top + (bottom - top - thumbHeight) * detailScroll / Math.max(1, contentHeight - (bottom - top));
-            graphics.fill(x + detailWidth() + 2, top, x + detailWidth() + 3, bottom, (theme().divider() & 0xFFFFFF) | 0x50000000);
-            graphics.fill(x + detailWidth() + 2, thumbY, x + detailWidth() + 4, thumbY + thumbHeight, theme().divider());
+        if (detailRoom > 0) {
+            detailUp = fade(detailUp, detailScroll > 0);
+            detailDown = fade(detailDown, detailScroll < maxScroll);
+            drawArrows(graphics, x + detailWidth() / 2.0, top, bottom, detailUp, detailDown, mouseX, mouseY);
         }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (mouseX >= detailX() && mouseX < detailX() + detailWidth() && mouseY >= detailTop() && mouseY < detailBottom()) {
-            int y = detailTop() - detailScroll;
+        // The arrows first: they stand over and under the text they scroll.
+        int listArrow = listRoom > 0 ? arrowAt(left + listWidth() / 2.0, top, top + height, listScroll > 0, listScroll < listMax, mouseX, mouseY) : 0;
+        int detailArrow = detailRoom > 0 ? arrowAt(detailX() + detailWidth() / 2.0, detailTop(), detailBottom(), detailScroll > 0, detailScroll < detailMax, mouseX, mouseY) : 0;
+        if (listArrow != 0 || detailArrow != 0) {
+            if (listArrow != 0) {
+                listScroll += listArrow * 2;
+            } else {
+                detailScroll += detailArrow * 3 * LINE_HEIGHT;
+            }
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.4f, 0.25f));
+            return true;
+        }
+        if (mouseX >= detailX() && mouseX < detailX() + detailWidth() && mouseY >= detailTop() + detailRoom && mouseY < detailBottom() - detailRoom) {
+            int y = detailTop() + detailRoom - (int) Math.round(shownDetail);
             for (Line line : detail) {
                 if (line.click() != null && mouseY >= y && mouseY < y + line.height()) {
                     line.click().run();
@@ -272,10 +354,9 @@ public abstract class ListDetailView<E> extends MenuView {
                 y += line.height();
             }
         }
-        if (mouseX >= left && mouseX < left + listWidth() && mouseY >= top && mouseY < top + height) {
-            int index = listScroll + (int) ((mouseY - top) / rowHeight());
-            if (index >= listScroll && index < listScroll + Math.max(1, height / rowHeight())
-                    && index < rows.size() && rows.get(index).entry() != null) {
+        if (mouseX >= left && mouseX < left + listWidth() && mouseY >= top + listRoom && mouseY < top + height - listRoom) {
+            int index = (int) Math.floor((mouseY - top - listRoom) / rowHeight() + shownList);
+            if (index >= 0 && index < rows.size() && rows.get(index).entry() != null) {
                 select(rows.get(index).entry());
                 return true;
             }
