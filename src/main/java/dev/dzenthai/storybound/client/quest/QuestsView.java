@@ -477,7 +477,7 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         Component label = DifficultyScale.current().render(difficulty);
         if (screen.bookLayout() == null) return label;
         int rank = DifficultyScale.current().stars(difficulty);
-        int ink = rank <= 1 ? UiPalette.GREEN_DARK : rank == 2 ? UiPalette.OCHRE_DARK : UiPalette.RED_DARK;
+        int ink = rank <= 1 ? UiPalette.GREEN_DARK : rank == 2 ? UiPalette.OCHRE_DARK : UiPalette.RED_SHADOW;
         return Component.literal(label.getString()).withColor(ink);
     }
 

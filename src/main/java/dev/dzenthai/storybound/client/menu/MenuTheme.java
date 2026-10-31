@@ -18,7 +18,7 @@ public record MenuTheme(ResourceLocation panel, ResourceLocation tab, ResourceLo
             Storybound.id("menu/panel"), Storybound.id("menu/tab"), Storybound.id("menu/tab_selected"),
             // As theme.json, in the author's palette (October 31, 2026); muted and the HUD's background are not in it.
             UiPalette.opaque(UiPalette.INK), UiPalette.opaque(UiPalette.INK), 0xFF806747, UiPalette.opaque(UiPalette.DARK_BROWN),
-            UiPalette.opaque(UiPalette.OCHRE), UiPalette.opaque(UiPalette.GREEN_DARK), UiPalette.opaque(UiPalette.RED_DARK),
+            UiPalette.opaque(UiPalette.OCHRE), UiPalette.opaque(UiPalette.GREEN_DARK), UiPalette.opaque(UiPalette.RED_SHADOW),
             0x60000000 | UiPalette.TAN_LIGHT, 0x30000000 | UiPalette.TAN, UiPalette.opaque(UiPalette.TAN), 0xA62A221C,
             UiPalette.opaque(UiPalette.GOLD_LIGHT), UiPalette.opaque(UiPalette.PAPER));
 

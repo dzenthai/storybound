@@ -36,15 +36,17 @@ import org.jetbrains.annotations.Nullable;
  * <p>
  * The bar is the author's art ({@code textures/gui/observation/bar.png}, from {@code ui-kit/concepts/documents/
  * newloader.png}, October 31, 2026; before, a pixel ring round the crosshair drawn by the code, then the same day a
- * 73 × 7 bar drawn a step larger than the HUD): five strips of {@link #BAR_WIDTH} × {@link #BAR_HEIGHT}, the frame and
- * the full fill for a light background, the full fill in gold, the frame and the full fill for a dark one, each fill
- * strip with its tip (the chevron spark, {@link #TIP} columns) beside it. While it grows the fill is the strip's left
- * part with the tip at its end; full, it is the whole strip, its right end as round as its left, up to the frame. The bar and its words are in HUD pixels ({@link HudScale}), as the rest of the HUD: the art is drawn large
+ * 73 × 7 bar drawn a step larger than the HUD): three strips of {@link #BAR_WIDTH} × {@link #BAR_HEIGHT}, the frame
+ * with a dark translucent ground inside it, the full fill in gold, and the full fill in the glint that runs over it at
+ * the end, each fill strip with its tip (the chevron spark, {@link #TIP} columns) beside it. While it grows the fill is
+ * the strip's left part with the tip at its end; full, it is the whole strip, its right end as round as its left, up to
+ * the frame. The bar and its words are in HUD pixels ({@link HudScale}), as the rest of the HUD: the art is drawn large
  * enough for it (2 window pixels at 1080 by default, 220 × 22).
  * <p>
- * Which variant shows follows how light the picture under the bar is ({@link Backdrop}), with room between the two
- * thresholds so it does not flicker, crossfading; the words under it go dark with a light edge over a light picture,
- * and light with a dark edge over a dark one.
+ * The ground and the gold make it read on any picture, as vanilla's experience bar does: before, the same day, the
+ * fill was the wood's brown on nothing, the colour of the oak, dirt and dry grass behind it, and a variant for a light
+ * and one for a dark picture, picked by reading the screen, could not help that. The words are paper with an ink edge,
+ * gold when done.
  */
 public final class ObservationHud {
     private static final ResourceLocation BAR = Storybound.id("textures/gui/observation/bar.png");
@@ -57,19 +59,13 @@ public final class ObservationHud {
     private static final int TIP = 3;
     private static final int TIP_U = BAR_WIDTH;
     private static final int TEXTURE_WIDTH = BAR_WIDTH + TIP;
-    /** The strips: for a light background, the gold of the end, for a dark background. */
+    /** The strips: the frame with its ground, the gold fill, the glint of the end. */
     private static final int FRAME = 0;
     private static final int FILL = BAR_HEIGHT;
-    private static final int GOLD_FILL = 2 * BAR_HEIGHT;
-    private static final int FRAME_ON_DARK = 3 * BAR_HEIGHT;
-    private static final int FILL_ON_DARK = 4 * BAR_HEIGHT;
-    private static final int TEXTURE_HEIGHT = 5 * BAR_HEIGHT;
+    private static final int GLINT = 2 * BAR_HEIGHT;
+    private static final int TEXTURE_HEIGHT = 3 * BAR_HEIGHT;
     /** From the crosshair's edge to the bar's top, in HUD pixels. */
     private static final int BELOW_CROSSHAIR = 2;
-    /** The picture under the bar darker than this takes the dark variant; lighter than the second, the light one. */
-    private static final float DARK_BELOW = 0.33f;
-    private static final float LIGHT_ABOVE = 0.43f;
-    private static final long SWITCH_MS = 250;
     private static final int GOLD = UiPalette.GOLD_LIGHT;
     /** Running back, the fill covers its way in about this many milliseconds at first, slowing to the end. */
     private static final float DRAIN_MS = 200f;
@@ -100,9 +96,6 @@ public final class ObservationHud {
     private static long settleAt;
     /** The server lost the progress: the fill runs back to nothing, then fades. */
     private static boolean draining;
-    /** How far the bar has gone to its variant for a dark background, 0 to 1; and where it is going. */
-    private static float dark;
-    private static boolean onDark;
 
     private ObservationHud() {}
 
@@ -229,13 +222,6 @@ public final class ObservationHud {
                 : window.getHeight() / 2.0 + 8 * guiScale + BELOW_CROSSHAIR * pixel;
         int left = (window.getWidth() - BAR_WIDTH * pixel) / 2;
         int top = (int) Math.ceil(belowPx / pixel) * pixel;
-        Backdrop.sample(left, top, BAR_WIDTH * pixel, BAR_HEIGHT * pixel);
-        float luminance = Backdrop.luminance();
-        if (luminance >= 0) {
-            onDark = luminance < DARK_BELOW || onDark && luminance <= LIGHT_ABOVE;
-        }
-        float step = Math.min(frame, 100) / (float) SWITCH_MS;
-        dark = onDark ? Math.min(1, dark + step) : Math.max(0, dark - step);
         graphics.pose().pushPose();
         graphics.pose().scale((float) (1 / guiScale), (float) (1 / guiScale), 1);
         graphics.pose().translate(left, top, 0);
@@ -249,11 +235,8 @@ public final class ObservationHud {
         int a = Math.round(alpha * 255) << 24;
         int textX = (HudScale.width() - font.width(line)) / 2;
         int textY = (int) Math.ceil((top + BAR_HEIGHT * pixel) / (double) pixel) + 3;
-        // A light edge under dark words over a light picture, a dark one under light words over a dark picture.
-        boolean light = dark >= 0.5f;
-        int text = done ? GOLD : light ? UiPalette.PAPER : UiPalette.INK;
-        int edge = done || light ? UiPalette.INK : UiPalette.PAPER_SHADE;
-        graphics.drawString(font, line, textX + 1, textY + 1, (Math.round(alpha * 160) << 24) | edge, false);
+        int text = done ? GOLD : UiPalette.PAPER;
+        graphics.drawString(font, line, textX + 1, textY + 1, (Math.round(alpha * 200) << 24) | UiPalette.INK, false);
         graphics.drawString(font, line, textX, textY, a | text, false);
         HudScale.pop(graphics);
     }
@@ -263,25 +246,19 @@ public final class ObservationHud {
     }
 
     /**
-     * In the bar's own pixels from its top left: each variant's frame and fill to {@code progress}, as much as the bar
-     * has gone to it, and at the end the gold running over the fill from the left.
+     * In the bar's own pixels from its top left: the frame with its ground, the gold fill to {@code progress}, and at
+     * the end a glint running over it from the left, then fading back to the gold.
      */
     private static void drawBar(GuiGraphics graphics, float progress, boolean done, float alpha, long now) {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        if (dark < 1) {
-            graphics.setColor(1f, 1f, 1f, alpha * (1 - dark));
-            graphics.blit(BAR, 0, 0, 0, FRAME, BAR_WIDTH, BAR_HEIGHT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-            fill(graphics, progress, FILL);
-        }
-        if (dark > 0) {
-            graphics.setColor(1f, 1f, 1f, alpha * dark);
-            graphics.blit(BAR, 0, 0, 0, FRAME_ON_DARK, BAR_WIDTH, BAR_HEIGHT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-            fill(graphics, progress, FILL_ON_DARK);
-        }
+        graphics.setColor(1f, 1f, 1f, alpha);
+        graphics.blit(BAR, 0, 0, 0, FRAME, BAR_WIDTH, BAR_HEIGHT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+        fill(graphics, progress, FILL);
         if (done) {
-            graphics.setColor(1f, 1f, 1f, alpha);
-            fill(graphics, Mth.clamp((now - doneAt) / 300f, 0, 1), GOLD_FILL);
+            long since = now - doneAt;
+            graphics.setColor(1f, 1f, 1f, alpha * Mth.clamp(1 - (since - 300) / 300f, 0, 1));
+            fill(graphics, Mth.clamp(since / 300f, 0, 1), GLINT);
         }
         graphics.setColor(1f, 1f, 1f, 1f);
         RenderSystem.disableBlend();
