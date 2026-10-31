@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client.document;
 
+import dev.dzenthai.storybound.client.UiPalette;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -43,14 +44,14 @@ public final class ScrollArrows {
             "..bcdedb..",
             "...bcdb...",
             "....bb...."};
-    /** The ink, the ornaments' brown in three tones, and the paper's light for the glint. */
-    private static final int OUTLINE = 0x463626;
-    private static final int SHADE = 0x8C5B34;
-    private static final int BROWN = 0xAD794B;
-    private static final int LIGHT = 0xCF9C66;
-    private static final int GLINT = 0xF3DDB0;
-    private static final int BROWN_HOVER = 0xC08A57;
-    private static final int LIGHT_HOVER = 0xDEB07A;
+    /** The palette's ink, the ornaments' browns and the paper for the glint; under the mouse the browns go a step lighter. */
+    private static final int OUTLINE = UiPalette.INK;
+    private static final int SHADE = UiPalette.DARK_BROWN;
+    private static final int BROWN = UiPalette.TAN;
+    private static final int LIGHT = UiPalette.TAN_LIGHT;
+    private static final int GLINT = UiPalette.PAPER;
+    private static final int BROWN_HOVER = UiPalette.TAN_LIGHT;
+    private static final int LIGHT_HOVER = UiPalette.PAPER_SHADE;
     /** How far over the text the band and the arrow are drawn. */
     private static final float LAYER = 50;
     /** One bob out and back, in milliseconds. */
@@ -68,12 +69,14 @@ public final class ScrollArrows {
         if (alpha <= 0.02f) {
             return;
         }
-        // A pixel towards where it scrolls and back, smoothly: the pose moves by parts of a pixel.
+        // A pixel towards where it scrolls and back, a whole pixel at a time, as the art's pixels stay whole (October 31,
+        // 2026; before, the same day, smoothly by parts of a pixel, which put it between the screen's pixels).
         double phase = (Util.getMillis() % (long) BOB_MS) / BOB_MS;
-        float bob = hover ? 0 : (float) ((0.5 - 0.5 * Math.cos(phase * 2 * Math.PI)) * (up ? -1 : 1));
-        // It comes in from its edge rather than through transparency (it stays solid): 3 pixels out while hidden.
+        int bob = hover ? 0 : (int) Math.round(0.5 - 0.5 * Math.cos(phase * 2 * Math.PI)) * (up ? -1 : 1);
+        // It comes in from its edge rather than through transparency (it stays solid): 3 pixels out while hidden, a
+        // pixel at a time.
         float shown = alpha * alpha * (3 - 2 * alpha);
-        float slide = (1 - shown) * 3 * (up ? -1 : 1);
+        int slide = Math.round((1 - shown) * 3) * (up ? -1 : 1);
         // The text is drawn when the frame's batches end, after everything else: drawn now and the arrow put over it,
         // or the lines showed through the arrow.
         graphics.flush();

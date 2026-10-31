@@ -1,14 +1,15 @@
 package dev.dzenthai.storybound.client.dialogue;
 
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.UiPalette;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
 /** Warm paper with a pixel brass frame and fixed-size separator artwork. */
 final class DialogueChrome {
-    static final int INK = 0xFF49301D;
+    static final int INK = UiPalette.opaque(UiPalette.INK);
     static final int MUTED = 0xFF79634B;
-    static final int RULE = 0xFFAC7848;
+    static final int RULE = UiPalette.opaque(UiPalette.TAN);
     private static final ResourceLocation PAPER = Storybound.id("textures/gui/dialogue/parchment.png");
     private static final ResourceLocation FRAME = Storybound.id("textures/gui/dialogue/frame.png");
     private static final ResourceLocation ORNAMENTS = Storybound.id("textures/gui/dialogue/ornaments.png");

@@ -9,6 +9,7 @@ public final class StoryboundClientConfig {
     public static final ModConfigSpec SPEC;
     public static final StoryboundClientConfig INSTANCE;
 
+    public final ModConfigSpec.IntValue hudSize;
     public final ModConfigSpec.BooleanValue questTracker;
     public final ModConfigSpec.EnumValue<Corner> questTrackerCorner;
     public final ModConfigSpec.IntValue questTrackerOffsetY;
@@ -31,13 +32,17 @@ public final class StoryboundClientConfig {
 
     private StoryboundClientConfig(ModConfigSpec.Builder builder) {
         builder.translation("storybound.configuration.hud").push("hud");
-        questTracker = builder.comment("Show the tracked quest and its objectives on the screen.")
+        hudSize = builder.comment("Size of Storybound's HUD (observation bar, quest tracker, waypoint markers): 0 follows Minecraft's GUI scale",
+                        "(never under 2 screen pixels to a HUD pixel at 1080p), each step one screen pixel more or less.")
+                .translation("storybound.configuration.hudSize")
+                .defineInRange("size", 0, -3, 3);
+        questTracker =builder.comment("Show the tracked quest and its objectives on the screen.")
                 .translation("storybound.configuration.questTracker")
                 .define("questTracker", true);
         questTrackerCorner = builder.comment("Screen corner the quest tracker is anchored to.")
                 .translation("storybound.configuration.questTrackerCorner")
                 .defineEnum("questTrackerCorner", Corner.TOP_RIGHT);
-        questTrackerOffsetY = builder.comment("Distance from the top or bottom edge, in GUI pixels; leaves room for a minimap.")
+        questTrackerOffsetY = builder.comment("Distance from the top or bottom edge, in HUD pixels (see size); leaves room for a minimap.")
                 .translation("storybound.configuration.questTrackerOffsetY")
                 .defineInRange("questTrackerOffsetY", 70, 0, 1000);
         builder.pop();

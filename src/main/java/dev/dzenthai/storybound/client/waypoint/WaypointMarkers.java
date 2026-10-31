@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.client.waypoint;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
 import dev.dzenthai.storybound.client.ClientModules;
+import dev.dzenthai.storybound.client.HudScale;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
@@ -107,9 +108,12 @@ public final class WaypointMarkers {
         markers.sort(Comparator.comparing(Marker::tracked).thenComparing(Comparator.comparingDouble(Marker::distance).reversed()));
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
+        // In HUD pixels, whatever the GUI scale: the markers were projected onto the HUD's width and height.
+        HudScale.push(graphics);
         for (Marker marker : markers) {
             draw(graphics, minecraft.font, marker, now);
         }
+        HudScale.pop(graphics);
         graphics.setColor(1f, 1f, 1f, 1f);
         RenderSystem.disableBlend();
     }
@@ -135,7 +139,7 @@ public final class WaypointMarkers {
         } else if (tracked) {
             size *= TRACKED_SIZE;
         }
-        Screen screen = project(anchor, graphics.guiWidth(), graphics.guiHeight());
+        Screen screen = project(anchor, HudScale.width(), HudScale.height());
         if (distance > style.fadeStart()) {
             float far = style.maxDistance() > style.fadeStart()
                     ? (float) Mth.clamp((distance - style.fadeStart()) / (style.maxDistance() - style.fadeStart()), 0, 1) : 0f;
@@ -214,8 +218,8 @@ public final class WaypointMarkers {
 
     /** 1 at the crosshair, fading to 0 at {@link #NAME_RADIUS} from it. */
     private static float nearCrosshair(Screen screen, GuiGraphics graphics) {
-        float dx = screen.x() - graphics.guiWidth() / 2f;
-        float dy = screen.y() - graphics.guiHeight() / 2f;
+        float dx = screen.x() - HudScale.width() / 2f;
+        float dy = screen.y() - HudScale.height() / 2f;
         float off = (float) Math.sqrt(dx * dx + dy * dy);
         return Mth.clamp((NAME_RADIUS - off) / (NAME_RADIUS / 2), 0f, 1f);
     }

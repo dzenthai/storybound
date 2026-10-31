@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.client.menu;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.core.data.ColorCodec;
 import net.minecraft.resources.ResourceLocation;
 
@@ -15,8 +16,11 @@ public record MenuTheme(ResourceLocation panel, ResourceLocation tab, ResourceLo
                         int selection, int hover, int divider, int hudBackground, int hudTitle, int hudText) {
     public static final MenuTheme FALLBACK = new MenuTheme(
             Storybound.id("menu/panel"), Storybound.id("menu/tab"), Storybound.id("menu/tab_selected"),
-            0xFF7A1F1F, 0xFF3B2A1A, 0xFF8A7A62, 0xFF7A1F1F, 0xFFB8860B, 0xFF4E7A2E, 0xFF9A2A20,
-            0x40000000, 0x20000000, 0xFF5A4630, 0x70000000, 0xFFE8C66A, 0xFFF0E6D2);
+            // As theme.json, in the author's palette (October 31, 2026); muted and the HUD's background are not in it.
+            UiPalette.opaque(UiPalette.INK), UiPalette.opaque(UiPalette.INK), 0xFF806747, UiPalette.opaque(UiPalette.DARK_BROWN),
+            UiPalette.opaque(UiPalette.OCHRE), UiPalette.opaque(UiPalette.GREEN_DARK), UiPalette.opaque(UiPalette.RED_DARK),
+            0x60000000 | UiPalette.TAN_LIGHT, 0x30000000 | UiPalette.TAN, UiPalette.opaque(UiPalette.TAN), 0xA62A221C,
+            UiPalette.opaque(UiPalette.GOLD_LIGHT), UiPalette.opaque(UiPalette.PAPER));
 
     /** {@code "#RRGGBB"} (opaque) or {@code "#AARRGGBB"}. */
     public static final Codec<Integer> COLOR = ColorCodec.CODEC;

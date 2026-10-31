@@ -19,7 +19,8 @@ public record JournalLayout(int x, int y, int width, int height) {
     }
 
     public static JournalLayout fit(int screenWidth, int screenHeight) {
-        int width = Math.max(1, Math.min(720, Math.min(screenWidth - 48, (screenHeight - 16) * 3 / 2)));
+        // Up to 1536: the menu's canvas grows with the window so its text keeps whole pixels (BookViewport.textUnit).
+        int width = Math.max(1, Math.min(1536, Math.min(screenWidth - 48, (screenHeight - 16) * 3 / 2)));
         int height = Math.max(1, width * 2 / 3);
         return new JournalLayout((screenWidth - width) / 2, (screenHeight - height) / 2, width, height);
     }

@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.client.quest;
 
 import dev.dzenthai.storybound.client.ClientModules;
 import dev.dzenthai.storybound.client.ClientQuests;
+import dev.dzenthai.storybound.client.HudScale;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
@@ -89,14 +90,17 @@ public final class QuestHud {
         int height = lines.stream().mapToInt(Line::height).sum() + 2 * PADDING - 1;
         StoryboundClientConfig.Corner corner = config.questTrackerCorner.get();
         int offsetY = config.questTrackerOffsetY.get();
-        int x = corner.right() ? graphics.guiWidth() - width - MARGIN : MARGIN;
-        int y = corner.bottom() ? graphics.guiHeight() - height - offsetY : offsetY;
+        // In HUD pixels, whatever the GUI scale (HudScale).
+        HudScale.push(graphics);
+        int x = corner.right() ? HudScale.width() - width - MARGIN : MARGIN;
+        int y = corner.bottom() ? HudScale.height() - height - offsetY : offsetY;
         graphics.fill(x, y, x + width, y + height, theme.hudBackground());
         int lineY = y + PADDING;
         for (Line line : lines) {
             graphics.drawString(font, line.text(), x + PADDING, lineY, line.color(), true);
             lineY += line.height();
         }
+        HudScale.pop(graphics);
     }
 
     /** @param height {@link #LINE_HEIGHT}, or a small gap between two quests */

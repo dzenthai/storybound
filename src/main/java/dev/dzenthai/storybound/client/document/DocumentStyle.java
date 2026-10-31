@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.client.document;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.UiPalette;
 import java.util.Optional;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceLocation;
@@ -28,19 +29,19 @@ public record DocumentStyle(ResourceLocation texture, int width, int height, Opt
             Codec.intRange(1, 4096).optionalFieldOf("texture_height").forGetter(DocumentStyle::textureHeight),
             Padding.CODEC.optionalFieldOf("padding", Padding.DEFAULT).forGetter(DocumentStyle::padding),
             ResourceLocation.CODEC.optionalFieldOf("font", ResourceLocation.withDefaultNamespace("default")).forGetter(DocumentStyle::font),
-            COLOR_CODEC.optionalFieldOf("color", 0x3B2A1A).forGetter(DocumentStyle::color),
+            COLOR_CODEC.optionalFieldOf("color", UiPalette.INK).forGetter(DocumentStyle::color),
             Codec.intRange(6, 64).optionalFieldOf("line_height", 10).forGetter(DocumentStyle::lineHeight),
             Codec.BOOL.optionalFieldOf("show_title", true).forGetter(DocumentStyle::showTitle),
             ResourceLocation.CODEC.optionalFieldOf("open_sound").forGetter(DocumentStyle::openSound),
             ResourceLocation.CODEC.optionalFieldOf("turn_sound").forGetter(DocumentStyle::turnSound),
-            COLOR_CODEC.optionalFieldOf("paper", 0xF5DFB2).forGetter(DocumentStyle::paper)
+            COLOR_CODEC.optionalFieldOf("paper", UiPalette.PAPER).forGetter(DocumentStyle::paper)
     ).apply(instance, DocumentStyle::new));
 
     /** Used when a document names a style no resource pack provides. */
     /** The letter's sheet, as in {@code styles/parchment.json}, for a document whose style cannot be found. */
     public static final DocumentStyle FALLBACK = new DocumentStyle(Storybound.id("textures/gui/document/parchment.png"), 200, 240,
-            Optional.empty(), Optional.empty(), new Padding(26, 24, 26, 52), ResourceLocation.withDefaultNamespace("default"), 0x2A1E14, 10, true,
-            Optional.empty(), Optional.empty(), 0xF7E4C2);
+            Optional.empty(), Optional.empty(), new Padding(26, 24, 26, 52), ResourceLocation.withDefaultNamespace("default"), UiPalette.INK, 10, true,
+            Optional.empty(), Optional.empty(), UiPalette.PAPER);
 
     public int textureWidthOrSize() {
         return textureWidth.orElse(width);

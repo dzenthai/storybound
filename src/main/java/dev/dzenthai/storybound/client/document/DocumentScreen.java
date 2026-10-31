@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.client.document;
 
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.client.menu.BookGuiGraphics;
 import dev.dzenthai.storybound.client.menu.BookViewport;
 import dev.dzenthai.storybound.client.menu.JournalSkin;
@@ -141,7 +142,7 @@ public class DocumentScreen extends Screen {
         scrollTitle = List.of();
         scrollHeaderHeight = 0;
         if ((readingScroll || readingContract) && style.showTitle()) {
-            Component heading = title.copy().withStyle(text -> text.withFont(style.font()).withBold(true).withColor(0x493120));
+            Component heading = title.copy().withStyle(text -> text.withFont(style.font()).withBold(true).withColor(UiPalette.INK));
             scrollTitleScale = font.width(heading) * 2 <= pageWidth() ? 2 : 1;
             scrollTitle = font.split(heading, pageWidth() / scrollTitleScale);
             scrollHeaderHeight = scrollTitle.size() * 11 * scrollTitleScale + 18;
@@ -286,7 +287,7 @@ public class DocumentScreen extends Screen {
             graphics.blitSprite(sprite, x, y, ARROW_WIDTH, ARROW_HEIGHT);
             return;
         }
-        int color = hover ? 0xFF79533F : 0xFFAE7C53;
+        int color = UiPalette.opaque(hover ? UiPalette.DARK_BROWN : UiPalette.TAN);
         int center = x + ARROW_WIDTH / 2;
         graphics.fill(center - 6, y + 6, center + 7, y + 8, color);
         for (int step = 0; step < 3; step++) {
@@ -396,10 +397,10 @@ public class DocumentScreen extends Screen {
             for (int line = 0; line < scrollTitle.size(); line++) {
                 FormattedCharSequence text = scrollTitle.get(line);
                 sheet.drawString(font, text, (pageWidth() / scrollTitleScale - font.width(text)) / 2,
-                        line * 11, 0x493120, false);
+                        line * 11, UiPalette.INK, false);
             }
             sheet.pose().popPose();
-            JournalSkin.titleRule(sheet, x, textTop() - 12, pageWidth(), 0xFFAE7C53);
+            JournalSkin.titleRule(sheet, x, textTop() - 12, pageWidth(), UiPalette.opaque(UiPalette.TAN));
             sheet.disableScissor();
         }
         sheet.enableScissor(x, viewTop(page), x + pageWidth(), viewTop(page) + viewHeight(page));
@@ -432,7 +433,7 @@ public class DocumentScreen extends Screen {
 
     private void drawTitlePage(GuiGraphics graphics, int x, int y) {
         Component title = definition.title().asComponent().copy()
-                .withStyle(text -> text.withFont(style.font()).withBold(true).withColor(0x493120));
+                .withStyle(text -> text.withFont(style.font()).withBold(true).withColor(UiPalette.INK));
         int titleScale = 2;
         List<FormattedCharSequence> lines = font.split(title, pageWidth() / titleScale);
         if (lines.size() * 11 * titleScale > textHeight() - 24) {
@@ -448,7 +449,7 @@ public class DocumentScreen extends Screen {
         for (int line = 0; line < visibleLines; line++) {
             FormattedCharSequence text = lines.get(line);
             graphics.drawString(font, text, (pageWidth() / titleScale - font.width(text)) / 2,
-                    line * lineStep, 0x493120, false);
+                    line * lineStep, UiPalette.INK, false);
         }
         graphics.pose().popPose();
     }
@@ -460,7 +461,7 @@ public class DocumentScreen extends Screen {
                 case SbtLayout.TextLine text -> {
                     FormattedCharSequence styled = printedSurface()
                             ? sink -> text.text().accept((index, span, codePoint) -> sink.accept(index,
-                                    span.isBold() && span.getColor() == null ? span.withColor(0x885433) : span, codePoint))
+                                    span.isBold() && span.getColor() == null ? span.withColor(UiPalette.DARK_BROWN) : span, codePoint))
                             : text.text();
                     graphics.drawString(font, styled, x, lineY + (text.height() - font.lineHeight) / 2 + 1, style.color(), false);
                 }

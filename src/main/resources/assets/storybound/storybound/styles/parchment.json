@@ -6,7 +6,7 @@
   "texture_height": 384,
   "padding": { "left": 64, "top": 64, "right": 64, "bottom": 190 },
   "font": "minecraft:default",
-  "color": "#463626",
+  "color": "#483020",
   "paper": "#F7E4C2",
   "line_height": 13,
   "show_title": false,

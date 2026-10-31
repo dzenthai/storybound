@@ -56,8 +56,8 @@ public class AdventureMenuScreen extends Screen {
         viewport = MenuThemes.INSTANCE.journalBook()
                 ? BookViewport.wholePixels(window.getWidth(), window.getHeight(), window.getGuiScale(), JournalSkin.BOOK_WIDTH,
                         JournalLayout.fit(BookViewport.MENU_WIDTH, BookViewport.MENU_HEIGHT)) : null;
-        width = viewport == null ? window.getGuiScaledWidth() : BookViewport.MENU_WIDTH;
-        height = viewport == null ? window.getGuiScaledHeight() : BookViewport.MENU_HEIGHT;
+        width = viewport == null ? window.getGuiScaledWidth() : viewport.width();
+        height = viewport == null ? window.getGuiScaledHeight() : viewport.height();
         bookTooltip = null;
         bookTooltipPositioner = null;
         tabs = AdventureMenu.availableTabs();

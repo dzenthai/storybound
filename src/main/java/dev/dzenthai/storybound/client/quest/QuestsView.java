@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.client.quest;
 
 import dev.dzenthai.storybound.client.ClientQuests;
 import dev.dzenthai.storybound.client.SeenMarks;
+import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.client.menu.AdventureMenu;
 import dev.dzenthai.storybound.client.menu.ArchiveChrome;
 import dev.dzenthai.storybound.client.menu.AdventureMenuScreen;
@@ -476,7 +477,7 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         Component label = DifficultyScale.current().render(difficulty);
         if (screen.bookLayout() == null) return label;
         int rank = DifficultyScale.current().stars(difficulty);
-        int ink = rank <= 1 ? 0x3A5F3A : rank == 2 ? 0x85612E : 0x8B4136;
+        int ink = rank <= 1 ? UiPalette.GREEN_DARK : rank == 2 ? UiPalette.OCHRE_DARK : UiPalette.RED_DARK;
         return Component.literal(label.getString()).withColor(ink);
     }
 

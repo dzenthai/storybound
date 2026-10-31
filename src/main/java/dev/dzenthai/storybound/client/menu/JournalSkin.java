@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.client.menu;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.client.UiPalette;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -87,7 +88,7 @@ public final class JournalSkin {
                 int half = 3 - Math.abs(dy);
                 graphics.fill(middle - half, row + dy, middle + half, row + dy + 1, ink);
             }
-            graphics.fill(middle - 1, row, middle + 1, row + 1, 0xFFEBD4AA);
+            graphics.fill(middle - 1, row, middle + 1, row + 1, UiPalette.opaque(UiPalette.PAPER));
         }
         graphics.pose().popPose();
     }
@@ -108,7 +109,7 @@ public final class JournalSkin {
             int half = 3 - Math.abs(dy);
             graphics.fill(center - half, ruleY + dy, center + half + 1, ruleY + dy + 1, ink);
         }
-        graphics.fill(center, ruleY, center + 1, ruleY + 1, 0xFFEBD4AA);
+        graphics.fill(center, ruleY, center + 1, ruleY + 1, UiPalette.opaque(UiPalette.PAPER));
         graphics.fill(center - 7, ruleY, center - 5, ruleY + 1, ink);
         graphics.fill(center + 6, ruleY, center + 8, ruleY + 1, ink);
     }
@@ -136,7 +137,7 @@ public final class JournalSkin {
         for (int sy = -radius; sy <= radius; sy++) {
             for (int sx = -radius; sx <= radius; sx++) {
                 if (Math.abs(sx) + Math.abs(sy) > radius && sx != 0 && sy != 0) continue;
-                int ink = Math.abs(sx) + Math.abs(sy) <= radius - 2 ? 0xFFF0BE : 0xB89156;
+                int ink = Math.abs(sx) + Math.abs(sy) <= radius - 2 ? UiPalette.GOLD_LIGHT : UiPalette.BROWN_LIGHT;
                 graphics.fill(sx, sy, sx + 1, sy + 1, (alpha << 24) | ink);
             }
         }

@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client.menu;
 
+import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.client.document.ScrollArrows;
 import java.util.ArrayList;
 import java.util.List;
@@ -219,15 +220,18 @@ public abstract class ListDetailView<E> extends MenuView {
     }
 
     /** The book's paper, which the arrows' bands fade the text into. */
-    private static final int PAPER = 0xF5DFB2;
+    private static final int PAPER = UiPalette.PAPER;
 
     private void drawArrows(GuiGraphics graphics, int textLeft, int textRight, int top, int bottom, float up, float down, int mouseX, int mouseY) {
-        double pixel = screen.bookLayout().bookPixel();
-        double centerX = (textLeft + textRight) / 2.0;
-        double downTop = bottom - ScrollArrows.HEIGHT * pixel;
+        JournalLayout book = screen.bookLayout();
+        double pixel = book.bookPixel();
+        // On the book's pixels, as its art: the arrows' left and top a whole number of them from the book's.
+        double centerX = book.x() + Math.round(((textLeft + textRight) / 2.0 - book.x()) / pixel) * pixel;
+        double upTop = book.y() + Math.round((top - book.y()) / pixel) * pixel;
+        double downTop = book.y() + Math.round((bottom - ScrollArrows.HEIGHT * pixel - book.y()) / pixel) * pixel;
         ScrollArrows.veil(graphics, textLeft, textRight, top, pixel, true, PAPER, up);
         ScrollArrows.veil(graphics, textLeft, textRight, bottom, pixel, false, PAPER, down);
-        ScrollArrows.draw(graphics, centerX, top, pixel, true, up, ScrollArrows.contains(centerX, top, pixel, mouseX, mouseY));
+        ScrollArrows.draw(graphics, centerX, upTop, pixel, true, up, ScrollArrows.contains(centerX, upTop, pixel, mouseX, mouseY));
         ScrollArrows.draw(graphics, centerX, downTop, pixel, false, down, ScrollArrows.contains(centerX, downTop, pixel, mouseX, mouseY));
     }
 
@@ -288,8 +292,8 @@ public abstract class ListDetailView<E> extends MenuView {
 
     protected void renderEntryMarker(GuiGraphics graphics, E entry, int x, int y, boolean selected) {
         if (selected) {
-            graphics.fill(x + 1, y, x + 3, y + 7, 0xFF65883D);
-            graphics.fill(x + 3, y + 2, x + 5, y + 5, 0xFF65883D);
+            graphics.fill(x + 1, y, x + 3, y + 7, UiPalette.opaque(UiPalette.GREEN));
+            graphics.fill(x + 3, y + 2, x + 5, y + 5, UiPalette.opaque(UiPalette.GREEN));
         } else if (isUnseen(entry)) {
             JournalSkin.star(graphics, x, y, theme().unseen());
         }

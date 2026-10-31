@@ -6,7 +6,7 @@
   "texture_height": 320,
   "padding": { "left": 56, "top": 66, "right": 66, "bottom": 65 },
   "font": "minecraft:default",
-  "color": "#463626",
+  "color": "#483020",
   "line_height": 13,
   "show_title": false,
   "open_sound": "minecraft:item.book.page_turn"

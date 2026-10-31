@@ -24,7 +24,7 @@
       }
     },
     "font": { "type": "string", "default": "minecraft:default", "description": "A font from assets/<ns>/font/." },
-    "color": { "type": "string", "default": "#3b2a1a" },
+    "color": { "type": "string", "default": "#483020" },
     "line_height": { "type": "integer", "minimum": 6, "maximum": 64, "default": 10 },
     "show_title": { "type": "boolean", "default": true, "description": "Print the document title at the top of the text." },
     "open_sound": { "type": "string" },
