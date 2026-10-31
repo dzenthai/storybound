@@ -10,10 +10,12 @@ import net.minecraft.resources.ResourceLocation;
 /**
  * How a document looks: {@code assets/<ns>/storybound/styles/<id>.json}. The texture is drawn at
  * {@code width × height}; for books it is the whole two-page spread.
+ *
+ * @param paper the paper's colour behind the text, which the scroll arrows' band fades the lines into
  */
 public record DocumentStyle(ResourceLocation texture, int width, int height, Optional<Integer> textureWidth, Optional<Integer> textureHeight,
                             Padding padding, ResourceLocation font, int color, int lineHeight, boolean showTitle,
-                            Optional<ResourceLocation> openSound, Optional<ResourceLocation> turnSound) {
+                            Optional<ResourceLocation> openSound, Optional<ResourceLocation> turnSound, int paper) {
     private static final Codec<Integer> COLOR_CODEC = Codec.STRING.comapFlatMap(
             value -> TextColor.parseColor(value).map(TextColor::getValue),
             value -> String.format("#%06x", value & 0xFFFFFF));
@@ -30,14 +32,15 @@ public record DocumentStyle(ResourceLocation texture, int width, int height, Opt
             Codec.intRange(6, 64).optionalFieldOf("line_height", 10).forGetter(DocumentStyle::lineHeight),
             Codec.BOOL.optionalFieldOf("show_title", true).forGetter(DocumentStyle::showTitle),
             ResourceLocation.CODEC.optionalFieldOf("open_sound").forGetter(DocumentStyle::openSound),
-            ResourceLocation.CODEC.optionalFieldOf("turn_sound").forGetter(DocumentStyle::turnSound)
+            ResourceLocation.CODEC.optionalFieldOf("turn_sound").forGetter(DocumentStyle::turnSound),
+            COLOR_CODEC.optionalFieldOf("paper", 0xF5DFB2).forGetter(DocumentStyle::paper)
     ).apply(instance, DocumentStyle::new));
 
     /** Used when a document names a style no resource pack provides. */
     /** The letter's sheet, as in {@code styles/parchment.json}, for a document whose style cannot be found. */
     public static final DocumentStyle FALLBACK = new DocumentStyle(Storybound.id("textures/gui/document/parchment.png"), 200, 240,
             Optional.empty(), Optional.empty(), new Padding(26, 24, 26, 52), ResourceLocation.withDefaultNamespace("default"), 0x2A1E14, 10, true,
-            Optional.empty(), Optional.empty());
+            Optional.empty(), Optional.empty(), 0xF7E4C2);
 
     public int textureWidthOrSize() {
         return textureWidth.orElse(width);

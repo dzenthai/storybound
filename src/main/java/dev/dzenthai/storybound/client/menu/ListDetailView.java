@@ -6,13 +6,10 @@ import java.util.List;
 import java.util.Objects;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.locale.Language;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
@@ -41,7 +38,7 @@ public abstract class ListDetailView<E> extends MenuView {
     private double shownDetail;
     private long lastFrame;
     private float frame;
-    /** The scroll arrows' fade, and the room they take over and under the list and the detail (0 when it all fits). */
+    /** The scroll arrows' fade, and their band's height over and under the list and the detail (0 when it all fits). */
     private float listUp;
     private float listDown;
     private float detailUp;
@@ -180,11 +177,12 @@ public abstract class ListDetailView<E> extends MenuView {
         frame = lastFrame == 0 ? 0 : Math.min(100, now - lastFrame);
         lastFrame = now;
         int rowHeight = rowHeight();
-        // A list longer than the page: arrows in the middle over and under it, in the room they take (before October
-        // 31, 2026, a scrollbar at its right).
+        // A list longer than the page: arrows in the middle over and under it, lying on its edges over bands of the
+        // paper that fade the rows out there, so the rows keep their places (October 31, 2026; before, a scrollbar at
+        // its right, then, the same day, room kept for the arrows, which moved the rows down off the title's line).
         listRoom = screen.bookLayout() != null && rows.size() * rowHeight > height ? arrowRoom() : 0;
-        int viewTop = top + listRoom;
-        int viewHeight = height - 2 * listRoom;
+        int viewTop = top;
+        int viewHeight = height;
         int visible = Math.max(1, viewHeight / rowHeight);
         int maxScroll = Math.max(0, rows.size() - visible);
         listScroll = Math.max(0, Math.min(listScroll, maxScroll));
@@ -202,7 +200,7 @@ public abstract class ListDetailView<E> extends MenuView {
         if (listRoom > 0) {
             listUp = fade(listUp, listScroll > 0);
             listDown = fade(listDown, listScroll < maxScroll);
-            drawArrows(graphics, left + listWidth() / 2.0, top, top + height, listUp, listDown, mouseX, mouseY);
+            drawArrows(graphics, left, left + listWidth(), top, top + height, listUp, listDown, mouseX, mouseY);
         }
     }
 
@@ -220,9 +218,15 @@ public abstract class ListDetailView<E> extends MenuView {
         return Mth.clamp(alpha + (shown ? 1 : -1) * frame / 150f, 0, 1);
     }
 
-    private void drawArrows(GuiGraphics graphics, double centerX, int top, int bottom, float up, float down, int mouseX, int mouseY) {
+    /** The book's paper, which the arrows' bands fade the text into. */
+    private static final int PAPER = 0xF5DFB2;
+
+    private void drawArrows(GuiGraphics graphics, int textLeft, int textRight, int top, int bottom, float up, float down, int mouseX, int mouseY) {
         double pixel = screen.bookLayout().bookPixel();
+        double centerX = (textLeft + textRight) / 2.0;
         double downTop = bottom - ScrollArrows.HEIGHT * pixel;
+        ScrollArrows.veil(graphics, textLeft, textRight, top, pixel, true, PAPER, up);
+        ScrollArrows.veil(graphics, textLeft, textRight, bottom, pixel, false, PAPER, down);
         ScrollArrows.draw(graphics, centerX, top, pixel, true, up, ScrollArrows.contains(centerX, top, pixel, mouseX, mouseY));
         ScrollArrows.draw(graphics, centerX, downTop, pixel, false, down, ScrollArrows.contains(centerX, downTop, pixel, mouseX, mouseY));
     }
@@ -297,8 +301,8 @@ public abstract class ListDetailView<E> extends MenuView {
         int top = detailTop();
         int contentHeight = detail.stream().mapToInt(Line::height).sum();
         detailRoom = screen.bookLayout() != null && contentHeight > bottom - top ? arrowRoom() : 0;
-        int viewTop = top + detailRoom;
-        int viewBottom = bottom - detailRoom;
+        int viewTop = top;
+        int viewBottom = bottom;
         int maxScroll = Math.max(0, contentHeight - (viewBottom - viewTop));
         detailScroll = Math.max(0, Math.min(detailScroll, maxScroll));
         detailMax = maxScroll;
@@ -326,7 +330,7 @@ public abstract class ListDetailView<E> extends MenuView {
         if (detailRoom > 0) {
             detailUp = fade(detailUp, detailScroll > 0);
             detailDown = fade(detailDown, detailScroll < maxScroll);
-            drawArrows(graphics, x + detailWidth() / 2.0, top, bottom, detailUp, detailDown, mouseX, mouseY);
+            drawArrows(graphics, x, x + detailWidth(), top, bottom, detailUp, detailDown, mouseX, mouseY);
         }
     }
 
@@ -337,15 +341,14 @@ public abstract class ListDetailView<E> extends MenuView {
         int detailArrow = detailRoom > 0 ? arrowAt(detailX() + detailWidth() / 2.0, detailTop(), detailBottom(), detailScroll > 0, detailScroll < detailMax, mouseX, mouseY) : 0;
         if (listArrow != 0 || detailArrow != 0) {
             if (listArrow != 0) {
-                listScroll += listArrow * 2;
+                scrollList(listArrow * 2);
             } else {
-                detailScroll += detailArrow * 3 * LINE_HEIGHT;
+                scrollDetail(detailArrow * 3 * LINE_HEIGHT);
             }
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.4f, 0.25f));
             return true;
         }
-        if (mouseX >= detailX() && mouseX < detailX() + detailWidth() && mouseY >= detailTop() + detailRoom && mouseY < detailBottom() - detailRoom) {
-            int y = detailTop() + detailRoom - (int) Math.round(shownDetail);
+        if (mouseX >= detailX() && mouseX < detailX() + detailWidth() && mouseY >= detailTop() && mouseY < detailBottom()) {
+            int y = detailTop() - (int) Math.round(shownDetail);
             for (Line line : detail) {
                 if (line.click() != null && mouseY >= y && mouseY < y + line.height()) {
                     line.click().run();
@@ -354,8 +357,8 @@ public abstract class ListDetailView<E> extends MenuView {
                 y += line.height();
             }
         }
-        if (mouseX >= left && mouseX < left + listWidth() && mouseY >= top + listRoom && mouseY < top + height - listRoom) {
-            int index = (int) Math.floor((mouseY - top - listRoom) / rowHeight() + shownList);
+        if (mouseX >= left && mouseX < left + listWidth() && mouseY >= top && mouseY < top + height) {
+            int index = (int) Math.floor((mouseY - top) / rowHeight() + shownList);
             if (index >= 0 && index < rows.size() && rows.get(index).entry() != null) {
                 select(rows.get(index).entry());
                 return true;
@@ -367,11 +370,28 @@ public abstract class ListDetailView<E> extends MenuView {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (mouseX < detailX()) {
-            listScroll -= (int) Math.signum(scrollY) * 2;
+            scrollList(-(int) Math.signum(scrollY) * 2);
         } else {
-            detailScroll -= (int) Math.signum(scrollY) * 2 * LINE_HEIGHT;
+            scrollDetail(-(int) Math.signum(scrollY) * 2 * LINE_HEIGHT);
         }
         return true;
+    }
+
+    /** Scrolls the list by rows, kept within it, with the soft click when it moved. */
+    private void scrollList(int rowsBy) {
+        int before = listScroll;
+        listScroll = Math.max(0, Math.min(listScroll + rowsBy, listMax));
+        if (listScroll != before) {
+            ScrollArrows.click();
+        }
+    }
+
+    private void scrollDetail(int by) {
+        int before = detailScroll;
+        detailScroll = Math.max(0, Math.min(detailScroll + by, detailMax));
+        if (detailScroll != before) {
+            ScrollArrows.click();
+        }
     }
 
     protected int listWidth() {

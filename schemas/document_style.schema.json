@@ -28,6 +28,7 @@
     "line_height": { "type": "integer", "minimum": 6, "maximum": 64, "default": 10 },
     "show_title": { "type": "boolean", "default": true, "description": "Print the document title at the top of the text." },
     "open_sound": { "type": "string" },
-    "turn_sound": { "type": "string" }
+    "turn_sound": { "type": "string" },
+    "paper": { "description": "The paper's colour behind the text (#RRGGBB), which the scroll arrows' band fades the lines into. Default #F5DFB2.", "type": "string" }
   }
 }

@@ -23,7 +23,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
@@ -350,21 +349,15 @@ public class DocumentScreen extends Screen {
     }
 
     /**
-     * The room the arrows take above and below a text that does not fit (none for one that does, laid out as before):
-     * they stand in the middle, over and under it, not on its lines (October 31, 2026; before, the same day, at its
-     * right, and earlier a scrollbar there).
+     * Where the scrolled text shows: its whole room. The arrows lie over its edges, on bands that fade the lines out
+     * there (October 31, 2026; before, the same day, room was kept for them, which moved the first line down).
      */
-    private int arrowRoom(SbtLayout.Page page) {
-        return page.height() > textHeight() ? ScrollArrows.room() : 0;
-    }
-
-    /** Where the scrolled text shows: the text's room less the arrows'. */
     private int viewTop(SbtLayout.Page page) {
-        return textTop() + arrowRoom(page);
+        return textTop();
     }
 
     private int viewHeight(SbtLayout.Page page) {
-        return textHeight() - 2 * arrowRoom(page);
+        return textHeight();
     }
 
     /** The middle of the text column, where the arrows stand. */
@@ -381,6 +374,9 @@ public class DocumentScreen extends Screen {
         float step = frame / 150f;
         upAlpha = Mth.clamp(upAlpha + (scroll > 0 ? step : -step), 0, 1);
         downAlpha = Mth.clamp(downAlpha + (scroll < maxScroll(page) ? step : -step), 0, 1);
+        int textLeft = style.padding().left();
+        ScrollArrows.veil(graphics, textLeft, textLeft + pageWidth(), textTop(), 1, true, style.paper(), upAlpha);
+        ScrollArrows.veil(graphics, textLeft, textLeft + pageWidth(), textTop() + textHeight(), 1, false, style.paper(), downAlpha);
         ScrollArrows.draw(graphics, arrowsX(), textTop(), 1, true, upAlpha, ScrollArrows.contains(arrowsX(), textTop(), 1, mouseX, mouseY));
         ScrollArrows.draw(graphics, arrowsX(), downArrowTop(), 1, false, downAlpha, ScrollArrows.contains(arrowsX(), downArrowTop(), 1, mouseX, mouseY));
     }
@@ -519,8 +515,7 @@ public class DocumentScreen extends Screen {
             boolean up = scroll > 0 && ScrollArrows.contains(arrowsX(), textTop(), 1, x, y);
             boolean down = scroll < maxScroll(page) && ScrollArrows.contains(arrowsX(), downArrowTop(), 1, x, y);
             if (up || down) {
-                scroll += (down ? 1 : -1) * style.lineHeight() * SCROLL_LINES;
-                minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.4f, 0.25f));
+                scrollBy((down ? 1 : -1) * style.lineHeight() * SCROLL_LINES);
                 return true;
             }
         }
@@ -544,9 +539,19 @@ public class DocumentScreen extends Screen {
         if (book) {
             turn(scrollY > 0 ? -1 : 1);
         } else {
-            scroll -= (int) (scrollY * style.lineHeight() * SCROLL_LINES);
+            scrollBy(-(int) (scrollY * style.lineHeight() * SCROLL_LINES));
         }
         return true;
+    }
+
+    /** Scrolls the text, kept within it, with the soft click when it moved. */
+    private void scrollBy(int delta) {
+        SbtLayout.Page page = pages.isEmpty() ? new SbtLayout.Page(List.of()) : pages.getFirst();
+        int before = scroll;
+        scroll = Math.max(0, Math.min(scroll + delta, maxScroll(page)));
+        if (scroll != before) {
+            ScrollArrows.click();
+        }
     }
 
     @Override
@@ -556,7 +561,7 @@ public class DocumentScreen extends Screen {
                 if (book) {
                     turn(-1);
                 } else {
-                    scroll -= textHeight();
+                    scrollBy(-textHeight());
                 }
                 return true;
             }
@@ -564,16 +569,16 @@ public class DocumentScreen extends Screen {
                 if (book) {
                     turn(1);
                 } else {
-                    scroll += textHeight();
+                    scrollBy(textHeight());
                 }
                 return true;
             }
             case GLFW.GLFW_KEY_UP -> {
-                scroll -= style.lineHeight();
+                scrollBy(-style.lineHeight());
                 return true;
             }
             case GLFW.GLFW_KEY_DOWN -> {
-                scroll += style.lineHeight();
+                scrollBy(style.lineHeight());
                 return true;
             }
             default -> {
