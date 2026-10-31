@@ -8,8 +8,11 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
@@ -23,7 +26,8 @@ import org.jetbrains.annotations.Nullable;
  * is observed with its percent; at the end the ring flashes gold and the words say it is done. The server decides when
  * it counts; the client draws it every frame: it checks its own crosshair on the target the server named (with the
  * server's margin), so the ring stops the very frame the player looks away and moves on smoothly while they look,
- * never running far ahead of the server. It fades in and out. Before, the same day: a bar under the crosshair that
+ * never running far ahead of the server. It fades in and out. The scroll arrows' soft click sounds at each tenth, rising, and a
+ * click that settles a step lower at the end, as if it clicked into place. Before, the same day: a bar under the crosshair that
  * followed the server's few numbers a second, ran on after the player looked away and jumped back.
  */
 public final class ObservationHud {
@@ -58,6 +62,10 @@ public final class ObservationHud {
     private static long appeared;
     private static long doneAt;
     private static long hideAt;
+    /** The tenth of the ring last chimed, so each is heard once on the way up. */
+    private static int chimed;
+    /** When the settling click of the end is due; 0 for none. */
+    private static long settleAt;
 
     private ObservationHud() {}
 
@@ -72,6 +80,7 @@ public final class ObservationHud {
         if (label == null || hideAt > 0 && doneAt == 0) {
             appeared = now;
             shown = progress;
+            chimed = (int) (progress * 10);
         }
         hideAt = 0;
         label = text;
@@ -80,6 +89,10 @@ public final class ObservationHud {
         if (progress >= 1f) {
             if (doneAt == 0) {
                 doneAt = now;
+                // Studied: the next step of the clicks, a little louder, then one a step lower as it settles, as if it
+                // clicked into place (the same day the enchanting table's rustle, then a bell: off the clicks' tune).
+                play(SoundEvents.UI_BUTTON_CLICK.value(), 1.9f, 0.35f);
+                settleAt = now + 70;
             }
             server = 1f;
             return;
@@ -117,6 +130,10 @@ public final class ObservationHud {
         if (minecraft.options.hideGui) {
             return;
         }
+        if (settleAt > 0 && now >= settleAt) {
+            settleAt = 0;
+            play(SoundEvents.UI_BUTTON_CLICK.value(), 1.45f, 0.3f);
+        }
         float partial = delta.getGameTimeDeltaPartialTick(true);
         boolean done = doneAt > 0;
         if (done) {
@@ -127,6 +144,13 @@ public final class ObservationHud {
                 // Moves on at the observation's own pace, but not far past what the server counted.
                 shown = Math.min(Math.min(server + LEAD_TICKS * perTick, 0.995f), shown + frame / MS_PER_TICK * perTick);
             }
+            // The scroll arrows' soft click at each tenth on the way up, a little higher each time (the same day an amethyst
+            // chime, too quiet to hear).
+            int tenth = (int) (shown * 10);
+            if (tenth > chimed && tenth >= 1 && tenth <= 9) {
+                play(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f + tenth * 0.09f, 0.25f);
+            }
+            chimed = tenth;
         }
         float fadeIn = Mth.clamp((now - appeared) / (float) FADE_MS, 0, 1);
         float fadeOut = hideAt > 0 ? Mth.clamp((hideAt - now) / (float) FADE_MS, 0, 1) : done ? Mth.clamp((DONE_MS - (now - doneAt)) / 250f, 0, 1) : 1;
@@ -144,6 +168,10 @@ public final class ObservationHud {
         // Under the talk hint when the NPC observed can be talked to: both are drawn under the crosshair.
         int textY = TalkHint.visible() ? centerY + TalkHint.bottom() + 4 : centerY + RADIUS + 5;
         graphics.drawString(font, line, centerX - font.width(line) / 2, textY, a | (done ? GOLD : PAPER), true);
+    }
+
+    private static void play(SoundEvent sound, float pitch, float volume) {
+        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(sound, pitch, volume));
     }
 
     private static void drawRing(GuiGraphics graphics, int centerX, int centerY, float progress, boolean done, float alpha, long now) {
