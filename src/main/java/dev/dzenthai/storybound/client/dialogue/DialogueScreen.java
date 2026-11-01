@@ -1,35 +1,35 @@
 package dev.dzenthai.storybound.client.dialogue;
 
+import dev.dzenthai.storybound.client.UiPalette;
+import dev.dzenthai.storybound.client.camera.CameraShots.ScreenPoint;
+import dev.dzenthai.storybound.client.camera.DialogueCamera;
+import dev.dzenthai.storybound.client.menu.MenuTheme;
+import dev.dzenthai.storybound.client.menu.MenuThemes;
 import dev.dzenthai.storybound.module.dialogue.ThinkTime;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.Util;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import org.lwjgl.glfw.GLFW;
 
 /** A paper conversation overlay. Session state, replies and camera remain owned by ClientDialogue. */
 public final class DialogueScreen extends Screen {
     private static final int MARGIN = 18;
-    private static final int PADDING = 12;
-    private static final int PORTRAIT = 44;
-    private static final int LINE_HEIGHT = 12;
-    private static final int OPTION_GAP = 3;
+    private static final int BOTTOM_OFFSET = 56;
+    private static final int PADDING = 5;
+    private static final int MAX_TEXT_WIDTH = 300;
+    private static final int LINE_HEIGHT = 10;
+    private static final int REPLY_LINE_HEIGHT = 11;
+    private static final int OPTION_GAP = 4;
     private final List<ReplyButton> optionButtons = new ArrayList<>();
-    private final long animationStart = Util.getMillis();
     private ClientDialogue.Line builtLine;
     private ClientDialogue.Choices builtChoices;
     private List<FormattedCharSequence> textLines = List.of();
     private List<FormattedCharSequence> nameLines = List.of();
-    private double guiScale = 1;
     private int panelX;
     private int panelY;
     private int panelWidth;
@@ -55,12 +55,6 @@ public final class DialogueScreen extends Screen {
 
     @Override
     protected void init() {
-        var window = minecraft.getWindow();
-        // Integer physical text pixels remain stable when the HUD GUI scale changes.
-        int physicalScale = Math.max(1, (int) Math.round(window.getHeight() / 500.0));
-        guiScale = physicalScale / window.getGuiScale();
-        width = (int) Math.floor(window.getGuiScaledWidth() / guiScale);
-        height = (int) Math.floor(window.getGuiScaledHeight() / guiScale);
         builtLine = ClientDialogue.line();
         builtChoices = ClientDialogue.choices();
         textScroll = 0;
@@ -68,52 +62,86 @@ public final class DialogueScreen extends Screen {
         choicesScroll = 0;
         selectedReply = -1;
         optionButtons.clear();
-        panelWidth = Math.min(640, (width - MARGIN * 2) * 70 / 100);
-        panelX = (width - panelWidth) / 2;
-        portrait = builtLine != null && hasPortrait(builtLine);
-        textX = panelX + PADDING + (portrait ? PORTRAIT + 12 : 0);
-        textWidth = Math.max(40, panelX + panelWidth - PADDING - 8 - textX);
-        nameLines = builtLine == null ? List.of() : font.split(builtLine.name().copy().withStyle(style -> style.withBold(true)), textWidth);
-        if (builtLine == null || builtLine.name().getString().isEmpty()) nameLines = List.of();
-        textLines = builtLine == null ? List.of() : font.split(builtLine.text(), textWidth);
-        int heading = nameLines.isEmpty() ? 0 : nameLines.size() * LINE_HEIGHT + 10;
-        int desiredHeight = PADDING * 2 + Math.max(portrait ? PORTRAIT : 0,
-                heading + Math.max(2, textLines.size()) * LINE_HEIGHT) + 22;
-        panelHeight = Math.min(Math.max(94, desiredHeight), Math.max(94, height / 3));
-        panelY = height - MARGIN - panelHeight;
-        textY = panelY + PADDING + heading;
-        int footerTop = panelY + panelHeight - 22;
-        int bodyBottom = footerTop - 6;
-        textHeight = Math.max(LINE_HEIGHT, ((bodyBottom - textY) / LINE_HEIGHT) * LINE_HEIGHT);
-        choicesWidth = Math.min(250, panelWidth);
-        choicesX = panelX + panelWidth - choicesWidth;
-        choicesBottom = builtLine == null ? height - MARGIN : panelY - 6;
-        choicesTop = choicesBottom;
+        if (builtLine != null) {
+            portrait = DialogueChrome.hasPortrait(minecraft, builtLine);
+            int portraitSpace = portrait ? DialogueChrome.PORTRAIT_SIZE + 8 : 0;
+            int maxText = Math.max(80, Math.min(MAX_TEXT_WIDTH, width - MARGIN * 2 - portraitSpace - PADDING * 2));
+            boolean named = !builtLine.name().getString().isEmpty();
+            nameLines = named ? font.split(builtLine.name(), maxText) : List.of();
+            textLines = font.split(builtLine.text(), maxText);
+            int measuredWidth = textLines.stream().mapToInt(font::width).max().orElse(0);
+            for (FormattedCharSequence nameLine : nameLines) {
+                measuredWidth = Math.max(measuredWidth, font.width(nameLine));
+            }
+            textWidth = Math.max(80, measuredWidth);
+            int headingHeight = nameLines.size() * LINE_HEIGHT;
+            int fullTextHeight = Math.max(LINE_HEIGHT, textLines.size() * LINE_HEIGHT);
+            int maxBodyHeight = Math.max(LINE_HEIGHT * 3, height / 4);
+            textHeight = Math.min(fullTextHeight, (maxBodyHeight / LINE_HEIGHT) * LINE_HEIGHT);
+            int contentHeight = headingHeight + textHeight - 1;
+            panelWidth = portraitSpace + textWidth + PADDING * 2;
+            panelHeight = Math.max(portrait ? DialogueChrome.PORTRAIT_SIZE + PADDING * 2 : 22, contentHeight + PADDING * 2);
+            panelX = (width - panelWidth) / 2;
+            panelY = height - BOTTOM_OFFSET - panelHeight;
+            textX = panelX + PADDING + portraitSpace;
+            textY = panelY + (panelHeight - contentHeight) / 2 + headingHeight;
+        } else {
+            portrait = false;
+            nameLines = List.of();
+            textLines = List.of();
+            panelWidth = 240;
+            panelHeight = 0;
+            panelX = (width - panelWidth) / 2;
+            panelY = height - BOTTOM_OFFSET;
+        }
+        choicesWidth = Math.min(240, Math.max(150, width * 42 / 100));
         choicesHeight = 0;
         if (builtChoices != null) {
+            int maxOptWidth = 120;
             for (int i = 0; i < builtChoices.options().size(); i++) {
                 ClientDialogue.Option option = builtChoices.options().get(i);
                 ReplyButton button = new ReplyButton(i, option);
                 optionButtons.add(addRenderableWidget(button));
                 choicesHeight += button.getHeight() + OPTION_GAP;
+                maxOptWidth = Math.max(maxOptWidth, button.contentWidth + 28);
+            }
+            choicesWidth = Math.min(choicesWidth, maxOptWidth);
+            for (ReplyButton button : optionButtons) {
+                button.setWidth(choicesWidth);
             }
             choicesHeight = Math.max(0, choicesHeight - OPTION_GAP);
-            int viewportHeight = Math.min(140, Math.max(60, height * 30 / 100));
-            choicesTop = Math.max(MARGIN + 6, choicesBottom - Math.min(choicesHeight, viewportHeight));
-            positionChoices();
+            updateChoicesAnchor();
         }
     }
 
-    private boolean hasPortrait(ClientDialogue.Line line) {
-        if (line.speaker().portrait().isPresent()) return true;
-        return minecraft.level != null && line.speaker().entityId() >= 0
-                && minecraft.level.getEntity(line.speaker().entityId()) instanceof LivingEntity;
+    private void updateChoicesAnchor() {
+        if (builtChoices == null || optionButtons.isEmpty()) {
+            return;
+        }
+        int bottomLimit = builtLine != null ? panelY - 10 : height - MARGIN - 16;
+        int maxViewport = Math.max(48, Math.min(150, bottomLimit - (MARGIN + 8)));
+        int viewHeight = Math.min(choicesHeight, maxViewport);
+        double aspect = (double) minecraft.getWindow().getWidth() / Math.max(1, minecraft.getWindow().getHeight());
+        ScreenPoint projected = DialogueCamera.projectFocus(aspect);
+        int targetX = width * 62 / 100;
+        int targetTop = Math.max(MARGIN + 8, (bottomLimit - viewHeight) * 55 / 100);
+        if (projected != null) {
+            int charScreenX = (int) Math.round((projected.x() + 1.0) * 0.5 * width);
+            int charScreenY = (int) Math.round((1.0 - projected.y()) * 0.5 * height);
+            targetX = Math.max(width * 60 / 100, charScreenX + 96);
+            targetTop = charScreenY - viewHeight / 4;
+        }
+        choicesX = Math.clamp(targetX, MARGIN, Math.max(MARGIN, width - choicesWidth - MARGIN));
+        choicesTop = Math.clamp(targetTop, MARGIN + 8, Math.max(MARGIN + 8, bottomLimit - viewHeight));
+        choicesBottom = choicesTop + viewHeight;
+        positionChoices();
     }
 
     private void positionChoices() {
         int y = choicesTop - choicesScroll;
-        boolean revealed = builtLine == null || builtLine.isRevealed();
+        boolean revealed = (builtLine == null || builtLine.isRevealed()) && selectedReply < 0 && ClientDialogue.chosen() == null;
         for (ReplyButton button : optionButtons) {
+            button.setX(choicesX);
             button.setY(y);
             button.visible = revealed && y < choicesBottom && y + button.getHeight() > choicesTop;
             y += button.getHeight() + OPTION_GAP;
@@ -122,57 +150,67 @@ public final class DialogueScreen extends Screen {
 
     @Override
     public void tick() {
-        if (ClientDialogue.line() != builtLine || ClientDialogue.choices() != builtChoices) rebuildWidgets();
+        if (ClientDialogue.line() != builtLine || ClientDialogue.choices() != builtChoices) {
+            rebuildWidgets();
+        }
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (ClientDialogue.line() != builtLine || ClientDialogue.choices() != builtChoices) rebuildWidgets();
-        int localX = (int) Math.floor(mouseX / guiScale);
-        int localY = (int) Math.floor(mouseY / guiScale);
-        graphics.flush();
-        graphics = new DialogueGraphics(minecraft, graphics, guiScale, width, height);
-        renderBackground(graphics, localX, localY, partialTick);
-        if (builtLine != null) {
-            DialogueChrome.nebula(graphics, panelX, panelY, panelWidth, panelHeight, Util.getMillis() - animationStart);
-            DialogueChrome.paper(graphics, panelX, panelY, panelWidth, panelHeight);
-            renderLine(graphics);
-            renderFooter(graphics);
+        if (ClientDialogue.line() != builtLine || ClientDialogue.choices() != builtChoices) {
+            rebuildWidgets();
         }
-        positionChoices();
-        if (!optionButtons.isEmpty() && (builtLine == null || builtLine.isRevealed())) {
-            clip(graphics, choicesX - 1, choicesTop, choicesX + choicesWidth + 1, choicesBottom);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
+        MenuTheme theme = MenuThemes.INSTANCE.theme();
+        if (builtLine != null) {
+            DialogueChrome.box(graphics, panelX, panelY, panelWidth, panelHeight, theme.hudBackground());
+            renderLine(graphics, theme);
+        }
+        if (builtLine != null || builtChoices != null) {
+            renderFooter(graphics, theme);
+        }
+        updateChoicesAnchor();
+        long now = Util.getMillis();
+        ClientDialogue.Chosen chosen = ClientDialogue.chosen();
+        if (chosen != null) {
+            DialogueChrome.renderChosen(graphics, font, chosen, now, choicesX + 8, choicesTop);
+        } else if (!optionButtons.isEmpty() && (builtLine == null || builtLine.isRevealed())) {
+            clip(graphics, choicesX - 4, choicesTop - 2, choicesX + choicesWidth + 4, choicesBottom + 2);
             for (ReplyButton button : optionButtons) {
-                button.render(graphics, localX, localY >= choicesTop && localY < choicesBottom ? localY : -1, partialTick);
+                button.render(graphics, mouseX, mouseY >= choicesTop && mouseY < choicesBottom ? mouseY : -1, partialTick);
             }
             graphics.disableScissor();
             DialogueChrome.scrollbar(graphics, choicesX + choicesWidth + 3, choicesTop, choicesBottom - choicesTop, choicesHeight, choicesScroll);
             if (builtChoices.timeoutTicks() > 0) {
-                graphics.fill(choicesX + 8, choicesTop - 4, choicesX + choicesWidth - 8, choicesTop - 3, 0x5079533F);
-                graphics.fill(choicesX + 8, choicesTop - 4,
-                        choicesX + 8 + Math.round((choicesWidth - 16) * builtChoices.timeLeft()), choicesTop - 3, DialogueChrome.RULE);
+                int barLeft = choicesX + 8;
+                int barRight = choicesX + choicesWidth - 4;
+                int barWidth = Math.max(20, barRight - barLeft);
+                graphics.fill(barLeft, choicesTop - 5, barRight, choicesTop - 3, (0xB0 << 24) | UiPalette.SHADOW_DEEP);
+                graphics.fill(barLeft, choicesTop - 5,
+                        barLeft + Math.round(barWidth * builtChoices.timeLeft()), choicesTop - 3, DialogueChrome.GOLD);
             }
             for (ReplyButton button : optionButtons) {
-                boolean hovered = localY >= choicesTop && localY < choicesBottom
-                        && localX >= button.getX() && localX < button.getX() + button.getWidth()
-                        && localY >= button.getY() && localY < button.getY() + button.getHeight();
+                boolean hovered = mouseY >= choicesTop && mouseY < choicesBottom
+                        && mouseX >= button.getX() && mouseX < button.getX() + button.getWidth()
+                        && mouseY >= button.getY() && mouseY < button.getY() + button.getHeight();
                 if (button.visible && button.hint != null && (hovered || button.isFocused())) {
                     graphics.renderTooltip(font, font.split(button.hint, Math.min(240, width - 30)),
-                            hovered ? localX : button.getX() + 20, hovered ? localY : Math.min(button.getY(), choicesBottom - 8));
+                            hovered ? mouseX : button.getX() + 20, hovered ? mouseY : Math.min(button.getY(), choicesBottom - 8));
                 }
             }
         }
-        graphics.flush();
     }
 
-    private void renderLine(GuiGraphics graphics) {
-        if (portrait) renderPortrait(graphics, builtLine, panelX + PADDING, panelY + PADDING);
-        int nameY = panelY + PADDING;
+    private void renderLine(GuiGraphics graphics, MenuTheme theme) {
+        if (portrait) {
+            DialogueChrome.renderFrontPortrait(minecraft, graphics, builtLine,
+                    panelX + PADDING, panelY + (panelHeight - DialogueChrome.PORTRAIT_SIZE) / 2, DialogueChrome.PORTRAIT_SIZE);
+        }
+        int nameY = textY - nameLines.size() * LINE_HEIGHT;
         for (FormattedCharSequence name : nameLines) {
-            graphics.drawString(font, name, textX, nameY, DialogueChrome.INK, false);
+            graphics.drawString(font, name, textX, nameY, theme.hudTitle(), true);
             nameY += LINE_HEIGHT;
         }
-        if (!nameLines.isEmpty()) DialogueChrome.rule(graphics, textX, textY - 7, textWidth);
         int visible = builtLine.visibleChars();
         if (!manualTextScroll && !builtLine.isRevealed()) {
             int remaining = visible;
@@ -184,19 +222,20 @@ public final class DialogueScreen extends Screen {
             }
             textScroll = Math.max(0, shownRows * LINE_HEIGHT - textHeight);
         }
-        clip(graphics, textX, textY - 1, textX + textWidth, textY + textHeight);
+        clip(graphics, textX, textY - 1, textX + textWidth + 2, textY + textHeight + 1);
         if (builtLine.isThinking()) {
-            graphics.drawString(font, ThinkTime.dots(Util.getMillis()), textX, textY, DialogueChrome.MUTED, false);
+            graphics.drawString(font, ThinkTime.dots(Util.getMillis()), textX, textY, theme.hudText(), true);
         } else {
-            DialogueText.draw(graphics, font, textLines, textX, textY - textScroll, LINE_HEIGHT, DialogueChrome.INK, false, visible);
+            DialogueText.draw(graphics, font, textLines, textX, textY - textScroll, LINE_HEIGHT, theme.hudText(), true, visible);
         }
         graphics.disableScissor();
         DialogueChrome.scrollbar(graphics, textX + textWidth + 3, textY, textHeight, textLines.size() * LINE_HEIGHT, textScroll);
     }
 
-    private void renderFooter(GuiGraphics graphics) {
-        int y = panelY + panelHeight - 22;
-        graphics.fill(panelX + PADDING, y, panelX + panelWidth - PADDING, y + 1, DialogueChrome.RULE);
+    private void renderFooter(GuiGraphics graphics, MenuTheme theme) {
+        if (ClientDialogue.chosen() != null) {
+            return;
+        }
         Component action;
         if (builtChoices != null) action = Component.translatable("storybound.dialogue.controls.choose", Math.min(9, optionButtons.size()));
         else if (builtLine != null && !builtLine.isRevealed()) action = Component.translatable("storybound.dialogue.controls.reveal");
@@ -206,9 +245,11 @@ public final class DialogueScreen extends Screen {
         if (textLines.size() * LINE_HEIGHT > textHeight || choicesHeight > choicesBottom - choicesTop)
             hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.scroll"));
         if (ClientDialogue.closable()) hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.leave"));
-        var lines = font.split(hint, panelWidth - PADDING * 2);
-        if (!lines.isEmpty()) graphics.drawString(font, lines.getFirst(), panelX + (panelWidth - font.width(lines.getFirst())) / 2,
-                y + 7, DialogueChrome.MUTED, false);
+        var lines = font.split(hint, width - MARGIN * 2);
+        if (!lines.isEmpty()) {
+            graphics.drawString(font, lines.getFirst(),
+                    (width - font.width(lines.getFirst())) / 2, panelY + panelHeight + 4, theme.hudText(), true);
+        }
     }
 
     private void clip(GuiGraphics graphics, int left, int top, int right, int bottom) {
@@ -217,30 +258,17 @@ public final class DialogueScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fillGradient(0, height / 2, width, height, 0x00000000, 0x70000000);
-    }
-
-    private void renderPortrait(GuiGraphics graphics, ClientDialogue.Line line, int x, int y) {
-        DialogueChrome.portrait(graphics, x, y, PORTRAIT);
-        ResourceLocation texture = line.speaker().portrait().orElse(null);
-        if (texture != null) {
-            graphics.blit(texture, x + 2, y + 2, PORTRAIT - 4, PORTRAIT - 4, 0, 0, 64, 64, 64, 64);
-            return;
-        }
-        Entity entity = minecraft.level != null ? minecraft.level.getEntity(line.speaker().entityId()) : null;
-        if (entity instanceof LivingEntity living) {
-            float scale = living.getScale();
-            float yOffset = (living.getEyeHeight() - living.getBbHeight() / 2f) / scale - 0.15f;
-            InventoryScreen.renderEntityInInventoryFollowsAngle(graphics, x + 2, y + 2, x + PORTRAIT - 2, y + PORTRAIT - 2,
-                    Math.round((PORTRAIT - 4) / 1.1f), yOffset, 0.35f, 0f, living);
-        }
+        graphics.fillGradient(0, height * 2 / 3, width, height, 0x00000000, 0x58000000);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        double x = mouseX / guiScale;
-        double y = mouseY / guiScale;
-        if (y >= choicesTop && y < choicesBottom && super.mouseClicked(x, y, button)) return true;
+        if (ClientDialogue.chosen() != null) {
+            return true;
+        }
+        if (mouseY >= choicesTop && mouseY < choicesBottom && super.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             proceed();
             return true;
@@ -249,24 +277,12 @@ public final class DialogueScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(double x, double y, int button) {
-        return super.mouseReleased(x / guiScale, y / guiScale, button);
-    }
-
-    @Override
-    public void mouseMoved(double x, double y) {
-        super.mouseMoved(x / guiScale, y / guiScale);
-    }
-
-    @Override
     public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
-        double localX = x / guiScale;
-        double localY = y / guiScale;
-        if (!optionButtons.isEmpty() && localX >= choicesX && localX < choicesX + choicesWidth + 6
-                && localY >= choicesTop && localY < choicesBottom) {
-            choicesScroll = Math.clamp(choicesScroll - (int) (vertical * LINE_HEIGHT * 2), 0, Math.max(0, choicesHeight - (choicesBottom - choicesTop)));
+        if (!optionButtons.isEmpty() && x >= choicesX && x < choicesX + choicesWidth + 6
+                && y >= choicesTop && y < choicesBottom) {
+            choicesScroll = Math.clamp(choicesScroll - (int) (vertical * REPLY_LINE_HEIGHT * 2), 0, Math.max(0, choicesHeight - (choicesBottom - choicesTop)));
             positionChoices();
-        } else if (localX >= textX && localX < textX + textWidth + 6 && localY >= textY && localY < textY + textHeight) {
+        } else if (x >= textX && x < textX + textWidth + 6 && y >= textY && y < textY + textHeight) {
             scrollText(-(int) vertical * LINE_HEIGHT * 2);
         }
         return true;
@@ -281,6 +297,9 @@ public final class DialogueScreen extends Screen {
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             ClientDialogue.leave();
+            return true;
+        }
+        if (ClientDialogue.chosen() != null) {
             return true;
         }
         if (keyCode == GLFW.GLFW_KEY_PAGE_DOWN || keyCode == GLFW.GLFW_KEY_PAGE_UP) {
@@ -331,10 +350,14 @@ public final class DialogueScreen extends Screen {
     }
 
     private void chooseReply(int index) {
-        if (selectedReply >= 0 || builtChoices == null || index < 0 || index >= builtChoices.options().size()
+        if (selectedReply >= 0 || ClientDialogue.chosen() != null || builtChoices == null
+                || index < 0 || index >= builtChoices.options().size()
                 || !builtChoices.options().get(index).enabled()) return;
         selectedReply = index;
-        ClientDialogue.choose(index);
+        ReplyButton button = index < optionButtons.size() ? optionButtons.get(index) : null;
+        int bx = button != null ? button.getX() + 8 : choicesX + 8;
+        int by = button != null ? button.getY() + 3 : choicesTop;
+        ClientDialogue.choose(index, bx, by, choicesWidth - 8);
     }
 
     @Override
@@ -343,70 +366,43 @@ public final class DialogueScreen extends Screen {
     @Override
     public boolean isPauseScreen() { return false; }
 
-    /** Portrait helpers, tooltips and text share the same transformed clip space. */
-    private static final class DialogueGraphics extends GuiGraphics {
-        private final double scale;
-        private final int width;
-        private final int height;
-
-        DialogueGraphics(Minecraft minecraft, GuiGraphics source, double scale, int width, int height) {
-            super(minecraft, source.bufferSource());
-            this.scale = scale;
-            this.width = width;
-            this.height = height;
-            pose().scale((float) scale, (float) scale, 1);
-        }
-
-        @Override public int guiWidth() { return width; }
-        @Override public int guiHeight() { return height; }
-
-        @Override
-        public void enableScissor(int left, int top, int right, int bottom) {
-            super.enableScissor((int) Math.floor(left * scale), (int) Math.floor(top * scale),
-                    (int) Math.ceil(right * scale), (int) Math.ceil(bottom * scale));
-        }
-
-        @Override
-        public boolean containsPointInScissor(int x, int y) {
-            return super.containsPointInScissor((int) (x * scale), (int) (y * scale));
-        }
-    }
-
     private final class ReplyButton extends Button {
         private final List<FormattedCharSequence> lines;
         private final Component hint;
         private final int number;
+        private final int contentWidth;
 
         ReplyButton(int index, ClientDialogue.Option option) {
-            super(choicesX, 0, choicesWidth, 24, Component.literal((index + 1) + ". ").append(option.text()),
+            super(choicesX, 0, choicesWidth, 16, Component.literal((index + 1) + ". ").append(option.text()),
                     pressed -> chooseReply(index), DEFAULT_NARRATION);
             number = index + 1;
             hint = option.hint();
-            lines = font.split(option.text(), choicesWidth - 57);
-            setHeight(Math.max(24, lines.size() * LINE_HEIGHT + 12));
+            lines = font.split(option.text(), choicesWidth - 28);
+            int maxLine = lines.stream().mapToInt(font::width).max().orElse(0);
+            contentWidth = maxLine + 16;
+            setHeight(Math.max(15, lines.size() * REPLY_LINE_HEIGHT + 4));
             active = option.enabled();
         }
 
         @Override
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean selected = selectedReply == number - 1;
-            DialogueChrome.paper(graphics, getX(), getY(), getWidth(), getHeight());
-            if (!active) graphics.fill(getX() + 4, getY() + 3, getX() + getWidth() - 4, getY() + getHeight() - 3, 0x25A39984);
-            else if (isHoveredOrFocused() || selected) graphics.fill(getX() + 4, getY() + 3,
-                    getX() + getWidth() - 4, getY() + getHeight() - 3, 0x30D99527);
-            int textY = getY() + (getHeight() - lines.size() * LINE_HEIGHT) / 2 + 2;
-            int color = active ? DialogueChrome.INK : DialogueChrome.MUTED;
-            if (textY >= choicesTop && textY + font.lineHeight <= choicesBottom)
-                graphics.drawString(font, number + ".", getX() + 12, textY, color, false);
-            for (FormattedCharSequence line : lines) {
-                if (textY >= choicesTop && textY + font.lineHeight <= choicesBottom)
-                    graphics.drawString(font, line, getX() + 29, textY, color, false);
-                textY += LINE_HEIGHT;
+            boolean highlighted = active && (isHoveredOrFocused() || selectedReply == number - 1);
+            int textY = getY() + 3;
+            int color;
+            if (!active) {
+                color = DialogueChrome.REPLY_LOCKED;
+            } else if (highlighted) {
+                color = DialogueChrome.GOLD;
+            } else {
+                color = MenuThemes.INSTANCE.theme().hudText();
             }
-            if (getY() >= choicesTop && getY() + getHeight() <= choicesBottom) {
-                if (!active) DialogueChrome.lock(graphics, getX() + getWidth() - 20, getY() + (getHeight() - 10) / 2);
-                else if (isHoveredOrFocused() || selected) DialogueChrome.arrow(graphics, getX() + getWidth() - 17,
-                        getY() + (getHeight() - 7) / 2, false, color);
+            if (highlighted) {
+                DialogueChrome.choiceMarker(graphics, getX() + 3, textY + 2, 255);
+            }
+            graphics.drawString(font, number + ".", getX() + 8, textY, color, true);
+            for (FormattedCharSequence line : lines) {
+                graphics.drawString(font, line, getX() + 24, textY, color, true);
+                textY += REPLY_LINE_HEIGHT;
             }
         }
     }

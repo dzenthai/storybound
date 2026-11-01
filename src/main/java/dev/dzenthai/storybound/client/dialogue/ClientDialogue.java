@@ -23,12 +23,16 @@ public final class ClientDialogue {
     /** How long a HUD subtitle stays after it is fully shown, per character, before it moves on by itself. */
     private static final long READ_MILLIS_PER_CHAR = 55;
     private static final long MIN_READ_MILLIS = 1800;
+    public static final long CHOICE_HOLD_MILLIS = 0;
+    public static final long CHOICE_FADE_MILLIS = 450;
+    public static final long CHOICE_TOTAL_MILLIS = CHOICE_HOLD_MILLIS + CHOICE_FADE_MILLIS;
 
     private static int session = -1;
     private static Presentation presentation = Presentation.SCREEN;
     private static boolean closable = true;
     private static @Nullable Line line;
     private static @Nullable Choices choices;
+    private static @Nullable Chosen chosen;
     /** The step already answered, so a double click sends one reply. */
     private static int answered = -1;
     /** When the player picked an option and how long its text was: an NPC answer waits for {@link ThinkTime}. */
@@ -57,6 +61,15 @@ public final class ClientDialogue {
         return choices;
     }
 
+    public static @Nullable Chosen chosen() {
+        Chosen current = chosen;
+        if (current != null && Util.getMillis() - current.chosenAt() >= CHOICE_TOTAL_MILLIS) {
+            chosen = null;
+            return null;
+        }
+        return current;
+    }
+
     public static void onLine(DialogueLinePayload payload) {
         if (payload.session() != session) {
             choices = null;
@@ -69,7 +82,7 @@ public final class ClientDialogue {
         long now = Util.getMillis();
         long startAt = now;
         if (payload.think() != ThinkTime.NONE) {
-            startAt = Math.max(now, (choseAt > 0 ? choseAt : now) + ThinkTime.resolve(payload.think(), choiceLength, StoryboundClientConfig.INSTANCE.thinkPause.get()));
+            startAt = Math.max(startAt, (choseAt > 0 ? choseAt : now) + ThinkTime.resolve(payload.think(), choiceLength, StoryboundClientConfig.INSTANCE.thinkPause.get()));
         }
         line = new Line(payload.step(), speaker, name, payload.text().toComponent(), payload.timed(), startAt);
         choices = null;
@@ -94,6 +107,7 @@ public final class ClientDialogue {
                 .map(shown -> new Option(shown.text().toComponent(), shown.enabled(), shown.hint().map(ResolvedText::toComponent).orElse(null)))
                 .toList();
         choices = new Choices(payload.step(), options, payload.timeoutTicks(), Util.getMillis());
+        chosen = null;
         if (line != null) {
             line.revealAll();
         }
@@ -121,10 +135,16 @@ public final class ClientDialogue {
     }
 
     public static void choose(int index) {
+        choose(index, 0, 0, 240);
+    }
+
+    public static void choose(int index, int x, int y, int width) {
         if (choices != null && index >= 0 && index < choices.options().size() && choices.options().get(index).enabled() && answered != choices.step()) {
             answered = choices.step();
             choseAt = Util.getMillis();
-            choiceLength = choices.options().get(index).text().getString().length();
+            Component text = choices.options().get(index).text();
+            choiceLength = text.getString().length();
+            chosen = new Chosen(index + 1, text, choseAt, x, y, width);
             PacketDistributor.sendToServer(new DialogueReplyPayload(session, choices.step(), index));
         }
     }
@@ -262,4 +282,18 @@ public final class ClientDialogue {
     }
 
     public record Option(Component text, boolean enabled, @Nullable Component hint) {}
+
+    public record Chosen(int number, Component text, long chosenAt, int x, int y, int width) {
+        public float alpha(long now) {
+            long elapsed = now - chosenAt;
+            if (elapsed < 0 || elapsed >= CHOICE_TOTAL_MILLIS) {
+                return 0f;
+            }
+            if (elapsed <= CHOICE_HOLD_MILLIS) {
+                return 1f;
+            }
+            float t = (elapsed - CHOICE_HOLD_MILLIS) / (float) CHOICE_FADE_MILLIS;
+            return Math.max(0f, 1f - t * t * (3f - 2f * t));
+        }
+    }
 }

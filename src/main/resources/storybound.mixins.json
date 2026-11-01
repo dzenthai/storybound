@@ -3,10 +3,14 @@
   "minVersion": "0.8",
   "package": "dev.dzenthai.storybound.mixin",
   "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "LecternBlockEntityMixin"
+  ],
   "client": [
     "client.BookFontMixin",
     "client.CameraAccessor",
-    "client.GameRendererMixin"
+    "client.GameRendererMixin",
+    "client.LecternRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

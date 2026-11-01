@@ -10,6 +10,7 @@ import dev.dzenthai.storybound.client.dialogue.ClientDialogue;
 import dev.dzenthai.storybound.client.dialogue.DialogueHud;
 import dev.dzenthai.storybound.client.dialogue.SpeechBubbles;
 import dev.dzenthai.storybound.client.dialogue.TalkHint;
+import dev.dzenthai.storybound.client.document.DocumentScreen;
 import dev.dzenthai.storybound.client.document.DocumentStyles;
 import dev.dzenthai.storybound.client.journal.JournalView;
 import dev.dzenthai.storybound.client.menu.AdventureMenu;
@@ -34,6 +35,7 @@ import dev.dzenthai.storybound.network.TalkPayload;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.EntityHitResult;
@@ -45,6 +47,7 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
@@ -58,6 +61,7 @@ import org.lwjgl.glfw.GLFW;
 @Mod(value = Storybound.MOD_ID, dist = Dist.CLIENT)
 public final class StoryboundClient {
     private static final String KEY_CATEGORY = "key.categories.storybound";
+    public static final ModelResourceLocation OPEN_BOOK_MODEL = ModelResourceLocation.standalone(Storybound.id("item/document_book_open"));
 
     /** Opens the Adventure Menu on the last used tab; also closes it. */
     public static final KeyMapping OPEN_MENU = new KeyMapping("key.storybound.adventure_menu",
@@ -79,6 +83,7 @@ public final class StoryboundClient {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
 
         modBus.addListener(StoryboundClient::onClientSetup);
+        modBus.addListener(StoryboundClient::onRegisterAdditionalModels);
         modBus.addListener(StoryboundClient::onRegisterKeys);
         modBus.addListener(StoryboundClient::onRegisterReloadListeners);
         modBus.addListener(StoryboundClient::onRegisterGuiLayers);
@@ -104,6 +109,13 @@ public final class StoryboundClient {
                 DocumentDefinition definition = ref != null ? DocumentRegistries.DOCUMENTS.clientStore().getOrNull(ref.id()) : null;
                 return definition != null ? definition.kind().modelPredicate() : 0f;
             });
+            ItemProperties.register(DocumentRegistries.DOCUMENT_ITEM.get(), Storybound.id("open"), (stack, level, entity, seed) -> {
+                Minecraft minecraft = Minecraft.getInstance();
+                if (entity == null || entity != minecraft.player || !(minecraft.screen instanceof DocumentScreen)) {
+                    return 0.0F;
+                }
+                return entity.getMainHandItem() == stack || entity.getOffhandItem() == stack ? 1.0F : 0.0F;
+            });
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.QUESTS, Component.translatable("storybound.quests.title"), 100,
                     () -> ClientModules.isEnabled("quests"), QuestsView::hasUnseen, QuestsView::new));
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.MAP, Component.translatable("storybound.map.title"), 150,
@@ -117,6 +129,10 @@ public final class StoryboundClient {
             MapIntegrations.register();
             CameraIntegrations.register();
         });
+    }
+
+    private static void onRegisterAdditionalModels(ModelEvent.RegisterAdditional event) {
+        event.register(OPEN_BOOK_MODEL);
     }
 
     private static void onRegisterKeys(RegisterKeyMappingsEvent event) {

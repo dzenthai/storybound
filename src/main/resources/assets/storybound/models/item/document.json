@@ -5,6 +5,7 @@
   },
   "overrides": [
     { "predicate": { "storybound:kind": 0.1 }, "model": "storybound:item/document_book" },
+    { "predicate": { "storybound:kind": 0.1, "storybound:open": 1.0 }, "model": "storybound:item/document_book_reading" },
     { "predicate": { "storybound:kind": 0.2 }, "model": "storybound:item/document_scroll" },
     { "predicate": { "storybound:kind": 0.3 }, "model": "storybound:item/document_note" },
     { "predicate": { "storybound:kind": 0.4 }, "model": "storybound:item/document_letter" },

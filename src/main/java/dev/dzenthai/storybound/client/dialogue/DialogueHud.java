@@ -23,33 +23,51 @@ public final class DialogueHud {
 
     public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
         Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.options.hideGui || minecraft.screen instanceof DialogueScreen) {
+            return;
+        }
+        Font font = minecraft.font;
+        long now = Util.getMillis();
+        ClientDialogue.Chosen chosen = ClientDialogue.chosen();
+        if (chosen != null) {
+            DialogueChrome.renderChosen(graphics, font, chosen, now,
+                    graphics.guiWidth() * 62 / 100, graphics.guiHeight() * 38 / 100);
+        }
         ClientDialogue.Line line = ClientDialogue.line();
-        if (line == null || !subtitled(line, minecraft) || minecraft.options.hideGui
-                || minecraft.screen instanceof DialogueScreen) {
+        if (line == null || !subtitled(line, minecraft)) {
             return;
         }
         MenuTheme theme = MenuThemes.INSTANCE.theme();
-        Font font = minecraft.font;
-        int width = Math.min(MAX_WIDTH, graphics.guiWidth() - 20);
-        List<FormattedCharSequence> lines = font.split(line.text(), width);
+        boolean portrait = DialogueChrome.hasPortrait(minecraft, line);
+        int portraitSpace = portrait ? DialogueChrome.PORTRAIT_SIZE + 8 : 0;
+        int maxTextWidth = Math.max(80, Math.min(MAX_WIDTH, graphics.guiWidth() - 24 - portraitSpace - PADDING * 2));
+        List<FormattedCharSequence> lines = font.split(line.text(), maxTextWidth);
         boolean named = !line.name().getString().isEmpty();
         int textWidth = lines.stream().mapToInt(font::width).max().orElse(0);
         if (named) {
             textWidth = Math.max(textWidth, font.width(line.name()));
         }
-        int height = (lines.size() + (named ? 1 : 0)) * LINE_HEIGHT + 2 * PADDING - 1;
-        int x = (graphics.guiWidth() - textWidth) / 2;
-        int y = graphics.guiHeight() - BOTTOM_OFFSET - height;
-        graphics.fill(x - PADDING, y, x + textWidth + PADDING, y + height, theme.hudBackground());
-        int textY = y + PADDING;
+        textWidth = Math.max(60, textWidth);
+        int contentHeight = (lines.size() + (named ? 1 : 0)) * LINE_HEIGHT - 1;
+        int boxWidth = portraitSpace + textWidth + PADDING * 2;
+        int boxHeight = Math.max(portrait ? DialogueChrome.PORTRAIT_SIZE + PADDING * 2 : 20, contentHeight + PADDING * 2);
+        int boxX = (graphics.guiWidth() - boxWidth) / 2;
+        int boxY = graphics.guiHeight() - BOTTOM_OFFSET - boxHeight;
+        DialogueChrome.box(graphics, boxX, boxY, boxWidth, boxHeight, theme.hudBackground());
+        if (portrait) {
+            DialogueChrome.renderFrontPortrait(minecraft, graphics, line,
+                    boxX + PADDING, boxY + (boxHeight - DialogueChrome.PORTRAIT_SIZE) / 2, DialogueChrome.PORTRAIT_SIZE);
+        }
+        int textX = boxX + PADDING + portraitSpace;
+        int textY = boxY + (boxHeight - contentHeight) / 2;
         if (named) {
-            graphics.drawString(font, line.name(), x, textY, theme.hudTitle(), true);
+            graphics.drawString(font, line.name(), textX, textY, theme.hudTitle(), true);
             textY += LINE_HEIGHT;
         }
         if (line.isThinking()) {
-            graphics.drawString(font, ThinkTime.dots(Util.getMillis()), x, textY, theme.hudText(), true);
+            graphics.drawString(font, ThinkTime.dots(now), textX, textY, theme.hudText(), true);
         } else {
-            DialogueText.draw(graphics, font, lines, x, textY, LINE_HEIGHT, theme.hudText(), true, line.visibleChars());
+            DialogueText.draw(graphics, font, lines, textX, textY, LINE_HEIGHT, theme.hudText(), true, line.visibleChars());
         }
     }
 

@@ -1,16 +1,22 @@
 package dev.dzenthai.storybound.module.document;
 
 import dev.dzenthai.storybound.core.state.StoryMigrations;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LecternBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.fml.LogicalSide;
 import net.neoforged.fml.util.thread.EffectiveSide;
 
@@ -18,6 +24,28 @@ import net.neoforged.fml.util.thread.EffectiveSide;
 public class DocumentItem extends Item {
     public DocumentItem(Properties properties) {
         super(properties);
+    }
+
+    @Override
+    public InteractionResult useOn(UseOnContext context) {
+        Level level = context.getLevel();
+        BlockPos pos = context.getClickedPos();
+        BlockState state = level.getBlockState(pos);
+        if (state.is(Blocks.LECTERN) && !state.getValue(LecternBlock.HAS_BOOK)) {
+            ItemStack stack = context.getItemInHand();
+            DocumentRef ref = stack.get(DocumentRegistries.DOCUMENT_COMPONENT.get());
+            if (ref != null) {
+                DocumentDefinition definition = (level.isClientSide()
+                        ? DocumentRegistries.DOCUMENTS.clientStore()
+                        : DocumentRegistries.DOCUMENTS.serverStore()).getOrNull(ref.id());
+                if (definition != null && definition.kind() == DocumentKind.BOOK) {
+                    return LecternBlock.tryPlaceBook(context.getPlayer(), level, pos, state, stack)
+                            ? InteractionResult.sidedSuccess(level.isClientSide())
+                            : InteractionResult.PASS;
+                }
+            }
+        }
+        return super.useOn(context);
     }
 
     @Override

@@ -2,20 +2,96 @@ package dev.dzenthai.storybound.client.dialogue;
 
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.UiPalette;
+import java.util.List;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 
 /** Warm paper with a pixel brass frame and fixed-size separator artwork. */
 final class DialogueChrome {
     static final int INK = UiPalette.opaque(UiPalette.INK);
-    static final int MUTED = 0xFF79634B;
+    static final int MUTED = UiPalette.opaque(UiPalette.BROWN);
     static final int RULE = UiPalette.opaque(UiPalette.TAN);
+    static final int GOLD = UiPalette.opaque(UiPalette.GOLD);
+    static final int GOLD_LIGHT = UiPalette.opaque(UiPalette.GOLD_LIGHT);
+    static final int OCHRE = UiPalette.opaque(UiPalette.OCHRE);
+    static final int OCHRE_DARK = UiPalette.opaque(UiPalette.OCHRE_DARK);
+    static final int PAPER_TEXT = UiPalette.opaque(UiPalette.PAPER);
+    static final int REPLY_WHITE = UiPalette.opaque(UiPalette.IRON_GLINT);
+    static final int REPLY_LOCKED = (0x88 << 24) | UiPalette.TAN_LIGHT;
+    static final int PORTRAIT_SIZE = 32;
     private static final ResourceLocation PAPER = Storybound.id("textures/gui/dialogue/parchment.png");
     private static final ResourceLocation FRAME = Storybound.id("textures/gui/dialogue/frame.png");
     private static final ResourceLocation ORNAMENTS = Storybound.id("textures/gui/dialogue/ornaments.png");
     private static final ResourceLocation NEBULA = Storybound.id("textures/gui/dialogue/nebula.png");
 
     private DialogueChrome() {}
+
+    static void box(GuiGraphics graphics, int x, int y, int width, int height, int background) {
+        graphics.fill(x, y, x + width, y + height, background);
+    }
+
+    static boolean hasPortrait(Minecraft minecraft, ClientDialogue.Line line) {
+        if (line.speaker().portrait().isPresent()) {
+            return true;
+        }
+        return minecraft.level != null && line.speaker().entityId() >= 0
+                && minecraft.level.getEntity(line.speaker().entityId()) instanceof LivingEntity;
+    }
+
+    static void renderFrontPortrait(Minecraft minecraft, GuiGraphics graphics, ClientDialogue.Line line, int x, int y, int size) {
+        ResourceLocation texture = line.speaker().portrait().orElse(null);
+        if (texture != null) {
+            graphics.blit(texture, x, y, size, size, 0, 0, 64, 64, 64, 64);
+            return;
+        }
+        Entity entity = minecraft.level != null ? minecraft.level.getEntity(line.speaker().entityId()) : null;
+        if (entity instanceof LivingEntity living) {
+            float scale = living.getScale();
+            float yOffset = (living.getEyeHeight() - living.getBbHeight() / 2f) / scale - 0.04f;
+            InventoryScreen.renderEntityInInventoryFollowsAngle(graphics, x, y, x + size, y + size,
+                    Math.round(size * 1.15f), yOffset, 0f, 0f, living);
+        }
+    }
+
+    static void choiceMarker(GuiGraphics graphics, int x, int y, int alpha) {
+        int gold = (alpha << 24) | UiPalette.GOLD;
+        int goldLight = (alpha << 24) | UiPalette.GOLD_LIGHT;
+        int ochre = (alpha << 24) | UiPalette.OCHRE;
+        int shadow = (alpha << 24) | UiPalette.SHADOW;
+        graphics.fill(x + 1, y, x + 2, y + 1, gold);
+        graphics.fill(x, y + 1, x + 1, y + 2, gold);
+        graphics.fill(x + 1, y + 1, x + 2, y + 2, goldLight);
+        graphics.fill(x + 2, y + 1, x + 3, y + 2, ochre);
+        graphics.fill(x + 1, y + 2, x + 2, y + 3, ochre);
+        graphics.fill(x + 2, y + 2, x + 3, y + 3, shadow);
+    }
+
+    static void renderChosen(GuiGraphics graphics, Font font, ClientDialogue.Chosen chosen, long now, int fallbackX, int fallbackY) {
+        float fade = chosen.alpha(now);
+        if (fade <= 0.03f) {
+            return;
+        }
+        int alpha = Math.max(4, Math.min(255, Math.round(fade * 255f)));
+        int x = chosen.x() > 0 ? chosen.x() : fallbackX;
+        int y = chosen.y() > 0 ? chosen.y() : fallbackY;
+        int width = Math.max(120, chosen.width());
+        List<FormattedCharSequence> lines = font.split(chosen.text(), width - 22);
+        int lineHeight = 11;
+        int color = (alpha << 24) | UiPalette.GOLD;
+        choiceMarker(graphics, x - 5, y + 2, alpha);
+        graphics.drawString(font, chosen.number() + ".", x, y, color, true);
+        int rowY = y;
+        for (FormattedCharSequence line : lines) {
+            graphics.drawString(font, line, x + 16, rowY, color, true);
+            rowY += lineHeight;
+        }
+    }
 
     static void nebula(GuiGraphics graphics, int x, int y, int width, int height, long elapsedMillis) {
         // The atlas contains the approved preview cels, in row-major order at 20 fps.

@@ -59,10 +59,12 @@ public final class DocumentPreview {
         if (ticks == 90) capture(minecraft, "reader-next-spread.png");
         if (ticks == 100) {
             var window = minecraft.getWindow();
-            var viewport = BookViewport.fit(window.getWidth(), window.getHeight(), window.getGuiScale());
             var style = DocumentStyles.INSTANCE.get(Storybound.id("book_leather"));
-            if (!screen(minecraft).mouseClicked(viewport.toGuiX(32 + style.padding().left() + 11),
-                    viewport.toGuiY(8 + style.height() - style.padding().bottom() + 2 + 6), 0)) {
+            var viewport = BookViewport.document(window.getWidth(), window.getHeight(), window.getGuiScale(), style.width(), style.height());
+            int sheetLeft = (BookViewport.WIDTH - style.width()) / 2;
+            int sheetTop = (BookViewport.HEIGHT - style.height()) / 2;
+            if (!screen(minecraft).mouseClicked(viewport.toGuiX(sheetLeft + style.padding().left() + 11),
+                    viewport.toGuiY(sheetTop + style.height() - style.padding().bottom() + 2 + 6), 0)) {
                 throw new IllegalStateException("Page arrow missed its click");
             }
         }

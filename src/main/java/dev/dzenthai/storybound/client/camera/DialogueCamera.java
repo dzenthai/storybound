@@ -55,6 +55,24 @@ public final class DialogueCamera {
         return shot != null && shot.pose() != null;
     }
 
+    public static @Nullable CameraShots.ScreenPoint projectFocus(double aspect) {
+        Shot current = shot;
+        if (current == null || current.pose() == null) {
+            return null;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientLevel level = minecraft.level;
+        if (level == null) {
+            return null;
+        }
+        Entity focus = level.getEntity(current.focus());
+        Pose currentPose = pose();
+        if (focus == null || currentPose == null) {
+            return null;
+        }
+        return currentPose.project(focus.getEyePosition().subtract(0, 0.25, 0), aspect, minecraft.options.fov().get());
+    }
+
     /** @param speaker the speaking entity's id, or -1 for a speaker without an entity */
     public static void onLine(CameraCue cue, int speaker) {
         try {

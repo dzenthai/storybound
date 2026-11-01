@@ -1,0 +1,16 @@
+{
+  "parent": "minecraft:item/handheld",
+  "loader": "neoforge:separate_transforms",
+  "base": {
+    "parent": "storybound:item/document_book_open"
+  },
+  "perspectives": {
+    "gui": {
+      "parent": "minecraft:item/generated",
+      "textures": {
+        "layer0": "storybound:item/document_book"
+      }
+    }
+  }
+}
+
