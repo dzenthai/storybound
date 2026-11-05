@@ -12,65 +12,33 @@ them is incorporated, their copyright and permission notices are reproduced here
 - VNDialog (dialogue screen) - https://github.com/YourZi/VNDialog
 - server_waypoint (server waypoints) - https://github.com/2676959/server_waypoint
 
-Active Storybound UI artwork
----------------------------
-The document icons in ui-kit/concepts/documents/*-16.png and the matching
-game textures are extracted from the user-supplied approved sheet
-ui-kit/assets/image.png. The source hash, individual cell grids, reviewed silhouettes and sampling
-rules are recorded in items16.json and build-icons.ps1. Original colors are retained; no reader palette is applied to inventory icons. Earlier manually
-reconstructed variants were superseded. The book silhouette follows the
-vanilla Minecraft book; Minecraft-derived elements are not claimed as
-original Storybound intellectual property.
-Minecraft content belongs to Mojang/Microsoft. No Pngtree or PIXTA files
-or third-party resource-pack icon files are included. See
-docs/ui-kit/documents.md for provenance and extraction details.
+Storybound artwork
+------------------
+The following textures are original pixel art drawn for Storybound by the author
+in Aseprite; their sources are in the aseprite/ directory:
 
-textures/gui/journal/vanilla_book.png and traveler_corner.png are original
-assets generated for Storybound using the built-in OpenAI imagegen tool.
-Refinements used the project's own artwork. No third-party reference pixels
-were imported. The book's accepted material includes red leather, brass
-fittings, printed parchment ornaments and restrained dithering.
+- textures/gui/journal/adventure_book.png (the Adventure Menu book)
+- textures/gui/document/*.png (the book, scroll, letter, note and contract)
+- textures/gui/observation/bar.png
+- textures/item/document_*.png (the document items and the book's model)
 
-textures/gui/document/book_leather.png is an original reading-book texture
-generated with the built-in imagegen tool. References were the project's
-own Adventure Menu background and item contact sheet. The reading version
-uses muted red leather and new printed angular ornaments without tabs,
-metal corners or protruding sheets. See docs/ui-kit/documents.md.
+The palette they use is in aseprite/palette/. The book item follows the vanilla
+Minecraft book; Minecraft-derived elements are not claimed as original
+Storybound intellectual property.
 
-textures/gui/document/scroll.png is a parchment-scroll reading texture
-generated with the built-in imagegen tool, using the project's current
-book texture and the user-approved item sheet as references. Its paper
-rolls, small printed ornaments and red tie are separate from live text.
-No third-party resource-pack textures or game artwork were imported.
+The following textures are original assets generated for Storybound with the
+built-in OpenAI imagegen tool, using only the project's own artwork and
+concepts as references:
 
-textures/gui/document/parchment.png is a letter-in-envelope reading texture
-generated with the built-in imagegen tool from the approved project mockup,
-followed by a silhouette-cleanup edit. The original letter used the accepted
-project scroll texture and user-approved item sheet as material references.
-It includes quiet paper, small printed corners, a folded corner, a dithered
-contact shadow and a lower-right wax seal on the envelope. No Pngtree pixels
-were imported. All letter text is rendered live from existing document content.
+- textures/gui/journal/traveler_corner.png
+- textures/gui/dialogue/parchment.png, frame.png and ornaments.png
+  (the frame and ornaments are extracted from the generated dialogue concept)
+- textures/gui/dialogue/nebula.png (reduced to a four-colour pixel grid and
+  exported as animation cels)
 
-textures/gui/document/note.png is an original note reading texture generated
-with the built-in imagegen tool. The initial references were the approved
-project item sheet and current letter material. A subsequent edit of that
-project texture replaces the turned corner with two offset cream notes and
-sparse edge dithering. The plain rear sheet extends to the right; the
-intermediate third layer and rear-sheet ink sketch were removed on review.
-All main-sheet note text is live. No external reference artwork was imported.
-The previous note_torn style remains available for explicit legacy overrides.
-
-textures/gui/document/contract.png is an original contract reading texture
-generated with the built-in imagegen tool. References were the approved
-project inventory sheet's fifth item and the current note material.
-It uses cream paper rolls, restrained brown side marks, sparse dithering
-and a crimson lower-right wax seal with short ribbons. Text, conditions,
-reward and hint remain live content. No external artwork was imported.
-
-BookmarkPixels, JournalSkin and ArchiveChrome draw original pixel emblems,
-cloth ribbons, reward glints, an XP orb, printed rules and button frames.
-The SVG icon sheet in ui-kit is a mechanical export of those same emblems.
-No Minecraft item textures are bundled as UI icons.
+BookmarkPixels and JournalSkin draw original pixel emblems, cloth ribbons,
+reward glints, an XP orb and printed rules. No Minecraft item textures are
+bundled as UI icons.
 
 Fonts
 -----
@@ -78,52 +46,12 @@ The active Adventure Menu font is minecraft:default, resolved at runtime.
 Minecraft font files are not copied into this repository or the mod jar.
 Resource packs may replace the runtime font. The retired journal font ids
 remain as aliases to minecraft:default. The separate document font aliases
-minecraft:uniform. Experimental font binaries and their conversion tools
-were removed during UI kit cleanup on 2026-10-26.
+minecraft:uniform.
 
 Reference policy
 ----------------
-No assets from Excalibur, Pixel Perfection, Relics, The Witcher, Diablo IV,
-Stardew Valley, Craftpix or the supplied reference images are distributed.
-New external materials require source-specific license review before import.
-Client screenshots in ui-kit illustrate the implementation in Minecraft;
-they are not a standalone redistribution of Mojang fonts or game assets.
+Minecraft content belongs to Mojang/Microsoft. New external
+materials require source-specific license review before import.
 
-See docs/ui-kit/graphics.md and docs/ui-kit/cleanup.md for the active inventory and
-retired experiment manifest. Storybound source and original project assets
-are All Rights Reserved (see LICENSE).
-
-Approved document artwork, October 27, 2026
------------------------------------------
-The four selected reading-book, letter, note and contract PNGs are preserved
-byte for byte from their built-in imagegen outputs. The accepted original
-scroll is retained. References were only existing project artwork. The later
-reduced-grid/palette conversion was rejected and is not distributed.
-Original filenames and hashes are recorded in ui-kit/document-art.json;
-generation briefs are in ui-kit/concepts/documents/material-polish.txt.
-Inventory icons are independently reconstructed from the unchanged approved
-image.png with individually aligned grids and explicit silhouettes. Their
-colors and visible details are sampled only from that supplied source.
-
-Conversation artwork, October 27, 2026
---------------------------------------
-The dialogue parchment texture was generated with the built-in imagegen tool
-using only the approved original project conversation concept as a reference.
-The accepted compact revision supplies the small brown corner ornaments and
-coarse paper edge. The revised surface uses compact woven corner motifs and a solid-body crop without
-recoloring. Separator ink is extracted from the accepted concept; the renderer
-uses fixed-size ornaments and nine-slice paper. The reproducible extraction
-is ui-kit/build-dialogue-art.ps1. Provenance and SHA-256 are recorded in
-ui-kit/dialogue-art.json. The concept portrait is used only by the isolated
-client preview and is excluded from the published mod JAR. No external art
-or font was imported for the conversation screen.
-
-Conversation nebula, October 28, 2026
-------------------------------------
-Original background artwork generated using the built-in imagegen tool,
-then reduced to the approved four-color pixel grid. The accepted v9 local
-contour animation is exported unchanged from the retained interactive
-preview into 64 runtime cels. Sources and reproducible export instructions
-are in ui-kit/assets/dialogue-nebula-preview.html and
-ui-kit/build-dialogue-nebula.ps1. Relics was studied as a motion reference;
-no Relics code, textures or animation frames are included.
+Storybound source and original project assets are All Rights Reserved
+(see LICENSE).
