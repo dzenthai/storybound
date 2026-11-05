@@ -134,6 +134,28 @@ public final class JournalSkin {
         graphics.fill(x + 2, y + 2, x + 5, y + 5, color);
     }
 
+    /** Width of {@link #pin}. */
+    public static final int PIN_WIDTH = 8;
+
+    /** The author's pin, 8 × 8, when the resource pack has it; until then the stand-in below is drawn. */
+    private static final ResourceLocation PIN = Storybound.id("textures/gui/journal/pin.png");
+
+    /**
+     * The track button's pin, 8 × 8 from its top left. Also marks pinned quests in the Journal's list (November 6,
+     * 2026). The author's {@code textures/gui/journal/pin.png} when there is one; otherwise a stand-in of four
+     * rectangles in {@code color} (a head at the top right, the needle down to the bottom left).
+     */
+    public static void pin(GuiGraphics graphics, int x, int y, int color) {
+        if (net.minecraft.client.Minecraft.getInstance().getResourceManager().getResource(PIN).isPresent()) {
+            graphics.blit(PIN, x, y, 0, 0, PIN_WIDTH, PIN_WIDTH, PIN_WIDTH, PIN_WIDTH);
+            return;
+        }
+        graphics.fill(x + 4, y, x + 8, y + 4, color);
+        graphics.fill(x + 2, y + 3, x + 6, y + 5, color);
+        graphics.fill(x + 1, y + 5, x + 3, y + 7, color);
+        graphics.fill(x, y + 7, x + 1, y + 8, color);
+    }
+
     /** The larger Claim glint keeps the pending reward readable beside its title. */
     public static void rewardMark(GuiGraphics graphics, int x, int y) {
         graphics.pose().pushPose();

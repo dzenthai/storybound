@@ -239,7 +239,8 @@ public abstract class ListDetailView<E> extends MenuView {
         int textY = y + Math.max(1, (rowHeight() - 7) / 2);
         Component text = row.entry() == null ? JournalSkin.heading(row.text()) : JournalSkin.text(row.text());
         int inset = row.entry() == null ? 0 : entryTextInset(row.entry());
-        int available = Math.max(1, listWidth() - inset - 3);
+        int endInset = row.entry() == null ? 0 : entryTextEndInset(row.entry());
+        int available = Math.max(1, listWidth() - inset - endInset - 3);
         if (hovered && font.width(text) > available) rowTooltip = text;
         if (row.entry() == null) {
             // As long and thick as the title's rule over the list, on the book's pixels (before, 3 shorter).
@@ -250,6 +251,7 @@ public abstract class ListDetailView<E> extends MenuView {
                 graphics.fill(left, y + 1, left + listWidth(), y + rowHeight() - 1, theme.selection());
             }
             renderEntryMarker(graphics, row.entry(), left + 1, textY, isSelected);
+            renderEntryEndMarker(graphics, row.entry(), left + listWidth(), textY);
         }
         int color = row.entry() == null ? theme.accent() : row.color() != 0 ? row.color() : theme.ink();
         graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(text, available)), left + inset, textY, color, false);
@@ -257,6 +259,15 @@ public abstract class ListDetailView<E> extends MenuView {
 
     protected int entryTextInset(E entry) {
         return 11;
+    }
+
+    /** Room kept at the right end of an entry's row for {@link #renderEntryEndMarker}; the title is cut before it. */
+    protected int entryTextEndInset(E entry) {
+        return 0;
+    }
+
+    /** A mark at the right end of an entry's row (none by default); {@code rowRight} is where the row's highlight ends. */
+    protected void renderEntryEndMarker(GuiGraphics graphics, E entry, int rowRight, int y) {
     }
 
     protected void renderEntryMarker(GuiGraphics graphics, E entry, int x, int y, boolean selected) {

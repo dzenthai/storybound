@@ -69,11 +69,7 @@ public final class BookButton extends Button {
         var clipped = font.substrByWidth(label, Math.max(1, labelWidth - 8 - inset));
         int labelX = (labelWidth - font.width(clipped) - inset) / 2;
         if (pin) {
-            int py = labelHeight / 2 - 4;
-            graphics.fill(labelX + 4, py, labelX + 8, py + 4, stamp);
-            graphics.fill(labelX + 2, py + 3, labelX + 6, py + 5, stamp);
-            graphics.fill(labelX + 1, py + 5, labelX + 3, py + 7, stamp);
-            graphics.fill(labelX, py + 7, labelX + 1, py + 8, stamp);
+            JournalSkin.pin(graphics, labelX, labelHeight / 2 - 4, stamp);
         }
         graphics.drawString(font, net.minecraft.locale.Language.getInstance().getVisualOrder(clipped),
                 labelX + inset, (labelHeight - 7) / 2,

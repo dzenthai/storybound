@@ -145,10 +145,8 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
                 .sorted(Comparator.comparing(category -> categoryName(category.getKey()).getString()))
                 .forEach(category -> {
                     rows.add(Row.header(categoryName(category.getKey())));
-                    for (Entry entry : category.getValue()) {
-                        Component text = ClientQuests.isPinned(entry.id()) ? Component.literal("» ").append(entry.title()) : entry.title();
-                        rows.add(Row.entry(text, entry));
-                    }
+                    // A pinned quest is marked by a pin at the row's end, drawn as it is now (renderEntryEndMarker).
+                    category.getValue().forEach(entry -> rows.add(Row.entry(entry.title(), entry)));
                 });
         addSection(rows, "storybound.quests.section.completed", completed, theme().completed());
         addSection(rows, "storybound.quests.section.failed", failed, theme().failed());
@@ -166,6 +164,30 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
     @Override
     protected int entryTextInset(Entry entry) {
         return ClientQuests.waitingReward(entry.id()).isPresent() ? 15 : super.entryTextInset(entry);
+    }
+
+    /**
+     * Pinned quests carry the track button's pin at the end of their row, the same pin for each; only active quests: a
+     * finished one is no longer pinned (November 6, 2026; before, a "» " before the title, easy to miss). First 2 pixels
+     * from the row's end, pressed to the edge; then, the author's choice over a pin right after the title, moved in.
+     */
+    @Override
+    protected int entryTextEndInset(Entry entry) {
+        return pinnedActive(entry) ? JournalSkin.PIN_WIDTH + PIN_MARGIN : 0;
+    }
+
+    @Override
+    protected void renderEntryEndMarker(net.minecraft.client.gui.GuiGraphics graphics, Entry entry, int rowRight, int y) {
+        if (pinnedActive(entry)) {
+            JournalSkin.pin(graphics, rowRight - PIN_MARGIN - JournalSkin.PIN_WIDTH, y - 1, theme().divider());
+        }
+    }
+
+    /** From the pin to the end of the row's highlight. */
+    private static final int PIN_MARGIN = 6;
+
+    private static boolean pinnedActive(Entry entry) {
+        return entry.progress().status() == QuestStatus.ACTIVE && ClientQuests.isPinned(entry.id());
     }
 
     @Override
