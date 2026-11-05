@@ -465,7 +465,12 @@ final class FormView {
         JsonObject object = objectAt(path);
         for (Map.Entry<String, Node> property : ordered(Schemas.properties(schema), form != null ? NODE_ORDER.getOrDefault(form, List.of()) : List.of())) {
             String name = property.getKey();
-            if (skip.contains(name) || name.equals(typeField) || npc && !npcFieldShown(name, object) || waypoint && !waypointFieldShown(name, object)
+            // "Hits forgiven" and their warnings only for an NPC that fights back: the others never take revenge anyway.
+            // "Calms down after" not for one that does not react: it never gets angry (November 6, 2026).
+            String reaction = object != null && object.get("reaction") instanceof JsonPrimitive written ? written.getAsString() : "ignore";
+            boolean hiddenByReaction = Schemas.properties(schema).containsKey("calm_after")
+                    && ((name.equals("patience") || name.equals("warning")) && !reaction.equals("fight") || name.equals("calm_after") && reaction.equals("ignore"));
+            if (hiddenByReaction || skip.contains(name) || name.equals(typeField) || npc && !npcFieldShown(name, object) || waypoint && !waypointFieldShown(name, object)
                     || dialogue && !dialogueFieldShown(name, object) || participant && !participantFieldShown(name, object)
                     || form != null && !nodeFieldShown(form, name, object, inDialogue)) {
                 continue;
@@ -511,10 +516,13 @@ final class FormView {
      * starts; what happens with several players; the rest. Each group but the first opens with a heading at this field.
      */
     private static final Map<String, String> NPC_GROUPS = Map.of(
-            "entity", "npc.group.who",
+            // The name first, then the entity: who it is, then how it is known in the world (November 6, 2026).
+            "display_name", "npc.group.who",
             "interact", "npc.group.start",
             "exclusive", "npc.group.players",
-            "respawn", "npc.group.other");
+            "respawn", "npc.group.other",
+            "chatter", "npc.group.chatter",
+            "when_attacked", "npc.group.attacked");
 
     /**
      * What depends on a switch shows only while it is on, unless the file still sets it: "instead of trading" with
@@ -572,6 +580,11 @@ final class FormView {
     /** A portrait is for a speaker without an entity; one with an entity shows the entity. */
     private static boolean participantFieldShown(String name, @Nullable JsonObject participant) {
         boolean virtual = participant != null && participant.get("type") instanceof JsonPrimitive type && type.getAsString().equals("virtual");
+        if (name.equals("name")) {
+            // The NPC talked to is named by its NPC (November 6, 2026): a name here only for a voice without an entity,
+            // or when the file still writes one.
+            return virtual || participant != null && participant.has("name");
+        }
         return !name.equals("portrait") || virtual || participant != null && participant.has("portrait");
     }
 
@@ -1915,7 +1928,9 @@ final class FormView {
         if (mode.equals("type")) {
             idListRows(path, "type", new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick")), null);
         }
-        if (row(LABEL_H + CONTROL_H)) {
+        if (host.npcBinding() != null && !path.isEmpty() && "entity".equals(path.getFirst())) {
+            npcLink(path, selector);
+        } else if (row(LABEL_H + CONTROL_H)) {
             labelRow(DevUi.text("entity.tag"));
             EditBox tag = new EditBox(screen.font(), x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H - 2, DevUi.text("entity.tag"));
             tag.setMaxLength(256);
@@ -1932,6 +1947,37 @@ final class FormView {
             tag.setTooltip(Tooltip.create(DevUi.text("entity.field.tag")));
             screen.add(tag);
         }
+    }
+
+    /**
+     * An NPC's link to its entities (November 6, 2026): its tag is its node's name ("npc_3"; a folder's "/" as "_", which
+     * /tag does not take), said in a line, not a field to fill; a button links an entity in the world, putting the tag
+     * on it. A tag the file already has stays, also after the node is renamed: the entities linked before keep theirs.
+     */
+    private void npcLink(List<Object> path, @Nullable JsonObject selector) {
+        ResourceLocation npc = host.npcBinding();
+        String tag = selector != null && selector.get("tag") instanceof JsonPrimitive written && !written.getAsString().isBlank()
+                ? written.getAsString() : npc.getPath().replace('/', '_');
+        if (row(LABEL_H)) {
+            labels.add(new Label(DevUi.text("entity.tag_is", tag), x, rowY(LABEL_H), DevUi.MUTED));
+        }
+        if (!row(CONTROL_H)) {
+            return;
+        }
+        Button link = Button.builder(Component.literal("🎯 ").append(DevUi.text("entity.link")), b -> DevWorldPicker.pickEntity(screen,
+                DevUi.text("picker.entity_prompt"), entity -> {
+                    JsonObject target = ensureObject(path);
+                    target.addProperty("tag", tag);
+                    if (!target.has("type") && !target.has("uuid") && !target.has("name")) {
+                        target.addProperty("type", BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+                    }
+                    if (Minecraft.getInstance().getConnection() != null) {
+                        Minecraft.getInstance().getConnection().sendCommand("tag " + entity.getUUID() + " add " + tag);
+                    }
+                    host.changed();
+                })).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build();
+        link.setTooltip(Tooltip.create(DevUi.text("entity.link.tooltip", tag)));
+        screen.add(link);
     }
 
     /** The way an entity is known by, chosen on its page before its field is filled (per path; the form's own state). */
@@ -2118,6 +2164,11 @@ final class FormView {
             } else if ((name.equals("show_radius") || name.equals("show_ring")) && !area) {
                 return;
             }
+        }
+        if ((name.equals("phrases") || name.equals("warning")) && (Schemas.properties(owner).containsKey("calm_after")
+                || Schemas.properties(owner).containsKey("min_interval"))) {
+            phrasesField(path, name, value, label, owner);
+            return;
         }
         if (kind == Kind.ID_LIST) {
             Picker picker = picker(name, owner, path);
@@ -2668,7 +2719,11 @@ final class FormView {
             case ID, STRING, ID_LIST, INTEGER, NUMBER, LITERAL, RAW -> true;
             default -> false;
         };
+        // Lines of text: each edited in its row, in the active language, under a key of its own.
+        boolean texts = itemKind == Kind.TEXT;
         String field = path.getLast() instanceof String name ? name : "";
+        // A phrases node's lines: each a text written in its row, or a dialogue picked, switched by the button at its left.
+        boolean phraseLines = field.equals("lines") && path.size() == 1 && host.node() != null && host.node().type().equals(ClientDevStore.TYPE_PHRASES);
         Picker picker = primitive ? picker(field.equals("waypoints") ? "waypoint" : field, items) : null;
         for (int i = 0; i < array.size(); i++) {
             int index = i;
@@ -2677,7 +2732,25 @@ final class FormView {
             }
             int rowY = rowY(CONTROL_H);
             int buttonsW = (i > 0 ? 18 : 0) + 18;
-            if (primitive) {
+            if (phraseLines) {
+                phraseRow(path, field, array, index, rowY, w - buttonsW - 2, items);
+            } else if (texts) {
+                EditBox box = new EditBox(screen.font(), x, rowY + 1, w - buttonsW - 2, CONTROL_H - 2, Component.empty());
+                box.setMaxLength(1024);
+                box.setValue(ClientDevStore.readStoryTextAt(array, i, ClientDevStore.activeLanguage()));
+                if (!ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage())) {
+                    box.setHint(Component.literal(ClientDevStore.readStoryTextAt(array, i, ClientDevStore.sourceLanguage())));
+                }
+                String key = host.textKey(keyPath(path), field) + "." + i;
+                box.setResponder(text -> {
+                    JsonArray list = ensureArray(path);
+                    if (index < list.size()) {
+                        ClientDevStore.writeStoryTextAt(list, index, text, key);
+                        host.edited();
+                    }
+                });
+                screen.add(box);
+            } else if (primitive) {
                 EditBox box = new EditBox(screen.font(), x, rowY + 1, w - buttonsW - 2, CONTROL_H - 2, Component.empty());
                 box.setMaxLength(512);
                 box.setValue(display(itemKind, array.get(i)));
@@ -2752,7 +2825,7 @@ final class FormView {
                     ensureArray(path).add(entry.id());
                     host.changed();
                 });
-            } else if (primitive) {
+            } else if (primitive || texts || phraseLines) {
                 ensureArray(path).add("");
                 host.changed();
             } else {
@@ -2776,6 +2849,153 @@ final class FormView {
                 host.changed();
             }
         }).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build());
+    }
+
+    /**
+     * One line of a phrases node (November 5, 2026), as an entity's "known by": at the left a switch, "own text" or
+     * "dialogue"; at its right, the text written there (with \u270E for the text window) or a button that picks one of
+     * the story's dialogues, screen or bubble. Switching to a dialogue asks for it at once; back to a text starts it empty.
+     */
+    private void phraseRow(List<Object> path, String field, JsonArray array, int index, int rowY, int width, @Nullable Node items) {
+        JsonElement line = array.get(index);
+        boolean dialogue = line instanceof JsonObject object && object.has("dialogue");
+        Picker dialogues = picker("dialogue", items);
+        Runnable pickDialogue = () -> {
+            if (dialogues != null) {
+                pick(dialogues, entry -> {
+                    JsonObject picked = new JsonObject();
+                    picked.addProperty("dialogue", entry.id());
+                    ensureArray(path).set(index, picked);
+                    host.changed();
+                });
+            }
+        };
+        int modeW = Math.min(120, width * 2 / 5);
+        Button switcher = Button.builder(Component.literal(DevUi.str(dialogue ? "phrases.line.dialogue" : "phrases.line.text") + " \u25B8"), b -> {
+            if (dialogue) {
+                ensureArray(path).set(index, new JsonPrimitive(""));
+                host.changed();
+            } else {
+                pickDialogue.run();
+            }
+        }).tooltip(Tooltip.create(DevUi.text("phrases.line.tooltip"))).bounds(x, rowY, modeW, CONTROL_H).build();
+        screen.add(switcher);
+        int right = x + modeW + 4;
+        int rightW = width - modeW - 4;
+        if (dialogue) {
+            String id = ((JsonObject) line).get("dialogue").getAsString();
+            Button shown = Button.builder(Component.literal("💬 " + DevUi.shortId(id) + " \u25B8"), b -> pickDialogue.run())
+                    .bounds(right, rowY, rightW, CONTROL_H).build();
+            shown.setTooltip(Tooltip.create(DevUi.text("phrases.pick_dialogue")));
+            screen.add(shown);
+            return;
+        }
+        String key = host.textKey(keyPath(path), field) + "." + index;
+        EditBox box = new EditBox(screen.font(), right, rowY + 1, rightW - 20, CONTROL_H - 2, Component.empty());
+        box.setMaxLength(1024);
+        box.setValue(ClientDevStore.readStoryTextAt(array, index, ClientDevStore.activeLanguage()));
+        String source = ClientDevStore.readStoryTextAt(array, index, ClientDevStore.sourceLanguage());
+        boolean translating = !ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage());
+        if (translating) {
+            box.setHint(Component.literal(source));
+        }
+        box.setResponder(text -> {
+            JsonArray list = ensureArray(path);
+            if (index < list.size()) {
+                ClientDevStore.writeStoryTextAt(list, index, text, key);
+                host.edited();
+            }
+        });
+        screen.add(box);
+        screen.add(Button.builder(Component.literal("\u270E"), b -> {
+            JsonArray list = ensureArray(path);
+            String current = index < list.size() ? ClientDevStore.readStoryTextAt(list, index, ClientDevStore.activeLanguage()) : "";
+            screen.textEditor().openPlain(fieldLabel(field, false), current,
+                    translating && !source.isBlank() ? Component.literal(source) : DevUi.text("text.hint_plain"), edited -> {
+                        JsonArray target = ensureArray(path);
+                        if (index < target.size()) {
+                            ClientDevStore.writeStoryTextAt(target, index, edited, key);
+                            host.changed();
+                        }
+                    });
+        }).tooltip(Tooltip.create(DevUi.text("text.open_window"))).bounds(right + rightW - 18, rowY, 18, CONTROL_H).build());
+    }
+
+    /**
+     * An NPC's phrases, for its chatter or for when it is hit (November 5, 2026), as an entity's "known by": at the left
+     * a switch, "own text" or "phrases node"; at its right, a text written there (with \u270E for the text window) or a
+     * button that picks one of the story's phrases nodes. Switching empties the field; it is written once filled.
+     */
+    private void phrasesField(List<Object> path, String name, @Nullable JsonElement value, Component label, Node owner) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        List<Object> at = with(path, name);
+        String written = value instanceof JsonPrimitive ? "node" : value instanceof JsonObject ? "text" : null;
+        String mode = written != null ? written : entityModes.getOrDefault(at.toString(), "text");
+        int modeW = Math.min(150, w * 2 / 5);
+        Button switcher = Button.builder(Component.literal(DevUi.str("phrases.mode." + mode) + " \u25B8"), b -> {
+            ensureObject(path).remove(name);
+            entityModes.put(at.toString(), mode.equals("text") ? "node" : "text");
+            host.changed();
+        }).bounds(x, rowTop, modeW, CONTROL_H).build();
+        switcher.setTooltip(Tooltip.create(DevUi.text("phrases.mode.tooltip")));
+        screen.add(switcher);
+        int right = x + modeW + 4;
+        int rightW = w - modeW - 4;
+        if (mode.equals("node")) {
+            String id = value instanceof JsonPrimitive node && !node.getAsString().isBlank() ? node.getAsString() : null;
+            Picker picker = picker(name, owner);
+            Component shown = id != null ? Component.literal("🗨 " + DevUi.shortId(id) + " \u25B8")
+                    : Component.literal("+ ").append(DevUi.text("phrases.choose"));
+            Button choose = Button.builder(shown, b -> {
+                if (picker != null) {
+                    pick(picker, entry -> {
+                        ensureObject(path).addProperty(name, entry.id());
+                        host.changed();
+                    });
+                }
+            }).bounds(right, rowTop, rightW, CONTROL_H).build();
+            choose.setTooltip(Tooltip.create(DevUi.text("phrases.choose_tooltip")));
+            screen.add(choose);
+            return;
+        }
+        // An own text: { "text": ... } in the field, the text under a key of its own, in the active language.
+        String key = host.textKey(keyPath(at), "text");
+        JsonObject own = value instanceof JsonObject object ? object : null;
+        EditBox box = new EditBox(screen.font(), right, rowTop + 1, rightW - 20, CONTROL_H - 2, label);
+        box.setMaxLength(1024);
+        box.setValue(own != null ? ClientDevStore.readStoryText(own, "text", "", ClientDevStore.activeLanguage()) : "");
+        String source = own != null ? ClientDevStore.readStoryText(own, "text", "", ClientDevStore.sourceLanguage()) : "";
+        boolean translating = !ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage());
+        if (translating) {
+            box.setHint(Component.literal(source));
+        }
+        box.setResponder(text -> {
+            JsonObject target = ensureObject(at);
+            if (text.isEmpty() && !target.has("text")) {
+                return;
+            }
+            String existing = ClientDevStore.getKey(target, "text");
+            ClientDevStore.writeStoryText(target, "text", text, existing != null && !existing.isBlank() ? existing : key);
+            host.edited();
+        });
+        screen.add(box);
+        screen.add(Button.builder(Component.literal("\u270E"), b -> {
+            JsonObject current = objectAt(at);
+            String text = current != null ? ClientDevStore.readStoryText(current, "text", "", ClientDevStore.activeLanguage()) : "";
+            screen.textEditor().openPlain(label, text, translating && !source.isBlank() ? Component.literal(source) : DevUi.text("text.hint_plain"), edited -> {
+                JsonObject target = ensureObject(at);
+                if (edited.isEmpty() && !target.has("text")) {
+                    return;
+                }
+                String existing = ClientDevStore.getKey(target, "text");
+                ClientDevStore.writeStoryText(target, "text", edited, existing != null && !existing.isBlank() ? existing : key);
+                host.changed();
+            });
+        }).tooltip(Tooltip.create(DevUi.text("text.open_window"))).bounds(right + rightW - 18, rowTop - 1, 18, CONTROL_H).build());
     }
 
     /** {@code stage_2} for the second stage, never one the list already has. */
@@ -3462,6 +3682,7 @@ final class FormView {
             case "dialogue", "busy_dialogue" -> ClientDevStore.TYPE_DIALOGUE;
             case "document" -> ClientDevStore.TYPE_DOCUMENT;
             case "boss" -> ClientDevStore.TYPE_BOSS;
+            case "phrases", "warning" -> ClientDevStore.TYPE_PHRASES;
             case "entry" -> ClientDevStore.TYPE_CODEX;
             case "waypoint" -> ClientDevStore.TYPE_WAYPOINT;
             case "key", "variant_by" -> ClientDevStore.TYPE_FLAG;

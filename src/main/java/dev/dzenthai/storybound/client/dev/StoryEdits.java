@@ -147,7 +147,22 @@ final class StoryEdits {
         ResourceLocation a = source.type();
         ResourceLocation b = target.type();
         String id = target.id().toString();
-        if (a.equals(ClientDevStore.TYPE_NPC) && b.equals(ClientDevStore.TYPE_DIALOGUE)) {
+        if (a.equals(ClientDevStore.TYPE_NPC) && b.equals(ClientDevStore.TYPE_PHRASES)) {
+            // Its chatter first; an NPC that chatters already gets them for when it is hit.
+            JsonObject chatter = from.get("chatter") instanceof JsonObject existing ? existing : new JsonObject();
+            if (!chatter.has("phrases")) {
+                chatter.addProperty("phrases", id);
+                from.add("chatter", chatter);
+            } else {
+                JsonObject hit = from.get("when_attacked") instanceof JsonObject existing ? existing : new JsonObject();
+                hit.addProperty("phrases", id);
+                from.add("when_attacked", hit);
+            }
+        } else if (a.equals(ClientDevStore.TYPE_PHRASES) && b.equals(ClientDevStore.TYPE_DIALOGUE)) {
+            JsonObject line = new JsonObject();
+            line.addProperty("dialogue", id);
+            array(from, "lines").add(line);
+        } else if (a.equals(ClientDevStore.TYPE_NPC) && b.equals(ClientDevStore.TYPE_DIALOGUE)) {
             JsonArray entries = array(from, "dialogues");
             JsonObject entry = new JsonObject();
             entry.addProperty("dialogue", id);
@@ -273,7 +288,8 @@ final class StoryEdits {
             ClientDevStore.TYPE_DOCUMENT, "document",
             ClientDevStore.TYPE_BOSS, "boss",
             ClientDevStore.TYPE_CODEX, "entry",
-            ClientDevStore.TYPE_SCRIPT, "id");
+            ClientDevStore.TYPE_SCRIPT, "id",
+            ClientDevStore.TYPE_PHRASES, "phrases");
     /** Fields holding conditions: a condition naming the target stays, even of a type that is also an action ("Script"). */
     private static final Set<String> CONDITION_FIELDS = Set.of("conditions", "condition", "fail_when");
     /** Fields holding a list of actions: a matching single action becomes an empty list, which every one of them takes. */
@@ -319,6 +335,15 @@ final class StoryEdits {
 
     private static boolean unlinkIn(JsonObject object, NodeKey target, String id) {
         boolean changed = false;
+        if (target.type().equals(ClientDevStore.TYPE_PHRASES)) {
+            // When hit: the phrases or the warnings named go, the reaction stays.
+            for (String field : List.of("phrases", "warning")) {
+                if (isId(object.get(field), id)) {
+                    object.remove(field);
+                    changed = true;
+                }
+            }
+        }
         String field = ID_FIELD.get(target.type());
         if (target.type().equals(ClientDevStore.TYPE_QUEST) && object.has("contract") && object.get("contract").isJsonObject()
                 && isId(object.getAsJsonObject("contract").get("quest"), id)) {
@@ -377,6 +402,17 @@ final class StoryEdits {
         }
         if (fieldName.equals("dialogues") && target.type().equals(ClientDevStore.TYPE_DIALOGUE)) {
             return isId(object.get("dialogue"), id);
+        }
+        if (fieldName.equals("lines") && target.type().equals(ClientDevStore.TYPE_DIALOGUE)) {
+            return isId(object.get("dialogue"), id);
+        }
+        if (fieldName.equals("when_attacked") && target.type().equals(ClientDevStore.TYPE_PHRASES)) {
+            // Its own fields go, not the reaction: see unlinkIn.
+            return false;
+        }
+        if (fieldName.equals("chatter") && target.type().equals(ClientDevStore.TYPE_PHRASES)) {
+            // Chatter is nothing without its phrases.
+            return isId(object.get("phrases"), id);
         }
         // An objective or a quest start waiting for something about the target can never happen.
         return (fieldName.equals("objectives") || fieldName.equals("start")) && refersTo(object, target);

@@ -4,7 +4,8 @@
   "package": "dev.dzenthai.storybound.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "LecternBlockEntityMixin"
+    "LecternBlockEntityMixin",
+    "LivingEntityAccessor"
   ],
   "client": [
     "client.BookFontMixin",

@@ -76,27 +76,36 @@ public final class DemoGameTests {
 
     private DemoGameTests() {}
 
-    /** Leaving while the whisper plays still gives the first quest, and the whisper does not come again on joining. */
+    /**
+     * Leaving while the whisper plays still gives the first quest. (The test story is the former demo; it no longer
+     * starts the whisper on joining, November 5, 2026, so it does not run for every player of the other tests.)
+     */
     @GameTest(template = "empty", batch = "demo_whisper", timeoutTicks = TIMEOUT)
     public static void leavingDuringTheWhisperStillGivesTheFirstQuest(GameTestHelper helper) {
         cleanUp(helper);
-        // Joining (the mock player is placed like a real one) runs demo:awakening: 7 s later the whisper starts.
         ServerPlayer player = newPlayer(helper, 1, 2, 1);
         helper.startSequence()
-                .thenWaitUntil(() -> inDialogue(player, "awakening"))
+                .thenExecute(() -> whisper(player))
                 .thenExecute(() -> {
                     NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerLoggedOutEvent(player));
                     expect(helper, Dialogues.state(player), Optional.empty(), "the whisper ends with the player gone");
                     expect(helper, stage(player, SMOKE), Optional.of("road"), "its on_abort gives the quest");
                     NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerLoggedInEvent(player));
                 })
-                .thenIdle(200)
+                .thenIdle(20)
                 .thenExecute(() -> {
-                    expect(helper, Dialogues.state(player), Optional.empty(), "the whisper is once per player");
-                    expect(helper, stage(player, SMOKE), Optional.of("road"), "the quest is where it was");
+                    expect(helper, stage(player, SMOKE), Optional.of("road"), "back again, the quest is where it was");
                     remove(helper, player);
                 })
                 .thenSucceed();
+    }
+
+    /** The whisper, as the demo started it on joining. */
+    private static void whisper(ServerPlayer player) {
+        if (!Dialogues.start(player, demo("awakening"), null)) {
+            throw new GameTestAssertException("the whisper did not start");
+        }
+        inDialogue(player, "awakening");
     }
 
     /**
@@ -394,10 +403,10 @@ public final class DemoGameTests {
         return tagged(helper, EntityType.CAT, "demo_murka").stream().map(Entity::getUUID).toList();
     }
 
-    /** The start every new player gets: the whisper, then the road; then the village is reached (as by entering it). */
+    /** The start every new player got: the whisper, then the road; then the village is reached (as by entering it). */
     private static GameTestSequence arrive(GameTestHelper helper, ServerPlayer player) {
         return helper.startSequence()
-                .thenWaitUntil(() -> inDialogue(player, "awakening"))
+                .thenExecute(() -> whisper(player))
                 .thenExecute(() -> {
                     talkToEnd(player);
                     expect(helper, stage(player, SMOKE), Optional.of("road"), "the whisper gives the first quest");

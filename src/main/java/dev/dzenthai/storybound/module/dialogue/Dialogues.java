@@ -44,6 +44,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.behavior.EntityTracker;
@@ -65,6 +66,12 @@ public final class Dialogues {
     static final String ONCE_PREFIX = "dialogue_once/";
 
     private static final Map<UUID, DialogueSession> SESSIONS = new HashMap<>();
+    /**
+     * Per player: the dialogue a fight paused, at most one (November 5, 2026). Out of {@link #SESSIONS}, so the player is
+     * free meanwhile: callouts (dialogues a fight does not pause) play over it, and it goes on once the fight is over and
+     * the player is free again.
+     */
+    private static final Map<UUID, DialogueSession> PAUSED = new HashMap<>();
     /**
      * Per player: dialogues an action asked for while they were talking, started in order once they are free (one a
      * tick). A request waits at most {@link #QUEUE_WAIT_TICKS}; a player who logs out or dies loses theirs.
@@ -105,6 +112,15 @@ public final class Dialogues {
                 : Optional.of(new State(session.id, session.step, session.dialogueId, session.node, session.waiting == Waiting.CHOICE, session.shown.size(), session.camera));
     }
 
+    /** The dialogue a fight paused for the player and the node it goes back to; empty when none is paused. For tests and tools. */
+    public static Optional<Paused> paused(ServerPlayer player) {
+        DialogueSession session = PAUSED.get(player.getUUID());
+        return session == null ? Optional.empty() : Optional.of(new Paused(session.baseId(), session.notStarted ? "" : session.node, session.notStarted));
+    }
+
+    /** @param node the line or choice shown again after the fight; empty when it had not started */
+    public record Paused(ResourceLocation dialogue, String node, boolean notStarted) {}
+
     /** The ids of the options the player is shown, in their order; empty while no choice is shown. For tests and tools. */
     public static List<String> shownOptionIds(ServerPlayer player) {
         DialogueSession session = SESSIONS.get(player.getUUID());
@@ -117,21 +133,35 @@ public final class Dialogues {
     /**
      * Starts a dialogue. {@code speaker} becomes the {@code bound} participant and the context entity of its logic.
      *
-     * @return false if the dialogue is unknown, the module is disabled or the player is already talking
+     * A dialogue a fight pauses, started in a fight, waits for it to be over and then starts (nothing is shown
+     * meanwhile). One that a fight pauses cannot start while another such one is paused: {@link #startOrQueue} queues it.
+     *
+     * @return false if the dialogue is unknown, the module is disabled, the player is already talking, or it waits paused already
      */
     public static boolean start(ServerPlayer player, ResourceLocation dialogueId, @Nullable Entity speaker) {
         DialogueDefinition dialogue = definition(dialogueId);
+        DialogueSession paused = PAUSED.get(player.getUUID());
         String refused = dialogue == null ? "unknown dialogue" : !isEnabled() ? "the dialogues module is disabled"
-                : SESSIONS.containsKey(player.getUUID()) ? "the player is already talking" : !player.isAlive() ? "the player is dead" : null;
+                : SESSIONS.containsKey(player.getUUID()) ? "the player is already talking" : !player.isAlive() ? "the player is dead"
+                : paused != null && paused.baseId().equals(dialogueId) ? "it waits paused by a fight already"
+                : paused != null && dialogue.pausesForFights() ? "another dialogue a fight paused waits (" + paused.baseId() + ")" : null;
         if (refused != null) {
             StoryTrace.note(player, "dialogue " + dialogueId, "not started: " + refused);
             return false;
         }
         StoryTrace.event(player, "dialogue_started", "dialogue", dialogueId.toString(),
                 "speaker", speaker != null ? BuiltInRegistries.ENTITY_TYPE.getKey(speaker.getType()) + " " + speaker.getUUID() : "none");
-        DialogueSession session = new DialogueSession(nextSession++, player, speaker, dialogueId, dialogue, player.server.getTickCount());
-        SESSIONS.put(player.getUUID(), session);
+        long now = player.server.getTickCount();
+        DialogueSession session = new DialogueSession(nextSession++, player, speaker, dialogueId, dialogue, now);
         NeoForge.EVENT_BUS.post(new DialogueEvent.Started(player, dialogueId, speaker));
+        if (dialogue.pausesForFights() && inFight(session, now)) {
+            session.notStarted = true;
+            session.pausedAt = now;
+            PAUSED.put(player.getUUID(), session);
+            StoryTrace.note(player, "dialogue " + dialogueId, "waits: the player is in a fight; it starts once the fight is over");
+            return true;
+        }
+        SESSIONS.put(player.getUUID(), session);
         proceed(session, dialogue.start());
         return true;
     }
@@ -139,12 +169,19 @@ public final class Dialogues {
     /**
      * {@link #start}, or, while the player is talking, the same once they are free: for actions (a story event, a
      * quest stage), whose dialogue would otherwise be lost because another one was on. The same dialogue is not queued
-     * twice. A speaker gone by then is left out.
+     * twice. A speaker gone by then is left out. A dialogue a fight pauses also waits while another one a fight paused
+     * does; the one paused is not started again.
      *
      * @return false if it could never start (unknown dialogue, the module disabled) or too many already wait
      */
     public static boolean startOrQueue(ServerPlayer player, ResourceLocation dialogueId, @Nullable Entity speaker) {
-        if (!SESSIONS.containsKey(player.getUUID()) || definition(dialogueId) == null || !isEnabled()) {
+        DialogueDefinition dialogue = definition(dialogueId);
+        DialogueSession paused = PAUSED.get(player.getUUID());
+        if (paused != null && paused.baseId().equals(dialogueId)) {
+            return true;
+        }
+        boolean waitsForPaused = paused != null && dialogue != null && dialogue.pausesForFights();
+        if (!SESSIONS.containsKey(player.getUUID()) && !waitsForPaused || dialogue == null || !isEnabled()) {
             return start(player, dialogueId, speaker);
         }
         Deque<Queued> queue = QUEUED.computeIfAbsent(player.getUUID(), uuid -> new ArrayDeque<>());
@@ -260,14 +297,147 @@ public final class Dialogues {
         return true;
     }
 
-    /** Interrupts the player's dialogue: {@code on_abort} runs. */
+    /** Interrupts the player's dialogue, and the one a fight paused: {@code on_abort} runs for each. */
     public static boolean interrupt(ServerPlayer player, EndReason reason) {
+        DialogueSession session = SESSIONS.get(player.getUUID());
+        DialogueSession paused = PAUSED.get(player.getUUID());
+        if (session != null) {
+            abort(session, reason);
+        }
+        if (paused != null) {
+            abort(paused, reason);
+        }
+        return session != null || paused != null;
+    }
+
+    /**
+     * The NPC the player talks to got angry at them (a hit made it fight or run, November 6, 2026): a dialogue that a
+     * fight pauses is paused (the hit counts as a fight, also on an invulnerable NPC, whose hit never lands); any other is
+     * interrupted, {@code on_abort} running: nobody talks on with someone who just attacked them.
+     */
+    static void attackedBy(ServerPlayer player, LivingEntity npc, long now) {
+        DialogueSession session = SESSIONS.get(player.getUUID());
+        if (session == null || session.closed || session.bound != npc) {
+            return;
+        }
+        if (session.base().pausesForFights()) {
+            hit(npc, player, now);
+        } else {
+            StoryTrace.note(player, "dialogue " + session.baseId(), "stopped: the player attacked the NPC");
+            abort(session, EndReason.COMBAT);
+        }
+    }
+
+    /** Interrupts the dialogue the player sees, not one a fight paused: {@code on_abort} runs. */
+    public static boolean interruptShown(ServerPlayer player, EndReason reason) {
         DialogueSession session = SESSIONS.get(player.getUUID());
         if (session == null) {
             return false;
         }
         abort(session, reason);
         return true;
+    }
+
+    /**
+     * A hit between two living things. A player in it whose dialogue a fight pauses (or stops) has it do so now, before
+     * the hit could interrupt it as damage does a dialogue holding the screen.
+     */
+    static void hit(LivingEntity victim, @Nullable Entity attacker, long now) {
+        DialogueCombat.hit(victim, attacker, now);
+        for (Entity side : new Entity[] {victim, attacker}) {
+            if (side instanceof ServerPlayer player && SESSIONS.get(player.getUUID()) instanceof DialogueSession session && !session.closed) {
+                meetFight(session, now);
+            }
+        }
+    }
+
+    private static boolean inFight(DialogueSession session, long now) {
+        Entity partner = session.bound != session.player ? session.bound : null;
+        return DialogueCombat.inFight(session.player, partner, Math.round(session.base().combat().quiet() * 20), now);
+    }
+
+    /** A running dialogue in a fight: paused or interrupted when its {@code combat} says so, in subtitles or bubbles. */
+    private static void meetFight(DialogueSession session, long now) {
+        DialogueDefinition base = session.base();
+        if (session.dialogue.presentation() == DialogueDefinition.Presentation.SCREEN || base.combat().mode() == DialogueDefinition.Combat.Mode.CONTINUE
+                || !inFight(session, now)) {
+            return;
+        }
+        if (base.combat().mode() == DialogueDefinition.Combat.Mode.STOP) {
+            StoryTrace.note(session.player, "dialogue " + session.baseId(), "stopped: a fight (combat mode stop)");
+            abort(session, EndReason.COMBAT);
+            return;
+        }
+        if (PAUSED.containsKey(session.player.getUUID())) {
+            // Another one paused already: only one waits, this one goes on.
+            return;
+        }
+        SESSIONS.remove(session.player.getUUID(), session);
+        PAUSED.put(session.player.getUUID(), session);
+        session.pausedAt = now;
+        session.waiting = Waiting.NONE;
+        session.deadline = -1;
+        session.replyThink = ThinkTime.NONE;
+        StoryboundNetwork.sendToPlayer(session.player, new DialogueClosePayload(session.id));
+        StoryTrace.note(session.player, "dialogue " + session.baseId(), "paused at '" + session.node + "': a fight; it goes on once the fight is over");
+    }
+
+    /**
+     * Paused dialogues: interrupted when the module is off, the NPC is gone or the pause outlasts {@code forget_after};
+     * resumed once the fight is over, the player is free and the NPC is near again.
+     */
+    private static void tickPaused(long now) {
+        double maxDistance = StoryboundConfig.COMMON.dialogueMaxDistance.get();
+        for (DialogueSession session : List.copyOf(PAUSED.values())) {
+            if (session.closed) {
+                PAUSED.remove(session.player.getUUID(), session);
+                continue;
+            }
+            Entity bound = session.bound;
+            boolean partner = bound != null && bound != session.player;
+            if (!isEnabled()) {
+                abort(session, EndReason.STOPPED);
+            } else if (partner && !bound.isAlive()) {
+                abort(session, EndReason.SPEAKER_GONE);
+            } else if (now - session.pausedAt > Math.round(session.base().combat().forgetAfter() * 20)) {
+                StoryTrace.note(session.player, "dialogue " + session.baseId(), "stopped: paused longer than " + session.base().combat().forgetAfter() + " s (forget_after)");
+                abort(session, EndReason.COMBAT);
+            } else if (!inFight(session, now) && !SESSIONS.containsKey(session.player.getUUID())
+                    && (!partner || bound.level() == session.player.level() && bound.distanceToSqr(session.player) <= maxDistance * maxDistance)) {
+                resume(session);
+            }
+        }
+    }
+
+    /**
+     * Back from a pause: one that had not started starts; otherwise the resume (the line's own, else the dialogue's
+     * {@code combat.resume}) plays and its {@code @end} returns to the line or choice the fight took away, shown again
+     * from its start. A resume paused itself goes straight back to its line.
+     */
+    private static void resume(DialogueSession session) {
+        PAUSED.remove(session.player.getUUID(), session);
+        SESSIONS.put(session.player.getUUID(), session);
+        session.pausedAt = -1;
+        StoryTrace.note(session.player, "dialogue " + session.baseId(), "goes on: the fight is over");
+        if (session.notStarted) {
+            session.notStarted = false;
+            proceed(session, session.dialogue.start());
+            return;
+        }
+        String interrupted = session.node;
+        Optional<String> own = session.dialogue.nodes().get(interrupted) instanceof Line line ? line.resume() : Optional.empty();
+        if (session.resuming() || own.isEmpty() && session.base().combat().resume().isEmpty()) {
+            proceed(session, interrupted);
+            return;
+        }
+        ResourceLocation baseId = session.baseId();
+        DialogueDefinition base = session.base();
+        session.callers.push(new DialogueSession.Frame(session.dialogueId, session.dialogue, interrupted, true));
+        if (own.isEmpty()) {
+            session.dialogueId = baseId;
+            session.dialogue = base;
+        }
+        proceed(session, own.orElseGet(() -> base.combat().resume().orElseThrow()));
     }
 
     /** Players who see a speaker's line as a speech bubble: everyone nearby except the one in the dialogue. */
@@ -280,9 +450,14 @@ public final class Dialogues {
                 .toList();
     }
 
-    /** Timed lines, choice timers, the NPC walking off or dying, dialogues waiting their turn. Every tick. Public for tests. */
+    /** Timed lines, choice timers, the NPC walking off or dying, fights, dialogues waiting their turn. Every tick. Public for tests. */
     public static void tick(MinecraftServer server) {
         long now = server.getTickCount();
+        if (now % 100 == 0) {
+            DialogueCombat.prune(now);
+        }
+        // A paused dialogue goes on before a queued one starts: it was there first.
+        tickPaused(now);
         startQueued(server, now);
         if (SESSIONS.isEmpty()) {
             return;
@@ -306,9 +481,15 @@ public final class Dialogues {
                     abort(session, EndReason.TOO_FAR);
                     continue;
                 }
-                holdStill(session, bound);
+                if (session.base().npcStops()) {
+                    holdStill(session, bound);
+                }
             }
             if (session.closed) {
+                continue;
+            }
+            meetFight(session, now);
+            if (session.closed || session.pausedAt >= 0) {
                 continue;
             }
             if (session.deadline >= 0 && now >= session.deadline) {
@@ -339,6 +520,14 @@ public final class Dialogues {
                 continue;
             }
             Deque<Queued> queue = entry.getValue();
+            Queued first = queue.peek();
+            if (first != null && now <= first.expiresAt() && PAUSED.containsKey(entry.getKey())) {
+                DialogueDefinition waiting = definition(first.dialogue());
+                if (waiting != null && waiting.pausesForFights()) {
+                    // It would pause in its turn: it waits for the paused one to go on and end.
+                    continue;
+                }
+            }
             Queued next = queue.poll();
             if (queue.isEmpty()) {
                 QUEUED.remove(entry.getKey());
@@ -355,6 +544,18 @@ public final class Dialogues {
         }
     }
 
+    /** Whether the entity is the NPC of anyone's dialogue now, a paused one too: then it does not chatter. */
+    static boolean inDialogue(Entity entity) {
+        for (Map<UUID, DialogueSession> sessions : List.of(SESSIONS, PAUSED)) {
+            for (DialogueSession session : sessions.values()) {
+                if (!session.closed && session.bound == entity) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /** True while the player talks to this entity; their right-clicks on it do nothing else. */
     static boolean isTalkingTo(ServerPlayer player, Entity entity) {
         DialogueSession session = SESSIONS.get(player.getUUID());
@@ -363,8 +564,10 @@ public final class Dialogues {
 
     static void reset() {
         SESSIONS.clear();
+        PAUSED.clear();
         ADDRESSED.clear();
         QUEUED.clear();
+        DialogueCombat.reset();
     }
 
     /** A dialogue an action asked for while the player was talking. */
@@ -445,7 +648,7 @@ public final class Dialogues {
                         fail(session, "call to unknown dialogue " + call.dialogue());
                         return;
                     }
-                    session.callers.push(new DialogueSession.Frame(session.dialogueId, session.dialogue, call.next()));
+                    session.callers.push(new DialogueSession.Frame(session.dialogueId, session.dialogue, call.next(), false));
                     session.dialogueId = call.dialogue();
                     session.dialogue = other;
                     target = call.node().orElse(other.start());
@@ -480,6 +683,10 @@ public final class Dialogues {
                 name = participant.name().map(text -> text.resolve(player));
                 if (participant.kind() == Participant.Kind.BOUND) {
                     entity = session.bound;
+                    if (name.isEmpty() && entity != null) {
+                        // The NPC's own name, also while it is not shown over its head (November 6, 2026).
+                        name = NpcNames.nameOf(entity).map(text -> text.resolve(player));
+                    }
                 } else {
                     portrait = participant.portrait();
                 }
@@ -592,10 +799,13 @@ public final class Dialogues {
 
     private static void close(DialogueSession session) {
         session.closed = true;
-        session.player.setData(DialogueRegistries.OPEN_DIALOGUE, "");
         session.waiting = Waiting.NONE;
         session.deadline = -1;
         SESSIONS.remove(session.player.getUUID(), session);
+        PAUSED.remove(session.player.getUUID(), session);
+        // The other one of the player (a callout over a paused dialogue, or the paused one under it) stays open after a crash.
+        DialogueSession other = SESSIONS.containsKey(session.player.getUUID()) ? SESSIONS.get(session.player.getUUID()) : PAUSED.get(session.player.getUUID());
+        session.player.setData(DialogueRegistries.OPEN_DIALOGUE, other != null && !other.notStarted ? other.baseId().toString() : "");
         if (session.bound != null) {
             ADDRESSED.remove(session.bound.getUUID(), session.player.getUUID());
         }
@@ -613,12 +823,12 @@ public final class Dialogues {
     /**
      * On joining: a dialogue still open in the player's data never ended, as the game or the server stopped without
      * them logging out (a crash, a killed process). Its {@code on_abort} runs now, as it would have at a logout, so
-     * whatever the story does when a dialogue is cut short (the demo's opening whisper starts the first quest) is not
+     * whatever the story does when a dialogue is cut short (an opening whisper that starts the first quest) is not
      * lost for good. Public for tests.
      */
     public static void recoverOpen(ServerPlayer player) {
         String open = player.getData(DialogueRegistries.OPEN_DIALOGUE);
-        if (open.isEmpty() || SESSIONS.containsKey(player.getUUID())) {
+        if (open.isEmpty() || SESSIONS.containsKey(player.getUUID()) || PAUSED.containsKey(player.getUUID())) {
             return;
         }
         player.setData(DialogueRegistries.OPEN_DIALOGUE, "");

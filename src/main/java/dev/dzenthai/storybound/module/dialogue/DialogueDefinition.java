@@ -26,9 +26,12 @@ import net.minecraft.util.StringRepresentable;
  * @param broadcast    nearby players see the lines as speech bubbles
  * @param onAbort      run when the dialogue is interrupted (walked away, ESC, damage, the NPC died)
  * @param camera       {@code off} keeps the player's own view for the whole dialogue
+ * @param combat       what a fight does to it in subtitles or bubbles: nothing, a pause until it is over, or an interruption
+ * @param npcStops     the NPC talked to stands still and faces the player; false lets a companion walk on while talking
  */
 public record DialogueDefinition(Map<String, Participant> participants, String start, Map<String, Node> nodes,
-                                 Presentation presentation, boolean closable, boolean broadcast, List<Action> onAbort, Camera camera) {
+                                 Presentation presentation, boolean closable, boolean broadcast, List<Action> onAbort, Camera camera,
+                                 Combat combat, boolean npcStops) {
     /** Ends the current dialogue; inside a {@code call} it returns to the caller. */
     public static final String END = "@end";
     /** Ends the whole conversation, even inside a {@code call}. */
@@ -46,7 +49,9 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
             Codec.BOOL.optionalFieldOf("closable", true).forGetter(DialogueDefinition::closable),
             Codec.BOOL.optionalFieldOf("broadcast", true).forGetter(DialogueDefinition::broadcast),
             LogicCodecs.ACTIONS.optionalFieldOf("on_abort", List.of()).forGetter(DialogueDefinition::onAbort),
-            Camera.CODEC.optionalFieldOf("camera", Camera.AUTO).forGetter(DialogueDefinition::camera)
+            Camera.CODEC.optionalFieldOf("camera", Camera.AUTO).forGetter(DialogueDefinition::camera),
+            Combat.CODEC.optionalFieldOf("combat", Combat.DEFAULT).forGetter(DialogueDefinition::combat),
+            Codec.BOOL.optionalFieldOf("npc_stops", true).forGetter(DialogueDefinition::npcStops)
     ).apply(instance, DialogueDefinition::new));
 
     public static boolean isSentinel(String target) {
@@ -56,6 +61,53 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
     /** Whether one of its participants is the entity it is started with ({@code bound}); a monologue has none. */
     public boolean hasBoundSpeaker() {
         return participants.values().stream().anyMatch(participant -> participant.kind() == Participant.Kind.BOUND);
+    }
+
+    /** Whether a fight can pause it: only subtitles and bubbles, as a fight interrupts the dialogue screen already. */
+    public boolean pausesForFights() {
+        return combat.mode() == Combat.Mode.PAUSE && presentation != Presentation.SCREEN;
+    }
+
+    /**
+     * What a fight does to a dialogue in subtitles or bubbles (November 5, 2026), as companions' talk in God of War or Red
+     * Dead Redemption 2: a story told on the way stops when a fight starts and goes on after it.
+     *
+     * @param mode        {@code continue}: nothing (callouts in a fight); {@code pause}: what is shown goes away until
+     *                    the fight is over, then {@code resume} plays and the line is shown again; {@code stop}: the
+     *                    dialogue is interrupted ({@code on_abort} runs)
+     * @param resume      a node played before the line comes back ("Where was I..."); its {@code @end} returns to the
+     *                    line. A line's own {@code resume} wins
+     * @param quiet       seconds without fighting that end a fight
+     * @param forgetAfter seconds a pause may last; then the dialogue is interrupted ({@code on_abort} runs)
+     */
+    public record Combat(Mode mode, Optional<String> resume, float quiet, float forgetAfter) {
+        public static final Combat DEFAULT = new Combat(Mode.CONTINUE, Optional.empty(), 5, 120);
+
+        public static final Codec<Combat> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Mode.CODEC.optionalFieldOf("mode", Mode.CONTINUE).forGetter(Combat::mode),
+                Codec.STRING.optionalFieldOf("resume").forGetter(Combat::resume),
+                Codec.floatRange(1f, 60f).optionalFieldOf("quiet", 5f).forGetter(Combat::quiet),
+                Codec.floatRange(5f, 3600f).optionalFieldOf("forget_after", 120f).forGetter(Combat::forgetAfter)
+        ).apply(instance, Combat::new));
+
+        public enum Mode implements StringRepresentable {
+            CONTINUE("continue"),
+            PAUSE("pause"),
+            STOP("stop");
+
+            public static final Codec<Mode> CODEC = StringRepresentable.fromEnum(Mode::values);
+
+            private final String name;
+
+            Mode(String name) {
+                this.name = name;
+            }
+
+            @Override
+            public String getSerializedName() {
+                return name;
+            }
+        }
     }
 
     public enum Camera implements StringRepresentable {
@@ -181,9 +233,11 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
      * @param speaker {@code player} or a participant id
      * @param sound   played when the line is shown, e.g. a voice clip from a resource pack
      * @param shot    the camera shot for this line; {@code auto} is shot-reverse-shot
+     * @param resume  the node played before this line comes back after a fight paused it, instead of the dialogue's
+     *                {@code combat.resume}: a story about the war and one about the family go on differently
      */
     public record Line(String speaker, StoryText text, String next, Optional<ResourceLocation> sound, Optional<Float> duration,
-                       CameraCue.Shot shot, CameraCue.Transition transition) implements Node {
+                       CameraCue.Shot shot, CameraCue.Transition transition, Optional<String> resume) implements Node {
         public static final MapCodec<Line> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Codec.STRING.fieldOf("speaker").forGetter(Line::speaker),
                 StoryText.CODEC.fieldOf("text").forGetter(Line::text),
@@ -191,7 +245,8 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
                 ResourceLocation.CODEC.optionalFieldOf("sound").forGetter(Line::sound),
                 Codec.floatRange(0.1f, 600f).optionalFieldOf("duration").forGetter(Line::duration),
                 CameraCue.Shot.CODEC.optionalFieldOf("shot", CameraCue.Shot.AUTO).forGetter(Line::shot),
-                CameraCue.Transition.CODEC.optionalFieldOf("transition", CameraCue.Transition.CUT).forGetter(Line::transition)
+                CameraCue.Transition.CODEC.optionalFieldOf("transition", CameraCue.Transition.CUT).forGetter(Line::transition),
+                Codec.STRING.optionalFieldOf("resume").forGetter(Line::resume)
         ).apply(instance, Line::new));
 
         @Override
@@ -202,6 +257,7 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
         @Override
         public void targets(Consumer<String> sink) {
             sink.accept(next);
+            resume.ifPresent(sink);
         }
 
         @Override

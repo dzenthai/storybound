@@ -34,6 +34,10 @@ final class DialogueSession {
     /** The camera cue sent with what is on screen. */
     CameraCue camera = CameraCue.OFF;
     boolean closed;
+    /** Game tick a fight paused it at (its {@code combat} says {@code pause}); -1 while it runs. */
+    long pausedAt = -1;
+    /** Started in a fight: nothing was shown yet, so once it is over it starts from {@code start}, without a resume. */
+    boolean notStarted;
 
     DialogueSession(int id, ServerPlayer player, @Nullable Entity bound, ResourceLocation dialogueId, DialogueDefinition dialogue, long startedTick) {
         this.id = id;
@@ -59,6 +63,11 @@ final class DialogueSession {
         CHOICE
     }
 
-    /** Where a {@code call} returns to. */
-    record Frame(ResourceLocation dialogueId, DialogueDefinition dialogue, String next) {}
+    /** Whether a resume is playing: one paused again goes back to its line without another "Where was I". */
+    boolean resuming() {
+        return callers.stream().anyMatch(Frame::resume);
+    }
+
+    /** Where a {@code call} returns to; {@code resume}: to the line a fight paused, after its resume. */
+    record Frame(ResourceLocation dialogueId, DialogueDefinition dialogue, String next, boolean resume) {}
 }

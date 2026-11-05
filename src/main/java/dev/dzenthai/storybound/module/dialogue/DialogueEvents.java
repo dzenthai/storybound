@@ -21,10 +21,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
@@ -41,6 +47,7 @@ public final class DialogueEvents {
     public static void register(IEventBus gameBus) {
         gameBus.addListener(EventPriority.HIGH, DialogueEvents::onTagsUpdated);
         gameBus.addListener(DialogueEvents::onServerTick);
+        gameBus.addListener((ServerTickEvent.Pre event) -> NpcReactions.beforeTick());
         gameBus.addListener(DialogueEvents::onLoggedIn);
         gameBus.addListener(DialogueEvents::onLoggedOut);
         gameBus.addListener(DialogueEvents::onDeath);
@@ -49,6 +56,8 @@ public final class DialogueEvents {
         // LOWEST: a story event may have started the dialogue from this very click.
         gameBus.addListener(EventPriority.LOWEST, DialogueEvents::onEntityInteract);
         gameBus.addListener(DialogueEvents::onServerStopped);
+        gameBus.addListener(NpcReactions::onIncomingDamage);
+        gameBus.addListener(NpcReactions::onChangeTarget);
         NpcRespawns.register(gameBus);
         // "Once" marks: per dialogue option (node and option follow the id), per NPC binding.
         StoryMigrations.registerKeyPrefix(Dialogues.ONCE_PREFIX, StoryMigrations.Kind.DIALOGUES, 2);
@@ -82,6 +91,9 @@ public final class DialogueEvents {
     private static void onServerTick(ServerTickEvent.Post event) {
         Dialogues.tick(event.getServer());
         NpcBindings.tick(event.getServer());
+        NpcReactions.tick(event.getServer());
+        NpcChatter.tick(event.getServer());
+        NpcNames.tick(event.getServer());
     }
 
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
@@ -100,10 +112,15 @@ public final class DialogueEvents {
     }
 
     private static void onDamage(LivingDamageEvent.Post event) {
+        if (event.getNewDamage() > 0 && event.getEntity().level() instanceof ServerLevel level) {
+            // First, so a dialogue a fight pauses is paused rather than interrupted below.
+            Dialogues.hit(event.getEntity(), event.getSource().getEntity(), level.getServer().getTickCount());
+        }
         // Only a dialogue that holds the screen: subtitles (a monologue in a fight) let the player fight on.
         if (event.getEntity() instanceof ServerPlayer player && event.getNewDamage() > 0 && StoryboundConfig.COMMON.dialogueInterruptOnDamage.get()
                 && Dialogues.holdsTheScreen(player)) {
-            Dialogues.interrupt(player, EndReason.DAMAGED);
+            // Not the one a fight paused: that one waits for the fight to end.
+            Dialogues.interruptShown(player, EndReason.DAMAGED);
         }
     }
 
@@ -128,6 +145,9 @@ public final class DialogueEvents {
     private static void onServerStopped(ServerStoppedEvent event) {
         Dialogues.reset();
         NpcBindings.reset();
+        NpcReactions.reset();
+        NpcChatter.reset();
+        NpcPhrases.reset();
     }
 
     /** Walks the conditions and actions of every node, option and {@code on_abort}. */
@@ -166,6 +186,20 @@ public final class DialogueEvents {
             if (dialogue.participants().containsKey(DialogueDefinition.PLAYER)) {
                 error.accept("'player' is reserved for the player and cannot be a participant id");
             }
+            DialogueDefinition.Combat combat = dialogue.combat();
+            combat.resume().ifPresent(resume -> {
+                if (!nodes.containsKey(resume)) {
+                    error.accept("combat.resume leads to unknown node '" + resume + "'");
+                }
+            });
+            Consumer<String> warning = message -> sink.accept(ValidationIssue.warning(type.id(), id, message));
+            if (combat.mode() != DialogueDefinition.Combat.Mode.CONTINUE && dialogue.presentation() == DialogueDefinition.Presentation.SCREEN) {
+                warning.accept("combat." + combat.mode().getSerializedName() + " does nothing on the dialogue screen (a hit interrupts it); it is for hud and bubble");
+            }
+            boolean ownResume = nodes.values().stream().anyMatch(node -> node instanceof DialogueDefinition.Line line && line.resume().isPresent());
+            if (combat.mode() != DialogueDefinition.Combat.Mode.PAUSE && (combat.resume().isPresent() || ownResume)) {
+                warning.accept("A resume plays only after a pause: set combat.mode to pause");
+            }
             nodes.forEach((nodeId, node) -> {
                 node.targets(target -> {
                     if (!DialogueDefinition.isSentinel(target) && !nodes.containsKey(target)) {
@@ -202,10 +236,51 @@ public final class DialogueEvents {
                 sink.accept(ValidationIssue.warning(type.id(), id, "Nodes " + loop + " can loop without showing anything; the server stops such a dialogue"));
             }
         });
+        DialogueRegistries.PHRASES.serverStore().all().forEach((id, phrases) -> {
+            if (phrases.lines().isEmpty()) {
+                sink.accept(ValidationIssue.warning(DialogueRegistries.PHRASES.id(), id, "No lines: the NPC says nothing"));
+            }
+            for (int i = 0; i < phrases.lines().size(); i++) {
+                int line = i + 1;
+                phrases.lines().get(i).dialogue().filter(dialogue -> !type.serverStore().contains(dialogue)).ifPresent(dialogue ->
+                        sink.accept(ValidationIssue.error(DialogueRegistries.PHRASES.id(), id, "Line " + line + ": unknown dialogue " + dialogue)));
+            }
+        });
         DialogueRegistries.NPC_BINDINGS.serverStore().all().forEach((id, binding) -> {
             if (binding.dialogues().isEmpty() && !binding.custom()) {
                 sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "Binds no dialogue and is not custom; it does nothing"));
             }
+            Consumer<String> bindingError = message -> sink.accept(ValidationIssue.error(DialogueRegistries.NPC_BINDINGS.id(), id, message));
+            Consumer<String> bindingWarning = message -> sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, message));
+            if (binding.showName() && binding.displayName().isPresent() && NpcNames.byName(binding)) {
+                bindingWarning.accept("display_name is not shown over its head: the NPC is known by the name it carries (entity name), which it keeps");
+            }
+            binding.chatter().ifPresent(chatter -> {
+                chatter.phrases().node().filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
+                        .ifPresent(phrases -> bindingError.accept("chatter: unknown phrases " + phrases));
+                if (chatter.minInterval() > chatter.maxInterval()) {
+                    bindingWarning.accept("chatter: min_interval is over max_interval; it waits min_interval each time");
+                }
+            });
+            binding.whenAttacked().ifPresent(rules -> {
+                rules.phrases().flatMap(PhrasesRef::node).filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
+                        .ifPresent(phrases -> bindingError.accept("when_attacked: unknown phrases " + phrases));
+                rules.warning().flatMap(PhrasesRef::node).filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
+                        .ifPresent(phrases -> bindingError.accept("when_attacked: unknown warning phrases " + phrases));
+                if (rules.reaction() != NpcBinding.WhenAttacked.Reaction.FIGHT && (rules.patience() > 0 || rules.warning().isPresent())) {
+                    bindingWarning.accept("when_attacked: patience and warning count only for fight; they do nothing with " + rules.reaction().getSerializedName());
+                }
+                if (rules.reaction() == NpcBinding.WhenAttacked.Reaction.FIGHT) {
+                    // A kind with no attack damage (a villager, a cow) has nothing to fight with.
+                    binding.entities().forEach(selector -> selector.type().ifPresent(types -> types.forEach(holder -> {
+                        EntityType<?> kind = holder.value();
+                        if (!DefaultAttributes.hasSupplier(kind) || !DefaultAttributes.getSupplier((EntityType<? extends LivingEntity>) kind).hasAttribute(Attributes.ATTACK_DAMAGE)) {
+                            sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "when_attacked: fight, but "
+                                    + BuiltInRegistries.ENTITY_TYPE.getKey(kind) + " cannot attack; it does nothing to the player"));
+                        }
+                    })));
+                }
+            });
         });
         LogicOwners.walkAll((owner, ownerId) -> new References() {
             @Override
@@ -259,6 +334,8 @@ public final class DialogueEvents {
         if (dialogue.nodes().containsKey(dialogue.start())) {
             queue.add(dialogue.start());
         }
+        // Played after a pause, from any line.
+        dialogue.combat().resume().ifPresent(queue::add);
         while (!queue.isEmpty()) {
             String nodeId = queue.poll();
             Node node = dialogue.nodes().get(nodeId);

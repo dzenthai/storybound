@@ -229,7 +229,7 @@ public final class QuestEvents {
                 });
             });
             migration.objectives().keySet().stream().filter(quest -> type.serverStore().getOrNull(quest) == null).forEach(quest ->
-                    sink.accept(ValidationIssue.warning(CoreDefinitions.MIGRATIONS.id(), file, "objectives of unknown quest " + quest + " (name it by its new id)")));
+                    sink.accept(ValidationIssue.warning(CoreDefinitions.MIGRATIONS.id(), file, "objectives of unknown quest " + quest + " (renamed: name it by its new id; deleted: take it out of migrations/" + file.getPath() + ".json)")));
         });
     }
 

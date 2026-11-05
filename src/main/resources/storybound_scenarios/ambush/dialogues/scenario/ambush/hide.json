@@ -1,0 +1,11 @@
+{
+  "presentation": "bubble",
+  "start": "l1",
+  "nodes": {
+    "l1": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.ambush.hide.l1"
+    }
+  }
+}

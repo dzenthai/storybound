@@ -80,7 +80,8 @@ public final class DevEditorGameTests {
                 // A node that asks its one question at once is a draft until answered (October 30, 2026); answered as
                 // the editor's question does, it loads.
                 NodeTemplates.Ask ask = NodeTemplates.ask(template);
-                if (ask == NodeTemplates.Ask.ENTITY || ask == NodeTemplates.Ask.TRIGGER) {
+                // An NPC loads at once: its tag is its name, so an entity carrying it is the NPC (November 6, 2026).
+                if ((ask == NodeTemplates.Ask.ENTITY || ask == NodeTemplates.Ask.TRIGGER) && template != NodeTemplates.Template.NPC) {
                     helper.assertTrue(type.codec().parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()), created.json()).error().isPresent(),
                             template + " is a draft until its question is answered");
                     answer(created.json(), ask);

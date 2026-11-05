@@ -1,0 +1,71 @@
+{
+  "participants": {
+    "tikhon": {
+      "type": "bound",
+      "name": "scenario.last_stand.tikhon"
+    }
+  },
+  "presentation": "hud",
+  "npc_stops": false,
+  "combat": {
+    "mode": "pause",
+    "resume": "where",
+    "quiet": 4,
+    "forget_after": 20
+  },
+  "on_abort": [
+    {
+      "type": "start_dialogue",
+      "dialogue": "scenario:last_stand/forget"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:last_stand/quest",
+      "state": "failed"
+    }
+  ],
+  "start": "l1",
+  "nodes": {
+    "l1": {
+      "type": "line",
+      "speaker": "tikhon",
+      "text": "scenario.last_stand.story.l1",
+      "next": "horde"
+    },
+    "horde": {
+      "type": "action",
+      "on_fail": "continue",
+      "next": "l2",
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:husk",
+          "count": 6,
+          "tag": "scenario_last_stand_husk",
+          "offset": [
+            9,
+            0,
+            7
+          ],
+          "persistent": false
+        }
+      ]
+    },
+    "l2": {
+      "type": "line",
+      "speaker": "tikhon",
+      "text": "scenario.last_stand.story.l2",
+      "next": "l3"
+    },
+    "l3": {
+      "type": "line",
+      "speaker": "tikhon",
+      "text": "scenario.last_stand.story.l3"
+    },
+    "where": {
+      "type": "line",
+      "speaker": "tikhon",
+      "text": "scenario.last_stand.story.where"
+    }
+  }
+}

@@ -29,6 +29,22 @@
       "description": "Run when the dialogue is interrupted: ESC, walking away, damage, the NPC gone, logging out.",
       "$ref": "logic.schema.json#/definitions/actions"
     },
+    "combat": {
+      "description": "What a fight does to the dialogue in subtitles or bubbles (the dialogue screen is interrupted by a hit anyway).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "description": "continue: nothing (callouts in a fight). pause: what is shown goes away until the fight is over, then resume plays and the line is shown again. stop: the dialogue is interrupted (on_abort runs).",
+          "enum": ["continue", "pause", "stop"],
+          "default": "continue"
+        },
+        "resume": { "description": "The node played after a pause, before the line comes back (\"Where was I...\"); its @end returns to the line. A line's own resume wins.", "type": "string" },
+        "quiet": { "description": "Seconds without fighting that end a fight.", "type": "number", "minimum": 1, "maximum": 60, "default": 5 },
+        "forget_after": { "description": "Seconds a pause may last; then the dialogue is interrupted (on_abort runs).", "type": "number", "minimum": 5, "maximum": 3600, "default": 120 }
+      }
+    },
+    "npc_stops": { "description": "The NPC talked to stands still and faces the player. Off: a companion walks on (and fights) while talking.", "type": "boolean", "default": true },
     "start": { "description": "The first node.", "type": "string" },
     "nodes": {
       "type": "object",
@@ -103,7 +119,8 @@
               "description": "From the previous shot: cut, or ease (a short glide).",
               "enum": ["cut", "ease"],
               "default": "cut"
-            }
+            },
+            "resume": { "description": "The node played before this line comes back after a fight paused it, instead of the dialogue's combat.resume.", "type": "string" }
           },
           "required": ["speaker", "text"],
           "additionalProperties": false

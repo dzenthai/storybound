@@ -1,0 +1,27 @@
+{
+  "entity": {
+    "type": "minecraft:iron_golem",
+    "tag": "scenario_brann"
+  },
+  "dialogues": [
+    {
+      "dialogue": "scenario:campfire/story",
+      "conditions": {
+        "type": "quest",
+        "quest": "scenario:campfire/quest",
+        "stage": "listen"
+      }
+    }
+  ],
+  "override_interact": true,
+  "when_attacked": {
+    "reaction": "ignore",
+    "phrases": "scenario:campfire/hit"
+  },
+  "chatter": {
+    "phrases": "scenario:campfire/chatter",
+    "min_interval": 15,
+    "max_interval": 30,
+    "radius": 8
+  }
+}

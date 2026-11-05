@@ -1,0 +1,8 @@
+{
+  "order": "sequence",
+  "lines": [
+    "scenario.campfire.brann_hit",
+    "scenario.campfire.hit.again",
+    "scenario.campfire.hit.enough"
+  ]
+}

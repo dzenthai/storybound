@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/phrases.schema.json",
+  "title": "Storybound phrases",
+  "description": "data/<namespace>/storybound/phrases/<path>.json — an NPC's short lines, one at a time, without a conversation: its chatter, what it says when hit.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "order": {
+      "description": "random: one at random, never the same twice in a row. sequence: top to bottom, then the last one again.",
+      "enum": ["random", "sequence"],
+      "default": "random"
+    },
+    "lines": {
+      "description": "Each line is a text said in a bubble over the NPC, or { \"dialogue\": id } started with the player.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/line" }
+    }
+  },
+  "definitions": {
+    "line": {
+      "description": "A text said in a bubble, or a dialogue started with the player.",
+      "oneOf": [
+        { "$ref": "logic.schema.json#/definitions/story_text" },
+        {
+          "type": "object",
+          "required": ["dialogue"],
+          "additionalProperties": false,
+          "properties": {
+            "dialogue": { "description": "Started with the player (in bubbles, subtitles or on the screen, as it says).", "$ref": "logic.schema.json#/definitions/id" }
+          }
+        }
+      ]
+    }
+  }
+}

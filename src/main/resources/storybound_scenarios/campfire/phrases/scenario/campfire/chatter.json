@@ -1,0 +1,8 @@
+{
+  "order": "random",
+  "lines": [
+    "scenario.campfire.chatter.fire",
+    "scenario.campfire.chatter.wastes",
+    "scenario.campfire.chatter.story"
+  ]
+}

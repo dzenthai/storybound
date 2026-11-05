@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.data.StoryFolder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,10 +28,10 @@ public final class StoryRenames {
     public static final ResourceLocation CHAPTER = Storybound.id("chapter");
     /** The story's nodes and flags; not chapters (their title is their name) or the editor's own files. */
     public static final Set<ResourceLocation> RENAMEABLE = Set.of(StoryLinks.QUEST, StoryLinks.DIALOGUE, StoryLinks.NPC, StoryLinks.DOCUMENT,
-            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, FLAG);
+            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, FLAG, StoryLinks.PHRASES);
     /** The definitions that may name a renamed id. */
     public static final Set<ResourceLocation> REFERRING = Set.of(StoryLinks.QUEST, StoryLinks.DIALOGUE, StoryLinks.NPC, StoryLinks.DOCUMENT,
-            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, FLAG, CHAPTER);
+            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, FLAG, CHAPTER, StoryLinks.PHRASES);
     /** An NPC's relationship scale is the flag {@code <ns>:rep/<npc path>}. */
     public static final String RELATIONSHIP_PREFIX = "rep/";
 
@@ -65,11 +66,11 @@ public final class StoryRenames {
 
     /**
      * A namespace a story may be written in, as set in the project: lowercase letters, digits, {@code _ - .}; not
-     * {@code minecraft}, and not {@code demo}, which reinstalling the demo replaces.
+     * {@code minecraft}, and not {@code scenario}, which the debug scenarios replace and clear.
      */
     public static boolean isStoryNamespace(String namespace) {
         return NAME.matcher(namespace).matches() && !namespace.equals(".") && !namespace.equals("..")
-                && !namespace.equals("minecraft") && !namespace.equals("demo");
+                && !namespace.equals("minecraft") && !namespace.equals(StoryFolder.SCENARIO);
     }
 
     /**
@@ -79,6 +80,12 @@ public final class StoryRenames {
      * @param exists whether a definition of the type has the id
      */
     public static Optional<Problem> problem(ResourceLocation type, ResourceLocation current, String typed, BiPredicate<ResourceLocation, ResourceLocation> exists) {
+        // Its own name, as it is: also one in a folder (scenario:campfire/brann), which a new name may not be; before
+        // (November 5, 2026), such a node's name showed as wrong the moment it was opened.
+        String own = typed.trim();
+        if (own.equals(current.getPath()) || own.equals(current.toString())) {
+            return Optional.of(Problem.SAME);
+        }
         Optional<ResourceLocation> to = parse(typed, current);
         if (to.isEmpty()) {
             int colon = typed.trim().indexOf(':');
@@ -520,6 +527,7 @@ public final class StoryRenames {
             case "dialogue", "busy_dialogue" -> StoryLinks.DIALOGUE;
             case "document" -> StoryLinks.DOCUMENT;
             case "boss" -> StoryLinks.BOSS;
+            case "phrases", "warning" -> StoryLinks.PHRASES;
             case "entry" -> logic ? StoryLinks.CODEX : null;
             case "key" -> logic ? FLAG : null;
             default -> null;

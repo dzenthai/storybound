@@ -1,0 +1,15 @@
+{
+  "entity": {
+    "type": "minecraft:villager",
+    "tag": "scenario_mira"
+  },
+  "dialogues": [
+    {
+      "dialogue": "scenario:ambush/chatter"
+    }
+  ],
+  "proximity": {
+    "radius": 5
+  },
+  "invulnerable": true
+}

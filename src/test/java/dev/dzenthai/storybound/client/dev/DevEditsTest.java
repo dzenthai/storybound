@@ -504,7 +504,8 @@ class DevEditsTest {
         NodeTemplates.Place nowhere = new NodeTemplates.Place(null, "minecraft:overworld");
         JsonObject npc = NodeTemplates.create(NodeTemplates.Template.NPC, 1, nowhere, (key, args) -> key).getFirst().json();
         JsonObject boss = NodeTemplates.create(NodeTemplates.Template.BOSS, 1, nowhere, (key, args) -> key).getFirst().json();
-        assertTrue(!npc.has("entity") && !boss.has("entity"), "no villager or wolf to forget: who it is is asked");
+        assertTrue(!npc.getAsJsonObject("entity").has("type") && !boss.has("entity"), "no villager or wolf to forget: who it is is asked");
+        assertEquals("{\"tag\":\"npc_1\"}", npc.get("entity").toString(), "an NPC's tag is its name (November 6, 2026)");
         assertEquals(NodeTemplates.Ask.ENTITY, NodeTemplates.ask(NodeTemplates.Template.NPC));
         assertEquals(NodeTemplates.Ask.ENTITY, NodeTemplates.ask(NodeTemplates.Template.BOSS));
 

@@ -1,0 +1,23 @@
+{
+  "category": "side",
+  "title": "scenario.last_stand.quest.title",
+  "text": {
+    "active": "scenario.last_stand.quest.text",
+    "failed": "scenario.last_stand.quest.failed"
+  },
+  "stages": [
+    {
+      "id": "listen",
+      "objectives": [
+        {
+          "id": "story",
+          "text": "scenario.last_stand.quest.listen",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "scenario:last_stand/story"
+          }
+        }
+      ]
+    }
+  ]
+}

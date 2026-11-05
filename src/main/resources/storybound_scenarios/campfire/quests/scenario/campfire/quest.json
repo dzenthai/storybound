@@ -1,0 +1,22 @@
+{
+  "category": "side",
+  "title": "scenario.campfire.quest.title",
+  "text": {
+    "active": "scenario.campfire.quest.text"
+  },
+  "stages": [
+    {
+      "id": "listen",
+      "objectives": [
+        {
+          "id": "story",
+          "text": "scenario.campfire.quest.listen",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "scenario:campfire/story"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:campfire"
+  },
+  "actions": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:iron_golem",
+      "tag": "scenario_brann",
+      "unique": true,
+      "name": "scenario.campfire.brann",
+      "offset": [
+        3,
+        0,
+        0
+      ],
+      "nbt": {
+        "CustomNameVisible": true
+      }
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:campfire/quest",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:campfire/quest",
+      "state": "active"
+    }
+  ]
+}

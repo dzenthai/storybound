@@ -43,6 +43,7 @@ public final class NpcBindings {
 
     private static List<Map.Entry<ResourceLocation, NpcBinding>> files = List.of();
     private static double searchRadius = NpcBinding.Proximity.DEFAULT.radius();
+    private static double chatterReach;
     /** Player → entities within a proximity radius at the last check; a dialogue starts only on coming close. */
     private static final Map<UUID, Set<UUID>> NEAR = new HashMap<>();
     /** Player → entity → tick of the last proximity start, for the cooldown. */
@@ -62,6 +63,13 @@ public final class NpcBindings {
         searchRadius = files.stream().flatMap(entry -> entry.getValue().proximity().stream())
                 .mapToDouble(NpcBinding.Proximity::radius).max().orElse(0);
         searchRadius = Math.max(searchRadius, NpcBinding.Proximity.DEFAULT.radius());
+        chatterReach = files.stream().flatMap(entry -> entry.getValue().chatter().stream())
+                .mapToDouble(NpcBinding.Chatter::radius).max().orElse(0);
+    }
+
+    /** How far from a player an NPC with chatter may be heard: the largest chatter radius; 0 when none chatters. */
+    static double chatterReach() {
+        return chatterReach;
     }
 
     /** The binding that applies to the entity; {@code id} is null for one stored on the entity. */
@@ -115,6 +123,10 @@ public final class NpcBindings {
 
     /** Whether talking to the NPC would do anything now (see {@link #canTalk}), asked without writing to the trace. */
     private static boolean wouldTalk(ServerPlayer player, Entity target, Found found) {
+        if (NpcReactions.angryAt(target, player)) {
+            // Angry at the player: no talk to offer them.
+            return false;
+        }
         if (found.binding().interact() && busyWith(found, target, player) != null) {
             // A busy NPC offers its busy line, or nothing.
             return found.binding().busyDialogue().isPresent() || found.binding().custom() && found.id() != null;
@@ -164,7 +176,7 @@ public final class NpcBindings {
             return false;
         }
         StoryTrace.note(player, bindingName(found, target), "talk: the dialogue in subtitles gives way");
-        Dialogues.interrupt(player, DialogueEvent.EndReason.LEFT);
+        Dialogues.interruptShown(player, DialogueEvent.EndReason.LEFT);
         return true;
     }
 
@@ -193,6 +205,10 @@ public final class NpcBindings {
             // A cutscene is a scene of its own: no NPC talks into it.
             StoryTrace.note(player, bindingName(found, target), "talk: not during a cutscene");
             return false;
+        }
+        if (NpcReactions.refuse(target, player, found.binding())) {
+            // Angry at the player: a phrase instead, and the click is taken (no trading with someone chasing you either).
+            return true;
         }
         boolean handled = false;
         if (found.binding().custom() && found.id() != null) {
@@ -264,7 +280,7 @@ public final class NpcBindings {
      *         conditions quietly: the trace gets the start, not a line every half second.
      */
     private static boolean tryStart(ServerPlayer player, Entity entity, Found found, NpcBinding.Proximity proximity, long now) {
-        if (Dialogues.state(player).isPresent() || Cutscenes.watching(player) != null) {
+        if (Dialogues.state(player).isPresent() || Cutscenes.watching(player) != null || NpcReactions.angryAt(entity, player)) {
             return false;
         }
         Map<UUID, Long> starts = LAST_START.computeIfAbsent(player.getUUID(), id -> new HashMap<>());

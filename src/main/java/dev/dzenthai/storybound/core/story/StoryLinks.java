@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.core.story;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.StoryIds;
@@ -32,6 +33,8 @@ public final class StoryLinks {
     public static final ResourceLocation CODEX = Storybound.id("codex");
     public static final ResourceLocation EVENT = Storybound.id("event");
     public static final ResourceLocation SCRIPT = Storybound.id("script");
+    /** An NPC's phrases (November 5, 2026): its chatter and what it says when hit. */
+    public static final ResourceLocation PHRASES = Storybound.id("phrases");
 
     /** A definition: its type and id. */
     public record NodeKey(ResourceLocation type, ResourceLocation id) {}
@@ -68,6 +71,22 @@ public final class StoryLinks {
                     if (el.isJsonObject() && el.getAsJsonObject().has("dialogue")) {
                         parseId(el.getAsJsonObject().get("dialogue").getAsString())
                                 .ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "talk")));
+                    }
+                }
+            }
+            phrasesOf(obj, "chatter").ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "chatter")));
+            phrasesOf(obj, "when_attacked").ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "hit")));
+            if (obj.get("when_attacked") instanceof JsonObject hit && hit.get("warning") instanceof JsonPrimitive warning) {
+                parseId(warning.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "warning")));
+            }
+        });
+        source.byType(PHRASES).forEach((id, raw) -> {
+            NodeKey from = new NodeKey(PHRASES, id);
+            JsonObject obj = parseObject(raw);
+            if (obj.get("lines") instanceof JsonArray lines) {
+                for (JsonElement line : lines) {
+                    if (line instanceof JsonObject phrase && phrase.get("dialogue") instanceof JsonPrimitive dialogue) {
+                        parseId(dialogue.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "says")));
                     }
                 }
             }
@@ -181,6 +200,12 @@ public final class StoryLinks {
                 }
             }
         }
+    }
+
+    /** The phrases an NPC's {@code chatter} or {@code when_attacked} points at. */
+    private static Optional<ResourceLocation> phrasesOf(JsonObject npc, String section) {
+        return npc.get(section) instanceof JsonObject inside && inside.get("phrases") instanceof JsonPrimitive phrases
+                ? parseId(phrases.getAsString()) : Optional.empty();
     }
 
     private static void collectLogicEdges(NodeKey owner, JsonElement element, Set<Edge> edges, Map<String, NodeKey> hooks) {

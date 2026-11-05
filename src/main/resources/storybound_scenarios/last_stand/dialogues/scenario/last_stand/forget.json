@@ -1,0 +1,17 @@
+{
+  "participants": {
+    "narrator": {
+      "type": "virtual",
+      "name": "scenario.last_stand.narrator"
+    }
+  },
+  "presentation": "hud",
+  "start": "l1",
+  "nodes": {
+    "l1": {
+      "type": "line",
+      "speaker": "narrator",
+      "text": "scenario.last_stand.forget.l1"
+    }
+  }
+}

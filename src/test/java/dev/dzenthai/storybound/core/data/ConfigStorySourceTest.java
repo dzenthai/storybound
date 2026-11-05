@@ -96,28 +96,34 @@ class ConfigStorySourceTest {
     }
 
     @Test
-    void theDemoIsItsNamespacesFiles() {
-        assertTrue(StoryFolder.isDemo("quests/demo/night_watch.json"));
-        assertTrue(StoryFolder.isDemo("flags/demo/rep/elder.json"));
-        assertTrue(StoryFolder.isDemo("texts/ru_ru/demo/codex/zombie/base.sbt"));
-        assertFalse(StoryFolder.isDemo("documents/book.json"), "a starter file of its own");
-        assertFalse(StoryFolder.isDemo("texts/en_us/book.sbt"));
-        assertFalse(StoryFolder.isDemo("quests/mypack/demo/x.json"), "demo is a namespace, not any folder");
-        assertFalse(StoryFolder.isDemo("lang/en_us.json"));
-        assertFalse(StoryFolder.isDemo("README.txt"));
+    void theScenariosAreTheirNamespacesFiles() {
+        assertTrue(StoryFolder.isScenario("dialogues/scenario/campfire/story.json"));
+        assertTrue(StoryFolder.isScenario("texts/ru_ru/scenario/campfire/note.sbt"));
+        assertFalse(StoryFolder.isScenario("documents/book.json"), "a starter file of its own");
+        assertFalse(StoryFolder.isScenario("texts/en_us/book.sbt"));
+        assertFalse(StoryFolder.isScenario("quests/mypack/scenario/x.json"), "scenario is a namespace, not any folder");
+        assertFalse(StoryFolder.isScenario("quests/demo/night_watch.json"), "an old demo copy is the author's now");
+        assertFalse(StoryFolder.isScenario("lang/en_us.json"));
+        assertFalse(StoryFolder.isScenario("README.txt"));
     }
 
     @Test
-    void anOlderDemoCopyIsNoticed() throws IOException {
-        assertFalse(StoryFolder.demoOutdated(root), "no demo at all: nothing to tell");
-        write("quests/demo/smoke.json", "{}");
-        assertTrue(StoryFolder.demoOutdated(root), "a copy from before versions were kept counts as old");
-        write(".demo_version", Integer.toString(StoryFolder.DEMO_VERSION - 1));
-        assertTrue(StoryFolder.demoOutdated(root), "an older version");
-        write(".demo_version", Integer.toString(StoryFolder.DEMO_VERSION));
-        assertFalse(StoryFolder.demoOutdated(root), "the current one");
-        write(".demo_version", "not a number");
-        assertTrue(StoryFolder.demoOutdated(root), "an unreadable mark is told about, not trusted");
+    void clearingTheScenariosLeavesTheAuthorsFiles() throws IOException {
+        write("dialogues/scenario/campfire/story.json", "{}");
+        write("events/scenario/campfire.json", "{}");
+        write("texts/en_us/scenario/campfire/note.sbt", "text");
+        write("dialogues/mypack/elder.json", "{}");
+        write("quests/demo/night_watch.json", "{}");
+        write("lang/en_us.json", "{ \"scenario.campfire.hint\": \"Talk to Brann\", \"mypack.elder\": \"Elder\" }");
+        assertEquals(3, StoryFolder.clearScenarios(root), "the scenario's three files");
+        assertFalse(Files.exists(root.resolve("dialogues/scenario")), "and their emptied folders");
+        assertFalse(Files.exists(root.resolve("texts/en_us/scenario")));
+        assertTrue(Files.exists(root.resolve("dialogues/mypack/elder.json")), "the author's own file stays");
+        assertTrue(Files.exists(root.resolve("quests/demo/night_watch.json")), "so does an old demo copy");
+        String lang = Files.readString(root.resolve("lang/en_us.json"));
+        assertFalse(lang.contains("scenario.campfire.hint"), "the scenario's translations go");
+        assertTrue(lang.contains("mypack.elder"), "the author's stay");
+        assertEquals(0, StoryFolder.clearScenarios(root), "nothing left to clear");
     }
 
     private void write(String relative, String content) throws IOException {

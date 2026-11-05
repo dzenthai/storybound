@@ -1,0 +1,100 @@
+{
+  "participants": {
+    "brann": {
+      "type": "bound",
+      "name": "scenario.campfire.brann"
+    }
+  },
+  "presentation": "hud",
+  "combat": {
+    "mode": "pause",
+    "resume": "where",
+    "quiet": 4
+  },
+  "start": "l1",
+  "nodes": {
+    "l1": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.l1",
+      "next": "l2"
+    },
+    "l2": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.l2",
+      "next": "ambush"
+    },
+    "ambush": {
+      "type": "action",
+      "on_fail": "continue",
+      "next": "l3",
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:husk",
+          "count": 3,
+          "tag": "scenario_campfire_husk",
+          "offset": [
+            8,
+            0,
+            6
+          ],
+          "persistent": false
+        }
+      ]
+    },
+    "l3": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.l3",
+      "next": "l4"
+    },
+    "l4": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.l4",
+      "next": "l5",
+      "resume": "where_sands"
+    },
+    "l5": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.l5",
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "text": "scenario.campfire.story.ask.more",
+          "next": "l6"
+        },
+        {
+          "text": "scenario.campfire.story.ask.lie",
+          "next": "l7"
+        }
+      ]
+    },
+    "l6": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.l6"
+    },
+    "l7": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.l7"
+    },
+    "where": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.where"
+    },
+    "where_sands": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.story.where_sands"
+    }
+  }
+}

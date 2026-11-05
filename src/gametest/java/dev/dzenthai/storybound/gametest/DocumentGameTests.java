@@ -87,46 +87,54 @@ public final class DocumentGameTests {
     }
 
     /**
-     * A new story folder has the demo story (the GameTest server gets a fresh copy of the starter files every run): all of
-     * it loads, in English and Russian, and the validator says nothing about it.
+     * The story the GameTests play (the former demo, kept as a test fixture in src/gametest/story) and every debug
+     * scenario (copied in by the build) load, in English and Russian, and the validator says nothing about them.
      */
     @GameTest(template = "empty")
-    public static void theDemoStoryLoadsWithoutIssues(GameTestHelper helper) {
-        helper.assertTrue(QuestRegistries.QUESTS.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath(StoryFolder.DEMO, "night_watch")) != null,
-                "the demo's quests are loaded");
-        helper.assertTrue(DialogueRegistries.DIALOGUES.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath(StoryFolder.DEMO, "elder")) != null,
+    public static void theTestStoryAndTheScenariosLoadWithoutIssues(GameTestHelper helper) {
+        helper.assertTrue(QuestRegistries.QUESTS.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath("demo", "night_watch")) != null,
+                "the test story's quests are loaded");
+        helper.assertTrue(DialogueRegistries.DIALOGUES.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath("demo", "elder")) != null,
                 "and its dialogues");
+        for (String scenario : StoryFolder.scenarios()) {
+            helper.assertTrue(QuestRegistries.QUESTS.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath(StoryFolder.SCENARIO, scenario + "/quest")) != null,
+                    "scenario " + scenario + " has its quest");
+            // The server knows the mod's English only; both languages' keys are compared by the lang check.
+            helper.assertTrue(net.minecraft.locale.Language.getInstance().has(StoryFolder.SCENARIO + "." + scenario + ".hint"),
+                    "scenario " + scenario + " has its hint");
+        }
         List<String> issues = ValidationService.validate().issues().stream()
-                .filter(issue -> issue.entry() != null && issue.entry().getNamespace().equals(StoryFolder.DEMO))
+                .filter(issue -> issue.entry() != null && (issue.entry().getNamespace().equals("demo") || issue.entry().getNamespace().equals(StoryFolder.SCENARIO)))
                 .map(ValidationIssue::describe)
                 .toList();
-        helper.assertTrue(issues.isEmpty(), "no issues about the demo: " + issues);
+        helper.assertTrue(issues.isEmpty(), "no issues about them: " + issues);
         ConfigTexts.Texts texts = ConfigTexts.current();
         for (String language : new String[] {"en_us", "ru_ru"}) {
             helper.assertTrue(texts.translations().getOrDefault(language, Map.of()).containsKey("demo.quest.night_watch.title"), "its titles in " + language);
-            helper.assertTrue(texts.documents().getOrDefault(language, Map.of()).containsKey(ResourceLocation.fromNamespaceAndPath(StoryFolder.DEMO, "watchman_journal")),
+            helper.assertTrue(texts.documents().getOrDefault(language, Map.of()).containsKey(ResourceLocation.fromNamespaceAndPath("demo", "watchman_journal")),
                     "its book in " + language);
         }
         helper.succeed();
     }
 
-    /** Into a folder of its own: the installed demo must not reach the data the other tests run with. */
+    /** Into a folder of its own: the installed scenario must not reach the data the other tests run with. */
     @GameTest(template = "empty")
-    public static void demoInstallsBesideTheAuthorsOwnFiles(GameTestHelper helper) {
+    public static void aScenarioInstallsBesideTheAuthorsOwnFilesAndClears(GameTestHelper helper) {
         try {
-            Path root = Files.createTempDirectory("storybound-demo");
+            Path root = Files.createTempDirectory("storybound-scenario");
             Files.createDirectories(root.resolve("lang"));
-            Files.writeString(root.resolve("lang/en_us.json"), "{ \"mypack.quest.hunt.title\": \"Hunt\", \"starter.document.book.title\": \"My own book\" }");
-            int written = StoryFolder.installDemo(root);
-            helper.assertTrue(written > 40, "the demo's files are written, got " + written);
-            helper.assertTrue(Files.isRegularFile(root.resolve("quests/demo/night_watch.json")), "a quest under quests/demo/");
-            helper.assertTrue(Files.isRegularFile(root.resolve("texts/ru_ru/demo/watchman_journal.sbt")), "texts under texts/<language>/demo/");
-            String english = Files.readString(root.resolve("lang/en_us.json"));
-            helper.assertTrue(english.contains("demo.quest.night_watch.title"), "its translations merged into lang/");
-            helper.assertTrue(english.contains("mypack.quest.hunt.title") && english.contains("My own book"), "the author's translations stay, a starter key too");
-            helper.assertFalse(Files.exists(root.resolve("documents/book.json")) || Files.exists(root.resolve("README.txt")), "only the demo's files");
-            StoryFolder.installDemo(root);
-            helper.assertTrue(Files.readString(root.resolve("lang/en_us.json")).contains("demo.quest.night_watch.title"), "installing again keeps a valid lang file");
+            Files.writeString(root.resolve("lang/en_us.json"), "{ \"mypack.quest.hunt.title\": \"Hunt\" }");
+            Files.createDirectories(root.resolve("quests/mypack"));
+            Files.writeString(root.resolve("quests/mypack/hunt.json"), "{}");
+            helper.assertTrue(StoryFolder.scenarios().containsAll(List.of("ambush", "campfire", "last_stand")), "the scenarios are bundled: " + StoryFolder.scenarios());
+            int written = StoryFolder.installScenario(root, "campfire");
+            helper.assertTrue(written == 8, "the scenario's eight files are written, got " + written);
+            helper.assertTrue(Files.isRegularFile(root.resolve("dialogues/scenario/campfire/story.json")), "a dialogue under dialogues/scenario/");
+            helper.assertTrue(Files.readString(root.resolve("lang/en_us.json")).contains("mypack.quest.hunt.title"), "the author's translations stay");
+            StoryFolder.installScenario(root, "campfire");
+            helper.assertTrue(StoryFolder.clearScenarios(root) == 8, "installing twice replaced the files; clear removes the eight");
+            helper.assertFalse(Files.exists(root.resolve("dialogues/scenario")), "and their folders");
+            helper.assertTrue(Files.isRegularFile(root.resolve("quests/mypack/hunt.json")), "the author's quest stays");
         } catch (IOException e) {
             throw new GameTestAssertException("Install failed: " + e);
         }

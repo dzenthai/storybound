@@ -1,6 +1,8 @@
 package dev.dzenthai.storybound.client.dev;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.story.StoryFlow;
@@ -57,7 +59,7 @@ final class StoryView extends GraphView {
     /** How often the shown player's progress is asked for again, in ticks. */
     private static final int PROGRESS_REFRESH = 40;
     /** The kinds of definitions, in the order "All links" puts them in columns, left to right. */
-    static final List<ResourceLocation> KINDS = List.of(ClientDevStore.TYPE_NPC, ClientDevStore.TYPE_DIALOGUE,
+    static final List<ResourceLocation> KINDS = List.of(ClientDevStore.TYPE_NPC, ClientDevStore.TYPE_PHRASES, ClientDevStore.TYPE_DIALOGUE,
             ClientDevStore.TYPE_SCRIPT, ClientDevStore.TYPE_DOCUMENT, ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_WAYPOINT, ClientDevStore.TYPE_BOSS,
             ClientDevStore.TYPE_CODEX, ClientDevStore.TYPE_EVENT);
     /** The map's grid for quests not placed by hand: a column per step of the story. */
@@ -79,6 +81,7 @@ final class StoryView extends GraphView {
             new TemplateItem("💬", "menu.new.dialogue_screen", Template.DIALOGUE_SCREEN, ClientDevStore.TYPE_DIALOGUE),
             new TemplateItem("💭", "menu.new.dialogue_bubble", Template.DIALOGUE_BUBBLE, ClientDevStore.TYPE_DIALOGUE),
             new TemplateItem("🧑", "menu.new.npc", Template.NPC, ClientDevStore.TYPE_NPC),
+            new TemplateItem("🗨", "menu.new.phrases", Template.PHRASES, ClientDevStore.TYPE_PHRASES),
             new TemplateItem("📖", "menu.new.document", Template.DOCUMENT, ClientDevStore.TYPE_DOCUMENT),
             new TemplateItem("📍", "menu.new.waypoint", Template.WAYPOINT, ClientDevStore.TYPE_WAYPOINT),
             new TemplateItem("🐉", "menu.new.boss", Template.BOSS, ClientDevStore.TYPE_BOSS),
@@ -325,6 +328,9 @@ final class StoryView extends GraphView {
 
     /** A kind's sign, as the menus show it. */
     static String glyph(ResourceLocation type) {
+        if (type.equals(ClientDevStore.TYPE_PHRASES)) {
+            return "🗨";
+        }
         if (type.equals(ClientDevStore.TYPE_QUEST)) {
             return "📜";
         }
@@ -397,6 +403,11 @@ final class StoryView extends GraphView {
     }
 
     static String badge(ResourceLocation type, JsonObject json) {
+        if (type.equals(ClientDevStore.TYPE_PHRASES)) {
+            int lines = json.get("lines") instanceof JsonArray array ? array.size() : 0;
+            boolean sequence = json.get("order") instanceof JsonPrimitive order && order.getAsString().equals("sequence");
+            return DevUi.str(sequence ? "badge.phrases_sequence" : "badge.phrases_random", lines);
+        }
         if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
             return DevUi.str("badge.script");
         }
@@ -423,6 +434,9 @@ final class StoryView extends GraphView {
     }
 
     static int color(ResourceLocation type, JsonObject json) {
+        if (type.equals(ClientDevStore.TYPE_PHRASES)) {
+            return 0xFF9CCC65;
+        }
         if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
             return 0xFFEC407A;
         }
@@ -453,6 +467,9 @@ final class StoryView extends GraphView {
 
     static ItemStack icon(NodeKey key, JsonObject json) {
         ResourceLocation type = key.type();
+        if (type.equals(ClientDevStore.TYPE_PHRASES)) {
+            return new ItemStack(Items.NAME_TAG);
+        }
         if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
             return new ItemStack(Items.COMMAND_BLOCK);
         }
@@ -1660,6 +1677,7 @@ final class StoryView extends GraphView {
         if (type.equals(ClientDevStore.TYPE_NPC)) {
             items.add(linked(screen, target, "💬", "menu.link.dialogue", Template.DIALOGUE_SCREEN, false));
             items.add(linked(screen, target, "💭", "menu.link.bubble", Template.DIALOGUE_BUBBLE, false));
+            items.add(linked(screen, target, "🗨", "menu.link.phrases", Template.PHRASES, false));
         } else if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
             items.add(MenuItem.of(Component.literal("⤢ ").append(DevUi.text("menu.open_dialogue")), () -> screen.openDialogue(target.id())));
             items.add(linked(screen, target, "📜", "menu.link.quest_main", Template.QUEST_MAIN, false));

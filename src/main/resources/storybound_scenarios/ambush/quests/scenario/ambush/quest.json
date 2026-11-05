@@ -1,0 +1,22 @@
+{
+  "category": "side",
+  "title": "scenario.ambush.quest.title",
+  "text": {
+    "active": "scenario.ambush.quest.text"
+  },
+  "stages": [
+    {
+      "id": "survive",
+      "objectives": [
+        {
+          "id": "story",
+          "text": "scenario.ambush.quest.survive",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "scenario:ambush/story"
+          }
+        }
+      ]
+    }
+  ]
+}

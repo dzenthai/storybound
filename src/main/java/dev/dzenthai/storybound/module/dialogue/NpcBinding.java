@@ -11,6 +11,7 @@ import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.condition.LogicConditions;
 import dev.dzenthai.storybound.core.state.StoryMigrations;
+import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.Comparator;
 import java.util.Set;
 import java.util.function.Function;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.ExtraCodecs;
+import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,9 +36,17 @@ import org.jetbrains.annotations.Nullable;
  * @param exclusive while the NPC talks with one player, others cannot start its dialogues (parallel talks are the default)
  * @param busyDialogue what others get meanwhile, e.g. a bubble "Wait, I am busy"; without it, nothing
  * @param respawn   the NPC comes back where it died or disappeared (see {@link NpcRespawns})
+ * @param invulnerable nothing hurts the NPC but the void and {@code /kill} (see {@link NpcReactions})
+ * @param whenAttacked what the NPC does when a player hits it; without it, what its kind does in vanilla
+ * @param chatter      the NPC says its phrases now and then to players near it (see {@link NpcChatter})
+ * @param showName     the entities it matches carry {@code displayName} over their heads (see {@link NpcNames}); on
+ *                     unless turned off, so a name written is a name shown
+ * @param displayName  the NPC's one name: over its head, and in dialogues, where a participant names nothing else
  */
 public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity,
-                         boolean custom, boolean overrideInteract, boolean exclusive, Optional<ResourceLocation> busyDialogue, boolean respawn) {
+                         boolean custom, boolean overrideInteract, boolean exclusive, Optional<ResourceLocation> busyDialogue, boolean respawn,
+                         boolean invulnerable, Optional<WhenAttacked> whenAttacked, Optional<Chatter> chatter,
+                         boolean showName, Optional<StoryText> displayName) {
     /** One selector, or a non-empty list of them; one is written back as an object, as files had it before lists. */
     private static final Codec<List<EntitySelector>> ENTITIES = Codec.either(EntitySelector.CODEC, ExtraCodecs.nonEmptyList(EntitySelector.CODEC.listOf()))
             .xmap(either -> either.map(List::of, Function.identity()),
@@ -51,11 +61,64 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
             Codec.BOOL.optionalFieldOf("override_interact", false).forGetter(NpcBinding::overrideInteract),
             Codec.BOOL.optionalFieldOf("exclusive", false).forGetter(NpcBinding::exclusive),
             ResourceLocation.CODEC.optionalFieldOf("busy_dialogue").forGetter(NpcBinding::busyDialogue),
-            Codec.BOOL.optionalFieldOf("respawn", false).forGetter(NpcBinding::respawn)
+            Codec.BOOL.optionalFieldOf("respawn", false).forGetter(NpcBinding::respawn),
+            Codec.BOOL.optionalFieldOf("invulnerable", false).forGetter(NpcBinding::invulnerable),
+            WhenAttacked.CODEC.optionalFieldOf("when_attacked").forGetter(NpcBinding::whenAttacked),
+            Chatter.CODEC.optionalFieldOf("chatter").forGetter(NpcBinding::chatter),
+            Codec.BOOL.optionalFieldOf("show_name", true).forGetter(NpcBinding::showName),
+            StoryText.CODEC.optionalFieldOf("display_name").forGetter(NpcBinding::displayName)
     ).apply(instance, NpcBinding::new));
 
     public NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity, boolean custom) {
-        this(List.of(entity), dialogues, interact, proximity, custom, false, false, Optional.empty(), false);
+        this(List.of(entity), dialogues, interact, proximity, custom, false, false, Optional.empty(), false, false, Optional.empty(), Optional.empty(),
+                true, Optional.empty());
+    }
+
+    /**
+     * What the NPC does when a player hits it (November 5, 2026; before, what its kind does: an iron golem killed the
+     * player who hit it by accident). Only players' hits count; mobs' leave it to its kind.
+     *
+     * @param reaction  {@code ignore}: no revenge; {@code flee}: runs from the player for a few seconds; {@code fight}:
+     *                  goes for the player (for kinds that can attack)
+     * @param patience  for {@code fight} only: hits forgiven before it fights back, as followers forgive a stray blow
+     * @param warning   for {@code fight} only: one of them said on each forgiven hit ("Careful!", "Once more and..."); a
+     *                  phrases node or a text of its own, as {@code phrases}
+     * @param phrases   one of them said on every hit it reacts to: for {@code fight}, those past its patience
+     * @param calmAfter seconds without a hit after which the NPC forgives everything: its reaction ends, the count of
+     *                  hits and its phrases start over
+     */
+    public record WhenAttacked(Reaction reaction, int patience, Optional<PhrasesRef> warning, Optional<PhrasesRef> phrases, float calmAfter) {
+        public static final Codec<WhenAttacked> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Reaction.CODEC.optionalFieldOf("reaction", Reaction.IGNORE).forGetter(WhenAttacked::reaction),
+                Codec.intRange(0, 20).optionalFieldOf("patience", 0).forGetter(WhenAttacked::patience),
+                PhrasesRef.CODEC.optionalFieldOf("warning").forGetter(WhenAttacked::warning),
+                PhrasesRef.CODEC.optionalFieldOf("phrases").forGetter(WhenAttacked::phrases),
+                Codec.floatRange(5f, 600f).optionalFieldOf("calm_after", 30f).forGetter(WhenAttacked::calmAfter)
+        ).apply(instance, WhenAttacked::new));
+
+        /** The hits it forgives: only an NPC that fights back has patience; the others never take revenge anyway. */
+        public int forgiven() {
+            return reaction == Reaction.FIGHT ? patience : 0;
+        }
+
+        public enum Reaction implements StringRepresentable {
+            IGNORE("ignore"),
+            FLEE("flee"),
+            FIGHT("fight");
+
+            public static final Codec<Reaction> CODEC = StringRepresentable.fromEnum(Reaction::values);
+
+            private final String name;
+
+            Reaction(String name) {
+                this.name = name;
+            }
+
+            @Override
+            public String getSerializedName() {
+                return name;
+            }
+        }
     }
 
     /** Whether the binding is for the entity: any of its selectors matches. */
@@ -131,6 +194,23 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
                 Codec.BOOL.optionalFieldOf("once", DEFAULT.once()).forGetter(Proximity::once),
                 Codec.BOOL.optionalFieldOf("line_of_sight", DEFAULT.lineOfSight()).forGetter(Proximity::lineOfSight)
         ).apply(instance, Proximity::new));
+    }
+
+    /**
+     * The NPC's chatter (November 5, 2026): now and then, while a player is within {@code radius} and the NPC is free (not
+     * in a dialogue, not angry), it says one of its phrases. The {@code conditions} are tested for the nearest of
+     * those players.
+     *
+     * @param minInterval seconds between two phrases at least; the wait is random up to {@code maxInterval}
+     */
+    public record Chatter(PhrasesRef phrases, float minInterval, float maxInterval, float radius, Condition conditions) {
+        public static final Codec<Chatter> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                PhrasesRef.CODEC.fieldOf("phrases").forGetter(Chatter::phrases),
+                Codec.floatRange(2f, 3600f).optionalFieldOf("min_interval", 20f).forGetter(Chatter::minInterval),
+                Codec.floatRange(2f, 3600f).optionalFieldOf("max_interval", 40f).forGetter(Chatter::maxInterval),
+                Codec.floatRange(1f, 32f).optionalFieldOf("radius", 8f).forGetter(Chatter::radius),
+                LogicCodecs.CONDITION.optionalFieldOf("conditions", LogicConditions.ALWAYS).forGetter(Chatter::conditions)
+        ).apply(instance, Chatter::new));
     }
 
     /**

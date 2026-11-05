@@ -167,6 +167,10 @@ public final class SceneActions {
                 if (spawned == null) {
                     throw new StoryException(Component.literal("Could not spawn " + BuiltInRegistries.ENTITY_TYPE.getKey(entity)));
                 }
+                if (!freeSpot(at.level(), spawned)) {
+                    StoryTrace.note(context.player(), "spawn_entity", BuiltInRegistries.ENTITY_TYPE.getKey(entity) + " spawned in blocks: no free spot within "
+                            + FREE_UP + " blocks up or " + FREE_AROUND + " around " + BlockPos.containing(at.pos()).toShortString());
+                }
                 if (spawned instanceof Mob mob) {
                     if (nbt.isEmpty()) {
                         // As /summon without NBT: equipment and variants the way the mob spawns naturally.
@@ -182,6 +186,49 @@ public final class SceneActions {
                     throw new StoryException(Component.literal("Could not spawn " + BuiltInRegistries.ENTITY_TYPE.getKey(entity) + ": the same uuid exists"));
                 }
             }
+        }
+
+        /** How far up, then around, a spawn stuck in blocks looks for room. */
+        static final int FREE_UP = 8;
+        static final int FREE_AROUND = 4;
+
+        /**
+         * Moves an entity stuck in blocks to the nearest place it fits: straight up (a hill where the offset was taken
+         * from lower ground), then ring by ring around, at the same height and up (November 5, 2026; before, mobs spawned
+         * by an offset on uneven ground were stuck in it and suffocated). One that fits is left where it is, also in the
+         * air or in water: a balcony or a pond may be meant. Returns false when nothing fits, leaving it where it was.
+         */
+        static boolean freeSpot(ServerLevel level, Entity spawned) {
+            if (level.noCollision(spawned)) {
+                return true;
+            }
+            Vec3 origin = spawned.position();
+            for (int up = 1; up <= FREE_UP; up++) {
+                if (fitsAt(level, spawned, origin.add(0, up, 0))) {
+                    return true;
+                }
+            }
+            for (int ring = 1; ring <= FREE_AROUND; ring++) {
+                for (int up = 0; up <= FREE_UP; up++) {
+                    for (int dx = -ring; dx <= ring; dx++) {
+                        for (int dz = -ring; dz <= ring; dz++) {
+                            if ((Math.abs(dx) == ring || Math.abs(dz) == ring) && fitsAt(level, spawned, origin.add(dx, up, dz))) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            spawned.moveTo(origin.x, origin.y, origin.z, spawned.getYRot(), spawned.getXRot());
+            return false;
+        }
+
+        private static boolean fitsAt(ServerLevel level, Entity spawned, Vec3 pos) {
+            if (pos.y < level.getMinBuildHeight() || pos.y > level.getMaxBuildHeight()) {
+                return false;
+            }
+            spawned.moveTo(pos.x, pos.y, pos.z, spawned.getYRot(), spawned.getXRot());
+            return level.noCollision(spawned);
         }
 
         /**

@@ -36,8 +36,7 @@ public final class StoryboundCommands {
                 .then(CodexCommands.codex())
                 .then(CodexCommands.boss())
                 .then(WaypointCommands.waypoint())
-                .then(PartyCommands.party())
-                .then(DemoCommands.demo()));
+                .then(PartyCommands.party()));
     }
 
     private static int validate(CommandContext<CommandSourceStack> context) {

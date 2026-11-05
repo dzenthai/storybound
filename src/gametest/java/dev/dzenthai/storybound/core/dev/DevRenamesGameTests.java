@@ -48,6 +48,28 @@ public final class DevRenamesGameTests {
         return Files.isRegularFile(ConfigStorySource.fileFor(root, definitions, id(id)));
     }
 
+    /** A node deleted in the editor takes its renames out of the editor's migrations; the others stay (November 5, 2026). */
+    @GameTest(template = "empty")
+    public static void aDeletedNodeTakesItsRenamesAlong(GameTestHelper helper) {
+        try {
+            Path root = Files.createTempDirectory("storybound-delete-node");
+            write(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString(), """
+                    { "quests": { "mypack:quest_1": "mypack:hunt", "mypack:quest_2": "mypack:hunt", "mypack:quest_3": "mypack:feast" },
+                      "objectives": { "mypack:hunt": { "objective_1": "wolves" } },
+                      "codex": { "mypack:codex_1": "mypack:hunt" } }""");
+            helper.assertTrue(DevRenames.forgetDeletedIn(root, StoryLinks.QUEST, id("mypack:hunt")), "something was taken out");
+            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString());
+            helper.assertTrue(migrations.getAsJsonObject("quests").keySet().equals(java.util.Set.of("mypack:quest_3")), "both renames to the quest go: " + migrations);
+            helper.assertFalse(migrations.has("objectives"), "and its objectives' renames (the emptied field too): " + migrations);
+            helper.assertTrue(migrations.getAsJsonObject("codex").has("mypack:codex_1"), "a Codex entry of the same id is another node: " + migrations);
+            helper.assertFalse(DevRenames.forgetDeletedIn(root, StoryLinks.QUEST, id("mypack:never")), "nothing to take out for a node never renamed");
+            helper.assertFalse(DevRenames.forgetDeletedIn(root, CoreDefinitions.DIALOGUE_LAYOUTS.id(), id("mypack:hunt")), "a type players keep nothing of");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void aRenamedDialogueNodeTakesItsPlaceAndMarksAlong(GameTestHelper helper) {
         try {

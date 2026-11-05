@@ -180,8 +180,15 @@ neoForge {
     addModdingDependenciesTo(sourceSets.gametest)
 }
 
+// The starter files plus the story the GameTests play (src/gametest/story: the former demo, never shipped; its lang files
+// hold the starter's keys too), and every debug scenario as if installed (their texts are in the mod's own lang files).
 def prepareGameTestStory = tasks.register('prepareGameTestStory', Sync) {
-    from 'src/main/resources/storybound_starter'
+    from('src/main/resources/storybound_starter') { exclude 'lang/**' }
+    from 'src/gametest/story'
+    from('src/main/resources/storybound_scenarios') {
+        eachFile { relativePath = new RelativePath(true, *relativePath.segments.drop(1)) }
+    }
+    includeEmptyDirs = false
     into 'build/gametest-story'
 }
 tasks.matching { it.name == 'runGameTestServer' }.configureEach { dependsOn prepareGameTestStory }

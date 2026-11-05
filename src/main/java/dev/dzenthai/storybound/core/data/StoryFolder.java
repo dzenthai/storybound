@@ -18,31 +18,24 @@ import net.neoforged.fml.ModList;
 
 /**
  * Sets up the story folder ({@link ConfigStorySource}) from the starter files bundled in the mod
- * ({@code storybound_starter/}, in the story folder's own layout): all of them on first run, the demo story again on
- * request.
+ * ({@code storybound_starter/}, in the story folder's own layout) on first run, and puts the debug scenarios
+ * ({@code storybound_scenarios/<name>/}) in and out of it on request.
  */
 public final class StoryFolder {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    /** The demo story's namespace: its files, texts and translation keys. */
-    public static final String DEMO = "demo";
     /**
-     * The bundled demo's version: raise it whenever the demo's files change, so a story folder with an older copy is
-     * told about it (see {@link #demoOutdated}). 2: the elder spawns once ({@code unique}), October 28, 2026; 3: Murka says she is
-     * each player's own ({@code "unique": false}), October 29, 2026; 4: a retry of Murka after failing starts her search
-     * over (reset, then active), so a new Murka is spawned, October 29, 2026; 5: the Murka who came home after a failed
-     * search runs off again on a retry, instead of a second one being spawned ({@code unique}), October 29, 2026; 6: the
-     * elder answers "more work?" by where Murka is (out there, following, home) and gives fish again, October 29, 2026;
-     * 7: waypoints without a marker style, their colours from the 16 every map shows, October 29, 2026.
+     * The debug scenarios' namespace: their files ({@code dialogues/scenario/...}), texts and translation keys
+     * ({@code scenario.*}). An author's own story never uses it, so clearing the scenarios removes nothing of theirs.
      */
-    public static final int DEMO_VERSION = 7;
-    /** In the story folder: the version of the demo copied there. Missing for copies from before versions were kept (0). */
-    static final String DEMO_VERSION_FILE = ".demo_version";
+    public static final String SCENARIO = "scenario";
+    private static final String SCENARIOS = "storybound_scenarios";
 
     private StoryFolder() {}
 
     /**
-     * Creates the story folder with a folder per definition type, a README, four blank documents and the demo story,
-     * unless it exists: deleting it brings the starter files back, changing them never does.
+     * Creates the story folder with a folder per definition type, a README and four blank documents, unless it exists:
+     * deleting it brings the starter files back, changing them never does. There is no demo story any more (November
+     * 5, 2026: it started for every player who joined, a live server's too); see the debug scenarios.
      */
     public static void createIfMissing() {
         Path root = ConfigStorySource.root();
@@ -62,77 +55,118 @@ public final class StoryFolder {
                     Files.copy(file, target);
                 }
             }
-            writeDemoVersion(root);
             Storybound.LOGGER.info("Storybound: created the story folder {}", root);
         } catch (IOException e) {
             Storybound.LOGGER.error("Storybound: could not create the story folder {}", root, e);
         }
     }
 
+    /** The debug scenarios bundled in the mod, by name. */
+    public static List<String> scenarios() {
+        Optional<Path> source = bundled(SCENARIOS);
+        if (source.isEmpty()) {
+            return List.of();
+        }
+        try (Stream<Path> names = Files.list(source.get())) {
+            return names.filter(Files::isDirectory).map(path -> path.getFileName().toString()).sorted().toList();
+        } catch (IOException e) {
+            Storybound.LOGGER.warn("Storybound: could not list the debug scenarios: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
     /**
-     * Copies the demo story from the starter files into the story folder, replacing earlier copies of its files; its
-     * translations ({@code demo.*}) are merged into the folder's lang files, and the starter's own files are left
-     * alone. For a story folder made before, or one the demo was deleted from. Returns how many files were written.
-     * {@code root} is the story folder; tests pass another.
+     * Copies a debug scenario into the story folder, replacing earlier copies of its files; its translations
+     * ({@code scenario.*}) are merged into the folder's lang files. Returns how many files were written. {@code root}
+     * is the story folder; tests pass another.
      */
-    public static int installDemo(Path root) throws IOException {
-        Path source = bundled("storybound_starter").orElseThrow(() -> new IOException("The starter files are not bundled in this build"));
+    public static int installScenario(Path root, String name) throws IOException {
+        Path source = bundled(SCENARIOS).map(folder -> folder.resolve(name)).filter(Files::isDirectory)
+                .orElseThrow(() -> new IOException("No scenario '" + name + "' in this build"));
         int written = 0;
         for (Path file : files(source)) {
             String relative = relative(source, file);
             boolean translations = relative.startsWith("lang/") && relative.endsWith(".json");
-            if (!translations && !isDemo(relative)) {
+            if (!translations && !isScenario(relative)) {
+                Storybound.LOGGER.warn("Storybound: scenario {} has {} outside the \"{}\" namespace; left out", name, relative, SCENARIO);
                 continue;
             }
             Path destination = root.resolve(relative);
             Files.createDirectories(destination.getParent());
             if (translations) {
-                mergeTranslations(file, destination, DEMO + ".");
+                mergeTranslations(file, destination, SCENARIO + ".");
             } else {
                 Files.copy(file, destination, StandardCopyOption.REPLACE_EXISTING);
             }
             written++;
         }
-        writeDemoVersion(root);
         return written;
     }
 
     /**
-     * Whether the story folder has the demo (its quests are there) in an older version than the mod brings: its files
-     * are never replaced on their own (the author may have changed them), so an operator is told to install it again.
+     * Removes every scenario from the story folder: the {@code scenario} namespace folder of each type and language and
+     * the {@code scenario.*} translations. Nothing else is touched. Returns how many files were deleted.
      */
-    public static boolean demoOutdated(Path root) {
-        if (!Files.isDirectory(root.resolve("quests").resolve(DEMO))) {
-            return false;
+    public static int clearScenarios(Path root) throws IOException {
+        if (!Files.isDirectory(root)) {
+            return 0;
         }
-        int installed = 0;
-        try {
-            Path file = root.resolve(DEMO_VERSION_FILE);
-            if (Files.exists(file)) {
-                installed = Integer.parseInt(Files.readString(file).trim());
+        int deleted = 0;
+        for (Path file : files(root)) {
+            String relative = relative(root, file);
+            if (relative.startsWith("lang/") && relative.endsWith(".json")) {
+                removeTranslations(file, SCENARIO + ".");
+            } else if (isScenario(relative)) {
+                Files.delete(file);
+                deleted++;
             }
-        } catch (IOException | NumberFormatException e) {
-            Storybound.LOGGER.warn("Storybound: could not read {}: {}", DEMO_VERSION_FILE, e.getMessage());
         }
-        return installed < DEMO_VERSION;
-    }
-
-    private static void writeDemoVersion(Path root) {
-        try {
-            Files.writeString(root.resolve(DEMO_VERSION_FILE), Integer.toString(DEMO_VERSION));
-        } catch (IOException e) {
-            Storybound.LOGGER.warn("Storybound: could not write {}: {}", DEMO_VERSION_FILE, e.getMessage());
+        // The emptied namespace folders, deepest first.
+        try (Stream<Path> walk = Files.walk(root)) {
+            for (Path folder : walk.filter(Files::isDirectory).sorted(java.util.Comparator.reverseOrder()).toList()) {
+                String relative = relative(root, folder) + "/x";
+                if (isScenario(relative) && isEmpty(folder)) {
+                    Files.delete(folder);
+                }
+            }
         }
+        return deleted;
     }
 
     /**
-     * Whether a starter file belongs to the demo: its namespace folder is {@code demo}, right inside a type's folder
-     * ({@code quests/demo/...}) or a language's ({@code texts/en_us/demo/...}). Public for tests.
+     * Whether a file belongs to the scenarios: its namespace folder is {@code scenario}, right inside a type's folder
+     * ({@code dialogues/scenario/...}) or a language's ({@code texts/en_us/scenario/...}). Public for tests.
      */
-    public static boolean isDemo(String relative) {
+    public static boolean isScenario(String relative) {
         String[] parts = relative.split("/");
         int namespace = parts[0].equals("texts") ? 2 : 1;
-        return parts.length > namespace + 1 && parts[namespace].equals(DEMO);
+        return parts.length > namespace + 1 && parts[namespace].equals(SCENARIO);
+    }
+
+    private static boolean isEmpty(Path folder) throws IOException {
+        try (Stream<Path> entries = Files.list(folder)) {
+            return entries.findAny().isEmpty();
+        }
+    }
+
+    /** Takes the translations starting with {@code prefix} out of a lang file. */
+    private static void removeTranslations(Path file, String prefix) throws IOException {
+        JsonObject kept = new JsonObject();
+        boolean removed = false;
+        try {
+            for (var entry : JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject().entrySet()) {
+                if (entry.getKey().startsWith(prefix)) {
+                    removed = true;
+                } else {
+                    kept.add(entry.getKey(), entry.getValue());
+                }
+            }
+        } catch (JsonParseException | IllegalStateException e) {
+            throw new IOException(file + " is not a valid lang file: " + e.getMessage(), e);
+        }
+        if (removed) {
+            Files.writeString(file, GSON.toJson(kept) + "\n", StandardCharsets.UTF_8);
+        }
     }
 
     /** Adds the file's translations starting with {@code prefix} to the lang file at {@code destination}, replacing the same keys. */

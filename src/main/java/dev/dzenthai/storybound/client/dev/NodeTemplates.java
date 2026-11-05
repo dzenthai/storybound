@@ -17,7 +17,7 @@ final class NodeTemplates {
     }
 
     enum Template {
-        QUEST_MAIN, QUEST_SIDE, CONTRACT, DIALOGUE_SCREEN, DIALOGUE_BUBBLE, NPC, DOCUMENT, WAYPOINT, BOSS, CODEX, EVENT, SCRIPT
+        QUEST_MAIN, QUEST_SIDE, CONTRACT, DIALOGUE_SCREEN, DIALOGUE_BUBBLE, NPC, PHRASES, DOCUMENT, WAYPOINT, BOSS, CODEX, EVENT, SCRIPT
     }
 
     /**
@@ -95,7 +95,8 @@ final class NodeTemplates {
                 dialogue.addProperty("start", "greet");
                 JsonObject npc = new JsonObject();
                 npc.addProperty("type", "bound");
-                ClientDevStore.writeStoryText(npc, "name", texts.get("template.villager"), key(ClientDevStore.TYPE_DIALOGUE, id, "participant.npc.name"));
+                // No name of its own: the NPC talked to is named as it is in the world (its name over its head, a name tag,
+                // its kind). Before (November 6, 2026), "Speaker" was written here and shown instead of the NPC's name.
                 JsonObject participants = new JsonObject();
                 participants.add("npc", npc);
                 dialogue.add("participants", participants);
@@ -113,8 +114,22 @@ final class NodeTemplates {
                 JsonObject npc = new JsonObject();
                 npc.addProperty("interact", true);
                 npc.addProperty("override_interact", true);
+                // Its tag is its name: an entity carrying it is this NPC (November 6, 2026); what kind it is is asked next.
+                JsonObject entity = new JsonObject();
+                entity.addProperty("tag", id.getPath().replace('/', '_'));
+                npc.add("entity", entity);
                 npc.add("dialogues", new JsonArray());
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_NPC, id), npc, Optional.empty(), 0));
+            }
+            case PHRASES -> {
+                // One empty line to write in at once.
+                ResourceLocation id = ClientDevStore.id("phrases_" + number);
+                JsonObject phrases = new JsonObject();
+                phrases.addProperty("order", "random");
+                JsonArray lines = new JsonArray();
+                lines.add("");
+                phrases.add("lines", lines);
+                yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_PHRASES, id), phrases, Optional.empty(), 0));
             }
             case DOCUMENT -> {
                 ResourceLocation id = ClientDevStore.id("document_" + number);

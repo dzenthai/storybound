@@ -1,0 +1,53 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:ambush"
+  },
+  "actions": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "scenario_mira",
+      "unique": true,
+      "name": "scenario.ambush.mira",
+      "offset": [
+        2,
+        0,
+        2
+      ],
+      "nbt": {
+        "CustomNameVisible": true
+      }
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:ambush/quest",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:ambush/quest",
+      "state": "active"
+    },
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:husk",
+      "count": 3,
+      "tag": "scenario_ambush_husk",
+      "offset": [
+        7,
+        0,
+        -6
+      ],
+      "persistent": false
+    },
+    {
+      "type": "wait",
+      "seconds": 1.5
+    },
+    {
+      "type": "start_dialogue",
+      "dialogue": "scenario:ambush/story"
+    }
+  ]
+}

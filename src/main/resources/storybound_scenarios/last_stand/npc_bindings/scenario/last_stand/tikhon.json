@@ -1,0 +1,21 @@
+{
+  "entity": {
+    "type": "minecraft:villager",
+    "tag": "scenario_tikhon"
+  },
+  "dialogues": [
+    {
+      "dialogue": "scenario:last_stand/story",
+      "conditions": {
+        "type": "quest",
+        "quest": "scenario:last_stand/quest",
+        "stage": "listen"
+      }
+    }
+  ],
+  "override_interact": true,
+  "when_attacked": {
+    "reaction": "flee",
+    "phrases": "scenario:last_stand/hit"
+  }
+}

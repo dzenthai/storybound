@@ -1,0 +1,41 @@
+{
+  "participants": {
+    "brann": {
+      "type": "virtual",
+      "name": "scenario.campfire.brann"
+    }
+  },
+  "presentation": "hud",
+  "start": "pick",
+  "nodes": {
+    "pick": {
+      "type": "random",
+      "options": [
+        {
+          "next": "a"
+        },
+        {
+          "next": "b"
+        },
+        {
+          "next": "c"
+        }
+      ]
+    },
+    "a": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.callout.a"
+    },
+    "b": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.callout.b"
+    },
+    "c": {
+      "type": "line",
+      "speaker": "brann",
+      "text": "scenario.campfire.callout.c"
+    }
+  }
+}

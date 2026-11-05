@@ -44,7 +44,7 @@ class StoryRenamesTest {
                 "the namespace is the story's, set in the project");
         assertEquals(Optional.of(Problem.FORMAT), StoryRenames.problem(StoryLinks.NPC, ELDER, "npc/elder", EXISTS), "no folders");
         assertTrue(StoryRenames.isStoryNamespace("my_story") && StoryRenames.isStoryNamespace("storybound"));
-        for (String bad : List.of("demo", "minecraft", "My_Story", "my story", "a/b", "a:b", "", "..")) {
+        for (String bad : List.of("scenario", "minecraft", "My_Story", "my story", "a/b", "a:b", "", "..")) {
             assertTrue(!StoryRenames.isStoryNamespace(bad), bad);
         }
     }
@@ -53,6 +53,8 @@ class StoryRenamesTest {
     void aNameIsRefusedOnlyWhenTheSameKindHasIt() {
         assertEquals(Optional.of(Problem.SAME), StoryRenames.problem(StoryLinks.NPC, ELDER, "demo:elder", EXISTS));
         assertEquals(Optional.of(Problem.SAME), StoryRenames.problem(StoryLinks.NPC, ELDER, "elder", EXISTS));
+        assertEquals(Optional.of(Problem.SAME), StoryRenames.problem(StoryLinks.NPC, id("scenario:campfire/brann"), "campfire/brann", EXISTS),
+                "a node in a folder: its own name is not wrong, though a new one may not have a folder");
         assertEquals(Optional.of(Problem.FORMAT), StoryRenames.problem(StoryLinks.NPC, ELDER, "Old Man", EXISTS));
         assertEquals(Optional.of(Problem.TAKEN), StoryRenames.problem(StoryLinks.NPC, ELDER, "smith", EXISTS));
         // A quest demo:elder is another kind: an NPC may be renamed to that name, and a quest to an NPC's.

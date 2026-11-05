@@ -29,9 +29,9 @@ class ProjectSettingsTest {
 
     @Test
     void aNamespaceAStoryMayNotUseIsReportedAndReplaced() throws IOException {
-        Files.writeString(root.resolve(ProjectSettings.FILE_NAME), "{ \"source_language\": \"en_us\", \"namespace\": \"demo\" }");
+        Files.writeString(root.resolve(ProjectSettings.FILE_NAME), "{ \"source_language\": \"en_us\", \"namespace\": \"scenario\" }");
         List<String> problems = new ArrayList<>();
-        assertEquals("storybound", ProjectSettings.load(root, problems::add).namespace(), "the demo's own namespace is not a story's");
-        assertTrue(problems.size() == 1 && problems.getFirst().contains("namespace \"demo\""), problems.toString());
+        assertEquals("storybound", ProjectSettings.load(root, problems::add).namespace(), "the debug scenarios' own namespace is not a story's");
+        assertTrue(problems.size() == 1 && problems.getFirst().contains("namespace \"scenario\""), problems.toString());
     }
 }

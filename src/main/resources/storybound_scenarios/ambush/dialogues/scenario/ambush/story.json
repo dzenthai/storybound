@@ -1,0 +1,33 @@
+{
+  "participants": {
+    "mira": {
+      "type": "virtual",
+      "name": "scenario.ambush.mira"
+    }
+  },
+  "presentation": "hud",
+  "combat": {
+    "mode": "pause",
+    "quiet": 4
+  },
+  "start": "l1",
+  "nodes": {
+    "l1": {
+      "type": "line",
+      "speaker": "mira",
+      "text": "scenario.ambush.story.l1",
+      "next": "l2"
+    },
+    "l2": {
+      "type": "line",
+      "speaker": "mira",
+      "text": "scenario.ambush.story.l2",
+      "next": "l3"
+    },
+    "l3": {
+      "type": "line",
+      "speaker": "mira",
+      "text": "scenario.ambush.story.l3"
+    }
+  }
+}

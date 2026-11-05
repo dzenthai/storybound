@@ -60,6 +60,7 @@ import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -494,7 +495,7 @@ public final class LogicGameTests {
                   { "type": "wait", "seconds": 0.5 },
                   { "type": "add_var", "key": "gametest:waited", "amount": 1 } ]
                 """)).getOrThrow(GameTestAssertException::new);
-        // The demo story's welcome scene waits for every new player too, so only this list's tasks are counted.
+        // Other tasks may wait for the player (a story event of the test story), so only this list's are counted.
         int before = ScheduledActions.pending(helper.getLevel().getServer(), player.getUUID());
         helper.assertTrue(Actions.runAll(actions, context, "gametest wait", OnFail.ABORT), "the list is done at once");
         expect(helper, stored(player, "waited"), Optional.of(new StoryValue.Int(1)), "before the wait, at once");
@@ -507,6 +508,32 @@ public final class LogicGameTests {
             helper.getLevel().getServer().getPlayerList().remove(player);
             helper.succeed();
         });
+    }
+
+    /** A mob spawned by an offset into a hill comes out on top of it, not stuck in it (November 5, 2026). */
+    @GameTest(template = "open")
+    public static void aSpawnInBlocksMovesToRoom(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.moveTo(helper.absoluteVec(new Vec3(1.5, 1, 1.5)));
+        // A hill two blocks high where the offset lands.
+        helper.setBlock(new BlockPos(3, 1, 1), Blocks.STONE);
+        helper.setBlock(new BlockPos(3, 2, 1), Blocks.STONE);
+        var ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        var actions = LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString("""
+                [ { "type": "spawn_entity", "entity": "minecraft:zombie", "offset": [2, 0, 0], "tag": "gametest_hill", "nbt": { "NoAI": true } },
+                  { "type": "spawn_entity", "entity": "minecraft:zombie", "offset": [0, 0, 2], "tag": "gametest_flat", "nbt": { "NoAI": true } } ]
+                """)).getOrThrow(GameTestAssertException::new);
+        helper.assertTrue(Actions.runAll(actions, StoryContext.of(player), "gametest spawn", OnFail.ABORT), "both spawn");
+        Zombie hill = helper.getLevel().getEntitiesOfClass(Zombie.class, player.getBoundingBox().inflate(8), zombie -> zombie.getTags().contains("gametest_hill")).getFirst();
+        Zombie flat = helper.getLevel().getEntitiesOfClass(Zombie.class, player.getBoundingBox().inflate(8), zombie -> zombie.getTags().contains("gametest_flat")).getFirst();
+        helper.assertTrue(helper.getLevel().noCollision(hill), "the one in the hill is in no block");
+        helper.assertTrue(Math.abs(hill.getY() - (player.getY() + 2)) < 0.01 && Math.abs(hill.getX() - (player.getX() + 2)) < 0.01,
+                "right on top of the hill: " + hill.position() + " from " + player.position());
+        helper.assertTrue(Math.abs(flat.getY() - player.getY()) < 0.01 && Math.abs(flat.getZ() - (player.getZ() + 2)) < 0.01, "one with room stays where it was asked");
+        hill.discard();
+        flat.discard();
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
     }
 
     @GameTest(template = "empty")

@@ -281,7 +281,7 @@ public final class StoryMigrations {
                     } else if (current.chainLoops(kind, from)) {
                         sink.accept(ValidationIssue.error(type.id(), file, what + ": the renames go round in a loop"));
                     } else if (kind.definitions() != null && !defined(kind, current.id(kind, from))) {
-                        sink.accept(ValidationIssue.warning(type.id(), file, what + ": " + current.id(kind, from) + " is not defined"));
+                        sink.accept(ValidationIssue.warning(type.id(), file, what + ": " + current.id(kind, from) + " is not defined (deleted? take the line out of migrations/" + file.getPath() + ".json)"));
                     }
                 });
             }

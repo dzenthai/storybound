@@ -101,10 +101,10 @@ final class DevRenames {
     /**
      * Moves every node of the story folder in one namespace to another, as many renames at once (the story's namespace
      * changed in the project, October 29, 2026): what names them, their texts and players' progress follow. Refused as a
-     * whole when a node of the same kind already has a new id; {@code demo} and {@code minecraft} are never moved.
+     * whole when a node of the same kind already has a new id; {@code scenario} (the debug scenarios) and {@code minecraft} are never moved.
      */
     static void moveNamespace(ServerPlayer player, String from, String to) {
-        if (!StoryRenames.isStoryNamespace(to) && !to.equals(dev.dzenthai.storybound.core.data.ProjectSettings.DEFAULT_NAMESPACE) || from.equals(to) || from.equals("demo") || from.equals("minecraft")) {
+        if (!StoryRenames.isStoryNamespace(to) && !to.equals(dev.dzenthai.storybound.core.data.ProjectSettings.DEFAULT_NAMESPACE) || from.equals(to) || from.equals(dev.dzenthai.storybound.core.data.StoryFolder.SCENARIO) || from.equals("minecraft")) {
             refuse(player, "Cannot move the nodes of " + from + " to " + to);
             return;
         }
@@ -359,6 +359,59 @@ final class DevRenames {
         StoryRenames.addInsideMigration(migrations, CODEX_SECTIONS, entry, from, to);
         write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS), migrations);
         return references;
+    }
+
+    /**
+     * A node deleted in the editor: the renames that lead to it, and those inside it (a quest's stages and objectives, a
+     * Codex entry's sections), are taken out of the editor's migrations file, as they lead nowhere now and the validator
+     * warned about each (November 5, 2026). Its long texts stay: undoing the delete brings back the node, not files.
+     */
+    static void forgetDeleted(MinecraftServer server, ResourceLocation typeId, ResourceLocation id) {
+        Path root = ConfigStorySource.root();
+        try {
+            if (forgetDeletedIn(root, typeId, id)) {
+                reloadType(root, CoreDefinitions.MIGRATIONS, RegistryOps.create(JsonOps.INSTANCE, server.registryAccess()), List.of());
+                StoryMigrations.reload();
+            }
+        } catch (IOException e) {
+            Storybound.LOGGER.warn("Storybound: could not take the renames of deleted {} out of the editor's migrations: {}", id, e.getMessage());
+        }
+    }
+
+    /** {@link #forgetDeleted} on the files of the story folder {@code root}; whether anything was taken out. For tests. */
+    static boolean forgetDeletedIn(Path root, ResourceLocation typeId, ResourceLocation id) throws IOException {
+        String field = StoryRenames.migrationField(typeId);
+        Path file = ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS);
+        if (field == null || !Files.isRegularFile(file)) {
+            return false;
+        }
+        JsonObject migrations = readMigrations(root);
+        boolean changed = false;
+        if (migrations.get(field) instanceof JsonObject renames) {
+            for (String from : List.copyOf(renames.keySet())) {
+                if (renames.get(from) instanceof JsonPrimitive to && id.toString().equals(to.getAsString())) {
+                    renames.remove(from);
+                    changed = true;
+                }
+            }
+        }
+        List<String> inside = typeId.equals(StoryLinks.QUEST) ? List.of("stages", "objectives")
+                : typeId.equals(StoryLinks.CODEX) ? List.of(CODEX_SECTIONS) : List.of();
+        for (String owners : inside) {
+            if (migrations.get(owners) instanceof JsonObject byOwner && byOwner.remove(id.toString()) != null) {
+                changed = true;
+            }
+        }
+        if (!changed) {
+            return false;
+        }
+        for (String key : List.copyOf(migrations.keySet())) {
+            if (migrations.get(key) instanceof JsonObject emptied && emptied.isEmpty()) {
+                migrations.remove(key);
+            }
+        }
+        write(file, migrations);
+        return true;
     }
 
     private static void refuse(ServerPlayer player, String message) {

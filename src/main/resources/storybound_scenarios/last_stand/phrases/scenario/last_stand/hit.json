@@ -1,0 +1,7 @@
+{
+  "order": "sequence",
+  "lines": [
+    "scenario.last_stand.tikhon_warn",
+    "scenario.last_stand.tikhon_flee"
+  ]
+}

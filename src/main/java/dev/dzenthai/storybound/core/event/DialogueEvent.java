@@ -74,6 +74,11 @@ public abstract sealed class DialogueEvent extends Event {
         LOGGED_OUT,
         /** A command, a script or the module being disabled. */
         STOPPED,
+        /**
+         * A fight: the dialogue's {@code combat} says {@code stop}, a pause lasted past its {@code forget_after}, or the
+         * player attacked the NPC they talked to, which got angry.
+         */
+        COMBAT,
         /** Broken data or an aborted action node; see the log. */
         ERROR
     }

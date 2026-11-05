@@ -1,0 +1,15 @@
+{
+  "trigger": {
+    "type": "entity_killed",
+    "entity": "minecraft:husk"
+  },
+  "conditions": {
+    "type": "quest",
+    "quest": "scenario:campfire/quest",
+    "stage": "listen"
+  },
+  "actions": {
+    "type": "start_dialogue",
+    "dialogue": "scenario:campfire/callout"
+  }
+}

@@ -42,6 +42,7 @@ public final class ClientDevStore {
     public static final ResourceLocation TYPE_CHAPTER = Storybound.id("chapter");
     public static final ResourceLocation TYPE_DIALOGUE_LAYOUT = Storybound.id("dialogue_layout");
     public static final ResourceLocation TYPE_SCRIPT = StoryLinks.SCRIPT;
+    public static final ResourceLocation TYPE_PHRASES = StoryLinks.PHRASES;
 
     private static volatile Map<ResourceLocation, Map<ResourceLocation, String>> definitions = Map.of();
     private static volatile List<String> issues = List.of();
@@ -326,6 +327,24 @@ public final class ClientDevStore {
             obj.addProperty(field, useKey);
         }
         pendingTranslationsFor(activeLanguage).put(useKey, value);
+    }
+
+    /**
+     * A text in a list of texts ({@code say}: one of several lines), as {@link #readStoryText} reads one in a field
+     * (November 5, 2026; before, the editor could not edit such a list: "+ Add" put an empty object in it).
+     */
+    public static String readStoryTextAt(JsonArray array, int index, String language) {
+        JsonObject holder = new JsonObject();
+        holder.add("text", array.get(index));
+        return readStoryText(holder, "text", "", language);
+    }
+
+    /** Writes a text in a list of texts under its key, or {@code key} when it has none yet, as {@link #writeStoryText}. */
+    public static void writeStoryTextAt(JsonArray array, int index, String value, String key) {
+        JsonObject holder = new JsonObject();
+        holder.add("text", array.get(index));
+        writeStoryText(holder, "text", value, key);
+        array.set(index, holder.get("text"));
     }
 
     public static boolean hasTranslation(String key, String language) {

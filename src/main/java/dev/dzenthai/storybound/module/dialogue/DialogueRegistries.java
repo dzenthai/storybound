@@ -18,6 +18,10 @@ public final class DialogueRegistries {
     public static final DefinitionType<NpcBinding> NPC_BINDINGS = DefinitionTypes.register(
             DefinitionType.serverOnly(Storybound.id("npc_binding"), "storybound/npc_bindings", NpcBinding.CODEC));
 
+    /** An NPC's short lines for chatter and for being hit (November 5, 2026). */
+    public static final DefinitionType<PhrasesDefinition> PHRASES = DefinitionTypes.register(
+            DefinitionType.serverOnly(Storybound.id("phrases"), "storybound/phrases", PhrasesDefinition.CODEC));
+
     private static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES = DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, Storybound.MOD_ID);
 
     /** A binding stored on one entity by {@code /storybound npc bind}; check {@code hasData}, the default is a placeholder. */

@@ -409,6 +409,7 @@ public final class DevModeServer {
             player.sendSystemMessage(Component.literal(e.getMessage()).withStyle(ChatFormatting.RED));
             return;
         }
+        DevRenames.forgetDeleted(player.server, typeId, id);
         rebuildAndSync(player.server);
         sendSnapshot(player);
     }

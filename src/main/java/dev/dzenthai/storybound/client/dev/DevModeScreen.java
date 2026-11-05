@@ -499,7 +499,7 @@ public class DevModeScreen extends Screen {
 
     /**
      * Makes the story's namespace the typed one: new nodes go there from now on. When nodes are left in the old one
-     * (the demo's never are: it has its own), the window offers to move them.
+     * (the debug scenarios' never are: they have their own), the window offers to move them.
      */
     private void saveNamespace() {
         if (namespaceBox == null) {
@@ -522,7 +522,7 @@ public class DevModeScreen extends Screen {
         for (ResourceLocation type : StoryRenames.RENAMEABLE) {
             left += (int) ClientDevStore.byType(type).keySet().stream().filter(id -> id.getNamespace().equals(old)).count();
         }
-        if (left > 0 && !old.equals("demo")) {
+        if (left > 0 && !old.equals(dev.dzenthai.storybound.core.data.StoryFolder.SCENARIO)) {
             namespaceMoveFrom = old;
             namespaceMoveCount = left;
             languageError = Component.empty();
