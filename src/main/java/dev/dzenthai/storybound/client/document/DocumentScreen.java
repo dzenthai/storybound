@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.client.document;
 
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.UiPalette;
+import dev.dzenthai.storybound.client.menu.BookButton;
 import dev.dzenthai.storybound.client.menu.BookGuiGraphics;
 import dev.dzenthai.storybound.client.menu.BookViewport;
 import dev.dzenthai.storybound.client.menu.JournalSkin;
@@ -11,6 +12,7 @@ import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.document.sbt.SbtBlock;
 import dev.dzenthai.storybound.module.document.sbt.SbtLayout;
 import dev.dzenthai.storybound.module.document.sbt.SbtParser;
+import dev.dzenthai.storybound.network.TakeLecternBookPayload;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -19,12 +21,15 @@ import net.minecraft.util.Mth;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.FormattedCharSequence;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
@@ -57,6 +62,12 @@ public class DocumentScreen extends Screen {
     private static final int SCROLL_LINES = 3;
     /** Between the last line of a page and its page number and arrows. */
     private static final int FOOTER_GAP = 2;
+    /** The buttons under a book, in its pixels: "Done", and "Take Book" on a lectern, as vanilla's lectern has. */
+    private static final int BUTTON_WIDTH = 72;
+    private static final int BUTTON_HEIGHT = 16;
+    private static final int BUTTON_GAP = 8;
+    private static final int BUTTON_TOP = 6;
+    private static final int BUTTON_ROOM = BUTTON_TOP + BUTTON_HEIGHT + 4;
 
     private final ResourceLocation documentId;
     private final @Nullable Screen parent;
@@ -83,9 +94,17 @@ public class DocumentScreen extends Screen {
     private float upAlpha;
     private float downAlpha;
     private float scale = 1;
+    /**
+     * A unit of the leather book's text in its pixels, so it reads at the Adventure Menu's size ({@link BookViewport#bookText};
+     * November 5, 2026; before, a unit was a pixel of the book and its text 1.5 to 2 times the menu's); 1 for the rest.
+     */
+    private float textScale = 1;
     private float left;
     private float top;
     private boolean soundPlayed;
+    /** The lectern the book lies on, when it was opened from one; null from the hand, the Journal or the editor. */
+    private @Nullable BlockPos lectern;
+    private final List<BookButton> buttons = new ArrayList<>();
 
     /** @param parent shown again on close, e.g. the Journal; null returns to the game */
     public DocumentScreen(ResourceLocation documentId, @Nullable Screen parent) {
@@ -98,6 +117,12 @@ public class DocumentScreen extends Screen {
         this.documentId = documentId;
         this.parent = parent;
         this.source = source;
+    }
+
+    /** Read from a lectern: under the book, "Take Book" besides "Done" (November 4, 2026). */
+    public DocumentScreen fromLectern(@Nullable BlockPos pos) {
+        lectern = pos;
+        return this;
     }
 
     @Override
@@ -119,22 +144,59 @@ public class DocumentScreen extends Screen {
                 && style.width() == NOTE_WIDTH && style.height() == NOTE_HEIGHT;
         readingContract = definition.kind() == DocumentKind.CONTRACT && style.texture().equals(READING_CONTRACT)
                 && style.width() == CONTRACT_WIDTH && style.height() == CONTRACT_HEIGHT;
-        layout();
-        spread = Math.min(spread, Math.max(0, (pages.size() - 1) / 2));
-        scale = Math.min(1f, Math.min((width - 16f) / style.width(), (height - 16f) / style.height()));
+        // A book keeps room under it for its buttons.
+        int room = book ? BUTTON_ROOM : 0;
+        scale = Math.min(1f, Math.min((width - 16f) / style.width(), (height - 16f) / (style.height() + room)));
         left = (width - style.width() * scale) / 2f;
-        top = (height - style.height() * scale) / 2f;
+        top = (height - (style.height() + room) * scale) / 2f;
+        textScale = 1;
         if (printedSurface()) {
             var window = minecraft.getWindow();
             BookViewport viewport = BookViewport.document(window.getWidth(), window.getHeight(), window.getGuiScale(), style.width(), style.height());
             scale = (float) viewport.scale();
             left = (float) viewport.toGuiX((BookViewport.WIDTH - style.width()) / 2);
             top = (float) viewport.toGuiY((BookViewport.HEIGHT - style.height()) / 2);
+            if (readingBook) {
+                textScale = (float) BookViewport.bookText(window.getWidth(), window.getHeight(), style.width(), style.height());
+            }
         }
+        // The pages are laid out in the text's units, so after the scale (the window may have been resized).
+        layout();
+        spread = Math.min(spread, Math.max(0, (pages.size() - 1) / 2));
         if (!soundPlayed) {
             playSound(style.openSound());
             soundPlayed = true;
         }
+        layoutButtons();
+    }
+
+    /**
+     * Under a book, in its pixels: "Done", and "Take Book" before it when it lies on a lectern and the player may take
+     * it (not in adventure mode, as vanilla's lectern; the server checks again).
+     */
+    private void layoutButtons() {
+        buttons.clear();
+        if (!book) {
+            return;
+        }
+        boolean take = lectern != null && minecraft.player != null && minecraft.player.mayBuild();
+        int count = take ? 2 : 1;
+        int x = (style.width() - count * BUTTON_WIDTH - (count - 1) * BUTTON_GAP) / 2;
+        int y = style.height() + BUTTON_TOP;
+        if (take) {
+            buttons.add(new BookButton(x, y, BUTTON_WIDTH, BUTTON_HEIGHT, Component.translatable("lectern.take_book"), button -> takeBook())
+                    .withLabelScale(textScale));
+            x += BUTTON_WIDTH + BUTTON_GAP;
+        }
+        buttons.add(new BookButton(x, y, BUTTON_WIDTH, BUTTON_HEIGHT, CommonComponents.GUI_DONE, button -> onClose())
+                .withLabelScale(textScale));
+    }
+
+    private void takeBook() {
+        if (lectern != null) {
+            PacketDistributor.sendToServer(new TakeLecternBookPayload(lectern, documentId));
+        }
+        onClose();
     }
 
     private void layout() {
@@ -172,8 +234,8 @@ public class DocumentScreen extends Screen {
             }
         });
         Style base = Style.EMPTY.withFont(style.font());
-        int pageHeight = book ? textHeight() : Integer.MAX_VALUE;
-        pages = SbtLayout.paginate(blocks, base, pageWidth(), pageHeight, style.lineHeight(), font::split);
+        int pageHeight = book ? textUnits(textHeight()) : Integer.MAX_VALUE;
+        pages = SbtLayout.paginate(blocks, base, textUnits(pageWidth()), pageHeight, style.lineHeight(), font::split);
         if (hasTitlePage()) {
             List<SbtLayout.Page> withTitle = new ArrayList<>(pages.size() + 1);
             withTitle.add(new SbtLayout.Page(List.of()));
@@ -204,6 +266,11 @@ public class DocumentScreen extends Screen {
         return printedSheet() ? available / style.lineHeight() * style.lineHeight() : available;
     }
 
+    /** A length in the sheet's pixels as whole units of the text ({@link #textScale}). */
+    private int textUnits(int pixels) {
+        return (int) Math.floor(pixels / textScale + 1e-4);
+    }
+
     private int textTop() {
         return style.padding().top() + scrollHeaderHeight;
     }
@@ -231,6 +298,13 @@ public class DocumentScreen extends Screen {
 
     private int forwardX() {
         return rightPageX() + pageWidth() - ARROW_WIDTH;
+    }
+
+    /** Minecraft's blur and darkening, then the world a step dimmer, as behind the Adventure Menu. */
+    @Override
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.renderBackground(graphics, mouseX, mouseY, partialTick);
+        JournalSkin.dimWorld(graphics, width, height);
     }
 
     @Override
@@ -277,6 +351,9 @@ public class DocumentScreen extends Screen {
             boolean hover = overForward(sheetX, sheetY);
             drawPageArrow(graphics, forwardX(), footerY(), true, hover);
         }
+        for (BookButton button : buttons) {
+            button.render(graphics, (int) Math.floor(sheetX), (int) Math.floor(sheetY), 0);
+        }
     }
 
     private void drawPageArrow(GuiGraphics graphics, int x, int y, boolean forward, boolean hover) {
@@ -287,14 +364,9 @@ public class DocumentScreen extends Screen {
             graphics.blitSprite(sprite, x, y, ARROW_WIDTH, ARROW_HEIGHT);
             return;
         }
-        int color = UiPalette.opaque(hover ? UiPalette.DARK_BROWN : UiPalette.TAN);
-        int center = x + ARROW_WIDTH / 2;
-        graphics.fill(center - 6, y + 6, center + 7, y + 8, color);
-        for (int step = 0; step < 3; step++) {
-            int tip = forward ? center + 5 - step * 2 : center - 5 + step * 2;
-            graphics.fill(tip, y + 6 - step * 2, tip + 2, y + 8 - step * 2, color);
-            graphics.fill(tip, y + 6 + step * 2, tip + 2, y + 8 + step * 2, color);
-        }
+        // The scroll arrows' page-turning kind, in the middle of the arrow's place (November 4, 2026; before, a chevron).
+        ScrollArrows.drawSide(graphics, x + (ARROW_WIDTH - ScrollArrows.SIDE_WIDTH) / 2, y + (ARROW_HEIGHT - ScrollArrows.SIDE_HEIGHT) / 2,
+                1, forward, hover);
     }
 
     private void renderScrolling(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -421,34 +493,42 @@ public class DocumentScreen extends Screen {
 
     private void drawPage(GuiGraphics graphics, int index, int x, int y) {
         if (index < pages.size()) {
+            // The scissor is in the sheet's pixels, so it is set before the text's scale.
             if (readingBook) graphics.enableScissor(x, y, x + pageWidth(), y + textHeight());
+            graphics.pose().pushPose();
+            graphics.pose().translate(x, y, 0);
+            graphics.pose().scale(textScale, textScale, 1);
             if (index == 0 && hasTitlePage()) {
-                drawTitlePage(graphics, x, y);
+                drawTitlePage(graphics);
             } else {
-                drawLines(graphics, pages.get(index).lines(), x, y);
+                drawLines(graphics, pages.get(index).lines(), 0, 0);
             }
+            graphics.pose().popPose();
             if (readingBook) graphics.disableScissor();
         }
     }
 
-    private void drawTitlePage(GuiGraphics graphics, int x, int y) {
+    /** The book's title in the middle of its first page, in the text's units from the page's top left. */
+    private void drawTitlePage(GuiGraphics graphics) {
         Component title = definition.title().asComponent().copy()
                 .withStyle(text -> text.withFont(style.font()).withBold(true).withColor(UiPalette.INK));
+        int width = textUnits(pageWidth());
+        int height = textUnits(textHeight());
         int titleScale = 2;
-        List<FormattedCharSequence> lines = font.split(title, pageWidth() / titleScale);
-        if (lines.size() * 11 * titleScale > textHeight() - 24) {
+        List<FormattedCharSequence> lines = font.split(title, width / titleScale);
+        if (lines.size() * 11 * titleScale > height - 24) {
             titleScale = 1;
-            lines = font.split(title, pageWidth());
+            lines = font.split(title, width);
         }
         int lineStep = 11;
-        int visibleLines = Math.min(lines.size(), (textHeight() - 24) / (lineStep * titleScale));
+        int visibleLines = Math.min(lines.size(), (height - 24) / (lineStep * titleScale));
         int titleHeight = (visibleLines - 1) * lineStep * titleScale + 7 * titleScale;
         graphics.pose().pushPose();
-        graphics.pose().translate(x, y + (textHeight() - titleHeight) / 2, 0);
+        graphics.pose().translate(0, (height - titleHeight) / 2, 0);
         graphics.pose().scale(titleScale, titleScale, 1);
         for (int line = 0; line < visibleLines; line++) {
             FormattedCharSequence text = lines.get(line);
-            graphics.drawString(font, text, (pageWidth() / titleScale - font.width(text)) / 2,
+            graphics.drawString(font, text, (width / titleScale - font.width(text)) / 2,
                     line * lineStep, UiPalette.INK, false);
         }
         graphics.pose().popPose();
@@ -476,7 +556,11 @@ public class DocumentScreen extends Screen {
             return;
         }
         Component number = Component.translatable("storybound.document.page", index + 1, pages.size());
-        graphics.drawString(font, number, centerX - font.width(number) / 2, footerY() + 3, style.color(), false);
+        graphics.pose().pushPose();
+        graphics.pose().translate(centerX, footerY() + 3, 0);
+        graphics.pose().scale(textScale, textScale, 1);
+        graphics.drawString(font, number, -font.width(number) / 2, 0, style.color(), false);
+        graphics.pose().popPose();
     }
 
     private int maxScroll(SbtLayout.Page page) {
@@ -530,6 +614,11 @@ public class DocumentScreen extends Screen {
             if (hasNextSpread() && overForward(x, y)) {
                 turn(1);
                 return true;
+            }
+            for (BookButton widget : List.copyOf(buttons)) {
+                if (widget.mouseClicked(x, y, button)) {
+                    return true;
+                }
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);

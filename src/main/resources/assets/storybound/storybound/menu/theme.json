@@ -1,10 +1,4 @@
 {
-    "journal_book":  true,
-    "archive_chrome":  true,
-    "chrome_palette":  "parchment",
-    "panel":  "storybound:menu/panel",
-    "tab":  "storybound:menu/tab",
-    "tab_selected":  "storybound:menu/tab_selected",
     "title":  "#483020",
     "ink":  "#483020",
     "muted":  "#806747",

@@ -3,10 +3,8 @@ package dev.dzenthai.storybound.client.journal;
 import dev.dzenthai.storybound.client.ClientJournal;
 import dev.dzenthai.storybound.client.SeenMarks;
 import dev.dzenthai.storybound.client.document.DocumentScreen;
-import dev.dzenthai.storybound.client.menu.ArchiveChrome;
+import dev.dzenthai.storybound.client.menu.BookButton;
 import dev.dzenthai.storybound.client.menu.ListDetailView;
-import dev.dzenthai.storybound.client.menu.MenuTheme;
-import dev.dzenthai.storybound.client.menu.MenuThemes;
 import dev.dzenthai.storybound.client.menu.JournalSkin;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
@@ -19,7 +17,6 @@ import java.util.Map;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
@@ -33,19 +30,17 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         var layout = screen.bookLayout();
-        if (layout != null) {
-            int size = 170;
-            int right = layout.content().right() - 5;
-            int bottom = layout.content().bottom() - 4;
-            // The intact print occupies a fixed envelope outside the reading area.
-            com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-            graphics.blit(VIGNETTE, right - size, bottom - size,
-                    size, size, 0, 0, 1254, 1254, 1254, 1254);
-            // Three accents sit in transparent space, clear of the text and border.
-            star(graphics, right - 158, bottom - 37, 4);
-            star(graphics, right - 108, bottom - 39, 3);
-            star(graphics, right - 29, bottom - 128, 3);
-        }
+        int size = 170;
+        int right = layout.content().right() - 5;
+        int bottom = layout.content().bottom() - 4;
+        // The intact print occupies a fixed envelope outside the reading area.
+        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+        graphics.blit(VIGNETTE, right - size, bottom - size,
+                size, size, 0, 0, 1254, 1254, 1254, 1254);
+        // Three accents sit in transparent space, clear of the text and border.
+        star(graphics, right - 158, bottom - 37, 4);
+        star(graphics, right - 108, bottom - 39, 3);
+        star(graphics, right - 29, bottom - 128, 3);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -68,12 +63,12 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
 
     @Override
     protected int detailWidth() {
-        return super.detailWidth() - (screen.bookLayout() == null ? 0 : 44);
+        return super.detailWidth() - 44;
     }
 
     @Override
     protected int detailBottom() {
-        return super.detailBottom() - (screen.bookLayout() == null ? 0 : readButton.visible ? 55 : 33);
+        return super.detailBottom() - (readButton.visible ? 55 : 33);
     }
 
     /** True while the Journal has an entry the player has not opened yet. */
@@ -88,43 +83,9 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
 
     @Override
     protected void init() {
-        readButton = addWidget(new ArchiveChrome.ArchiveButton(left + width - 80, buttonY(), 80, 18,
+        readButton = addWidget(new BookButton(left + width - 80, buttonY(), 80, 18,
                 JournalSkin.text(Component.translatable("storybound.journal.read")), button -> openSelected()));
         super.init();
-    }
-
-    @Override
-    protected int rowHeight() {
-        if (screen.bookLayout() != null) return super.rowHeight();
-        return MenuThemes.INSTANCE.archiveChrome() ? 18 : super.rowHeight();
-    }
-
-    @Override
-    protected void renderListRow(GuiGraphics graphics, MenuTheme theme, Row<Entry> row, int y, boolean selected, boolean hovered) {
-        if (screen.bookLayout() != null || !MenuThemes.INSTANCE.archiveChrome()) {
-            super.renderListRow(graphics, theme, row, y, selected, hovered);
-            return;
-        }
-        if (row.entry() == null) {
-            graphics.drawString(font, Language.getInstance().getVisualOrder(
-                    font.substrByWidth(row.text().copy().withStyle(ChatFormatting.BOLD), listWidth() - 10)),
-                    left + 5, y + 4, theme.accent(), false);
-            graphics.fill(left + 5, y + 15, left + listWidth() - 5, y + 16, 0x504E4541);
-            return;
-        }
-        if (selected || hovered) {
-            graphics.fill(left + 1, y + 1, left + listWidth() - 1, y + rowHeight() - 1,
-                    selected ? theme.selection() : theme.hover());
-        }
-        if (selected) {
-            graphics.fill(left + 1, y + 3, left + 2, y + rowHeight() - 3, theme.accent());
-            graphics.fill(left + 2, y + 1, left + listWidth() - 1, y + 2, 0x226D5762);
-        }
-        if (isUnseen(row.entry())) {
-            graphics.fill(left + 5, y + 8, left + 7, y + 10, theme.unseen());
-        }
-        String text = font.plainSubstrByWidth(row.text().getString(), listWidth() - 16);
-        graphics.drawString(font, text, left + 10, y + 5, selected ? theme.title() : theme.ink(), false);
     }
 
     @Override
@@ -184,25 +145,10 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
     @Override
     protected void buildDetail(Entry entry, Detail detail) {
         detail.heading(entry.title().copy().withStyle(ChatFormatting.BOLD), theme().title()).gap(4);
-        if (screen.bookLayout() != null) {
-            detail.block(14, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
-                    JournalSkin.bookRule(graphics, screen.bookLayout(), x, y + 3, Math.min(width, 130), theme().divider()));
-        } else if (MenuThemes.INSTANCE.archiveChrome()) {
-            detail.block(9, (graphics, x, y, width, mouseX, mouseY, partialTick) -> {
-                graphics.fill(x, y + 1, x + Math.min(28, width), y + 2, theme().accent());
-                graphics.fill(x + Math.min(28, width), y + 1, x + width, y + 2, theme().divider());
-            });
-        }
+        detail.block(14, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
+                JournalSkin.bookRule(graphics, screen.bookLayout(), x, y + 3, Math.min(width, 130), theme().divider()));
         if (entry.note() != null) {
-            if (screen.bookLayout() != null) {
-                detail.text(entry.note().text().toComponent(), theme().ink());
-            } else if (MenuThemes.INSTANCE.archiveChrome()) {
-                for (var line : detail.font().split(entry.note().text().toComponent(), detail.width())) {
-                    detail.line(line, theme().ink(), 13);
-                }
-            } else {
-                detail.text(entry.note().text().toComponent(), theme().ink());
-            }
+            detail.text(entry.note().text().toComponent(), theme().ink());
         } else {
             detail.text(Component.translatable("storybound.journal.document_hint"), theme().muted());
         }
@@ -217,7 +163,7 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
     protected void selectionChanged() {
         Entry entry = selected();
         readButton.visible = entry != null && entry.document() != null;
-        if (screen.bookLayout() != null && readButton.visible) {
+        if (readButton.visible) {
             int headingLines = font.split(JournalSkin.heading(entry.title()), Math.max(1, detailWidth() / 2)).size();
             int hintLines = font.split(JournalSkin.text(Component.translatable("storybound.journal.document_hint")), detailWidth()).size();
             int afterText = detailTop() + headingLines * 22 + hintLines * 13 + 33;

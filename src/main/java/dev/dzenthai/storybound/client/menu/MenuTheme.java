@@ -2,20 +2,16 @@ package dev.dzenthai.storybound.client.menu;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.core.data.ColorCodec;
-import net.minecraft.resources.ResourceLocation;
 
 /**
- * Colours and sprites of the Adventure Menu, from {@code assets/storybound/storybound/menu/theme.json}
- * (a resource pack overrides it). Sprites are GUI sprites, usually nine-sliced through their {@code .mcmeta}.
+ * Colours of the Adventure Menu and the HUD, from {@code assets/storybound/storybound/menu/theme.json} (a resource
+ * pack overrides it; November 4, 2026, its sprites of a panel and tabs went with the menu without the book).
  */
-public record MenuTheme(ResourceLocation panel, ResourceLocation tab, ResourceLocation tabSelected,
-                        int title, int ink, int muted, int accent, int unseen, int completed, int failed,
+public record MenuTheme(int title, int ink, int muted, int accent, int unseen, int completed, int failed,
                         int selection, int hover, int divider, int hudBackground, int hudTitle, int hudText) {
     public static final MenuTheme FALLBACK = new MenuTheme(
-            Storybound.id("menu/panel"), Storybound.id("menu/tab"), Storybound.id("menu/tab_selected"),
             // As theme.json, in the author's palette (October 31, 2026); muted and the HUD's background are not in it.
             UiPalette.opaque(UiPalette.INK), UiPalette.opaque(UiPalette.INK), 0xFF806747, UiPalette.opaque(UiPalette.DARK_BROWN),
             UiPalette.opaque(UiPalette.OCHRE), UiPalette.opaque(UiPalette.GREEN_DARK), UiPalette.opaque(UiPalette.RED_SHADOW),
@@ -26,9 +22,6 @@ public record MenuTheme(ResourceLocation panel, ResourceLocation tab, ResourceLo
     public static final Codec<Integer> COLOR = ColorCodec.CODEC;
 
     public static final Codec<MenuTheme> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            ResourceLocation.CODEC.optionalFieldOf("panel", FALLBACK.panel).forGetter(MenuTheme::panel),
-            ResourceLocation.CODEC.optionalFieldOf("tab", FALLBACK.tab).forGetter(MenuTheme::tab),
-            ResourceLocation.CODEC.optionalFieldOf("tab_selected", FALLBACK.tabSelected).forGetter(MenuTheme::tabSelected),
             COLOR.optionalFieldOf("title", FALLBACK.title).forGetter(MenuTheme::title),
             COLOR.optionalFieldOf("ink", FALLBACK.ink).forGetter(MenuTheme::ink),
             COLOR.optionalFieldOf("muted", FALLBACK.muted).forGetter(MenuTheme::muted),

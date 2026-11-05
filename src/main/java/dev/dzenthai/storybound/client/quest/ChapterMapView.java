@@ -46,13 +46,11 @@ public class ChapterMapView extends MenuView {
     }
 
     private int listWidth() {
-        if (screen.bookLayout() != null) return screen.bookLayout().indexWidth();
-        return Math.max(90, width / 4);
+        return screen.bookLayout().indexWidth();
     }
 
     private int canvasLeft() {
-        if (screen.bookLayout() != null) return screen.bookLayout().detailLeft();
-        return left + listWidth() + 8;
+        return screen.bookLayout().detailLeft();
     }
 
     private @Nullable ChapterMap.Chapter chapter() {
@@ -98,7 +96,6 @@ public class ChapterMapView extends MenuView {
         }
         ChapterMap.Chapter current = chapter();
         renderChapters(graphics, theme, chapters, current, mouseX, mouseY);
-        if (screen.bookLayout() == null) graphics.fill(canvasLeft() - 4, top, canvasLeft() - 3, top + height, theme.divider());
         if (current == null) {
             return;
         }

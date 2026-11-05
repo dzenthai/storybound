@@ -34,8 +34,8 @@ import org.jetbrains.annotations.Nullable;
  * is lost the fill runs back to nothing, its percent counting down, and only then fades. Looked at again on the way
  * down, it turns and fills from where it is.
  * <p>
- * The bar is the author's art ({@code textures/gui/observation/bar.png}, from {@code ui-kit/concepts/documents/
- * newloader.png}, October 31, 2026; before, a pixel ring round the crosshair drawn by the code, then the same day a
+ * The bar is the author's art ({@code textures/gui/observation/bar.png}, from the author's concept,
+ * October 31, 2026; before, a pixel ring round the crosshair drawn by the code, then the same day a
  * 73 × 7 bar drawn a step larger than the HUD): three strips of {@link #BAR_WIDTH} × {@link #BAR_HEIGHT}, the frame
  * with a dark translucent ground inside it, the full fill in gold, and the full fill in the glint that runs over it at
  * the end, each fill strip with its tip (the chevron spark, {@link #TIP} columns) beside it. While it grows the fill is

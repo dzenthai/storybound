@@ -43,6 +43,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import dev.dzenthai.storybound.module.document.DocumentEvents;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LecternBlock;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -242,6 +247,51 @@ public final class DocumentGameTests {
 
     private static ResourceLocation key(String path) {
         return ResourceLocation.fromNamespaceAndPath("gametest", path);
+    }
+
+    /** "Take Book" under a book read from a lectern: the book goes into the player's inventory and the lectern empties. */
+    @GameTest(template = "empty")
+    public static void takeBookMovesItFromTheLecternToTheInventory(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        BlockPos lectern = lecternWith(helper, player, LETTER);
+        helper.assertTrue(DocumentEvents.takeFromLectern(player, lectern, LETTER), "taken");
+        helper.assertTrue(!helper.getLevel().getBlockState(lectern).getValue(LecternBlock.HAS_BOOK), "the lectern is empty");
+        helper.assertTrue(player.getInventory().items.stream().anyMatch(stack -> new DocumentRef(LETTER).equals(stack.get(DocumentRegistries.DOCUMENT_COMPONENT.get()))),
+                "the book is in the inventory");
+        helper.assertTrue(!DocumentEvents.takeFromLectern(player, lectern, LETTER), "an empty lectern gives nothing");
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * The server refuses "Take Book" when the book on the lectern is another one (swapped while reading), the player
+     * may not build (adventure mode, as vanilla's lectern) or stands too far; the book stays on the lectern.
+     */
+    @GameTest(template = "empty")
+    public static void takeBookIsRefusedForAnotherBookAdventureOrDistance(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        BlockPos lectern = lecternWith(helper, player, LETTER);
+        helper.assertTrue(!DocumentEvents.takeFromLectern(player, lectern, key("other")), "another book on the lectern");
+        player.setGameMode(GameType.ADVENTURE);
+        helper.assertTrue(!DocumentEvents.takeFromLectern(player, lectern, LETTER), "adventure mode");
+        player.setGameMode(GameType.SURVIVAL);
+        player.teleportTo(lectern.getX() + 40.5, lectern.getY(), lectern.getZ() + 0.5);
+        helper.assertTrue(!DocumentEvents.takeFromLectern(player, lectern, LETTER), "too far");
+        helper.assertTrue(helper.getLevel().getBlockState(lectern).getValue(LecternBlock.HAS_BOOK), "the book stays");
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /** A lectern next to the player, holding the document {@code id}; its absolute position. */
+    private static BlockPos lecternWith(GameTestHelper helper, ServerPlayer player, ResourceLocation id) {
+        BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+        helper.getLevel().setBlockAndUpdate(pos, Blocks.LECTERN.defaultBlockState());
+        player.teleportTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5);
+        helper.assertTrue(LecternBlock.tryPlaceBook(player, helper.getLevel(), pos, helper.getLevel().getBlockState(pos), Documents.createStack(id, null)),
+                "the book is placed on the lectern");
+        return pos;
     }
 
     private static Optional<StoryValue> stored(ServerPlayer player, String path) {

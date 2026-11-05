@@ -75,6 +75,40 @@ class BookViewportTest {
         }
     }
 
+    /**
+     * The leather book read as an item has the Adventure Menu's text: a unit of it is as many window pixels as a unit
+     * of the menu's, whole, wherever the menu's are; elsewhere (a small window) a unit stays a pixel of the book.
+     */
+    @Test
+    void theBookItemsTextIsTheMenus() {
+        JournalLayout book = JournalLayout.fit(BookViewport.MENU_WIDTH, BookViewport.MENU_HEIGHT);
+        // Window → window pixels to a pixel of the font in both (1.5 to 2 times larger in the item before).
+        double[][] expected = {{1920, 2}, {1366, 1}, {3840, 4}};
+        for (int[] window : new int[][]{{1920, 1080}, {2560, 1440}, {3840, 2160}, {3440, 1440}, {1366, 768}, {1280, 720},
+                {1600, 900}, {1024, 768}, {854, 480}, {640, 360}}) {
+            var menu = BookViewport.wholePixels(window[0], window[1], 1, JournalSkin.BOOK_WIDTH, book);
+            JournalLayout drawn = JournalLayout.fit(menu.width(), menu.height());
+            double menuBookPixel = (menu.toGuiX(drawn.x() + drawn.width()) - menu.toGuiX(drawn.x())) / JournalSkin.BOOK_WIDTH;
+            double itemBookPixel = BookViewport.document(window[0], window[1], 1, 384, 256).scale();
+            double unit = BookViewport.bookText(window[0], window[1], 384, 256);
+            double itemUnit = itemBookPixel * unit;
+            String at = " at " + window[0] + "x" + window[1];
+            if (menuBookPixel >= 2 && itemBookPixel >= 2) {
+                assertEquals(menuBookPixel, itemBookPixel, 1e-9, "the books are as large" + at);
+                assertEquals(menu.scale(), itemUnit, 1e-9, "the text is as large" + at);
+                assertEquals(Math.rint(itemUnit), itemUnit, 1e-9, "whole window pixels" + at);
+            }
+            if (itemBookPixel < 2) {
+                assertEquals(1, unit, 1e-9, "a small window keeps a unit a pixel" + at);
+            }
+            for (double[] known : expected) {
+                if (known[0] == window[0] && itemBookPixel >= 2) {
+                    assertEquals(known[1], itemUnit, 1e-9, at);
+                }
+            }
+        }
+    }
+
     @Test
     void guiScaleDoesNotChangePhysicalBookOrHitTargets() {
         for (int[] size : new int[][]{{1280, 800}, {1920, 1080}, {854, 480}, {3440, 1440}, {800, 1000}}) {

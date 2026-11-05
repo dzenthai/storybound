@@ -55,23 +55,48 @@ public final class DocumentEvents {
             return;
         }
         Player player = event.getEntity();
-        if (player.isSecondaryUseActive()) {
-            if (!level.isClientSide()) {
-                ItemStack taken = book.copy();
-                lectern.clearContent();
-                LecternBlock.resetBookState(player, level, pos, state, false);
-                level.playSound(null, pos, SoundEvents.BOOK_PUT, SoundSource.BLOCKS, 1.0F, 1.0F);
-                ItemHandlerHelper.giveItemToPlayer(player, taken);
+        DocumentRef ref = book.get(DocumentRegistries.DOCUMENT_COMPONENT.get());
+        // Sneaking takes it, as "Take Book" under it does; one who may not build reads it instead, as vanilla's lectern.
+        if (player.isSecondaryUseActive() && player.mayBuild()) {
+            if (player instanceof ServerPlayer serverPlayer && ref != null) {
+                takeFromLectern(serverPlayer, pos, ref.id());
             }
-        } else if (player instanceof ServerPlayer serverPlayer) {
-            DocumentRef ref = book.get(DocumentRegistries.DOCUMENT_COMPONENT.get());
-            if (ref != null) {
-                Documents.read(serverPlayer, ref.id(), true);
-                LecternBlock.signalPageChange(level, pos, state);
-            }
+        } else if (player instanceof ServerPlayer serverPlayer && ref != null) {
+            Documents.read(serverPlayer, ref.id(), true, pos);
+            LecternBlock.signalPageChange(level, pos, state);
         }
         event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide()));
         event.setCanceled(true);
+    }
+
+    /**
+     * Takes the book off the lectern at {@code pos} into the player's inventory (on the ground by them when it is full):
+     * only when that lectern still holds this document, the player is within vanilla's lectern reach and may build
+     * (not in adventure mode). False, with nothing done, otherwise: another player took it, the lectern is gone, the
+     * book was swapped.
+     */
+    public static boolean takeFromLectern(ServerPlayer player, BlockPos pos, ResourceLocation document) {
+        Level level = player.level();
+        if (!player.isAlive() || player.isSpectator() || !player.mayBuild() || !level.isLoaded(pos)
+                || !player.canInteractWithBlock(pos, 4.0)) {
+            return false;
+        }
+        BlockState state = level.getBlockState(pos);
+        if (!state.is(Blocks.LECTERN) || !state.getValue(LecternBlock.HAS_BOOK)
+                || !(level.getBlockEntity(pos) instanceof LecternBlockEntity lectern)) {
+            return false;
+        }
+        ItemStack book = lectern.getBook();
+        DocumentRef ref = book.get(DocumentRegistries.DOCUMENT_COMPONENT.get());
+        if (!book.is(DocumentRegistries.DOCUMENT_ITEM.get()) || ref == null || !ref.id().equals(document)) {
+            return false;
+        }
+        ItemStack taken = book.copy();
+        lectern.clearContent();
+        LecternBlock.resetBookState(player, level, pos, state, false);
+        level.playSound(null, pos, SoundEvents.BOOK_PUT, SoundSource.BLOCKS, 1.0F, 1.0F);
+        ItemHandlerHelper.giveItemToPlayer(player, taken);
+        return true;
     }
 
     private static void onDatapackSync(OnDatapackSyncEvent event) {

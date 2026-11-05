@@ -1,8 +1,8 @@
 package dev.dzenthai.storybound.client;
 
 /**
- * The author's palette for what the code draws beside their art ({@code aseprite/palette/}, exported to
- * {@code ui-kit/palette/}; October 31, 2026, before the same day {@code ui-kit/assets/pallete.png}): the scroll arrows,
+ * The author's palette for what the code draws beside their art ({@code aseprite/palette/}; October 31, 2026,
+ * before the same day an 18-colour sheet): the scroll arrows,
  * the observation HUD, the documents' and the book's rules and text, the bookmarks, the menu theme's defaults. Five
  * sheets: the paper and wood ramp down to the ink, the dark tones (a brown bridge from the ink to black, burgundy,
  * neutral blacks), gold, iron to steel, and four colours of four tones each (light, base, shadow, dark). Every colour

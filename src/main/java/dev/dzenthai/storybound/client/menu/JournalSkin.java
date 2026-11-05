@@ -24,13 +24,22 @@ public final class JournalSkin {
     public static final int BOOK_HEIGHT = 256;
     private JournalSkin() {}
 
+    /**
+     * The world behind the Adventure Menu and the documents, a step dimmer than Minecraft's own blur and darkening, so a
+     * page reads the same over any world (November 5, 2026: the documents too, in the palette's charcoal; before, the
+     * menu alone, in a greenish black {@code #0E1713} left from its first, dark design, so the world behind a book read
+     * from the inventory looked brighter than behind the menu).
+     */
+    public static void dimWorld(GuiGraphics graphics, int width, int height) {
+        graphics.fill(0, 0, width, height, 0x45000000 | UiPalette.CHARCOAL);
+    }
+
     public static Component text(Component text) {
-        return MenuThemes.INSTANCE.journalBook() ? text.copy().withStyle(style -> style.withFont(FONT)) : text;
+        return text.copy().withStyle(style -> style.withFont(FONT));
     }
 
     public static Component heading(Component text) {
-        return MenuThemes.INSTANCE.journalBook()
-                ? text.copy().withStyle(style -> style.withFont(HEADING_FONT).withBold(true)) : text;
+        return text.copy().withStyle(style -> style.withFont(HEADING_FONT).withBold(true));
     }
 
     public static void book(GuiGraphics graphics, JournalLayout layout) {

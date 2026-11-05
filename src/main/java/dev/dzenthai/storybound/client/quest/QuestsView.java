@@ -4,12 +4,11 @@ import dev.dzenthai.storybound.client.ClientQuests;
 import dev.dzenthai.storybound.client.SeenMarks;
 import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.client.menu.AdventureMenu;
-import dev.dzenthai.storybound.client.menu.ArchiveChrome;
+import dev.dzenthai.storybound.client.menu.BookButton;
 import dev.dzenthai.storybound.client.menu.AdventureMenuScreen;
 import dev.dzenthai.storybound.client.menu.ListDetailView;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.client.menu.JournalSkin;
-import dev.dzenthai.storybound.client.menu.MenuThemes;
 import dev.dzenthai.storybound.core.logic.condition.WorldConditions;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
@@ -67,11 +66,11 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
 
     @Override
     protected void init() {
-        boolean stacked = screen.bookLayout() != null && detailWidth() < 180;
+        boolean stacked = detailWidth() < 180;
         int buttonWidth = stacked ? detailWidth() : Math.min(90, Math.max(36, (detailWidth() - 4) / 2));
-        trackButton = addWidget(new ArchiveChrome.ArchiveButton(left + width - buttonWidth,
+        trackButton = addWidget(new BookButton(left + width - buttonWidth,
                 buttonY() + (stacked ? 22 : 0), buttonWidth, 18, Component.empty(), button -> toggleTracking()).withPin());
-        claimButton = addWidget(new ArchiveChrome.ArchiveButton(left + width - buttonWidth,
+        claimButton = addWidget(new BookButton(left + width - buttonWidth,
                 trackButton.getY(), buttonWidth, 18, Component.translatable("storybound.quests.rewards.claim"), button -> claim())
                 .withReadyEffect(() -> chosen >= 0 && claimButton.visible && claimButton.active));
         super.init();
@@ -160,8 +159,7 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         if (!entries.isEmpty()) {
             rows.add(new Row<>(Component.translatable(title), null, 0));
             // Rewards waiting to be claimed are marked, so the player comes back for them.
-            entries.forEach(entry -> rows.add(new Row<>(!MenuThemes.INSTANCE.journalBook() && ClientQuests.waitingReward(entry.id()).isPresent()
-                    ? Component.literal("✦ ").append(entry.title()) : entry.title(), entry, color)));
+            entries.forEach(entry -> rows.add(new Row<>(entry.title(), entry, color)));
         }
     }
 
@@ -241,12 +239,8 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
                     : Component.translatable("storybound.quests.repeat_ready");
             detail.text(repeat, theme.ink());
         }
-        if (screen.bookLayout() != null) {
-            detail.block(10, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
-                    JournalSkin.bookRule(graphics, screen.bookLayout(), x, y + 4, width, theme.divider()));
-        } else {
-            detail.gap(6);
-        }
+        detail.block(10, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
+                JournalSkin.bookRule(graphics, screen.bookLayout(), x, y + 4, width, theme.divider()));
 
         definition.text().forStatus(progress.status()).or(definition::description)
                 .ifPresent(text -> detail.text(text.asComponent(), theme.ink()).gap(6));
@@ -425,7 +419,7 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         }
         if (!rewards.choice().isEmpty()) {
             detail.gap(2).text(Component.translatable("storybound.quests.rewards.choice"), theme.ink());
-            if (screen.bookLayout() != null && waiting.isPresent()) {
+            if (waiting.isPresent()) {
                 var instruction = font.split(JournalSkin.text(Component.translatable(chosen >= 0
                         ? "storybound.quests.rewards.ready" : "storybound.quests.rewards.choose")), detail.width());
                 int instructionHeight = Math.max(1, instruction.size()) * 13 + 2;
@@ -437,24 +431,11 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
             }
             for (int i = 0; i < rewards.choice().size(); i++) {
                 ItemStack stack = rewards.choice().get(i).stack();
-                Component text = Component.literal(stack.getCount() + " × ").append(stack.getHoverName());
-                if (screen.bookLayout() != null) {
-                    int index = i;
-                    detail.rewardChoice(stack, index == chosen, theme.ink(), waiting.isPresent() ? () -> {
-                        chosen = index;
-                        refreshDetail();
-                    } : null);
-                    continue;
-                }
-                if (waiting.isPresent()) {
-                    int index = i;
-                    detail.clickable(index == chosen ? "◉" : "○", text, index == chosen ? theme.accent() : theme.ink(), () -> {
-                        chosen = index;
-                        refreshDetail();
-                    });
-                } else {
-                    detail.item("○", text, theme.ink());
-                }
+                int index = i;
+                detail.rewardChoice(stack, index == chosen, theme.ink(), waiting.isPresent() ? () -> {
+                    chosen = index;
+                    refreshDetail();
+                } : null);
             }
         }
         long times = ClientQuests.waitingRewards(entry.id());
@@ -465,17 +446,16 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
 
     @Override
     protected int detailBottom() {
-        return super.detailBottom() - (screen.bookLayout() != null ? 18 : 0);
+        return super.detailBottom() - 18;
     }
 
     @Override
     protected int buttonRowHeight() {
-        return screen.bookLayout() != null && detailWidth() < 180 ? 44 : super.buttonRowHeight();
+        return detailWidth() < 180 ? 44 : super.buttonRowHeight();
     }
 
     private Component difficultyLabel(QuestDefinition.Difficulty difficulty) {
         Component label = DifficultyScale.current().render(difficulty);
-        if (screen.bookLayout() == null) return label;
         int rank = DifficultyScale.current().stars(difficulty);
         int ink = rank <= 1 ? UiPalette.GREEN_DARK : rank == 2 ? UiPalette.OCHRE_DARK : UiPalette.RED_SHADOW;
         return Component.literal(label.getString()).withColor(ink);

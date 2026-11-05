@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.module.document;
 
+import net.minecraft.core.BlockPos;
 import dev.dzenthai.storybound.core.logic.Actions;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
@@ -29,13 +30,18 @@ public final class Documents {
      * @return false if no such document is loaded
      */
     public static boolean read(ServerPlayer player, ResourceLocation id, boolean openScreen) {
+        return read(player, id, openScreen, null);
+    }
+
+    /** As {@link #read(ServerPlayer, ResourceLocation, boolean)}, the book lying on the lectern at {@code lectern}. */
+    public static boolean read(ServerPlayer player, ResourceLocation id, boolean openScreen, @Nullable BlockPos lectern) {
         DocumentDefinition definition = DocumentRegistries.DOCUMENTS.serverStore().getOrNull(id);
         if (definition == null) {
             player.sendSystemMessage(Component.translatable("storybound.document.unknown", id.toString()).withStyle(ChatFormatting.RED));
             return false;
         }
         if (openScreen) {
-            StoryboundNetwork.sendToPlayer(player, new OpenDocumentPayload(id));
+            StoryboundNetwork.sendToPlayer(player, new OpenDocumentPayload(id, java.util.Optional.ofNullable(lectern)));
         }
         boolean first = Journal.markRead(player, id, definition.journal().addOnRead());
         StoryContext context = StoryContext.of(player);

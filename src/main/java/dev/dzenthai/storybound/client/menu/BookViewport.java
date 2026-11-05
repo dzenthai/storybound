@@ -39,14 +39,34 @@ public record BookViewport(double scale, double x, double y, int width, int heig
      * any factor instead, so its text stays readable.
      */
     public static BookViewport document(int framebufferWidth, int framebufferHeight, double guiScale, int width, int height) {
-        double fitting = Math.min(FILL_HEIGHT * framebufferHeight / height, FILL_WIDTH * framebufferWidth / width);
-        double physicalScale = Math.floor(fitting) >= 2 ? Math.floor(fitting) : fitting;
+        double physicalScale = documentPixel(framebufferWidth, framebufferHeight, width, height);
         double sheetLeft = Math.floor((framebufferWidth - width * physicalScale) / 2);
         double sheetTop = Math.floor((framebufferHeight - height * physicalScale) / 2);
         // The sheet sits at the canvas' middle, as the screen places it: (WIDTH - width) / 2 whole units in.
         double canvasLeft = sheetLeft - (WIDTH - width) / 2 * physicalScale;
         double canvasTop = sheetTop - (HEIGHT - height) / 2 * physicalScale;
         return new BookViewport(physicalScale / guiScale, canvasLeft / guiScale, canvasTop / guiScale, WIDTH, HEIGHT);
+    }
+
+    /** Window pixels to a pixel of a document's {@code width × height} sheet, as {@link #document} places it. */
+    private static double documentPixel(int framebufferWidth, int framebufferHeight, int width, int height) {
+        double fitting = Math.min(FILL_HEIGHT * framebufferHeight / height, FILL_WIDTH * framebufferWidth / width);
+        return Math.floor(fitting) >= 2 ? Math.floor(fitting) : fitting;
+    }
+
+    /**
+     * A unit of a book document's text in pixels of its {@code width × height} sheet, so the book read as an item has
+     * the Adventure Menu's text: the menu's {@link #textUnit} for the window pixels {@link #document} gives a sheet
+     * pixel, 2/3 at 3 window pixels a pixel (November 5, 2026; before, a unit was a sheet pixel and the book's text 1.5
+     * to 2 times the menu's). 1 where the sheet's pixels are not whole or under 2 window pixels, or no unit fits.
+     */
+    public static double bookText(int framebufferWidth, int framebufferHeight, int width, int height) {
+        double perPixel = documentPixel(framebufferWidth, framebufferHeight, width, height);
+        if (perPixel != Math.floor(perPixel)) {
+            return 1;
+        }
+        int perUnit = textUnit((int) perPixel, width);
+        return perUnit > 0 ? perUnit / perPixel : 1;
     }
 
     private static BookViewport fit(int framebufferWidth, int framebufferHeight, double guiScale, int width, int height) {

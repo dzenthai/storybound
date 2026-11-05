@@ -88,8 +88,8 @@ final class BookmarkPixels {
             }
     };
     /**
-     * The emblems in a pale tint of their cloth's colour (light, body, shadow), the author's from
-     * {@code ui-kit/concepts/samples/icons.svg}: the one exception to the palette, which dropped these pale tints
+     * The emblems in a pale tint of their cloth's colour (light, body, shadow), the author's:
+     * the one exception to the palette, which dropped these pale tints
      * (October 31, 2026; the same day, paper-coloured thread on every cloth for a while). The map's cloth turned ochre
      * the same day, so its emblem takes the gold sheet's light tones instead of its old pale blue.
      */

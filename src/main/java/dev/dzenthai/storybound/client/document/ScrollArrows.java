@@ -44,6 +44,24 @@ public final class ScrollArrows {
             "..bcdedb..",
             "...bcdb...",
             "....bb...."};
+    /**
+     * The page arrow of a book, pointing left: the up arrow turned on its side, its light and shade swapped so the
+     * light still falls from above (November 4, 2026; before, a chevron drawn in two browns). {@link #RIGHT} mirrors it.
+     */
+    private static final String[] LEFT = {
+            "....bb.....",
+            "...beb.....",
+            "..beebbbbb.",
+            ".beddddddeb",
+            "beddddddddb",
+            "bdfddddddcb",
+            ".bdccccccdb",
+            "..bdcbbbbb.",
+            "...bcb.....",
+            "....bb....."};
+    private static final String[] RIGHT = mirror(LEFT);
+    public static final int SIDE_WIDTH = 11;
+    public static final int SIDE_HEIGHT = 10;
     /** The palette's ink, the ornaments' browns and the paper for the glint; under the mouse the browns go a step lighter. */
     private static final int OUTLINE = UiPalette.INK;
     private static final int SHADE = UiPalette.DARK_BROWN;
@@ -83,18 +101,38 @@ public final class ScrollArrows {
         graphics.pose().pushPose();
         graphics.pose().translate((float) (centerX - WIDTH / 2.0 * pixel), (float) (top + (bob + slide) * pixel), LAYER + 1);
         graphics.pose().scale((float) pixel, (float) pixel, 1);
-        String[] rows = up ? UP : DOWN;
+        paint(graphics, up ? UP : DOWN, hover);
+        graphics.pose().popPose();
+    }
+
+    /**
+     * A book's page arrow, its top left at ({@code left}, {@code top}), {@code pixel} units to a pixel of it: as
+     * {@link #draw}, pointing back or {@code forward}, bobbing a whole pixel towards where it turns.
+     */
+    public static void drawSide(GuiGraphics graphics, double left, double top, double pixel, boolean forward, boolean hover) {
+        double phase = (Util.getMillis() % (long) BOB_MS) / BOB_MS;
+        int bob = hover ? 0 : (int) Math.round(0.5 - 0.5 * Math.cos(phase * 2 * Math.PI)) * (forward ? 1 : -1);
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate((float) (left + bob * pixel), (float) top, LAYER + 1);
+        graphics.pose().scale((float) pixel, (float) pixel, 1);
+        paint(graphics, forward ? RIGHT : LEFT, hover);
+        graphics.pose().popPose();
+    }
+
+    /** An arrow's pixels from its top left, one unit each, over its ink shadow down and to the left. */
+    private static void paint(GuiGraphics graphics, String[] rows, boolean hover) {
         int a = 0xFF << 24;
         int shadow = (75 << 24) | OUTLINE;
-        for (int row = 0; row < HEIGHT; row++) {
-            for (int col = 0; col < WIDTH; col++) {
+        for (int row = 0; row < rows.length; row++) {
+            for (int col = 0; col < rows[row].length(); col++) {
                 if (rows[row].charAt(col) != '.') {
                     graphics.fill(col - 1, row + 1, col, row + 2, shadow);
                 }
             }
         }
-        for (int row = 0; row < HEIGHT; row++) {
-            for (int col = 0; col < WIDTH; col++) {
+        for (int row = 0; row < rows.length; row++) {
+            for (int col = 0; col < rows[row].length(); col++) {
                 int color = switch (rows[row].charAt(col)) {
                     case 'b' -> OUTLINE;
                     case 'c' -> SHADE;
@@ -108,7 +146,14 @@ public final class ScrollArrows {
                 }
             }
         }
-        graphics.pose().popPose();
+    }
+
+    private static String[] mirror(String[] rows) {
+        String[] mirrored = new String[rows.length];
+        for (int i = 0; i < rows.length; i++) {
+            mirrored[i] = new StringBuilder(rows[i]).reverse().toString();
+        }
+        return mirrored;
     }
 
     /** When the last click sounded: the wheel turned fast gives one click a notch, not a rattle. */

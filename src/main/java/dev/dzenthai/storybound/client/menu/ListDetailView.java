@@ -5,7 +5,6 @@ import dev.dzenthai.storybound.client.document.ScrollArrows;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -21,7 +20,6 @@ import org.jetbrains.annotations.Nullable;
  * {@link #dataVersion()} changes; the selection is kept by {@link #key}.
  */
 public abstract class ListDetailView<E> extends MenuView {
-    protected static final int ROW_HEIGHT = 11;
     protected static final int LINE_HEIGHT = 10;
     protected static final int BUTTON_ROW = 22;
 
@@ -78,8 +76,7 @@ public abstract class ListDetailView<E> extends MenuView {
 
     /** The same metric is used for drawing, scrolling and row hit testing. */
     protected int rowHeight() {
-        if (screen.bookLayout() != null) return 22;
-        return MenuThemes.INSTANCE.archiveChrome() ? 20 : ROW_HEIGHT;
+        return 22;
     }
 
     protected final @Nullable E selected() {
@@ -151,13 +148,6 @@ public abstract class ListDetailView<E> extends MenuView {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         MenuTheme theme = theme();
-        if (screen.bookLayout() == null && MenuThemes.INSTANCE.archiveChrome()) {
-            graphics.fill(left - 5, top - 5, left + listWidth() + 1, top + height + 5, 0x30000000);
-            graphics.fill(left + listWidth() + 5, top - 5, left + listWidth() + 7, top + height + 5, 0x55000000);
-        }
-        if (screen.bookLayout() == null) {
-            graphics.fill(left + listWidth() + 4, top, left + listWidth() + 5, top + height, theme.divider());
-        }
         if (rows.isEmpty()) {
             Component empty = JournalSkin.text(emptyText());
             int emptyY = top;
@@ -181,7 +171,7 @@ public abstract class ListDetailView<E> extends MenuView {
         // A list longer than the page: arrows in the middle over and under it, lying on its edges over bands of the
         // paper that fade the rows out there, so the rows keep their places (October 31, 2026; before, a scrollbar at
         // its right, then, the same day, room kept for the arrows, which moved the rows down off the title's line).
-        listRoom = screen.bookLayout() != null && rows.size() * rowHeight > height ? arrowRoom() : 0;
+        listRoom = rows.size() * rowHeight > height ? arrowRoom() : 0;
         int viewTop = top;
         int viewHeight = height;
         int visible = Math.max(1, viewHeight / rowHeight);
@@ -246,44 +236,23 @@ public abstract class ListDetailView<E> extends MenuView {
 
     /** Presentation hook; row selection and data handling remain in the common view. */
     protected void renderListRow(GuiGraphics graphics, MenuTheme theme, Row<E> row, int y, boolean isSelected, boolean hovered) {
-        int textY = y + Math.max(1, (rowHeight() - (screen.bookLayout() != null ? 7 : font.lineHeight)) / 2);
-        if (screen.bookLayout() != null) {
-            Component text = row.entry() == null ? JournalSkin.heading(row.text()) : JournalSkin.text(row.text());
-            int inset = row.entry() == null ? 0 : entryTextInset(row.entry());
-            int available = Math.max(1, listWidth() - inset - 3);
-            if (hovered && font.width(text) > available) rowTooltip = text;
-            if (row.entry() == null) {
-                // As long and thick as the title's rule over the list, on the book's pixels (before, 3 shorter).
-                JournalSkin.bookRule(graphics, screen.bookLayout(), left, y + rowHeight() - 2, listWidth(), theme.divider());
-            } else {
-                if (hovered) graphics.fill(left, y, left + listWidth(), y + rowHeight(), theme.hover());
-                if (isSelected) {
-                    graphics.fill(left, y + 1, left + listWidth(), y + rowHeight() - 1, theme.selection());
-                }
-                renderEntryMarker(graphics, row.entry(), left + 1, textY, isSelected);
-            }
-            int color = row.entry() == null ? theme.accent() : row.color() != 0 ? row.color() : theme.ink();
-            graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(text, available)), left + inset, textY, color, false);
-            return;
-        }
+        int textY = y + Math.max(1, (rowHeight() - 7) / 2);
+        Component text = row.entry() == null ? JournalSkin.heading(row.text()) : JournalSkin.text(row.text());
+        int inset = row.entry() == null ? 0 : entryTextInset(row.entry());
+        int available = Math.max(1, listWidth() - inset - 3);
+        if (hovered && font.width(text) > available) rowTooltip = text;
         if (row.entry() == null) {
-            graphics.drawString(font, row.text().copy().withStyle(ChatFormatting.BOLD), left, textY, row.color() != 0 ? row.color() : theme.accent(), false);
-            if (MenuThemes.INSTANCE.archiveChrome()) {
-                graphics.fill(left, y + rowHeight() - 2, left + listWidth() - 4, y + rowHeight() - 1, 0x405E5145);
+            // As long and thick as the title's rule over the list, on the book's pixels (before, 3 shorter).
+            JournalSkin.bookRule(graphics, screen.bookLayout(), left, y + rowHeight() - 2, listWidth(), theme.divider());
+        } else {
+            if (hovered) graphics.fill(left, y, left + listWidth(), y + rowHeight(), theme.hover());
+            if (isSelected) {
+                graphics.fill(left, y + 1, left + listWidth(), y + rowHeight() - 1, theme.selection());
             }
-            return;
+            renderEntryMarker(graphics, row.entry(), left + 1, textY, isSelected);
         }
-        if (isSelected || hovered) {
-            graphics.fill(left, y, left + listWidth(), y + rowHeight(), isSelected ? theme.selection() : theme.hover());
-            if (isSelected && MenuThemes.INSTANCE.archiveChrome()) {
-                graphics.fill(left, y + 3, left + 1, y + rowHeight() - 3, theme.accent());
-            }
-        }
-        if (isUnseen(row.entry())) {
-            graphics.drawString(font, "•", left + 1, textY, theme.unseen(), false);
-        }
-        String text = font.plainSubstrByWidth(row.text().getString(), listWidth() - 8);
-        graphics.drawString(font, text, left + 6, textY, row.color() != 0 ? row.color() : theme.ink(), false);
+        int color = row.entry() == null ? theme.accent() : row.color() != 0 ? row.color() : theme.ink();
+        graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(text, available)), left + inset, textY, color, false);
     }
 
     protected int entryTextInset(E entry) {
@@ -304,7 +273,7 @@ public abstract class ListDetailView<E> extends MenuView {
         int bottom = detailBottom();
         int top = detailTop();
         int contentHeight = detail.stream().mapToInt(Line::height).sum();
-        detailRoom = screen.bookLayout() != null && contentHeight > bottom - top ? arrowRoom() : 0;
+        detailRoom = contentHeight > bottom - top ? arrowRoom() : 0;
         int viewTop = top;
         int viewBottom = bottom;
         int maxScroll = Math.max(0, contentHeight - (viewBottom - viewTop));
@@ -399,13 +368,11 @@ public abstract class ListDetailView<E> extends MenuView {
     }
 
     protected int listWidth() {
-        if (screen.bookLayout() != null) return screen.bookLayout().indexWidth();
-        return Math.max(110, width * 3 / 8);
+        return screen.bookLayout().indexWidth();
     }
 
     protected int detailX() {
-        if (screen.bookLayout() != null) return screen.bookLayout().detailLeft();
-        return left + listWidth() + 10;
+        return screen.bookLayout().detailLeft();
     }
 
     protected int detailWidth() {
@@ -413,7 +380,7 @@ public abstract class ListDetailView<E> extends MenuView {
     }
 
     protected int detailTop() {
-        return screen.bookLayout() == null ? top : screen.bookLayout().y() + screen.bookLayout().height() * 17 / 100;
+        return screen.bookLayout().y() + screen.bookLayout().height() * 17 / 100;
     }
 
     protected int detailBottom() {
@@ -469,7 +436,7 @@ public abstract class ListDetailView<E> extends MenuView {
         Detail(Font font, int width) {
             this.font = font;
             this.width = width;
-            this.lineHeight = MenuThemes.INSTANCE.journalBook() ? 13 : MenuThemes.INSTANCE.archiveChrome() ? 13 : LINE_HEIGHT;
+            this.lineHeight = 13;
         }
 
         public Detail text(Component text, int color) {
@@ -578,7 +545,6 @@ public abstract class ListDetailView<E> extends MenuView {
 
         /** Leave room for ascenders above the font baseline inside the scissor. */
         public Detail heading(Component text, int color) {
-            if (!MenuThemes.INSTANCE.journalBook()) return text(text, color);
             gap(3);
             for (FormattedCharSequence line : font.split(JournalSkin.heading(text), Math.max(1, width / 2))) {
                 block(22, (graphics, x, y, width, mouseX, mouseY, partialTick) -> {

@@ -41,7 +41,7 @@ public final class BookTextPreview extends Screen {
         source.pose().popPose();
         int right = (int) viewport.toBookX(width);
         int bottom = (int) viewport.toBookY(height);
-        new ArchiveChrome.ArchiveButton(right - 88, bottom - 26, 80, 18,
+        new BookButton(right - 88, bottom - 26, 80, 18,
                 Component.literal("Dev Mode"), button -> {}).render(graphics, -1, -1, partialTick);
     }
 }
