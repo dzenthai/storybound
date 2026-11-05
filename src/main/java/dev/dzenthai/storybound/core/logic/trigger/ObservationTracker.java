@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -33,7 +35,8 @@ import org.jetbrains.annotations.Nullable;
  * objective of their stage not done yet, a section not open yet), its time adds up. A bar under the crosshair shows the
  * one nearest to done. Looking away pauses it; {@link #GRACE} ticks later it is lost. Each subscription counts on its
  * own and fires alone ({@link TriggerDispatcher#fireOne}); a target it counted does not count again for it until the
- * player has gone out of its distance (studying three bookshelves needs three of them).
+ * player has gone out of its distance (studying three bookshelves needs three of them). A player whose screen a module
+ * holds ({@link #blindWhile}: a dialogue on the dialogue screen) looks at nothing meanwhile.
  */
 public final class ObservationTracker {
     public static final int INTERVAL = 2;
@@ -73,8 +76,29 @@ public final class ObservationTracker {
     private static final Map<UUID, Map<Subscription<?>, Map<Object, Counted>>> COUNTED = new HashMap<>();
     /** The players whose bar is shown, so it is hidden once. */
     private static final Map<UUID, Boolean> SHOWN = new HashMap<>();
+    /** What keeps a player from looking at the world, given by the modules, as the core knows none of them. */
+    private static final List<Predicate<ServerPlayer>> BLIND = new CopyOnWriteArrayList<>();
 
     private ObservationTracker() {}
+
+    /**
+     * While {@code blind} holds for a player, they observe nothing: their look stands still under a screen they did not
+     * choose to look at, so whatever was in front of them would fill on its own (November 5, 2026; before, a dialogue
+     * observed the NPC talked to, or anyone behind it). Progress is paused and lost as when looking away; the
+     * conversation itself counts as no observation.
+     */
+    public static void blindWhile(Predicate<ServerPlayer> blind) {
+        BLIND.add(blind);
+    }
+
+    private static boolean blind(ServerPlayer player) {
+        for (Predicate<ServerPlayer> blind : BLIND) {
+            if (blind.test(player)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     static void tick(MinecraftServer server) {
         if (!TriggerDispatcher.hasSubscribers(BuiltinTriggers.OBSERVED.get())) {
@@ -114,7 +138,8 @@ public final class ObservationTracker {
         }
         ResourceLocation dimension = player.level().dimension().location();
         Vec3 eye = player.getEyePosition();
-        List<Looked> looked = look(player, reach);
+        boolean blind = blind(player);
+        List<Looked> looked = blind ? List.of() : look(player, reach);
         Progress shown = null;
         boolean shownActive = false;
         // What ended now: the bar shows it full before it goes (before, it went at about 90%, still easing up).
@@ -133,7 +158,7 @@ public final class ObservationTracker {
                     break;
                 }
             }
-            if (target == null && trigger.pos().isPresent()) {
+            if (target == null && !blind && trigger.pos().isPresent()) {
                 Looked aimed = aimedAt(player, trigger.pos().get(), trigger.distance());
                 target = aimed != null && fits(subscription, trigger, aimed, done, player) ? aimed : null;
             }

@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
 import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.trigger.CoreTriggers;
 import dev.dzenthai.storybound.core.logic.trigger.ObservationTracker;
@@ -13,6 +14,9 @@ import dev.dzenthai.storybound.module.codex.Codex;
 import dev.dzenthai.storybound.module.codex.CodexDefinition;
 import dev.dzenthai.storybound.module.codex.CodexEvents;
 import dev.dzenthai.storybound.module.codex.CodexRegistries;
+import dev.dzenthai.storybound.module.dialogue.DialogueDefinition;
+import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
+import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +49,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class ObservationGameTests {
     private static final String SOURCE = "gametest observation";
     private static final int STEP = ObservationTracker.INTERVAL;
+    private static final ResourceLocation SCREEN_DIALOGUE = ResourceLocation.fromNamespaceAndPath("gametest", "observe_screen");
+    private static final ResourceLocation SUBTITLE_DIALOGUE = ResourceLocation.fromNamespaceAndPath("gametest", "observe_subtitles");
 
     private ObservationGameTests() {}
 
@@ -201,6 +207,88 @@ public final class ObservationGameTests {
         }
         helper.getLevel().getServer().getPlayerList().remove(player);
         helper.succeed();
+    }
+
+    /**
+     * A dialogue on the screen freezes the look on whoever stands in front (November 5, 2026): it observes nothing, a bar
+     * already filling pauses and is lost as when looking away, a player beside them who is not talking still observes,
+     * and once it ends the bar starts from nothing.
+     */
+    @GameTest(template = "open")
+    public static void aDialogueOnTheScreenObservesNothing(GameTestHelper helper) {
+        LivingEntity pig = helper.spawnWithNoFreeWill(EntityType.PIG, 2, 1, 2);
+        ServerPlayer player = looking(helper, pig.getEyePosition(), 2.5, 1, 6);
+        ServerPlayer other = looking(helper, pig.getEyePosition(), 1.5, 1, 6);
+        AtomicInteger fired = new AtomicInteger();
+        Subscription<CoreTriggers.Observation> watch = observe(pig, 1, 16, fired, true);
+        withDialogues(helper, () -> with(List.of(watch), () -> {
+            int now = watch(player, 0, 8);
+            float before = ObservationTracker.progress(player, watch);
+            // A click, or a story event, opens a dialogue with the pig being observed.
+            Dialogues.start(player, SCREEN_DIALOGUE, pig);
+            ObservationTracker.check(player, now += STEP);
+            expect(helper, ObservationTracker.progress(player, watch), before, "the dialogue pauses the bar, as looking away does");
+            now = watch(player, now, 40);
+            expect(helper, ObservationTracker.progress(player, watch), 0f, "and loses it after the grace");
+            expect(helper, fired.get(), 0, "two seconds of talking face to face observe nothing: the conversation is no observation");
+            watch(other, 0, 20);
+            expect(helper, fired.get(), 1, "a player beside them who is not talking observes the pig");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            now = watch(player, now, 16);
+            helper.assertTrue(Math.abs(ObservationTracker.progress(player, watch) - 0.8f) < 0.01f, "the dialogue over, the bar starts from nothing");
+            watch(player, now, 4);
+            expect(helper, fired.get(), 2, "and fills as usual");
+        }));
+        Dialogues.interrupt(player, EndReason.STOPPED);
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.getLevel().getServer().getPlayerList().remove(other);
+        helper.succeed();
+    }
+
+    /** Subtitles leave the look to the player, so the lines observe; a choice in them holds the screen and does not. */
+    @GameTest(template = "open")
+    public static void subtitlesObserveButTheirChoiceDoesNot(GameTestHelper helper) {
+        LivingEntity pig = helper.spawnWithNoFreeWill(EntityType.PIG, 2, 1, 2);
+        ServerPlayer player = looking(helper, pig.getEyePosition(), 2.5, 1, 6);
+        AtomicInteger duringLine = new AtomicInteger();
+        AtomicInteger duringChoice = new AtomicInteger();
+        withDialogues(helper, () -> {
+            Dialogues.start(player, SUBTITLE_DIALOGUE, pig);
+            with(List.of(observe(pig, 1, 16, duringLine, true)), () -> {
+                watch(player, 0, 20);
+                expect(helper, duringLine.get(), 1, "a subtitle line: the player looks where they like, the pig is observed");
+            });
+            Dialogues.State state = Dialogues.state(player).orElseThrow();
+            helper.assertTrue(Dialogues.advance(player, state.session(), state.step()), "on to the choice");
+            helper.assertTrue(Dialogues.state(player).orElseThrow().waitingForChoice(), "the choice is shown");
+            with(List.of(observe(pig, 1, 16, duringChoice, true)), () -> {
+                watch(player, 100, 40);
+                expect(helper, duringChoice.get(), 0, "a choice in subtitles holds the screen: nothing is observed");
+            });
+        });
+        Dialogues.interrupt(player, EndReason.STOPPED);
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    private static void withDialogues(GameTestHelper helper, Runnable body) {
+        RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        Map<ResourceLocation, DialogueDefinition> previous = DialogueRegistries.DIALOGUES.serverStore().all();
+        Map<ResourceLocation, DialogueDefinition> installed = new LinkedHashMap<>(previous);
+        installed.put(SCREEN_DIALOGUE, DialogueDefinition.CODEC.parse(ops, JsonParser.parseString("""
+                { "start": "a", "nodes": { "a": { "type": "line", "speaker": "npc", "text": "gametest.a" } } }"""))
+                .getOrThrow(GameTestAssertException::new));
+        installed.put(SUBTITLE_DIALOGUE, DialogueDefinition.CODEC.parse(ops, JsonParser.parseString("""
+                { "presentation": "hud", "start": "a", "nodes": {
+                    "a": { "type": "line", "speaker": "npc", "text": "gametest.a", "next": "b" },
+                    "b": { "type": "choice", "options": [ { "text": "gametest.b" } ] } } }"""))
+                .getOrThrow(GameTestAssertException::new));
+        DialogueRegistries.DIALOGUES.serverStore().replace(installed);
+        try {
+            body.run();
+        } finally {
+            DialogueRegistries.DIALOGUES.serverStore().replace(previous);
+        }
     }
 
     /** Checks as the server does, every {@link ObservationTracker#INTERVAL} ticks, for {@code ticks} ticks; returns the tick it got to. */

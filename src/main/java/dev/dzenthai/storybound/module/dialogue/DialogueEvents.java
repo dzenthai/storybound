@@ -7,6 +7,7 @@ import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
 import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
+import dev.dzenthai.storybound.core.logic.trigger.ObservationTracker;
 import dev.dzenthai.storybound.core.state.StoryMigrations;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition.Node;
 import java.util.ArrayDeque;
@@ -61,6 +62,8 @@ public final class DialogueEvents {
             binding.busyDialogue().ifPresent(references::dialogue);
         });
         ValidationService.registerValidator(DialogueEvents::validate);
+        // A dialogue that holds the screen freezes the player's look on whatever was in front of them.
+        ObservationTracker.blindWhile(Dialogues::holdsTheScreen);
     }
 
     private static void onTagsUpdated(TagsUpdatedEvent event) {
