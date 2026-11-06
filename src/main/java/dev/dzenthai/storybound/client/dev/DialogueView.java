@@ -281,7 +281,10 @@ final class DialogueView extends GraphView {
                     DevUi.str("node.condition"), 0xFFAB47BC, new ItemStack(Items.COMPARATOR), x, y, start, false);
             case "action" -> new Card(id, type, "→ " + DialogueGraph.next(node), DevUi.str("node.action"), 0xFFFF7043, new ItemStack(Items.REDSTONE), x, y, start, false);
             case "random" -> new Card(id, type, chances(node), DevUi.str("node.random"), 0xFF8E24AA, new ItemStack(Items.DISPENSER), x, y, start, false);
-            case "jump" -> new Card(id, type, node.has("node") ? node.get("node").getAsString() : node.has("dialogue") ? node.get("dialogue").getAsString() : DialogueGraph.END,
+            // To another dialogue: "elder" or "elder · greet" (its node); within this one, the node (its arrow shows it).
+            case "jump" -> new Card(id, type, DialogueGraph.jumpsElsewhere(node)
+                    ? "→ " + node.get("dialogue").getAsString() + (node.has("node") ? " · " + node.get("node").getAsString() : "")
+                    : node.has("node") ? node.get("node").getAsString() : DialogueGraph.END,
                     DevUi.str("node.jump"), 0xFF00ACC1, new ItemStack(Items.ENDER_PEARL), x, y, start, false);
             case "call" -> new Card(id, type, node.has("dialogue") ? node.get("dialogue").getAsString() : "?",
                     DevUi.str("node.call"), 0xFF1E88E5, new ItemStack(Items.BELL), x, y, start, false);

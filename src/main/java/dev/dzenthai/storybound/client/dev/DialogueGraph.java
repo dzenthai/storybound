@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.client.dev;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -121,6 +122,11 @@ final class DialogueGraph {
         return key;
     }
 
+    /** Whether a jump goes to another dialogue (its {@code dialogue} set): then its {@code node} is that dialogue's. */
+    static boolean jumpsElsewhere(JsonObject node) {
+        return node.get("dialogue") instanceof JsonPrimitive dialogue && !dialogue.getAsString().isBlank();
+    }
+
     /** Every node id an arrow of this node leads to (including {@code @end} and other dialogues' ids). */
     static void targets(JsonObject node, Consumer<String> sink) {
         for (Edge edge : edgesOf("", node, "")) {
@@ -146,7 +152,9 @@ final class DialogueGraph {
             case "action" -> edges.add(new Edge(from, next(node), EdgeKind.ACTION, ""));
             case "call" -> edges.add(new Edge(from, next(node), EdgeKind.RETURN, ""));
             case "jump" -> {
-                if (node.has("node")) {
+                // Only a jump within this dialogue is an arrow: with "dialogue" set, its node is the other dialogue's
+                // (November 6, 2026; before, an arrow went to this dialogue's node of the same name).
+                if (node.has("node") && !jumpsElsewhere(node)) {
                     edges.add(new Edge(from, node.get("node").getAsString(), EdgeKind.JUMP, ""));
                 }
             }
@@ -317,7 +325,11 @@ final class DialogueGraph {
                 branch.addProperty("next", to);
                 options(node).add(branch);
             }
-            case "jump" -> node.addProperty("node", to);
+            case "jump" -> {
+                // An arrow drawn to a node of this dialogue makes it a jump within it.
+                node.remove("dialogue");
+                node.addProperty("node", to);
+            }
             case "condition" -> node.addProperty(END.equals(node.has("then") ? node.get("then").getAsString() : END) ? "then" : "else", to);
             case "choice" -> {
                 JsonArray options = options(node);

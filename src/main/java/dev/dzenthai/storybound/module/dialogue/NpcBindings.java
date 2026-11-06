@@ -77,17 +77,35 @@ public final class NpcBindings {
         if (entity.hasData(DialogueRegistries.NPC_BINDING)) {
             return Optional.of(new Found(null, entity.getData(DialogueRegistries.NPC_BINDING).toBinding(entity)));
         }
-        for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
-            if (entry.getValue().matches(entity)) {
-                return Optional.of(new Found(entry.getKey(), entry.getValue()));
-            }
-        }
-        return Optional.empty();
+        return bestFile(entity).map(entry -> new Found(entry.getKey(), entry.getValue()));
     }
 
-    /** Whether a binding file that matches the entity says it comes back (an entity's own binding never does). */
+    /**
+     * Of the binding files matching the entity, the one naming it most closely ({@link NpcBinding#precision}): one
+     * entity (a uuid) over one carrying a tag or a name, over every entity of a kind. So "every villager chatters" and
+     * "the elder, tagged elder, has his dialogues" go together. Equally close ones (an entity carrying two NPCs' tags):
+     * the first by id, as before.
+     */
+    private static Optional<Map.Entry<ResourceLocation, NpcBinding>> bestFile(Entity entity) {
+        Map.Entry<ResourceLocation, NpcBinding> best = null;
+        int bestPrecision = -1;
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
+            int precision = entry.getValue().precision(entity);
+            if (precision > bestPrecision) {
+                best = entry;
+                bestPrecision = precision;
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    /**
+     * Whether the binding file that applies to the entity (the closest, as {@link #find}) says it comes back; an
+     * entity's own binding never does. Before (November 6, 2026), any matching file did, so "every villager comes back"
+     * brought back an elder whose own file said otherwise.
+     */
     public static boolean respawns(Entity entity) {
-        return files.stream().anyMatch(entry -> entry.getValue().respawn() && entry.getValue().matches(entity));
+        return bestFile(entity).map(entry -> entry.getValue().respawn()).orElse(false);
     }
 
     /**

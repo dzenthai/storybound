@@ -16,6 +16,7 @@ import dev.dzenthai.storybound.core.story.StoryFlow;
 import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import dev.dzenthai.storybound.core.story.StoryLinks;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -435,6 +436,34 @@ class DevEditsTest {
         assertEquals("storybound.dialogue.elder.node.line_1.text", nodes.getAsJsonObject(line).get("text").getAsString());
         assertFalse(nodes.getAsJsonObject(line).has("options"), "lines get no options");
         assertFalse(nodes.getAsJsonObject(line).has("x"), "positions are not part of the dialogue");
+    }
+
+    /**
+     * A jump's two fields go together: "dialogue" is which dialogue, "node" where in it. A jump to another dialogue's
+     * node draws no arrow (before, one went to this dialogue's node of the same name) and walks nowhere here; within
+     * this dialogue it is an arrow; an arrow drawn from a jump to another dialogue makes it a jump within this one.
+     */
+    @Test
+    void aJumpToAnotherDialoguesNodeIsNoArrowHere() {
+        JsonObject dialogue = new JsonObject();
+        String greet = DialogueGraph.createNode(dialogue, DIALOGUE, "line", null, "Hello", "");
+        String jump = DialogueGraph.createNode(dialogue, DIALOGUE, "jump", null, "", "");
+        JsonObject node = DialogueGraph.nodes(dialogue).getAsJsonObject(jump);
+        node.addProperty("dialogue", "storybound:elder");
+        node.addProperty("node", greet);
+        assertTrue(DialogueGraph.edges(dialogue, "").stream().noneMatch(edge -> edge.from().equals(jump)), "to the elder's node of that name: no arrow here");
+        List<String> targets = new ArrayList<>();
+        DialogueGraph.targets(node, targets::add);
+        assertEquals(List.of(), targets, "nothing of this dialogue is reached through it");
+
+        node.remove("dialogue");
+        assertEquals(List.of(greet), DialogueGraph.edges(dialogue, "").stream().filter(edge -> edge.from().equals(jump)).map(DialogueGraph.Edge::to).toList(),
+                "within this dialogue: the arrow");
+
+        node.addProperty("dialogue", "storybound:elder");
+        DialogueGraph.connect(dialogue, DIALOGUE, jump, greet, "");
+        assertFalse(node.has("dialogue"), "an arrow drawn to a node here makes it a jump within this dialogue");
+        assertEquals(greet, node.get("node").getAsString());
     }
 
     @Test

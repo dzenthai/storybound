@@ -127,6 +127,22 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
     }
 
     /**
+     * How closely the binding names the entity, for when several match it (November 6, 2026; before, the first by id
+     * won, so "every villager" named {@code all_villagers} took the elder from {@code elder}): 3 by its uuid, 2 by a tag
+     * or a name it carries, 1 by its kind alone; -1 when no selector matches. The best matching selector counts.
+     */
+    public int precision(Entity entity) {
+        int best = -1;
+        for (EntitySelector selector : entities) {
+            if (selector.matches(entity)) {
+                int precision = selector.uuid().isPresent() ? 3 : selector.tag().isPresent() || selector.name().isPresent() ? 2 : 1;
+                best = Math.max(best, precision);
+            }
+        }
+        return best;
+    }
+
+    /**
      * What keeps the entity from matching, for the trace: each selector's reason ({@link EntitySelector#mismatch}), the
      * ones of other entity types left out unless all are; empty when it matches.
      */
