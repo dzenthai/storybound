@@ -39,7 +39,7 @@
     },
     {
       "type": "run_command",
-      "command": "spreadplayers ~ ~ 1 40 false @e[type=minecraft:cat,tag=demo_murka]"
+      "command": "spreadplayers ~ ~ 1 12 false @e[type=minecraft:cat,tag=demo_murka]"
     }
   ],
   "stages": [

@@ -94,6 +94,10 @@ public final class NpcBindings {
             if (precision > bestPrecision) {
                 best = entry;
                 bestPrecision = precision;
+                if (precision == 3) {
+                    // By its uuid: nothing names it more closely.
+                    break;
+                }
             }
         }
         return Optional.ofNullable(best);
@@ -153,6 +157,12 @@ public final class NpcBindings {
                 || (found.binding().interact() && found.binding().pick(new StoryContext(player, target)).isPresent());
     }
 
+    /** Whether a click would get phrases from the NPC now, which start no conversation. */
+    private static boolean saysPhrases(ServerPlayer player, Entity target, Found found) {
+        return found.binding().interact() && found.binding().pick(new StoryContext(player, target))
+                .map(entry -> entry.phrases().isPresent()).orElse(false);
+    }
+
     /** The player an {@code exclusive} NPC talks with now, other than this one; null when it is free (or not exclusive). */
     private static @Nullable ServerPlayer busyWith(Found found, Entity npc, ServerPlayer player) {
         return found.binding().exclusive() ? Dialogues.talkingWith(npc, player) : null;
@@ -192,6 +202,11 @@ public final class NpcBindings {
         Found found = find(target).orElse(null);
         if (found == null || !wouldTalk(player, target, found)) {
             return false;
+        }
+        if (saysPhrases(player, target, found)) {
+            // A phrase needs no conversation: the one in subtitles goes on (November 7, 2026; before, it was interrupted,
+            // its on_abort running, for a line in a bubble).
+            return true;
         }
         StoryTrace.note(player, bindingName(found, target), "talk: the dialogue in subtitles gives way");
         Dialogues.interruptShown(player, DialogueEvent.EndReason.LEFT);
@@ -233,7 +248,7 @@ public final class NpcBindings {
             NeoForge.EVENT_BUS.post(new NpcInteractEvent(player, target, found.id()));
             handled = true;
         }
-        if (found.binding().interact() && Dialogues.state(player).isEmpty()) {
+        if (found.binding().interact() && (Dialogues.state(player).isEmpty() || saysPhrases(player, target, found))) {
             ServerPlayer other = busyWith(found, target, player);
             if (other != null) {
                 // Taken: the busy line, if the binding has one, instead of its dialogues.

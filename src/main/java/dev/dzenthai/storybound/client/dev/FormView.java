@@ -154,6 +154,9 @@ final class FormView {
         hidden = hiddenFields;
         frames.clear();
         scroll = 0;
+        // A switch's way chosen for a field not written yet belongs to this node, not to the next one shown at the same
+        // path (November 7, 2026; before, another jump or NPC opened on the way picked here).
+        entityModes.clear();
     }
 
     void scroll(double amount) {

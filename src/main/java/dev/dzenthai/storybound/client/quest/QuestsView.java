@@ -69,10 +69,10 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         boolean stacked = detailWidth() < 180;
         int buttonWidth = stacked ? detailWidth() : Math.min(90, Math.max(36, (detailWidth() - 4) / 2));
         trackButton = addWidget(new BookButton(left + width - buttonWidth,
-                buttonY() + (stacked ? 22 : 0), buttonWidth, 18, Component.empty(), button -> toggleTracking()).withPin());
+                buttonY() + (stacked ? 22 : 0), buttonWidth, 18, Component.empty(), button -> toggleTracking()).withPin().onBook(screen::bookLayout));
         claimButton = addWidget(new BookButton(left + width - buttonWidth,
                 trackButton.getY(), buttonWidth, 18, Component.translatable("storybound.quests.rewards.claim"), button -> claim())
-                .withReadyEffect(() -> chosen >= 0 && claimButton.visible && claimButton.active));
+                .withReadyEffect(() -> chosen >= 0 && claimButton.visible && claimButton.active).onBook(screen::bookLayout));
         super.init();
         if (focus != null) {
             selectKey(focus.toString());

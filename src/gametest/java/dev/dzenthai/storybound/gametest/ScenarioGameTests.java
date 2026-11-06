@@ -101,9 +101,9 @@ public final class ScenarioGameTests {
     }
 
     /**
-     * A fight at Brann's question (November 6, 2026): the story pauses at the choice; after the fight his resume plays
-     * (the question's own, "Yes, the sand"), then the question itself again, then the choice waits. Before, the choice
-     * came back right after the resume, which stood over the answers as if it were the question.
+     * A fight at Brann's question (November 6, 2026): the story pauses at the choice; after the fight the dialogue's
+     * resume plays ("So. Where was I..."; a choice has none of its own), then the question itself again, then the choice
+     * waits. Before, the choice came back right after the resume, which stood over the answers as if it were the question.
      */
     @GameTest(template = "open", batch = "scenario_brann_ask", timeoutTicks = 400)
     public static void aFightAtAChoiceSaysTheQuestionAgain(GameTestHelper helper) {
@@ -125,7 +125,7 @@ public final class ScenarioGameTests {
                     brann[0].hurt(player.damageSources().playerAttack(player), 1f);
                 })
                 .thenWaitUntil(() -> expect(helper, Dialogues.paused(player).map(Dialogues.Paused::node), Optional.of("ask"), "a hit: paused at the choice"))
-                .thenWaitUntil(() -> expect(helper, node(player), "where_sands", "the fight over: the question's resume"))
+                .thenWaitUntil(() -> expect(helper, node(player), "where", "the fight over: the dialogue's resume"))
                 .thenExecute(() -> {
                     advance(player);
                     expect(helper, node(player), "l5", "the question again");

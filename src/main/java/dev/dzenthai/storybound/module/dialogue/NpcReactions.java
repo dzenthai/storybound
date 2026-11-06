@@ -143,7 +143,8 @@ public final class NpcReactions {
         if (byPlayer != null && byPlayer.values().stream().anyMatch(grudge -> grudge.angry && grudge.active(now))) {
             return true;
         }
-        if (npc instanceof Mob mob) {
+        // A hostile kind's own target is its nature, as for talking (see angryAt): it chatters through its fights.
+        if (npc instanceof Mob mob && !(npc instanceof Enemy)) {
             return mob.getTarget() instanceof ServerPlayer || mob.getBrain().checkMemory(MemoryModuleType.ATTACK_TARGET, MemoryStatus.REGISTERED)
                     && mob.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET).orElse(null) instanceof ServerPlayer;
         }

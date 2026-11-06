@@ -407,6 +407,59 @@ public final class NpcReactionGameTests {
     }
 
     /**
+     * A phrase needs no conversation (November 7, 2026): clicked during a conversation in subtitles with someone else,
+     * an NPC whose click gets phrases says one and the conversation goes on (before, it was interrupted, its on_abort
+     * running, for a line in a bubble).
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 100)
+    public static void aPhraseOnAClickLeavesASubtitledTalkAlone(GameTestHelper helper) {
+        Villager talker = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 3);
+        Villager barker = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 1, 3);
+        barker.addTag("gt_bark");
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions()
+                .dialogue("bark_monologue", "{ \"presentation\": \"hud\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }")
+                .binding("bark", "{ \"entity\": { \"tag\": \"gt_bark\" }, \"dialogues\": [ { \"phrases\": { \"text\": { \"literal\": \"Busy day.\" } } } ] }");
+        defs.install(helper);
+        helper.startSequence()
+                .thenExecute(() -> {
+                    helper.assertTrue(Dialogues.start(player, key("bark_monologue"), talker), "a talk in subtitles");
+                    NpcBindings.talk(player, barker);
+                    expect(helper, NpcPhrases.position(NpcPhrases.clickCounterFor(barker, player, 0)), 1, "the other NPC says its phrase");
+                    expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(key("bark_monologue")), "and the talk goes on");
+                })
+                .thenExecute(() -> {
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A hostile kind going for the player chatters through the fight (November 7, 2026): its own target is its nature,
+     * not anger, for chatter as for talking.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
+    public static void anEnemyChattersWhileItGoesForThePlayer(GameTestHelper helper) {
+        net.minecraft.world.entity.monster.Husk husk = helper.spawnWithNoFreeWill(EntityType.HUSK, 2, 1, 3);
+        husk.addTag("gt_enemy_chatter");
+        ServerPlayer player = player(helper);
+        husk.setTarget(player);
+        Definitions defs = new Definitions()
+                .binding("enemy_chatter", "{ \"entity\": { \"tag\": \"gt_enemy_chatter\" }, "
+                        + "\"chatter\": { \"phrases\": { \"text\": { \"literal\": \"Fresh meat!\" } }, \"min_interval\": 2, \"max_interval\": 2 } }");
+        defs.install(helper);
+        helper.startSequence()
+                .thenExecute(() -> helper.assertTrue(husk.getTarget() == player, "it goes for the player"))
+                .thenWaitUntil(() -> helper.assertTrue(NpcPhrases.position(NpcPhrases.chatterCounterFor(husk)) >= 1, "and chatters all the same"))
+                .thenExecute(() -> {
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /**
      * Chatter variants (November 6, 2026): the NPC says its own phrases while no variant applies, then the variant's once
      * its conditions pass for the nearest player; each goes through its lines on its own counter.
      */

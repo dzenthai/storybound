@@ -279,6 +279,8 @@ public final class Dialogues {
         }
         session.waiting = Waiting.NONE;
         session.deadline = -1;
+        // Answered: the line before it was this choice's question, not the next one's (a choice right after it has none).
+        session.lastLine = "";
         if (session.dialogue.broadcast()) {
             bubble(player, player, option.text().resolve(player), -1, ThinkTime.NONE);
         }
@@ -450,15 +452,16 @@ public final class Dialogues {
             return;
         }
         String interrupted = session.node;
+        // The resume is the interrupted node's: a choice has none of its own, so the dialogue's plays.
+        Optional<String> own = session.dialogue.nodes().get(interrupted) instanceof Line line ? line.resume() : Optional.empty();
         if (session.dialogue.nodes().get(interrupted) instanceof Choice && !session.lastLine.isEmpty()
                 && session.dialogueId.equals(session.lastLineIn) && session.dialogue.nodes().get(session.lastLine) instanceof Line) {
-            // A choice: its question, the last line before it, is said again first (November 6, 2026; before, the
-            // choice came back right after "Where was I...", which then stood over the answers as if it were the question).
+            // A choice: its question, the last line before it, is said again after the resume (November 6, 2026; before,
+            // the choice came back right after "Where was I...", which then stood over the answers as if it were the question).
             session.replayLine = session.lastLine;
             session.thenChoice = interrupted;
             interrupted = session.lastLine;
         }
-        Optional<String> own = session.dialogue.nodes().get(interrupted) instanceof Line line ? line.resume() : Optional.empty();
         if (session.resuming() || own.isEmpty() && session.base().combat().resume().isEmpty()) {
             proceed(session, interrupted);
             return;

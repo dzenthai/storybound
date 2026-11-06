@@ -57,19 +57,19 @@ final class BookmarkPixels {
                     ".ss.......ss."
             },
             {
-                    ".............", 
-                    "....hhhhh....", 
-                    "...hhhhhhh...", 
-                    "..hhhhhhhbb..",
-                    "..hhhbbbbbb..", 
-                    "..b..bbb..b..", 
-                    "..b..bbb..b..", 
-                    "..bb.bbb.bb..",
-                    "...bbb.bbb...", 
-                    "....bb.bb....", 
-                    "....bbbbb....", 
-                    "....s.s.s....",
-                    "....s.s.s...."
+                    "....sssss....",
+                    "...sshhhss...",
+                    "..sshhhhhss..",
+                    "..sshhhhhss..",
+                    "..s..bbb..s..",
+                    "..b.h.b.h.b..",
+                    "..sbbbsbbbs..",
+                    "....bbbbb....",
+                    "..s.bsbsb.s..",
+                    "..b.......b..",
+                    "..bbsbsbsbb..",
+                    "...bbbbbbb...",
+                    "....bbbbb...."
             },
             {
                     "......h......", 

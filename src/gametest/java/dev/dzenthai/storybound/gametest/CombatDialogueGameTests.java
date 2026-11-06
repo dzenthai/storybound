@@ -131,6 +131,9 @@ public final class CombatDialogueGameTests {
                 .thenWaitUntil(() -> expect(helper, node(f.player), "where", "the resume again, without another one before it"))
                 .thenExecute(() -> {
                     advance(f.player);
+                    // Its question, the line before it, is said again (November 6, 2026), then the answers wait.
+                    expect(helper, node(f.player), "b", "the question again");
+                    advance(f.player);
                     helper.assertTrue(waitsForChoice(f.player), "then the choice comes back");
                 })
                 .thenExecute(() -> done(helper, f))

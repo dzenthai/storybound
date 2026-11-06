@@ -164,7 +164,28 @@ public final class JournalSkin {
         graphics.pose().popPose();
     }
 
+    /**
+     * The author's sparks (November 7, 2026), when the resource pack has them: a strip of {@link #SPARK_FRAMES} frames of
+     * {@link #SPARK_SIZE} × {@link #SPARK_SIZE}, smallest first, one per size a spark is drawn at (1 to 4); until then
+     * the stand-in below, a diamond of the gold ramp.
+     */
+    private static final ResourceLocation SPARK = Storybound.id("textures/gui/journal/spark.png");
+    public static final int SPARK_SIZE = 9;
+    public static final int SPARK_FRAMES = 4;
+
+    /** A spark centred on the pose's origin; {@code radius} 1 to 4 picks its size, {@code alpha} 0 to 255. */
     public static void rewardSpark(GuiGraphics graphics, int radius, int alpha) {
+        if (net.minecraft.client.Minecraft.getInstance().getResourceManager().getResource(SPARK).isPresent()) {
+            int frame = Math.max(0, Math.min(SPARK_FRAMES - 1, radius - 1));
+            RenderSystem.enableBlend();
+            graphics.setColor(1f, 1f, 1f, alpha / 255f);
+            graphics.blit(SPARK, -SPARK_SIZE / 2, -SPARK_SIZE / 2, frame * SPARK_SIZE, 0, SPARK_SIZE, SPARK_SIZE,
+                    SPARK_SIZE * SPARK_FRAMES, SPARK_SIZE);
+            graphics.setColor(1f, 1f, 1f, 1f);
+            return;
+        }
+        // The stand-in: a diamond star, gold within a brown edge (the four-rayed sparks tried on November 7, 2026 could
+        // not be seen on the paper).
         for (int sy = -radius; sy <= radius; sy++) {
             for (int sx = -radius; sx <= radius; sx++) {
                 if (Math.abs(sx) + Math.abs(sy) > radius && sx != 0 && sy != 0) continue;

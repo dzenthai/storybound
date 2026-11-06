@@ -360,7 +360,8 @@ public final class DemoGameTests {
                     run(helper, player, retry);
                     expect(helper, murkas(helper), List.of(murka[0]), "after a failure she runs off again");
                     expect(helper, tagged(helper, EntityType.CAT, "demo_murka_home").size(), 0, "and is no longer at home");
-                    // Killed where chunks tick (the search spread her up to 40 blocks off, where the GameTest world does not).
+                    // Killed where chunks tick (the search spreads her up to 12 blocks off; 40 in the fixture until November 7, 2026,
+                    // which now and then put her in a chunk that was not loaded, and the tests did not find her).
                     dead[0] = tagged(helper, EntityType.CAT, "demo_murka").getFirst();
                     dead[0].teleportTo(player.getX(), player.getY(), player.getZ());
                     dead[0].kill();

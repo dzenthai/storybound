@@ -7,6 +7,7 @@ import dev.dzenthai.storybound.module.dialogue.DialogueDefinition.Presentation;
 import dev.dzenthai.storybound.module.dialogue.ThinkTime;
 import dev.dzenthai.storybound.network.DialogueChoicesPayload;
 import dev.dzenthai.storybound.network.DialogueLinePayload;
+import dev.dzenthai.storybound.client.StoryboundClient;
 import dev.dzenthai.storybound.network.DialogueReplyPayload;
 import java.util.List;
 import net.minecraft.Util;
@@ -125,6 +126,9 @@ public final class ClientDialogue {
         DialogueCamera.onChoices(payload.camera());
         if (!asks) {
             openScreen();
+        } else if (StoryboundClient.TALK.isUnbound()) {
+            // No key to open them with: they open at once, as before the prompt.
+            openChoices();
         }
     }
 

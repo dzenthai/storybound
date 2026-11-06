@@ -84,7 +84,7 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
     @Override
     protected void init() {
         readButton = addWidget(new BookButton(left + width - 80, buttonY(), 80, 18,
-                JournalSkin.text(Component.translatable("storybound.journal.read")), button -> openSelected()));
+                JournalSkin.text(Component.translatable("storybound.journal.read")), button -> openSelected()).onBook(screen::bookLayout));
         super.init();
     }
 
