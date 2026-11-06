@@ -29,6 +29,22 @@ final class DialogueSession {
     List<Integer> shown = List.of();
     /** Game tick at which a timed line moves on or a choice times out; -1 for none. */
     long deadline = -1;
+    /**
+     * Whether the choice's window is open (November 6, 2026). Always on the dialogue screen; in subtitles and bubbles the
+     * player opens it with the talk key ("[H] Answer"), so a choice no longer throws them into a window mid-fight.
+     */
+    boolean choiceOpen;
+    /** While the window is open, the ticks its timer had left (it counts only the time to open it); -1 for none. */
+    long choiceLeft = -1;
+    /** The last line shown and the dialogue it is in, to say it again before a choice a fight took away. */
+    String lastLine = "";
+    @Nullable ResourceLocation lastLineIn;
+    /**
+     * Said again after a fight, this line leads back to that choice ({@code thenChoice}) rather than to its own next:
+     * what lies between them (an action spawning husks) does not run twice.
+     */
+    @Nullable String replayLine;
+    @Nullable String thenChoice;
     /** A {@link ThinkTime} code for the next line, set when an option is chosen: the NPC pauses before answering. */
     int replyThink = ThinkTime.NONE;
     /** The camera cue sent with what is on screen. */

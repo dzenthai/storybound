@@ -1,6 +1,7 @@
 {
   "storybound.dialogue.controls.reveal": "Space Reveal",
   "storybound.dialogue.controls.leave": "   Esc Leave",
+  "storybound.dialogue.controls.back": "   Esc Back",
   "storybound.dialogue.controls.scroll": "   Scroll",
   "storybound.dialogue.controls.wait": "Waiting",
   "storybound.dialogue.controls.continue": "Space Continue",
@@ -57,6 +58,7 @@
   "key.storybound.codex": "Open Codex",
   "key.storybound.bosses": "Open Bosses",
   "key.storybound.talk": "Talk",
+  "storybound.dialogue.answer_prompt": "Answer",
   "storybound.talk.hint": "Talk",
   "storybound.menu.title": "Adventure Menu",
   "storybound.menu.empty": "Nothing to show: every module is disabled on this server",

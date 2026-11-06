@@ -181,6 +181,11 @@ public final class StoryboundClient {
     private static void talkOnKey() {
         Minecraft minecraft = Minecraft.getInstance();
         while (TALK.consumeClick()) {
+            if (minecraft.screen == null && ClientDialogue.waitsForAnswer()) {
+                // A choice in subtitles waits: the key opens its answers, it does not talk to whoever is in sight.
+                ClientDialogue.openChoices();
+                continue;
+            }
             if (minecraft.screen == null && minecraft.player != null && !minecraft.player.isSpectator()
                     && minecraft.hitResult instanceof EntityHitResult hit) {
                 PacketDistributor.sendToServer(new TalkPayload(hit.getEntity().getId()));

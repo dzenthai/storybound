@@ -245,12 +245,16 @@ public final class ObservationGameTests {
         helper.succeed();
     }
 
-    /** Subtitles leave the look to the player, so the lines observe; a choice in them holds the screen and does not. */
+    /**
+     * Subtitles leave the look to the player, so the lines observe; so does a choice in them while it waits for the talk
+     * key (since November 6, 2026 its window opens only then); its window, once open, holds the screen and does not.
+     */
     @GameTest(template = "open")
     public static void subtitlesObserveButTheirChoiceDoesNot(GameTestHelper helper) {
         LivingEntity pig = helper.spawnWithNoFreeWill(EntityType.PIG, 2, 1, 2);
         ServerPlayer player = looking(helper, pig.getEyePosition(), 2.5, 1, 6);
         AtomicInteger duringLine = new AtomicInteger();
+        AtomicInteger duringPrompt = new AtomicInteger();
         AtomicInteger duringChoice = new AtomicInteger();
         withDialogues(helper, () -> {
             Dialogues.start(player, SUBTITLE_DIALOGUE, pig);
@@ -260,10 +264,16 @@ public final class ObservationGameTests {
             });
             Dialogues.State state = Dialogues.state(player).orElseThrow();
             helper.assertTrue(Dialogues.advance(player, state.session(), state.step()), "on to the choice");
-            helper.assertTrue(Dialogues.state(player).orElseThrow().waitingForChoice(), "the choice is shown");
+            Dialogues.State choice = Dialogues.state(player).orElseThrow();
+            helper.assertTrue(choice.waitingForChoice(), "the choice is shown");
+            with(List.of(observe(pig, 1, 16, duringPrompt, true)), () -> {
+                watch(player, 50, 20);
+                expect(helper, duringPrompt.get(), 1, "waiting for the talk key: the pig is observed");
+            });
+            helper.assertTrue(Dialogues.openChoice(player, choice.session(), choice.step(), true), "its window opens");
             with(List.of(observe(pig, 1, 16, duringChoice, true)), () -> {
                 watch(player, 100, 40);
-                expect(helper, duringChoice.get(), 0, "a choice in subtitles holds the screen: nothing is observed");
+                expect(helper, duringChoice.get(), 0, "its window holds the screen: nothing is observed");
             });
         });
         Dialogues.interrupt(player, EndReason.STOPPED);

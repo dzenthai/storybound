@@ -1,6 +1,7 @@
 {
   "storybound.dialogue.controls.reveal": "Пробел Показать",
   "storybound.dialogue.controls.leave": "   Esc Выйти",
+  "storybound.dialogue.controls.back": "   Esc Назад",
   "storybound.dialogue.controls.scroll": "   Прокрутка",
   "storybound.dialogue.controls.wait": "Ожидание",
   "storybound.dialogue.controls.continue": "Пробел Далее",
@@ -57,6 +58,7 @@
   "key.storybound.codex": "Открыть кодекс",
   "key.storybound.bosses": "Открыть боссов",
   "key.storybound.talk": "Поговорить",
+  "storybound.dialogue.answer_prompt": "Ответить",
   "storybound.talk.hint": "Поговорить",
   "storybound.menu.title": "Меню приключения",
   "storybound.menu.empty": "Показать нечего: на этом сервере отключены все модули",

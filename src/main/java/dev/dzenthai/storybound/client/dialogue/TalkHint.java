@@ -74,7 +74,9 @@ public final class TalkHint {
         Minecraft minecraft = Minecraft.getInstance();
         // Shown during a dialogue in subtitles (a monologue): talking to an NPC takes over from it.
         if (talkable < 0 || minecraft.options.hideGui || minecraft.screen != null
-                || ClientDialogue.isActive() && ClientDialogue.presentation() == Presentation.SCREEN || StoryboundClient.TALK.isUnbound()) {
+                || ClientDialogue.isActive() && ClientDialogue.presentation() == Presentation.SCREEN || StoryboundClient.TALK.isUnbound()
+                // The talk key answers first: "[H] Answer" is shown instead.
+                || ClientDialogue.waitsForAnswer()) {
             return false;
         }
         Entity target = target(minecraft);

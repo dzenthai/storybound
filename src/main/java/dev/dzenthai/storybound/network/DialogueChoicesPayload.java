@@ -14,18 +14,43 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
  * The options of a choice, in display order; the client answers with an index into this list.
- * Hidden options are never sent. Always shown on the dialogue screen, even in HUD dialogues.
+ * Hidden options are never sent. Shown on the dialogue screen; in subtitles and bubbles the player opens it first.
  *
+ * @param flags        {@link #closable()} and {@link #asks()}
  * @param timeoutTicks 0 when the choice has no timer
  * @param camera       a choice is framed on the player, over the partner's shoulder
  */
-public record DialogueChoicesPayload(int session, int step, boolean closable, List<Shown> options, int timeoutTicks,
+public record DialogueChoicesPayload(int session, int step, int flags, List<Shown> options, int timeoutTicks,
                                      CameraCue camera) implements CustomPacketPayload {
+    private static final int CLOSABLE = 1;
+    private static final int ASKS = 2;
+
+    public DialogueChoicesPayload(int session, int step, boolean closable, List<Shown> options, int timeoutTicks, CameraCue camera) {
+        this(session, step, flags(closable, false), options, timeoutTicks, camera);
+    }
+
+    public static int flags(boolean closable, boolean asks) {
+        return (closable ? CLOSABLE : 0) | (asks ? ASKS : 0);
+    }
+
+    /** ESC leaves the dialogue. */
+    public boolean closable() {
+        return (flags & CLOSABLE) != 0;
+    }
+
+    /**
+     * Shown in subtitles or bubbles (November 6, 2026): the window waits for the talk key, a prompt "[H] Answer" until
+     * then, and ESC in it goes back to the prompt.
+     */
+    public boolean asks() {
+        return (flags & ASKS) != 0;
+    }
+
     public static final Type<DialogueChoicesPayload> TYPE = new Type<>(Storybound.id("dialogue_choices"));
     public static final StreamCodec<RegistryFriendlyByteBuf, DialogueChoicesPayload> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.VAR_INT, DialogueChoicesPayload::session,
             ByteBufCodecs.VAR_INT, DialogueChoicesPayload::step,
-            ByteBufCodecs.BOOL, DialogueChoicesPayload::closable,
+            ByteBufCodecs.VAR_INT, DialogueChoicesPayload::flags,
             Shown.STREAM_CODEC.apply(ByteBufCodecs.list()), DialogueChoicesPayload::options,
             ByteBufCodecs.VAR_INT, DialogueChoicesPayload::timeoutTicks,
             CameraCue.STREAM_CODEC, DialogueChoicesPayload::camera,

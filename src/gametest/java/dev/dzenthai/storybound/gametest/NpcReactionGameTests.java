@@ -306,6 +306,50 @@ public final class NpcReactionGameTests {
     }
 
     /**
+     * A choice in subtitles waits for the player (November 6, 2026): "[H] Answer" until they open its window, which
+     * before opened by itself mid-fight. Until opened it does not hold the screen, so a hit does not end the talk; its
+     * timer (2 s) counts only the time to open it: stopped while the window is open (3 s pass, nothing), going on from
+     * what was left once it is closed, so the timeout comes about 2 s later.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 300)
+    public static void aChoiceInSubtitlesWaitsForThePlayer(GameTestHelper helper) {
+        Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 3);
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions()
+                .dialogue("answer_later", "{ \"presentation\": \"hud\", \"start\": \"pick\", \"nodes\": {"
+                        + " \"pick\": { \"type\": \"choice\", \"timeout\": { \"seconds\": 2, \"next\": \"late\" },"
+                        + "   \"options\": [ { \"text\": \"gametest.a\", \"next\": \"@end\" } ] },"
+                        + " \"late\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.b\" } } }");
+        defs.install(helper);
+        int[] at = new int[2];
+        helper.startSequence()
+                .thenExecute(() -> {
+                    helper.assertTrue(Dialogues.start(player, key("answer_later"), npc), "the talk starts");
+                    Dialogues.State state = Dialogues.state(player).orElseThrow();
+                    at[0] = state.session();
+                    at[1] = state.step();
+                    helper.assertTrue(state.waitingForChoice(), "a choice waits");
+                    helper.assertFalse(Dialogues.holdsTheScreen(player), "not opened: the screen is free");
+                    player.hurt(player.damageSources().magic(), 1f);
+                    helper.assertTrue(Dialogues.state(player).isPresent(), "a hit does not end it");
+                    helper.assertTrue(Dialogues.openChoice(player, at[0], at[1], true), "the talk key opens it");
+                    helper.assertTrue(Dialogues.holdsTheScreen(player), "open: it holds the screen");
+                })
+                .thenIdle(60)
+                .thenExecute(() -> {
+                    expect(helper, Dialogues.state(player).map(Dialogues.State::node), Optional.of("pick"), "3 s with the window open: its timer stood");
+                    helper.assertTrue(Dialogues.openChoice(player, at[0], at[1], false), "ESC: back to the prompt");
+                    helper.assertFalse(Dialogues.holdsTheScreen(player), "the screen is free again");
+                })
+                .thenWaitUntil(() -> expect(helper, Dialogues.state(player).map(Dialogues.State::node), Optional.of("late"), "its time ran out from what was left"))
+                .thenExecute(() -> {
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /**
      * Phrases on a click (November 6, 2026): an entry of phrases says the next line in a bubble and starts no
      * conversation; the click is the NPC's (no trading), also a quick second one that says nothing (not more than one
      * phrase a second); once the story moves on (a flag), a higher entry's phrases apply and start at their first line.

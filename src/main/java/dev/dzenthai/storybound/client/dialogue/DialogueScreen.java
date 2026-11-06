@@ -20,6 +20,11 @@ import org.lwjgl.glfw.GLFW;
 public final class DialogueScreen extends Screen {
     private static final int MARGIN = 18;
     private static final int BOTTOM_OFFSET = 56;
+    /**
+     * Answers opened from the prompt in subtitles keep the line where the subtitles had it (November 6, 2026; before, it
+     * dropped to the screen's place, over the health and hunger bars, which stay shown while the player moves).
+     */
+    private static final int SUBTITLES_BOTTOM_OFFSET = 72;
     private static final int PADDING = 5;
     private static final int MAX_TEXT_WIDTH = 300;
     private static final int LINE_HEIGHT = 10;
@@ -82,7 +87,7 @@ public final class DialogueScreen extends Screen {
             panelWidth = portraitSpace + textWidth + PADDING * 2;
             panelHeight = Math.max(portrait ? DialogueChrome.PORTRAIT_SIZE + PADDING * 2 : 22, contentHeight + PADDING * 2);
             panelX = (width - panelWidth) / 2;
-            panelY = height - BOTTOM_OFFSET - panelHeight;
+            panelY = height - bottomOffset() - panelHeight;
             textX = panelX + PADDING + portraitSpace;
             textY = panelY + (panelHeight - contentHeight) / 2 + headingHeight;
         } else {
@@ -92,7 +97,7 @@ public final class DialogueScreen extends Screen {
             panelWidth = 240;
             panelHeight = 0;
             panelX = (width - panelWidth) / 2;
-            panelY = height - BOTTOM_OFFSET;
+            panelY = height - bottomOffset();
         }
         choicesWidth = Math.min(240, Math.max(150, width * 42 / 100));
         choicesHeight = 0;
@@ -181,7 +186,7 @@ public final class DialogueScreen extends Screen {
             }
             graphics.disableScissor();
             DialogueChrome.scrollbar(graphics, choicesX + choicesWidth + 3, choicesTop, choicesBottom - choicesTop, choicesHeight, choicesScroll);
-            if (builtChoices.timeoutTicks() > 0) {
+            if (builtChoices.timeoutTicks() > 0 && ClientDialogue.timerRunning()) {
                 int barLeft = choicesX + 8;
                 int barRight = choicesX + choicesWidth - 4;
                 int barWidth = Math.max(20, barRight - barLeft);
@@ -244,12 +249,18 @@ public final class DialogueScreen extends Screen {
         Component hint = action.copy();
         if (textLines.size() * LINE_HEIGHT > textHeight || choicesHeight > choicesBottom - choicesTop)
             hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.scroll"));
-        if (ClientDialogue.closable()) hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.leave"));
+        // From the prompt ESC goes back to it, whether the dialogue may be left or not.
+        if (ClientDialogue.backToPrompt()) hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.back"));
+        else if (ClientDialogue.closable()) hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.leave"));
         var lines = font.split(hint, width - MARGIN * 2);
         if (!lines.isEmpty()) {
             graphics.drawString(font, lines.getFirst(),
                     (width - font.width(lines.getFirst())) / 2, panelY + panelHeight + 4, theme.hudText(), true);
         }
+    }
+
+    private static int bottomOffset() {
+        return ClientDialogue.backToPrompt() ? SUBTITLES_BOTTOM_OFFSET : BOTTOM_OFFSET;
     }
 
     private void clip(GuiGraphics graphics, int left, int top, int right, int bottom) {
@@ -296,7 +307,12 @@ public final class DialogueScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            ClientDialogue.leave();
+            // Answers opened from the prompt in subtitles: back to it; otherwise ESC leaves (a closable dialogue).
+            if (ClientDialogue.backToPrompt()) {
+                ClientDialogue.hideChoices();
+            } else {
+                ClientDialogue.leave();
+            }
             return true;
         }
         if (ClientDialogue.chosen() != null) {

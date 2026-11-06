@@ -101,6 +101,43 @@ public final class ScenarioGameTests {
     }
 
     /**
+     * A fight at Brann's question (November 6, 2026): the story pauses at the choice; after the fight his resume plays
+     * (the question's own, "Yes, the sand"), then the question itself again, then the choice waits. Before, the choice
+     * came back right after the resume, which stood over the answers as if it were the question.
+     */
+    @GameTest(template = "open", batch = "scenario_brann_ask", timeoutTicks = 400)
+    public static void aFightAtAChoiceSaysTheQuestionAgain(GameTestHelper helper) {
+        ServerPlayer player = player(helper);
+        Entity[] brann = new Entity[1];
+        helper.startSequence()
+                .thenExecute(() -> {
+                    fire(player, "campfire");
+                    brann[0] = tagged(helper, player, EntityType.IRON_GOLEM, "scenario_brann").getFirst();
+                    helper.assertTrue(Dialogues.start(player, id("campfire/story"), brann[0]), "Brann starts his story");
+                    advance(player);
+                    advance(player);
+                    helper.getLevel().getEntitiesOfClass(Husk.class, player.getBoundingBox().inflate(32)).forEach(Entity::discard);
+                    advance(player);
+                    advance(player);
+                    expect(helper, node(player), "l5", "the question");
+                    advance(player);
+                    expect(helper, node(player), "ask", "the answers wait");
+                    brann[0].hurt(player.damageSources().playerAttack(player), 1f);
+                })
+                .thenWaitUntil(() -> expect(helper, Dialogues.paused(player).map(Dialogues.Paused::node), Optional.of("ask"), "a hit: paused at the choice"))
+                .thenWaitUntil(() -> expect(helper, node(player), "where_sands", "the fight over: the question's resume"))
+                .thenExecute(() -> {
+                    advance(player);
+                    expect(helper, node(player), "l5", "the question again");
+                    advance(player);
+                    expect(helper, node(player), "ask", "then the answers");
+                    helper.assertTrue(Dialogues.state(player).orElseThrow().waitingForChoice(), "waiting for them");
+                })
+                .thenExecute(() -> done(helper, player))
+                .thenSucceed();
+    }
+
+    /**
      * The duel (November 6, 2026): Ataman Grom, met close by while he goes for the player, starts his taunts in
      * subtitles, the player answering (a hostile kind going for the player is not "angry" for talking: first it never
      * started); the player's hits do not stop it ({@code combat: continue});

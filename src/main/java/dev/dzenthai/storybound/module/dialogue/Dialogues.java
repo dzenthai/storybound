@@ -217,7 +217,32 @@ public final class Dialogues {
      */
     public static boolean holdsTheScreen(ServerPlayer player) {
         DialogueSession session = SESSIONS.get(player.getUUID());
-        return session != null && (session.dialogue.presentation() == DialogueDefinition.Presentation.SCREEN || session.waiting == Waiting.CHOICE);
+        return session != null && (session.dialogue.presentation() == DialogueDefinition.Presentation.SCREEN
+                || session.waiting == Waiting.CHOICE && session.choiceOpen);
+    }
+
+    /**
+     * The player opens ({@code open}) or closes the window of a choice shown in subtitles or bubbles (November 6, 2026):
+     * the prompt "[H] Answer" waits for the talk key, and ESC in the window goes back to it. Its timer counts only the
+     * time to open it: it stops while the window is open and goes on from what was left once it is closed, so opening
+     * and closing gives no more time. Only an open window holds the screen (a hit then ends the talk, as on the screen).
+     */
+    public static boolean openChoice(ServerPlayer player, int sessionId, int step, boolean open) {
+        DialogueSession session = current(player, sessionId, step, Waiting.CHOICE);
+        if (session == null || session.dialogue.presentation() == DialogueDefinition.Presentation.SCREEN || session.choiceOpen == open) {
+            return false;
+        }
+        long now = player.server.getTickCount();
+        session.choiceOpen = open;
+        if (open && session.deadline >= 0) {
+            session.choiceLeft = Math.max(1, session.deadline - now);
+            session.deadline = -1;
+        } else if (!open && session.choiceLeft >= 0) {
+            session.deadline = now + session.choiceLeft;
+            session.choiceLeft = -1;
+        }
+        StoryTrace.note(player, "dialogue " + session.dialogueId, open ? "the answers' window opened" : "the answers' window closed: back to the prompt");
+        return true;
     }
 
     /** The player clicked past the line on screen. */
@@ -425,6 +450,14 @@ public final class Dialogues {
             return;
         }
         String interrupted = session.node;
+        if (session.dialogue.nodes().get(interrupted) instanceof Choice && !session.lastLine.isEmpty()
+                && session.dialogueId.equals(session.lastLineIn) && session.dialogue.nodes().get(session.lastLine) instanceof Line) {
+            // A choice: its question, the last line before it, is said again first (November 6, 2026; before, the
+            // choice came back right after "Where was I...", which then stood over the answers as if it were the question).
+            session.replayLine = session.lastLine;
+            session.thenChoice = interrupted;
+            interrupted = session.lastLine;
+        }
         Optional<String> own = session.dialogue.nodes().get(interrupted) instanceof Line line ? line.resume() : Optional.empty();
         if (session.resuming() || own.isEmpty() && session.base().combat().resume().isEmpty()) {
             proceed(session, interrupted);
@@ -666,12 +699,21 @@ public final class Dialogues {
         Line line = (Line) session.dialogue.nodes().get(session.node);
         session.waiting = Waiting.NONE;
         session.deadline = -1;
-        proceed(session, line.next());
+        String next = line.next();
+        if (session.thenChoice != null && session.node.equals(session.replayLine) && session.dialogueId.equals(session.lastLineIn)) {
+            // The question said again after a fight: back to its choice.
+            next = session.thenChoice;
+            session.thenChoice = null;
+            session.replayLine = null;
+        }
+        proceed(session, next);
     }
 
     private static void showLine(DialogueSession session, Line line) {
         ServerPlayer player = session.player;
         markOpen(session);
+        session.lastLine = session.node;
+        session.lastLineIn = session.dialogueId;
         Entity entity = null;
         Optional<ResolvedText> name = Optional.empty();
         Optional<ResourceLocation> portrait = Optional.empty();
@@ -744,13 +786,20 @@ public final class Dialogues {
             return false;
         }
         session.replyThink = ThinkTime.NONE;
+        session.thenChoice = null;
+        session.replayLine = null;
         int timeoutTicks = choice.timeout().map(timeout -> Math.max(1, Math.round(timeout.seconds() * 20))).orElse(0);
         session.waiting = Waiting.CHOICE;
         session.step = nextStep++;
         session.shown = List.copyOf(shown);
         session.deadline = timeoutTicks > 0 ? player.server.getTickCount() + timeoutTicks : -1;
+        // On the dialogue screen the answers show at once; in subtitles and bubbles the player opens them.
+        boolean asks = session.dialogue.presentation() != DialogueDefinition.Presentation.SCREEN;
+        session.choiceOpen = !asks;
+        session.choiceLeft = -1;
         session.camera = cameraCue(session, CameraCue.Shot.AUTO, CameraCue.Transition.CUT);
-        StoryboundNetwork.sendToPlayer(player, new DialogueChoicesPayload(session.id, session.step, session.dialogue.closable(), options, timeoutTicks, session.camera));
+        StoryboundNetwork.sendToPlayer(player, new DialogueChoicesPayload(session.id, session.step,
+                DialogueChoicesPayload.flags(session.dialogue.closable(), asks), options, timeoutTicks, session.camera));
         return true;
     }
 

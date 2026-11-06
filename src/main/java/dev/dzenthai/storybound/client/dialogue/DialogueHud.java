@@ -1,5 +1,7 @@
 package dev.dzenthai.storybound.client.dialogue;
 
+import dev.dzenthai.storybound.client.StoryboundClient;
+import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
 import dev.dzenthai.storybound.module.dialogue.ThinkTime;
@@ -9,6 +11,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 /** Subtitles of {@code presentation: hud} dialogues (and of bubble lines with no bubble to show), above the hotbar; the player keeps moving. */
@@ -18,6 +21,7 @@ public final class DialogueHud {
     private static final int LINE_HEIGHT = 10;
     /** Room for the hotbar, health and the action bar text. */
     private static final int BOTTOM_OFFSET = 72;
+    private static final int PROMPT_HEIGHT = 11;
 
     private DialogueHud() {}
 
@@ -26,6 +30,42 @@ public final class DialogueHud {
         if (minecraft.options.hideGui || minecraft.screen instanceof DialogueScreen) {
             return;
         }
+        int top = renderLine(graphics, minecraft);
+        if (ClientDialogue.waitsForAnswer()) {
+            renderPrompt(graphics, minecraft, top >= 0 ? top : graphics.guiHeight() - BOTTOM_OFFSET);
+        }
+    }
+
+    /**
+     * "[H] Answer" over the subtitles while a choice waits for the talk key (November 6, 2026), in the talk hint's look,
+     * with its timer under it as a shrinking bar, as in the window. Drawn by the code until the author's art replaces it.
+     */
+    private static void renderPrompt(GuiGraphics graphics, Minecraft minecraft, int above) {
+        ClientDialogue.Choices choices = ClientDialogue.choices();
+        if (choices == null) {
+            return;
+        }
+        MenuTheme theme = MenuThemes.INSTANCE.theme();
+        Font font = minecraft.font;
+        Component key = StoryboundClient.TALK.getTranslatedKeyMessage();
+        Component label = Component.translatable("storybound.dialogue.answer_prompt");
+        int keyWidth = font.width(key) + 7;
+        int width = keyWidth + 4 + font.width(label);
+        int x = (graphics.guiWidth() - width) / 2;
+        int y = above - 4 - PROMPT_HEIGHT - (choices.timeoutTicks() > 0 ? 4 : 0);
+        graphics.fill(x, y, x + keyWidth, y + PROMPT_HEIGHT, theme.hudBackground());
+        graphics.renderOutline(x, y, keyWidth, PROMPT_HEIGHT, theme.hudTitle());
+        graphics.drawString(font, key, x + 4, y + 2, theme.hudTitle(), false);
+        graphics.drawString(font, label, x + keyWidth + 4, y + 2, theme.hudText(), true);
+        if (choices.timeoutTicks() > 0) {
+            int barY = y + PROMPT_HEIGHT + 2;
+            graphics.fill(x, barY, x + width, barY + 2, (0xB0 << 24) | UiPalette.SHADOW_DEEP);
+            graphics.fill(x, barY, x + Math.round(width * choices.timeLeft()), barY + 2, DialogueChrome.GOLD);
+        }
+    }
+
+    /** The subtitle box of the line, if it has one; returns its top, or -1. */
+    private static int renderLine(GuiGraphics graphics, Minecraft minecraft) {
         Font font = minecraft.font;
         long now = Util.getMillis();
         ClientDialogue.Chosen chosen = ClientDialogue.chosen();
@@ -35,7 +75,7 @@ public final class DialogueHud {
         }
         ClientDialogue.Line line = ClientDialogue.line();
         if (line == null || !subtitled(line, minecraft)) {
-            return;
+            return -1;
         }
         MenuTheme theme = MenuThemes.INSTANCE.theme();
         boolean portrait = DialogueChrome.hasPortrait(minecraft, line);
@@ -69,6 +109,7 @@ public final class DialogueHud {
         } else {
             DialogueText.draw(graphics, font, lines, textX, textY, LINE_HEIGHT, theme.hudText(), true, line.visibleChars());
         }
+        return boxY;
     }
 
     /** Every line of a {@code hud} dialogue; in a {@code bubble} one, the lines without a bubble the player can see. */

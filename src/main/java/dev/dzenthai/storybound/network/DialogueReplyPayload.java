@@ -10,12 +10,15 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * Client intent in a dialogue: {@link #ADVANCE} past a line, {@link #LEAVE} (ESC), or the index of a shown option.
+ * Client intent in a dialogue: {@link #ADVANCE} past a line, {@link #LEAVE} (ESC), the index of a shown option, or
+ * {@link #OPEN} / {@link #HIDE} the window of a choice asked in subtitles or bubbles.
  * The server drops it unless the session and step are the current ones and the option is still available.
  */
 public record DialogueReplyPayload(int session, int step, int choice) implements CustomPacketPayload {
     public static final int ADVANCE = -1;
     public static final int LEAVE = -2;
+    public static final int OPEN = -3;
+    public static final int HIDE = -4;
 
     public static final Type<DialogueReplyPayload> TYPE = new Type<>(Storybound.id("dialogue_reply"));
     public static final StreamCodec<ByteBuf, DialogueReplyPayload> STREAM_CODEC = StreamCodec.composite(
@@ -36,6 +39,8 @@ public record DialogueReplyPayload(int session, int step, int choice) implements
         switch (payload.choice()) {
             case ADVANCE -> Dialogues.advance(player, payload.session(), payload.step());
             case LEAVE -> Dialogues.leave(player, payload.session());
+            case OPEN -> Dialogues.openChoice(player, payload.session(), payload.step(), true);
+            case HIDE -> Dialogues.openChoice(player, payload.session(), payload.step(), false);
             default -> Dialogues.choose(player, payload.session(), payload.step(), payload.choice());
         }
     }

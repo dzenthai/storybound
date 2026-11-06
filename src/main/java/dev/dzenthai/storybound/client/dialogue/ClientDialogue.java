@@ -38,6 +38,11 @@ public final class ClientDialogue {
     /** When the player picked an option and how long its text was: an NPC answer waits for {@link ThinkTime}. */
     private static long choseAt;
     private static int choiceLength;
+    /** The choice waits for the talk key (subtitles, bubbles): a prompt until its window is opened. */
+    private static boolean asks;
+    private static boolean choiceOpen;
+    /** While its window is open, what its timer had left (0 to 1): it counts only the time to open it. */
+    private static float pausedLeft = 1f;
 
     private ClientDialogue() {}
 
@@ -108,11 +113,67 @@ public final class ClientDialogue {
                 .toList();
         choices = new Choices(payload.step(), options, payload.timeoutTicks(), Util.getMillis());
         chosen = null;
+        asks = payload.asks();
+        choiceOpen = false;
+        if (asks && presentation == Presentation.SCREEN) {
+            // A conversation in subtitles that begins with a choice.
+            presentation = Presentation.HUD;
+        }
         if (line != null) {
             line.revealAll();
         }
         DialogueCamera.onChoices(payload.camera());
+        if (!asks) {
+            openScreen();
+        }
+    }
+
+    /**
+     * A choice in subtitles or bubbles waits for the player (November 6, 2026): "[H] Answer" over the subtitles, its
+     * timer running, until the talk key opens its window; before, the window opened by itself, even mid-fight.
+     */
+    public static boolean waitsForAnswer() {
+        return choices != null && asks && !choiceOpen && answered != choices.step();
+    }
+
+    /** Whether the choice's timer runs now: not while a window opened from the prompt is open. */
+    public static boolean timerRunning() {
+        return !(asks && choiceOpen);
+    }
+
+    /** The talk key on the prompt: the window opens, its timer stops. */
+    public static void openChoices() {
+        Choices current = choices;
+        if (current == null || !waitsForAnswer()) {
+            return;
+        }
+        choiceOpen = true;
+        pausedLeft = current.timeLeft();
+        PacketDistributor.sendToServer(new DialogueReplyPayload(session, current.step(), DialogueReplyPayload.OPEN));
         openScreen();
+    }
+
+    /** Whether ESC in the window goes back to the prompt rather than leaving. */
+    public static boolean backToPrompt() {
+        return choices != null && asks && choiceOpen;
+    }
+
+    /** ESC in a window opened from the prompt: back to it, the timer going on from what it had left. */
+    public static void hideChoices() {
+        Choices current = choices;
+        if (current == null || !backToPrompt()) {
+            return;
+        }
+        choiceOpen = false;
+        if (current.timeoutTicks() > 0) {
+            long spent = Math.round((1f - pausedLeft) * current.timeoutTicks() * 50f);
+            choices = new Choices(current.step(), current.options(), current.timeoutTicks(), Util.getMillis() - spent);
+        }
+        PacketDistributor.sendToServer(new DialogueReplyPayload(session, current.step(), DialogueReplyPayload.HIDE));
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.screen instanceof DialogueScreen) {
+            minecraft.setScreen(null);
+        }
     }
 
     public static void onClose(int closed) {
@@ -174,6 +235,8 @@ public final class ClientDialogue {
         session = -1;
         line = null;
         choices = null;
+        asks = false;
+        choiceOpen = false;
         answered = -1;
         presentation = Presentation.SCREEN;
         choseAt = 0;
