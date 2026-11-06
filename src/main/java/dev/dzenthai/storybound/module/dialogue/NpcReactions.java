@@ -11,7 +11,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.NeutralMob;
 import net.minecraft.world.entity.PathfinderMob;
@@ -150,8 +152,8 @@ public final class NpcReactions {
 
     /**
      * Whether the NPC is angry at the player (November 6, 2026): fighting them or running from them since a hit, until
-     * it calms down, or going for them by its kind's own anger (a golem without a binding's reaction). It does not talk
-     * with them meanwhile; other players it talks with as ever.
+     * it calms down, or going for them by its kind's own anger (a golem without a binding's reaction; not a hostile kind,
+     * which always does). It does not talk with them meanwhile; other players it talks with as ever.
      */
     public static boolean angryAt(Entity npc, ServerPlayer player) {
         if (npc.level() instanceof ServerLevel level) {
@@ -160,7 +162,10 @@ public final class NpcReactions {
                 return true;
             }
         }
-        if (npc instanceof Mob mob) {
+        // A hostile kind (a vindicator, a zombie) goes for the player always: that is its nature, not anger at them, and
+        // an author who gives it dialogues wants it to talk (an enemy's taunts in a duel; November 6, 2026, before, it
+        // never did). Anger from a hit (above) still counts, and so does a friendly kind's own (a golem's).
+        if (npc instanceof Mob mob && !(npc instanceof Enemy)) {
             return mob.getTarget() == player || mob.getBrain().checkMemory(MemoryModuleType.ATTACK_TARGET, MemoryStatus.REGISTERED)
                     && mob.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET).orElse(null) == player;
         }
@@ -178,7 +183,7 @@ public final class NpcReactions {
         StoryTrace.note(player, "npc " + npc.getName().getString(), "talk: refused, it is angry at the player");
         if (npc instanceof LivingEntity living && binding != null) {
             binding.whenAttacked().flatMap(WhenAttacked::phrases).ifPresent(phrases ->
-                    NpcPhrases.say(living, phrases, NpcPhrases.hitCounter(living, player), player, player.server.getTickCount(), true, false));
+                    NpcPhrases.say(living, phrases, NpcPhrases.hitCounter(living, player), player, player.server.getTickCount(), true));
         }
         return true;
     }
@@ -217,6 +222,7 @@ public final class NpcReactions {
             rules.warning().ifPresent(warning -> NpcPhrases.say(npc, warning, NpcPhrases.warningCounter(npc, player), player, now, true));
         } else {
             rules.phrases().ifPresent(phrases -> NpcPhrases.say(npc, phrases, NpcPhrases.hitCounter(npc, player), player, now, true));
+            rules.dialogue().ifPresent(dialogue -> startScene(npc, player, dialogue));
         }
         if (rules.reaction() == Reaction.FIGHT && !forgiven) {
             if (!grudge.fighting) {
@@ -242,6 +248,17 @@ public final class NpcReactions {
             grudge.fleeUntil = now + FLEE_TICKS;
             FLEEING.put(mob, player);
             flee(mob, player, now);
+        }
+    }
+
+    /**
+     * A hit's dialogue (November 6, 2026): started with the player after the one they are in; not again while it runs
+     * or waits, so every hit of a fight does not queue it once more.
+     */
+    private static void startScene(LivingEntity npc, ServerPlayer player, ResourceLocation dialogue) {
+        boolean running = Dialogues.state(player).map(state -> state.dialogue().equals(dialogue)).orElse(false);
+        if (!running && !Dialogues.queued(player).contains(dialogue)) {
+            Dialogues.startOrQueue(player, dialogue, npc);
         }
     }
 

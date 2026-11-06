@@ -222,6 +222,47 @@ public final class DialogueGameTests {
         });
     }
 
+    /**
+     * One dialogue, one presentation (decided on November 6, 2026): another presentation is another dialogue, reached by
+     * a jump. A bubble call-out ("Hey, traveller!") jumping to a conversation on the screen: the bubble keeps the
+     * player's view and the screen free; after the jump the screen is held and the camera frames the NPC; the
+     * conversation is the same session, and leaving the screen part ends it.
+     */
+    @GameTest(template = "empty")
+    public static void aJumpToAnotherDialogueTakesItsPresentation(GameTestHelper helper) {
+        Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 0, 2, 0);
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 0.5, 2, 0.5);
+        ResourceLocation callOut = key("call_out");
+        ResourceLocation talk = key("call_out_talk");
+        with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(
+                callOut, """
+                        { "presentation": "bubble", "camera": "off", "start": "a", "nodes": {
+                            "a": { "type": "line", "speaker": "npc", "text": "gametest.a", "next": "go" },
+                            "go": { "type": "jump", "dialogue": "%s" } } }
+                        """.formatted(talk),
+                talk, """
+                        { "presentation": "screen", "start": "b", "nodes": {
+                            "b": { "type": "line", "speaker": "npc", "text": "gametest.b", "next": "c" },
+                            "c": { "type": "choice", "options": [ { "text": "gametest.c" } ] } } }
+                        """
+        ), () -> {
+            helper.assertTrue(Dialogues.start(player, callOut, npc), "the call-out starts");
+            int session = state(player).session();
+            expect(helper, state(player).camera(), CameraCue.OFF, "a bubble keeps the player's view");
+            helper.assertFalse(Dialogues.holdsTheScreen(player), "and the screen free");
+            advance(player);
+            expect(helper, state(player).dialogue(), talk, "the jump goes on in the other dialogue");
+            expect(helper, state(player).session(), session, "the same conversation");
+            helper.assertTrue(Dialogues.holdsTheScreen(player), "now on the screen");
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, npc.getId()), "the camera frames the NPC");
+            advance(player);
+            helper.assertTrue(state(player).waitingForChoice(), "its answers");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            expect(helper, Dialogues.state(player), Optional.empty(), "ended");
+        });
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void cameraCuesFollowTheDialogue(GameTestHelper helper) {
         Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 0, 2, 0);
@@ -853,7 +894,7 @@ public final class DialogueGameTests {
                     { "entity": { "type": "minecraft:villager", "tag": "quest_man", "name": "Quest Man" },
                       "dialogues": [ { "dialogue": "gametest:deleted", "priority": 10 }, { "dialogue": "%s" } ] }
                     """.formatted(TALK))).getOrThrow(GameTestAssertException::new);
-            expect(helper, binding.pick(StoryContext.of(player)), Optional.of(TALK), "the next entry talks when the first dialogue is gone");
+            expect(helper, binding.pick(StoryContext.of(player)).flatMap(NpcBinding.Entry::dialogue), Optional.of(TALK), "the next entry talks when the first dialogue is gone");
             Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(1, 2, 1));
             villager.addTag("npc_4");
             String why = binding.mismatch(villager);

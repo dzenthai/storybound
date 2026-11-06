@@ -68,29 +68,33 @@ public final class StoryLinks {
             JsonObject obj = parseObject(raw);
             if (obj.has("dialogues") && obj.get("dialogues").isJsonArray()) {
                 for (JsonElement el : obj.getAsJsonArray("dialogues")) {
-                    if (el.isJsonObject() && el.getAsJsonObject().has("dialogue")) {
-                        parseId(el.getAsJsonObject().get("dialogue").getAsString())
-                                .ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "talk")));
+                    if (el.isJsonObject() && el.getAsJsonObject().get("dialogue") instanceof JsonPrimitive dialogue) {
+                        parseId(dialogue.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "talk")));
+                    }
+                    // Phrases said on a click (November 6, 2026).
+                    if (el.isJsonObject() && el.getAsJsonObject().get("phrases") instanceof JsonPrimitive phrases) {
+                        parseId(phrases.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "talk")));
                     }
                 }
             }
             phrasesOf(obj, "chatter").ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "chatter")));
+            if (obj.get("chatter") instanceof JsonObject chatter && chatter.get("variants") instanceof JsonArray variants) {
+                for (JsonElement variant : variants) {
+                    if (variant instanceof JsonObject said && said.get("phrases") instanceof JsonPrimitive phrases) {
+                        parseId(phrases.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "chatter")));
+                    }
+                }
+            }
             phrasesOf(obj, "when_attacked").ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "hit")));
             if (obj.get("when_attacked") instanceof JsonObject hit && hit.get("warning") instanceof JsonPrimitive warning) {
                 parseId(warning.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "warning")));
             }
-        });
-        source.byType(PHRASES).forEach((id, raw) -> {
-            NodeKey from = new NodeKey(PHRASES, id);
-            JsonObject obj = parseObject(raw);
-            if (obj.get("lines") instanceof JsonArray lines) {
-                for (JsonElement line : lines) {
-                    if (line instanceof JsonObject phrase && phrase.get("dialogue") instanceof JsonPrimitive dialogue) {
-                        parseId(dialogue.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "says")));
-                    }
-                }
+            // A scene started on a hit, instead of phrases (November 6, 2026).
+            if (obj.get("when_attacked") instanceof JsonObject hit && hit.get("dialogue") instanceof JsonPrimitive dialogue) {
+                parseId(dialogue.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "hit")));
             }
         });
+        // Phrases name nothing since November 6, 2026 (a line could start a dialogue before): no edges from them.
         source.byType(DIALOGUE).forEach((id, raw) -> collectLogicEdges(new NodeKey(DIALOGUE, id), parseObject(raw), edges, hooks));
         source.byType(DOCUMENT).forEach((id, raw) -> {
             NodeKey from = new NodeKey(DOCUMENT, id);

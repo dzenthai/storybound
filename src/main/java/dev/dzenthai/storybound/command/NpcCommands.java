@@ -66,7 +66,7 @@ final class NpcCommands {
             return 0;
         }
         String source = found.id() != null ? found.id().toString() : "/storybound npc bind";
-        String dialogues = String.join(", ", found.binding().dialogues().stream().map(entry -> entry.dialogue().toString()).toList());
+        String dialogues = String.join(", ", found.binding().dialogues().stream().map(NpcBinding.Entry::describe).toList());
         String modes = (found.binding().interact() ? "interact " : "") + (found.binding().proximity().isPresent() ? "proximity " : "")
                 + (found.binding().custom() ? "custom" : "");
         context.getSource().sendSuccess(() -> Component.translatable("commands.storybound.npc.info", entity.getDisplayName(), source,

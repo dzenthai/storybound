@@ -240,13 +240,31 @@ public final class NpcBindings {
                 StoryTrace.note(player, bindingName(found, target), "talk: busy with " + other.getGameProfile().getName());
                 return found.binding().busyDialogue().map(busy -> Dialogues.start(player, busy, target)).orElse(false) || handled;
             }
-            Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, target), bindingName(found, target));
-            if (dialogue.isEmpty()) {
+            Optional<NpcBinding.Entry> entry = found.binding().pick(new StoryContext(player, target), bindingName(found, target));
+            if (entry.isEmpty()) {
                 StoryTrace.note(player, bindingName(found, target), "talk: no dialogue entry passed its conditions");
             }
-            handled |= dialogue.isPresent() && Dialogues.start(player, dialogue.get(), target);
+            handled |= entry.isPresent() && startEntry(player, target, found, entry.get());
         }
         return handled;
+    }
+
+    /**
+     * What a click entry names: its dialogue started, or its phrases said over the NPC in a bubble, with no
+     * conversation (November 6, 2026). Phrases count as handled even when they come too soon after the last ones (a
+     * quick second click): the click is still the NPC's, so it does not open trading. Each entry goes through its
+     * phrases on its own: "thank you" lines after a quest start at their first, wherever the ones before it stood.
+     */
+    private static boolean startEntry(ServerPlayer player, Entity target, Found found, NpcBinding.Entry entry) {
+        if (entry.dialogue().isPresent()) {
+            return Dialogues.start(player, entry.dialogue().get(), target);
+        }
+        if (target instanceof LivingEntity living) {
+            NpcPhrases.say(living, entry.phrases().orElseThrow(), NpcPhrases.clickCounter(target, player, found.binding().dialogues().indexOf(entry)),
+                    player, player.server.getTickCount(), true);
+            return true;
+        }
+        return false;
     }
 
     /** Proximity starts; every 10 ticks. Public for tests. */
@@ -317,8 +335,8 @@ public final class NpcBindings {
         if (found.binding().pick(new StoryContext(player, entity)).isEmpty()) {
             return false;
         }
-        Optional<ResourceLocation> dialogue = found.binding().pick(new StoryContext(player, entity), bindingName(found, entity) + " proximity");
-        if (dialogue.isPresent() && Dialogues.start(player, dialogue.get(), entity)) {
+        Optional<NpcBinding.Entry> entry = found.binding().pick(new StoryContext(player, entity), bindingName(found, entity) + " proximity");
+        if (entry.isPresent() && startEntry(player, entity, found, entry.get())) {
             starts.put(entity.getUUID(), now);
             if (once != null) {
                 try {

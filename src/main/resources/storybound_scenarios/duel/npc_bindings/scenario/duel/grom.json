@@ -1,0 +1,21 @@
+{
+  "entity": {
+    "type": "minecraft:vindicator",
+    "tag": "scenario_grom"
+  },
+  "dialogues": [
+    {
+      "dialogue": "scenario:duel/taunts",
+      "conditions": {
+        "type": "quest",
+        "quest": "scenario:duel/quest",
+        "stage": "fight"
+      }
+    }
+  ],
+  "interact": false,
+  "proximity": {
+    "radius": 6,
+    "line_of_sight": false
+  }
+}

@@ -501,6 +501,10 @@ final class FormView {
                 codexSectionsField(path, property.getValue(), object);
             } else if ("unlock".equals(form) && name.equals("on")) {
                 unlockSourcesField(path, object, fieldLabel(name, false, schema));
+            } else if ("node.jump".equals(form) && name.equals("dialogue")) {
+                if (jumpModeField(path, object)) {
+                    field(path, name, property.getValue(), required.contains(name), schema);
+                }
             } else {
                 field(path, name, property.getValue(), required.contains(name), schema);
             }
@@ -2165,8 +2169,13 @@ final class FormView {
                 return;
             }
         }
-        if ((name.equals("phrases") || name.equals("warning")) && (Schemas.properties(owner).containsKey("calm_after")
-                || Schemas.properties(owner).containsKey("min_interval"))) {
+        Map<String, Node> ownerFields = Schemas.properties(owner);
+        boolean phrasesOwner = ownerFields.containsKey("calm_after") || ownerFields.containsKey("min_interval") || ownerFields.containsKey("priority");
+        if (name.equals("dialogue") && phrasesOwner && ownerFields.containsKey("phrases")) {
+            // A click entry's or a hit's dialogue is the third way of its phrases' switch, shown there.
+            return;
+        }
+        if ((name.equals("phrases") || name.equals("warning")) && phrasesOwner) {
             phrasesField(path, name, value, label, owner);
             return;
         }
@@ -2722,7 +2731,7 @@ final class FormView {
         // Lines of text: each edited in its row, in the active language, under a key of its own.
         boolean texts = itemKind == Kind.TEXT;
         String field = path.getLast() instanceof String name ? name : "";
-        // A phrases node's lines: each a text written in its row, or a dialogue picked, switched by the button at its left.
+        // A phrases node's lines: each a text written in its row, with the text window at its right.
         boolean phraseLines = field.equals("lines") && path.size() == 1 && host.node() != null && host.node().type().equals(ClientDevStore.TYPE_PHRASES);
         Picker picker = primitive ? picker(field.equals("waypoints") ? "waypoint" : field, items) : null;
         for (int i = 0; i < array.size(); i++) {
@@ -2733,7 +2742,7 @@ final class FormView {
             int rowY = rowY(CONTROL_H);
             int buttonsW = (i > 0 ? 18 : 0) + 18;
             if (phraseLines) {
-                phraseRow(path, field, array, index, rowY, w - buttonsW - 2, items);
+                phraseRow(path, field, array, index, rowY, w - buttonsW - 2);
             } else if (texts) {
                 EditBox box = new EditBox(screen.font(), x, rowY + 1, w - buttonsW - 2, CONTROL_H - 2, Component.empty());
                 box.setMaxLength(1024);
@@ -2852,44 +2861,12 @@ final class FormView {
     }
 
     /**
-     * One line of a phrases node (November 5, 2026), as an entity's "known by": at the left a switch, "own text" or
-     * "dialogue"; at its right, the text written there (with \u270E for the text window) or a button that picks one of
-     * the story's dialogues, screen or bubble. Switching to a dialogue asks for it at once; back to a text starts it empty.
+     * One line of a phrases node (November 5, 2026): its text, with \u270E for the text window. Text only since November 6,
+     * 2026: a switch at its left picked a dialogue instead, gone with dialogue lines (an NPC starts a dialogue itself now).
      */
-    private void phraseRow(List<Object> path, String field, JsonArray array, int index, int rowY, int width, @Nullable Node items) {
-        JsonElement line = array.get(index);
-        boolean dialogue = line instanceof JsonObject object && object.has("dialogue");
-        Picker dialogues = picker("dialogue", items);
-        Runnable pickDialogue = () -> {
-            if (dialogues != null) {
-                pick(dialogues, entry -> {
-                    JsonObject picked = new JsonObject();
-                    picked.addProperty("dialogue", entry.id());
-                    ensureArray(path).set(index, picked);
-                    host.changed();
-                });
-            }
-        };
-        int modeW = Math.min(120, width * 2 / 5);
-        Button switcher = Button.builder(Component.literal(DevUi.str(dialogue ? "phrases.line.dialogue" : "phrases.line.text") + " \u25B8"), b -> {
-            if (dialogue) {
-                ensureArray(path).set(index, new JsonPrimitive(""));
-                host.changed();
-            } else {
-                pickDialogue.run();
-            }
-        }).tooltip(Tooltip.create(DevUi.text("phrases.line.tooltip"))).bounds(x, rowY, modeW, CONTROL_H).build();
-        screen.add(switcher);
-        int right = x + modeW + 4;
-        int rightW = width - modeW - 4;
-        if (dialogue) {
-            String id = ((JsonObject) line).get("dialogue").getAsString();
-            Button shown = Button.builder(Component.literal("💬 " + DevUi.shortId(id) + " \u25B8"), b -> pickDialogue.run())
-                    .bounds(right, rowY, rightW, CONTROL_H).build();
-            shown.setTooltip(Tooltip.create(DevUi.text("phrases.pick_dialogue")));
-            screen.add(shown);
-            return;
-        }
+    private void phraseRow(List<Object> path, String field, JsonArray array, int index, int rowY, int width) {
+        int right = x;
+        int rightW = width;
         String key = host.textKey(keyPath(path), field) + "." + index;
         EditBox box = new EditBox(screen.font(), right, rowY + 1, rightW - 20, CONTROL_H - 2, Component.empty());
         box.setMaxLength(1024);
@@ -2922,29 +2899,60 @@ final class FormView {
     }
 
     /**
-     * An NPC's phrases, for its chatter or for when it is hit (November 5, 2026), as an entity's "known by": at the left
-     * a switch, "own text" or "phrases node"; at its right, a text written there (with \u270E for the text window) or a
-     * button that picks one of the story's phrases nodes. Switching empties the field; it is written once filled.
+     * An NPC's phrases, for its chatter, a click or when it is hit (November 5, 2026), as an entity's "known by": at the
+     * left a switch, "own text" or "phrases node"; at its right, a text written there (with \u270E for the text window) or
+     * a button that picks one of the story's phrases nodes. Where a dialogue may stand instead (a click entry, a hit;
+     * November 6, 2026) the switch has a third way, "dialogue", which writes the owner's {@code dialogue} in place of its
+     * phrases; a click entry starts on it. Switching empties the field; it is written once filled.
      */
     private void phrasesField(List<Object> path, String name, @Nullable JsonElement value, Component label, Node owner) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
         }
-        labelRow(label);
+        Map<String, Node> fields = Schemas.properties(owner);
+        boolean orDialogue = name.equals("phrases") && fields.containsKey("dialogue");
+        boolean clickEntry = orDialogue && fields.containsKey("priority");
+        labelRow(clickEntry ? DevUi.text("phrases.label.click") : orDialogue ? DevUi.text("phrases.label.hit") : label);
         int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
         List<Object> at = with(path, name);
-        String written = value instanceof JsonPrimitive ? "node" : value instanceof JsonObject ? "text" : null;
-        String mode = written != null ? written : entityModes.getOrDefault(at.toString(), "text");
+        JsonObject holder = objectAt(path);
+        boolean dialogueWritten = orDialogue && holder != null && holder.get("dialogue") instanceof JsonPrimitive;
+        String written = dialogueWritten ? "dialogue" : value instanceof JsonPrimitive ? "node" : value instanceof JsonObject ? "text" : null;
+        List<String> modes = orDialogue ? (clickEntry ? List.of("dialogue", "node", "text") : List.of("text", "node", "dialogue")) : List.of("text", "node");
+        String mode = written != null ? written : entityModes.getOrDefault(at.toString(), modes.getFirst());
         int modeW = Math.min(150, w * 2 / 5);
         Button switcher = Button.builder(Component.literal(DevUi.str("phrases.mode." + mode) + " \u25B8"), b -> {
-            ensureObject(path).remove(name);
-            entityModes.put(at.toString(), mode.equals("text") ? "node" : "text");
+            JsonObject target = ensureObject(path);
+            target.remove(name);
+            if (orDialogue) {
+                target.remove("dialogue");
+            }
+            entityModes.put(at.toString(), modes.get((modes.indexOf(mode) + 1) % modes.size()));
             host.changed();
         }).bounds(x, rowTop, modeW, CONTROL_H).build();
-        switcher.setTooltip(Tooltip.create(DevUi.text("phrases.mode.tooltip")));
+        switcher.setTooltip(Tooltip.create(DevUi.text(orDialogue ? "phrases.mode.tooltip_dialogue" : "phrases.mode.tooltip")));
         screen.add(switcher);
         int right = x + modeW + 4;
         int rightW = w - modeW - 4;
+        if (mode.equals("dialogue")) {
+            String id = dialogueWritten ? holder.get("dialogue").getAsString() : null;
+            Picker picker = picker("dialogue", owner);
+            Component shown = id != null ? Component.literal("💬 " + DevUi.shortId(id) + " \u25B8")
+                    : Component.literal("+ ").append(DevUi.text("phrases.choose_dialogue"));
+            Button choose = Button.builder(shown, b -> {
+                if (picker != null) {
+                    pick(picker, entry -> {
+                        JsonObject target = ensureObject(path);
+                        target.remove(name);
+                        target.addProperty("dialogue", entry.id());
+                        host.changed();
+                    });
+                }
+            }).bounds(right, rowTop, rightW, CONTROL_H).build();
+            choose.setTooltip(Tooltip.create(DevUi.text("phrases.pick_dialogue")));
+            screen.add(choose);
+            return;
+        }
         if (mode.equals("node")) {
             String id = value instanceof JsonPrimitive node && !node.getAsString().isBlank() ? node.getAsString() : null;
             Picker picker = picker(name, owner);
@@ -2996,6 +3004,33 @@ final class FormView {
                 host.changed();
             });
         }).tooltip(Tooltip.create(DevUi.text("text.open_window"))).bounds(right + rightW - 18, rowTop - 1, 18, CONTROL_H).build());
+    }
+
+    /**
+     * Where a jump goes, chosen first (November 6, 2026; before, two fields side by side, "to another dialogue" and "to
+     * the node", and which one counted was unclear): "Within this dialogue ▸" leaves the node alone to pick (its arrow on
+     * the graph), "To another dialogue ▸" asks for the dialogue, then the node in it (empty: its start). Switching
+     * empties both, as a node of one dialogue means nothing in another.
+     *
+     * @return whether the dialogue's field is shown (to another dialogue)
+     */
+    private boolean jumpModeField(List<Object> path, @Nullable JsonObject node) {
+        String key = with(path, "jump").toString();
+        boolean written = node != null && node.get("dialogue") instanceof JsonPrimitive dialogue && !dialogue.getAsString().isBlank();
+        boolean elsewhere = written || "other".equals(entityModes.get(key));
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("jump.where"));
+            Button switcher = Button.builder(Component.literal(DevUi.str(elsewhere ? "jump.mode.other" : "jump.mode.here") + " \u25B8"), b -> {
+                JsonObject target = ensureObject(path);
+                target.remove("dialogue");
+                target.remove("node");
+                entityModes.put(key, elsewhere ? "here" : "other");
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            switcher.setTooltip(Tooltip.create(DevUi.text("jump.mode.tooltip")));
+            screen.add(switcher);
+        }
+        return elsewhere;
     }
 
     /** {@code stage_2} for the second stage, never one the list already has. */
@@ -3459,6 +3494,16 @@ final class FormView {
         }
         if (object.has("id") && object.get("id").isJsonPrimitive()) {
             return object.get("id").getAsString();
+        }
+        // A click entry or a chatter variant of phrases: the node, or its own text in quotes.
+        if (Schemas.properties(items).containsKey("priority") && object.has("phrases")) {
+            JsonElement phrases = object.get("phrases");
+            if (phrases instanceof JsonPrimitive node) {
+                return "🗨 " + DevUi.shortId(node.getAsString());
+            }
+            if (phrases instanceof JsonObject own) {
+                return "«" + ClientDevStore.readStoryText(own, "text", "") + "»";
+            }
         }
         if (object.has("text")) {
             String text = ClientDevStore.readStoryText(object, "text", "");

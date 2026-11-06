@@ -1,0 +1,29 @@
+{
+  "category": "side",
+  "title": "scenario.duel.quest.title",
+  "text": {
+    "active": "scenario.duel.quest.text",
+    "completed": "scenario.duel.quest.done"
+  },
+  "stages": [
+    {
+      "id": "fight",
+      "objectives": [
+        {
+          "id": "grom",
+          "text": "scenario.duel.quest.objective",
+          "trigger": {
+            "type": "entity_killed",
+            "entity": "minecraft:vindicator"
+          }
+        }
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "start_dialogue",
+      "dialogue": "scenario:duel/fallen"
+    }
+  ]
+}

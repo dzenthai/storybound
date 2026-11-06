@@ -1,0 +1,108 @@
+{
+  "participants": {
+    "kamen": {
+      "type": "bound"
+    }
+  },
+  "presentation": "hud",
+  "npc_stops": false,
+  "combat": {
+    "mode": "continue"
+  },
+  "on_abort": {
+    "type": "set_quest_state",
+    "quest": "scenario:shoulder/quest",
+    "state": "failed"
+  },
+  "start": "l1",
+  "nodes": {
+    "l1": {
+      "type": "line",
+      "speaker": "kamen",
+      "text": "scenario.shoulder.battle.l1",
+      "duration": 4,
+      "next": "p1"
+    },
+    "p1": {
+      "type": "line",
+      "speaker": "player",
+      "text": "scenario.shoulder.battle.p1",
+      "duration": 3,
+      "next": "l2"
+    },
+    "l2": {
+      "type": "line",
+      "speaker": "kamen",
+      "text": "scenario.shoulder.battle.l2",
+      "duration": 4,
+      "next": "wave"
+    },
+    "wave": {
+      "type": "action",
+      "on_fail": "continue",
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:husk",
+          "count": 3,
+          "tag": "scenario_shoulder_husk",
+          "offset": [
+            -6,
+            0,
+            5
+          ],
+          "persistent": false
+        }
+      ],
+      "next": "l3"
+    },
+    "l3": {
+      "type": "line",
+      "speaker": "kamen",
+      "text": "scenario.shoulder.battle.l3",
+      "duration": 4,
+      "next": "p2"
+    },
+    "p2": {
+      "type": "line",
+      "speaker": "player",
+      "text": "scenario.shoulder.battle.p2",
+      "duration": 3,
+      "next": "l4"
+    },
+    "l4": {
+      "type": "line",
+      "speaker": "kamen",
+      "text": "scenario.shoulder.battle.l4",
+      "duration": 5,
+      "next": "l5"
+    },
+    "l5": {
+      "type": "line",
+      "speaker": "kamen",
+      "text": "scenario.shoulder.battle.l5",
+      "duration": 5,
+      "next": "p3"
+    },
+    "p3": {
+      "type": "line",
+      "speaker": "player",
+      "text": "scenario.shoulder.battle.p3",
+      "duration": 3,
+      "next": "l6"
+    },
+    "l6": {
+      "type": "line",
+      "speaker": "kamen",
+      "text": "scenario.shoulder.battle.l6",
+      "duration": 5,
+      "next": "p4"
+    },
+    "p4": {
+      "type": "line",
+      "speaker": "player",
+      "text": "scenario.shoulder.battle.p4",
+      "duration": 4
+    }
+  }
+}

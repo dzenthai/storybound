@@ -1,14 +1,14 @@
 package dev.dzenthai.storybound.module.dialogue;
 
 import dev.dzenthai.storybound.core.logic.StoryTrace;
-import dev.dzenthai.storybound.module.dialogue.PhrasesDefinition.Phrase;
+import dev.dzenthai.storybound.core.text.StoryText;
 import dev.dzenthai.storybound.network.SpeechBubblePayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -36,25 +36,21 @@ public final class NpcPhrases {
     private NpcPhrases() {}
 
     /**
-     * Says the next of the phrases: a text in a bubble over the NPC for everyone near, each in their own language, or a
-     * dialogue started with {@code player} ({@code queue}: after the one they are in; otherwise only when they are free).
-     * A hit's phrase ({@code queue}) cuts in whatever the NPC said before; chatter waits for it to be quiet.
+     * Says the next of the phrases over the NPC, to every player within bubble range, each in their own language.
+     * {@code cutIn} (a hit, a click): it speaks at once, whatever it said before, only not more often than every
+     * {@link #HIT_GAP_TICKS} for the same counter; otherwise (chatter) only after the NPC has been quiet for
+     * {@link #LINE_GAP_TICKS}.
      *
+     * @param player who the story texts are resolved for, and in whose trace it is noted
      * @return whether something was said
      */
-    static boolean say(LivingEntity npc, PhrasesRef ref, String counter, ServerPlayer player, long now, boolean queue) {
-        return say(npc, ref, counter, player, now, queue, true);
-    }
-
-    /** As {@link #say}; without {@code dialogues}, a line that is a dialogue is not started and counts as nothing said. */
-    static boolean say(LivingEntity npc, PhrasesRef ref, String counter, ServerPlayer player, long now, boolean queue, boolean dialogues) {
+    static boolean say(LivingEntity npc, PhrasesRef ref, String counter, ServerPlayer player, long now, boolean cutIn) {
         PhrasesDefinition phrases = ref.resolve();
-        boolean tooSoon = queue ? now - USED.getOrDefault(counter, Long.MIN_VALUE / 2) < HIT_GAP_TICKS : now - lastSpoke(npc) < LINE_GAP_TICKS;
+        boolean tooSoon = cutIn ? now - USED.getOrDefault(counter, Long.MIN_VALUE / 2) < HIT_GAP_TICKS : now - lastSpoke(npc) < LINE_GAP_TICKS;
         if (phrases == null || phrases.lines().isEmpty() || tooSoon) {
             return false;
         }
-        List<Phrase> lines = phrases.lines();
-        Integer before = POSITION.get(counter);
+        List<StoryText> lines = phrases.lines();
         int index;
         if (phrases.order() == PhrasesDefinition.Order.SEQUENCE) {
             int next = POSITION.getOrDefault(counter, 0);
@@ -69,31 +65,13 @@ public final class NpcPhrases {
             POSITION.put(counter, index);
         }
         USED.put(counter, now);
-        Phrase phrase = lines.get(index);
-        if (phrase.dialogue().isPresent() && !dialogues) {
-            return false;
-        }
-        if (phrase.dialogue().isPresent()) {
-            ResourceLocation dialogue = phrase.dialogue().get();
-            boolean started = queue ? Dialogues.startOrQueue(player, dialogue, npc) : Dialogues.start(player, dialogue, npc);
-            StoryTrace.note(player, ref.describe(), "line " + (index + 1) + ": dialogue " + dialogue + (started ? "" : " (not started)"));
-            if (started) {
-                LAST_SPOKE.put(npc.getUUID(), now);
-            } else if (before != null) {
-                // Not started (the player was busy): the same line comes again next time.
-                POSITION.put(counter, before);
-            } else {
-                POSITION.remove(counter);
+        StoryText text = lines.get(index);
+        for (ServerPlayer viewer : ((ServerLevel) npc.level()).players()) {
+            if (viewer.distanceToSqr(npc) <= Dialogues.BUBBLE_RANGE * Dialogues.BUBBLE_RANGE) {
+                StoryboundNetwork.sendToPlayer(viewer, new SpeechBubblePayload(npc.getId(), text.resolve(viewer), -1, ThinkTime.NONE));
             }
-            return started;
         }
-        phrase.text().ifPresent(text -> {
-            for (ServerPlayer viewer : ((ServerLevel) npc.level()).players()) {
-                if (viewer.distanceToSqr(npc) <= Dialogues.BUBBLE_RANGE * Dialogues.BUBBLE_RANGE) {
-                    StoryboundNetwork.sendToPlayer(viewer, new SpeechBubblePayload(npc.getId(), text.resolve(viewer), -1, ThinkTime.NONE));
-                }
-            }
-        });
+        StoryTrace.note(player, ref.describe(), "line " + (index + 1) + " said by " + npc.getName().getString());
         LAST_SPOKE.put(npc.getUUID(), now);
         return true;
     }
@@ -129,6 +107,29 @@ public final class NpcPhrases {
 
     static String chatterCounter(LivingEntity npc) {
         return "chatter:" + npc.getUUID();
+    }
+
+    /** A chatter variant's own place in its list (each variant goes on by itself); -1 is the chatter's own phrases. */
+    static String chatterCounter(LivingEntity npc, int variant) {
+        return variant < 0 ? chatterCounter(npc) : chatterCounter(npc) + ":" + variant;
+    }
+
+    /**
+     * Phrases said on a click (November 6, 2026): per player and per click entry (its place in the NPC's list), so each
+     * player goes through each entry's lines in order on their own.
+     */
+    static String clickCounter(Entity npc, ServerPlayer player, int entry) {
+        return "click:" + npc.getUUID() + ":" + player.getUUID() + ":" + entry;
+    }
+
+    /** For tests: the counter of the phrases a player gets on clicking the NPC, for its entry at that place. */
+    public static String clickCounterFor(Entity npc, ServerPlayer player, int entry) {
+        return clickCounter(npc, player, entry);
+    }
+
+    /** For tests: the counter of a chatter variant (-1: the chatter's own phrases). */
+    public static String chatterCounterFor(LivingEntity npc, int variant) {
+        return chatterCounter(npc, variant);
     }
 
     static void prune(long now) {

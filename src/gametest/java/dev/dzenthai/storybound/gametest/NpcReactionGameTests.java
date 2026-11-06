@@ -5,8 +5,12 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
+import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
+import dev.dzenthai.storybound.core.state.StoryScope;
+import dev.dzenthai.storybound.core.state.StoryState;
+import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.module.dialogue.DialogueDefinition;
 import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
@@ -248,22 +252,34 @@ public final class NpcReactionGameTests {
                 .thenSucceed();
     }
 
+    /**
+     * A hit's dialogue instead of phrases (since November 6, 2026 a phrases line no longer starts one): the golem runs
+     * and the scene starts; a second hit while it runs does not queue it again.
+     */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
-    public static void aFleeingGolemRunsAndAPhraseThatIsADialogueStarts(GameTestHelper helper) {
+    public static void aFleeingGolemRunsAndItsHitDialogueStarts(GameTestHelper helper) {
         IronGolem golem = helper.spawn(EntityType.IRON_GOLEM, 2, 1, 3);
         golem.addTag("gt_react_flee");
         ServerPlayer player = player(helper);
         Definitions defs = new Definitions()
                 .dialogue("react_talk", "{ \"presentation\": \"hud\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }")
-                .phrases("react_flee", "{ \"order\": \"sequence\", \"lines\": [ { \"dialogue\": \"gametest:react_talk\" } ] }")
-                .binding("react_flee", "{ \"entity\": { \"tag\": \"gt_react_flee\" }, \"when_attacked\": { \"reaction\": \"flee\", \"phrases\": \"gametest:react_flee\" } }");
+                .binding("react_flee", "{ \"entity\": { \"tag\": \"gt_react_flee\" }, \"when_attacked\": { \"reaction\": \"flee\", \"dialogue\": \"gametest:react_talk\" } }");
         defs.install(helper);
         double[] before = new double[1];
         helper.startSequence()
                 .thenExecute(() -> {
                     before[0] = golem.distanceTo(player);
                     golem.hurt(player.damageSources().playerAttack(player), 1f);
-                    expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(key("react_talk")), "the phrase that is a dialogue starts it");
+                    expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(key("react_talk")), "the hit's dialogue starts");
+                })
+                // Hits closer than 10 ticks count once: the second one a little later, while the scene still runs.
+                .thenIdle(15)
+                .thenExecute(() -> {
+                    golem.invulnerableTime = 0;
+                    golem.hurt(player.damageSources().playerAttack(player), 1f);
+                    expect(helper, NpcReactions.hits(golem, player), 2, "a second hit");
+                    expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(key("react_talk")), "the scene goes on");
+                    expect(helper, Dialogues.queued(player), List.of(), "hit again while it runs: not queued once more");
                     Dialogues.interrupt(player, EndReason.STOPPED);
                 })
                 .thenWaitUntil(() -> helper.assertTrue(golem.distanceTo(player) > before[0] + 2, "it runs from the player: " + golem.distanceTo(player)))
@@ -286,6 +302,119 @@ public final class NpcReactionGameTests {
         expect(helper, NpcPhrases.position(NpcPhrases.hitCounterFor(golem, player)), 1, "the own text is said");
         defs.uninstall(player);
         remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * Phrases on a click (November 6, 2026): an entry of phrases says the next line in a bubble and starts no
+     * conversation; the click is the NPC's (no trading), also a quick second one that says nothing (not more than one
+     * phrase a second); once the story moves on (a flag), a higher entry's phrases apply and start at their first line.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
+    public static void aClickSaysPhrasesAndStartsNoConversation(GameTestHelper helper) {
+        Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 3);
+        npc.addTag("gt_click");
+        ServerPlayer player = player(helper);
+        ResourceLocation thanked = key("click_thanked");
+        Definitions defs = new Definitions()
+                .phrases("click_wolves", "{ \"order\": \"sequence\", \"lines\": [ { \"literal\": \"Wolves again...\" }, { \"literal\": \"Stay out of the woods.\" } ] }")
+                .binding("click", "{ \"entity\": { \"tag\": \"gt_click\" }, \"override_interact\": true, \"dialogues\": ["
+                        + " { \"phrases\": \"gametest:click_wolves\" },"
+                        + " { \"phrases\": { \"text\": { \"literal\": \"Thank you!\" } }, \"priority\": 10,"
+                        + "   \"conditions\": { \"type\": \"flag\", \"key\": \"" + thanked + "\", \"scope\": \"player\" } } ] }");
+        defs.install(helper);
+        String wolves = NpcPhrases.clickCounterFor(npc, player, 0);
+        String thanks = NpcPhrases.clickCounterFor(npc, player, 1);
+        helper.startSequence()
+                .thenExecute(() -> {
+                    helper.assertTrue(NpcBindings.rightClick(player, npc), "the click is the NPC's: no trading");
+                    expect(helper, Dialogues.state(player), Optional.empty(), "no conversation");
+                    expect(helper, NpcPhrases.position(wolves), 1, "the first line is said");
+                    helper.assertTrue(NpcBindings.rightClick(player, npc), "a quick second click is still the NPC's");
+                    expect(helper, NpcPhrases.position(wolves), 1, "but says nothing yet");
+                })
+                .thenIdle(25)
+                .thenExecute(() -> {
+                    NpcBindings.talk(player, npc);
+                    expect(helper, NpcPhrases.position(wolves), 2, "the talk key: the next line");
+                    try {
+                        StoryState.set(player, StoryScope.PLAYER, thanked, new StoryValue.Bool(true));
+                    } catch (StoryException e) {
+                        throw new GameTestAssertException(e.getMessage());
+                    }
+                })
+                .thenIdle(25)
+                .thenExecute(() -> {
+                    NpcBindings.talk(player, npc);
+                    expect(helper, NpcPhrases.position(thanks), 1, "the story moved on: the higher entry's phrases, from their first line");
+                    expect(helper, NpcPhrases.position(wolves), 2, "the wolves' lines stay where they were");
+                    expect(helper, Dialogues.state(player), Optional.empty(), "still no conversation");
+                })
+                .thenExecute(() -> {
+                    try {
+                        StoryState.clear(player, StoryScope.PLAYER, thanked);
+                    } catch (StoryException e) {
+                        throw new GameTestAssertException(e.getMessage());
+                    }
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * Chatter variants (November 6, 2026): the NPC says its own phrases while no variant applies, then the variant's once
+     * its conditions pass for the nearest player; each goes through its lines on its own counter.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 400)
+    public static void chatterVariantsFollowTheStory(GameTestHelper helper) {
+        Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 3);
+        npc.addTag("gt_chatter_variants");
+        ServerPlayer player = player(helper);
+        ResourceLocation done = key("chatter_done");
+        Definitions defs = new Definitions()
+                .binding("chatter_variants", "{ \"entity\": { \"tag\": \"gt_chatter_variants\" }, \"chatter\": {"
+                        + " \"phrases\": { \"text\": { \"literal\": \"Wolves, everywhere.\" } },"
+                        + " \"variants\": [ { \"phrases\": { \"text\": { \"literal\": \"Quiet since you came.\" } },"
+                        + "   \"conditions\": { \"type\": \"flag\", \"key\": \"" + done + "\", \"scope\": \"player\" } } ],"
+                        + " \"min_interval\": 2, \"max_interval\": 2, \"radius\": 6 } }");
+        defs.install(helper);
+        String own = NpcPhrases.chatterCounterFor(npc, -1);
+        String variant = NpcPhrases.chatterCounterFor(npc, 0);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(NpcPhrases.position(own) >= 1, "before: its own phrases"))
+                .thenExecute(() -> {
+                    expect(helper, NpcPhrases.position(variant), -1, "not the variant yet");
+                    try {
+                        StoryState.set(player, StoryScope.PLAYER, done, new StoryValue.Bool(true));
+                    } catch (StoryException e) {
+                        throw new GameTestAssertException(e.getMessage());
+                    }
+                })
+                .thenWaitUntil(() -> helper.assertTrue(NpcPhrases.position(variant) >= 1, "after: the variant's phrases"))
+                .thenExecute(() -> {
+                    try {
+                        StoryState.clear(player, StoryScope.PLAYER, done);
+                    } catch (StoryException e) {
+                        throw new GameTestAssertException(e.getMessage());
+                    }
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /** A phrases line that is a dialogue (the format before November 6, 2026) fails the file and says where it goes now. */
+    @GameTest(template = "open", batch = BATCH)
+    public static void aPhrasesLineIsNoLongerADialogue(GameTestHelper helper) {
+        var ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        var old = PhrasesDefinition.CODEC.parse(ops, JsonParser.parseString("{ \"lines\": [ \"Hey!\", { \"dialogue\": \"gametest:talk\" } ] }"));
+        helper.assertTrue(old.error().isPresent(), "a dialogue line is refused");
+        helper.assertTrue(old.error().get().message().contains("when_attacked"), "and the message says where it goes: " + old.error().get().message());
+        var both = NpcBinding.CODEC.parse(ops, JsonParser.parseString("{ \"entity\": { \"tag\": \"x\" }, \"dialogues\": [ { \"dialogue\": \"gametest:a\", \"phrases\": \"gametest:b\" } ] }"));
+        helper.assertTrue(both.error().isPresent(), "a click entry is a dialogue or phrases, not both");
+        var hit = NpcBinding.CODEC.parse(ops, JsonParser.parseString("{ \"entity\": { \"tag\": \"x\" }, \"when_attacked\": { \"phrases\": \"gametest:b\", \"dialogue\": \"gametest:a\" } }"));
+        helper.assertTrue(hit.error().isPresent(), "a hit says phrases or starts a dialogue, not both");
         helper.succeed();
     }
 

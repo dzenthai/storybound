@@ -65,10 +65,15 @@ public final class DialogueEvents {
         LogicOwners.register(DialogueRegistries.DIALOGUES, DialogueEvents::collectReferences);
         LogicOwners.register(DialogueRegistries.NPC_BINDINGS, (binding, references) -> {
             binding.dialogues().forEach(entry -> {
-                references.dialogue(entry.dialogue());
+                entry.dialogue().ifPresent(references::dialogue);
                 entry.conditions().collectReferences(references);
             });
             binding.busyDialogue().ifPresent(references::dialogue);
+            binding.whenAttacked().flatMap(NpcBinding.WhenAttacked::dialogue).ifPresent(references::dialogue);
+            binding.chatter().ifPresent(chatter -> {
+                chatter.conditions().collectReferences(references);
+                chatter.variants().forEach(variant -> variant.conditions().collectReferences(references));
+            });
         });
         ValidationService.registerValidator(DialogueEvents::validate);
         // A dialogue that holds the screen freezes the player's look on whatever was in front of them.
@@ -240,24 +245,24 @@ public final class DialogueEvents {
             if (phrases.lines().isEmpty()) {
                 sink.accept(ValidationIssue.warning(DialogueRegistries.PHRASES.id(), id, "No lines: the NPC says nothing"));
             }
-            for (int i = 0; i < phrases.lines().size(); i++) {
-                int line = i + 1;
-                phrases.lines().get(i).dialogue().filter(dialogue -> !type.serverStore().contains(dialogue)).ifPresent(dialogue ->
-                        sink.accept(ValidationIssue.error(DialogueRegistries.PHRASES.id(), id, "Line " + line + ": unknown dialogue " + dialogue)));
-            }
         });
         DialogueRegistries.NPC_BINDINGS.serverStore().all().forEach((id, binding) -> {
-            if (binding.dialogues().isEmpty() && !binding.custom()) {
-                sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "Binds no dialogue and is not custom; it does nothing"));
+            // An NPC that only chatters, reacts to hits, is invulnerable or named does something too (November 6, 2026).
+            if (binding.dialogues().isEmpty() && !binding.custom() && binding.chatter().isEmpty() && binding.whenAttacked().isEmpty()
+                    && !binding.invulnerable() && !binding.respawn() && binding.displayName().isEmpty()) {
+                sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "Binds no dialogue and sets nothing else; it does nothing"));
             }
             Consumer<String> bindingError = message -> sink.accept(ValidationIssue.error(DialogueRegistries.NPC_BINDINGS.id(), id, message));
             Consumer<String> bindingWarning = message -> sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, message));
             if (binding.showName() && binding.displayName().isPresent() && NpcNames.byName(binding)) {
                 bindingWarning.accept("display_name is not shown over its head: the NPC is known by the name it carries (entity name), which it keeps");
             }
+            binding.dialogues().forEach(entry -> entry.phrases().flatMap(PhrasesRef::node)
+                    .filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
+                    .ifPresent(phrases -> bindingError.accept("dialogues: unknown phrases " + phrases)));
             binding.chatter().ifPresent(chatter -> {
-                chatter.phrases().node().filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
-                        .ifPresent(phrases -> bindingError.accept("chatter: unknown phrases " + phrases));
+                chatter.allPhrases().forEach(said -> said.node().filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
+                        .ifPresent(phrases -> bindingError.accept("chatter: unknown phrases " + phrases)));
                 if (chatter.minInterval() > chatter.maxInterval()) {
                     bindingWarning.accept("chatter: min_interval is over max_interval; it waits min_interval each time");
                 }

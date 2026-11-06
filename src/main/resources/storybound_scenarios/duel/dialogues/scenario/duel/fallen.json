@@ -1,0 +1,18 @@
+{
+  "participants": {
+    "grom": {
+      "type": "virtual",
+      "name": "scenario.duel.grom"
+    }
+  },
+  "presentation": "hud",
+  "start": "l1",
+  "nodes": {
+    "l1": {
+      "type": "line",
+      "speaker": "grom",
+      "text": "scenario.duel.fallen.l1",
+      "duration": 4
+    }
+  }
+}

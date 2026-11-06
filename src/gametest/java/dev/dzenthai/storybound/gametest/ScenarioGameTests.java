@@ -4,6 +4,8 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
+import dev.dzenthai.storybound.module.dialogue.NpcBindings;
+import dev.dzenthai.storybound.module.dialogue.NpcReactions;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.module.quest.Quests;
@@ -98,6 +100,100 @@ public final class ScenarioGameTests {
                 .thenSucceed();
     }
 
+    /**
+     * The duel (November 6, 2026): Ataman Grom, met close by while he goes for the player, starts his taunts in
+     * subtitles, the player answering (a hostile kind going for the player is not "angry" for talking: first it never
+     * started); the player's hits do not stop it ({@code combat: continue});
+     * killed, he is gone from the talk, the quest is done, and his last words follow.
+     */
+    @GameTest(template = "open", batch = "scenario_duel", timeoutTicks = 300)
+    public static void gromTalksThroughTheDuel(GameTestHelper helper) {
+        ServerPlayer player = player(helper);
+        Entity[] grom = new Entity[1];
+        helper.startSequence()
+                .thenExecute(() -> {
+                    fire(player, "duel");
+                    expect(helper, status(player, "duel"), Optional.of(QuestStatus.ACTIVE), "the duel's quest");
+                    grom[0] = tagged(helper, player, EntityType.VINDICATOR, "scenario_grom").getFirst();
+                    // Held still, the test checks the talk, not the vindicator's swing at the mock player; but going for the
+                    // player, as in the game.
+                    net.minecraft.world.entity.Mob mob = (net.minecraft.world.entity.Mob) grom[0];
+                    mob.setNoAi(true);
+                    mob.setTarget(player);
+                    grom[0].teleportTo(player.getX() + 2, player.getY(), player.getZ());
+                    helper.assertTrue(mob.getTarget() == player, "he is going for the player");
+                    helper.assertFalse(NpcReactions.angryAt(grom[0], player), "by his nature, not anger: he talks");
+                    approach(player);
+                    expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(id("duel/taunts")), "close by: his taunts start");
+                    grom[0].hurt(player.damageSources().playerAttack(player), 1f);
+                    expect(helper, node(player), "l1", "hit: the talk goes on");
+                    expect(helper, Dialogues.paused(player), Optional.empty(), "not paused");
+                    advance(player);
+                    expect(helper, node(player), "p1", "the player answers");
+                    grom[0].hurt(player.damageSources().playerAttack(player), 1000f);
+                })
+                .thenWaitUntil(() -> expect(helper, status(player, "duel"), Optional.of(QuestStatus.COMPLETED), "beaten: the quest is done"))
+                .thenWaitUntil(() -> expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(id("duel/fallen")), "his last words"))
+                .thenExecute(() -> done(helper, player))
+                .thenSucceed();
+    }
+
+    /**
+     * Shoulder to shoulder (November 6, 2026): Kamen the golem talks through the fight beside the player ({@code combat:
+     * continue}), a second wave coming mid-talk; heard to the end, the quest is done. Run again and walked away from,
+     * the talk breaks off and the quest fails.
+     */
+    @GameTest(template = "open", batch = "scenario_shoulder", timeoutTicks = 300)
+    public static void kamenTalksThroughTheFightBesideThePlayer(GameTestHelper helper) {
+        ServerPlayer player = player(helper);
+        helper.startSequence()
+                .thenExecute(() -> {
+                    fire(player, "shoulder");
+                    Entity kamen = tagged(helper, player, EntityType.IRON_GOLEM, "scenario_kamen").getFirst();
+                    List<Husk> husks = tagged(helper, player, EntityType.HUSK, "scenario_shoulder_husk");
+                    expect(helper, husks.size(), 3, "the first husks");
+                    approach(player);
+                    expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(id("shoulder/battle")), "Kamen starts talking");
+                    husks.getFirst().hurt(player.damageSources().playerAttack(player), 1f);
+                    expect(helper, node(player), "l1", "a fight: the talk goes on");
+                    husks.forEach(Entity::discard);
+                    advance(player);
+                    expect(helper, node(player), "p1", "the player answers");
+                    advance(player);
+                    advance(player);
+                    expect(helper, node(player), "l3", "the second wave comes before Kamen's third line");
+                    List<Husk> wave = tagged(helper, player, EntityType.HUSK, "scenario_shoulder_husk");
+                    expect(helper, wave.size(), 3, "three more");
+                    wave.forEach(Entity::discard);
+                    for (int i = 0; i < 6; i++) {
+                        advance(player);
+                    }
+                    expect(helper, node(player), "p4", "the player's last line");
+                    advance(player);
+                    expect(helper, status(player, "shoulder"), Optional.of(QuestStatus.COMPLETED), "heard to the end: the quest is done");
+
+                    fire(player, "shoulder");
+                    tagged(helper, player, EntityType.HUSK, "scenario_shoulder_husk").forEach(Entity::discard);
+                    helper.assertTrue(Dialogues.start(player, id("shoulder/battle"), kamen), "again");
+                    player.teleportTo(player.getX() + 20, player.getY(), player.getZ());
+                })
+                .thenWaitUntil(() -> expect(helper, status(player, "shoulder"), Optional.of(QuestStatus.FAILED), "walked away: the talk breaks off, the quest fails"))
+                .thenExecute(() -> done(helper, player))
+                .thenSucceed();
+    }
+
+    /**
+     * Comes close as a player in the game does: a player who just logged in is greeted by nobody (what an NPC would say
+     * right then is not said), so one check from afar first, then one where they stand.
+     */
+    private static void approach(ServerPlayer player) {
+        Vec3 at = player.position();
+        player.teleportTo(at.x + 40, at.y, at.z);
+        NpcBindings.checkProximity(player, player.server.getTickCount());
+        player.teleportTo(at.x, at.y, at.z);
+        NpcBindings.checkProximity(player, player.server.getTickCount());
+    }
+
     private static ServerPlayer player(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         player.moveTo(helper.absoluteVec(new Vec3(1.5, 1, 1.5)));
@@ -118,7 +214,8 @@ public final class ScenarioGameTests {
 
     private static void done(GameTestHelper helper, ServerPlayer player) {
         Dialogues.interrupt(player, EndReason.STOPPED);
-        for (String tag : List.of("scenario_brann", "scenario_tikhon", "scenario_mira", "scenario_ambush_husk", "scenario_campfire_husk")) {
+        for (String tag : List.of("scenario_brann", "scenario_tikhon", "scenario_mira", "scenario_ambush_husk", "scenario_campfire_husk",
+                "scenario_grom", "scenario_kamen", "scenario_shoulder_husk")) {
             helper.getLevel().getEntities((Entity) null, new AABB(player.blockPosition()).inflate(32), entity -> entity.getTags().contains(tag))
                     .forEach(Entity::discard);
         }

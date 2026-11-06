@@ -85,8 +85,10 @@ public final class NpcChatter {
             NEXT_AT.put(id, now + RETRY_TICKS);
             return;
         }
-        if (chatter.conditions().test(new StoryContext(nearest, npc))) {
-            NpcPhrases.say(npc, chatter.phrases(), NpcPhrases.chatterCounter(npc), nearest, now, false);
+        StoryContext context = new StoryContext(nearest, npc);
+        if (chatter.conditions().test(context)) {
+            // A variant for this part of the story, else its own phrases; each goes through its lines on its own.
+            chatter.pick(context).ifPresent(said -> NpcPhrases.say(npc, said.phrases(), NpcPhrases.chatterCounter(npc, said.variant()), nearest, now, false));
         }
         NEXT_AT.put(id, now + random(npc, chatter.minInterval(), Math.max(chatter.minInterval(), chatter.maxInterval())));
     }

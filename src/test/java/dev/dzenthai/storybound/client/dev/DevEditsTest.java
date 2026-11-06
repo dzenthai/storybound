@@ -182,6 +182,42 @@ class DevEditsTest {
         assertFalse(StoryEdits.link(new JsonObject(), dialogue, npc), "no such link");
     }
 
+    /**
+     * Arrows from an NPC to phrases (November 6, 2026): its chatter first, then for when it is hit, then a click entry;
+     * phrases point at nothing (a line no longer starts a dialogue). Unlinking takes a click entry and a chatter
+     * variant with the phrases, the chatter only when nothing else is left in it, and a hit's dialogue but not the reaction.
+     */
+    @Test
+    void phrasesAreLinkedFromTheNpcOnly() {
+        NodeKey npc = new NodeKey(ClientDevStore.TYPE_NPC, Storybound.id("smith"));
+        NodeKey wolves = new NodeKey(ClientDevStore.TYPE_PHRASES, Storybound.id("wolves"));
+        NodeKey thanks = new NodeKey(ClientDevStore.TYPE_PHRASES, Storybound.id("thanks"));
+        NodeKey dialogue = new NodeKey(ClientDevStore.TYPE_DIALOGUE, DIALOGUE);
+        JsonObject binding = new JsonObject();
+        assertTrue(StoryEdits.link(binding, npc, wolves));
+        assertEquals("storybound:wolves", binding.getAsJsonObject("chatter").get("phrases").getAsString(), "first: its chatter");
+        assertTrue(StoryEdits.link(binding, npc, wolves));
+        assertEquals("storybound:wolves", binding.getAsJsonObject("when_attacked").get("phrases").getAsString(), "then: when it is hit");
+        assertTrue(StoryEdits.link(binding, npc, thanks));
+        assertEquals("storybound:thanks", binding.getAsJsonArray("dialogues").get(0).getAsJsonObject().get("phrases").getAsString(),
+                "then a click entry, not replacing what it says when hit");
+        assertEquals("storybound:wolves", binding.getAsJsonObject("when_attacked").get("phrases").getAsString());
+        assertFalse(StoryEdits.link(new JsonObject(), wolves, dialogue), "phrases point at nothing");
+
+        JsonObject chatty = json("{ \"chatter\": { \"phrases\": \"storybound:wolves\", \"variants\": [ { \"phrases\": \"storybound:thanks\" } ] },"
+                + " \"dialogues\": [ { \"phrases\": \"storybound:thanks\" }, { \"dialogue\": \"" + DIALOGUE + "\" } ],"
+                + " \"when_attacked\": { \"reaction\": \"flee\", \"dialogue\": \"" + DIALOGUE + "\" } }");
+        assertTrue(StoryEdits.unlink(chatty, thanks));
+        assertEquals(1, chatty.getAsJsonArray("dialogues").size(), "the click entry of those phrases goes");
+        assertEquals(0, chatty.getAsJsonObject("chatter").getAsJsonArray("variants").size(), "so does the variant");
+        assertEquals("storybound:wolves", chatty.getAsJsonObject("chatter").get("phrases").getAsString(), "the chatter keeps its own");
+        assertTrue(StoryEdits.unlink(chatty, wolves));
+        assertFalse(chatty.has("chatter"), "nothing left to say: the chatter goes");
+        assertTrue(StoryEdits.unlink(chatty, dialogue));
+        assertFalse(chatty.getAsJsonObject("when_attacked").has("dialogue"), "the hit's dialogue goes");
+        assertEquals("flee", chatty.getAsJsonObject("when_attacked").get("reaction").getAsString(), "the reaction stays");
+    }
+
     @Test
     void unlinkingRemovesWhatCanGoAndKeepsTheRest() {
         NodeKey waypoint = new NodeKey(ClientDevStore.TYPE_WAYPOINT, Storybound.id("den"));

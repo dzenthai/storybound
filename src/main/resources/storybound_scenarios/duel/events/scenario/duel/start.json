@@ -1,0 +1,33 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:duel"
+  },
+  "actions": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:vindicator",
+      "tag": "scenario_grom",
+      "unique": true,
+      "name": "scenario.duel.grom",
+      "offset": [
+        7,
+        0,
+        0
+      ],
+      "nbt": {
+        "CustomNameVisible": true
+      }
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:duel/quest",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:duel/quest",
+      "state": "active"
+    }
+  ]
+}

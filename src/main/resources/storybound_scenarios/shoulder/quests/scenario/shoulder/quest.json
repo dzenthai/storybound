@@ -1,0 +1,23 @@
+{
+  "category": "side",
+  "title": "scenario.shoulder.quest.title",
+  "text": {
+    "active": "scenario.shoulder.quest.text",
+    "failed": "scenario.shoulder.quest.failed"
+  },
+  "stages": [
+    {
+      "id": "hold",
+      "objectives": [
+        {
+          "id": "battle",
+          "text": "scenario.shoulder.quest.objective",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "scenario:shoulder/battle"
+          }
+        }
+      ]
+    }
+  ]
+}

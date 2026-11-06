@@ -10,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What an NPC says for its chatter or a hit (November 5, 2026): a phrases node by its id, or a text of its own written
+ * What an NPC says for its chatter, a click or a hit (November 5, 2026): a phrases node by its id, or a text of its own written
  * right there ({@code { "text": ... }}), for an NPC that needs one line and no node.
  */
 public record PhrasesRef(Optional<ResourceLocation> node, Optional<StoryText> text) {
@@ -32,7 +32,7 @@ public record PhrasesRef(Optional<ResourceLocation> node, Optional<StoryText> te
     /** The phrases to say: the node's, or the own text as a list of one; null for a node that is not there. */
     @Nullable PhrasesDefinition resolve() {
         if (text.isPresent()) {
-            return new PhrasesDefinition(PhrasesDefinition.Order.SEQUENCE, List.of(PhrasesDefinition.Phrase.ofText(text.get())));
+            return new PhrasesDefinition(PhrasesDefinition.Order.SEQUENCE, List.of(text.get()));
         }
         return DialogueRegistries.PHRASES.serverStore().getOrNull(node.orElseThrow());
     }

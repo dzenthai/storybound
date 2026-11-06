@@ -17,14 +17,15 @@
       ]
     },
     "dialogues": {
-      "description": "Tried by priority, highest first; the first whose conditions pass is started. None passing: the click does what it normally does (trading).",
+      "description": "What a click (or the talk key, or coming close) gets, tried by priority, highest first: the first entry whose conditions pass. Each starts a dialogue or says phrases in a bubble, with no conversation. None passing: the click does what it normally does (trading).",
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["dialogue"],
         "additionalProperties": false,
+        "oneOf": [ { "required": ["dialogue"] }, { "required": ["phrases"] } ],
         "properties": {
-          "dialogue": { "$ref": "logic.schema.json#/definitions/id" },
+          "dialogue": { "description": "Started with the player.", "$ref": "logic.schema.json#/definitions/id" },
+          "phrases": { "description": "Instead of a dialogue: said in a bubble over the NPC, the next line each click (\"Wolves again...\"); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
           "conditions": { "$ref": "logic.schema.json#/definitions/conditions" },
           "priority": { "type": "integer", "default": 0 }
         }
@@ -56,16 +57,31 @@
         "patience": { "description": "For fight: hits forgiven before it fights back, as followers forgive a stray blow in a fight.", "type": "integer", "minimum": 0, "maximum": 20, "default": 0 },
         "warning": { "description": "For fight: said on the hits it forgives (in order: \"Careful!\", \"Once more and...\"); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
         "phrases": { "description": "Said on every hit it reacts to (for fight, those past its patience); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
+        "dialogue": { "description": "Instead of phrases: a dialogue started with the player on such a hit, after the one they are in (a scene: \"What are you doing?!\").", "$ref": "logic.schema.json#/definitions/id" },
         "calm_after": { "description": "Seconds without a hit after which it forgives everything: the reaction ends, the count of hits and the phrases start over.", "type": "number", "minimum": 5, "maximum": 600, "default": 30 }
       }
     },
     "chatter": {
       "description": "Now and then the NPC says one of its phrases to players near it, while it is free (not in a dialogue, not angry).",
       "type": "object",
-      "required": ["phrases"],
+      "anyOf": [ { "required": ["phrases"] }, { "required": ["variants"] } ],
       "additionalProperties": false,
       "properties": {
-        "phrases": { "description": "What it says: a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
+        "phrases": { "description": "What it says: a phrases node, or { \"text\": ... } of its own. With variants, what it says when none applies.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
+        "variants": {
+          "description": "What it says as the story goes on: tried by priority, highest first, for the nearest player; the first whose conditions pass is said instead of phrases.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["phrases"],
+            "additionalProperties": false,
+            "properties": {
+              "phrases": { "description": "A phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
+              "conditions": { "$ref": "logic.schema.json#/definitions/conditions" },
+              "priority": { "type": "integer", "default": 0 }
+            }
+          }
+        },
         "min_interval": { "description": "The pause between two phrases, seconds: from. The first one, a player just come near, after a random 0 to this.", "type": "number", "minimum": 2, "maximum": 3600, "default": 20 },
         "max_interval": { "description": "The pause between two phrases, seconds: to. Each pause is random between from and to.", "type": "number", "minimum": 2, "maximum": 3600, "default": 40 },
         "radius": { "description": "Blocks: it chatters only while a player is this close.", "type": "number", "minimum": 1, "maximum": 32, "default": 8 },

@@ -148,20 +148,24 @@ final class StoryEdits {
         ResourceLocation b = target.type();
         String id = target.id().toString();
         if (a.equals(ClientDevStore.TYPE_NPC) && b.equals(ClientDevStore.TYPE_PHRASES)) {
-            // Its chatter first; an NPC that chatters already gets them for when it is hit.
+            // Its chatter first; then for when it is hit, if it says nothing there yet; then on a click (November 6, 2026;
+            // before, a second arrow replaced what it said when hit).
             JsonObject chatter = from.get("chatter") instanceof JsonObject existing ? existing : new JsonObject();
-            if (!chatter.has("phrases")) {
+            JsonObject hit = from.get("when_attacked") instanceof JsonObject existing ? existing : null;
+            if (!chatter.has("phrases") && !chatter.has("variants")) {
                 chatter.addProperty("phrases", id);
                 from.add("chatter", chatter);
+            } else if (hit == null || !hit.has("phrases") && !hit.has("dialogue")) {
+                JsonObject rules = hit != null ? hit : new JsonObject();
+                rules.addProperty("phrases", id);
+                from.add("when_attacked", rules);
             } else {
-                JsonObject hit = from.get("when_attacked") instanceof JsonObject existing ? existing : new JsonObject();
-                hit.addProperty("phrases", id);
-                from.add("when_attacked", hit);
+                JsonArray entries = array(from, "dialogues");
+                JsonObject entry = new JsonObject();
+                entry.addProperty("phrases", id);
+                entry.addProperty("priority", entries.size() * 10);
+                entries.add(entry);
             }
-        } else if (a.equals(ClientDevStore.TYPE_PHRASES) && b.equals(ClientDevStore.TYPE_DIALOGUE)) {
-            JsonObject line = new JsonObject();
-            line.addProperty("dialogue", id);
-            array(from, "lines").add(line);
         } else if (a.equals(ClientDevStore.TYPE_NPC) && b.equals(ClientDevStore.TYPE_DIALOGUE)) {
             JsonArray entries = array(from, "dialogues");
             JsonObject entry = new JsonObject();
@@ -335,6 +339,11 @@ final class StoryEdits {
 
     private static boolean unlinkIn(JsonObject object, NodeKey target, String id) {
         boolean changed = false;
+        if (target.type().equals(ClientDevStore.TYPE_DIALOGUE) && object.get("when_attacked") instanceof JsonObject hit && isId(hit.get("dialogue"), id)) {
+            // The scene started on a hit goes, the reaction stays.
+            hit.remove("dialogue");
+            changed = true;
+        }
         if (target.type().equals(ClientDevStore.TYPE_PHRASES)) {
             // When hit: the phrases or the warnings named go, the reaction stays.
             for (String field : List.of("phrases", "warning")) {
@@ -403,16 +412,19 @@ final class StoryEdits {
         if (fieldName.equals("dialogues") && target.type().equals(ClientDevStore.TYPE_DIALOGUE)) {
             return isId(object.get("dialogue"), id);
         }
-        if (fieldName.equals("lines") && target.type().equals(ClientDevStore.TYPE_DIALOGUE)) {
-            return isId(object.get("dialogue"), id);
+        if ((fieldName.equals("dialogues") || fieldName.equals("variants")) && target.type().equals(ClientDevStore.TYPE_PHRASES)) {
+            // A click entry or a chatter variant is nothing without its phrases.
+            return isId(object.get("phrases"), id);
         }
         if (fieldName.equals("when_attacked") && target.type().equals(ClientDevStore.TYPE_PHRASES)) {
             // Its own fields go, not the reaction: see unlinkIn.
             return false;
         }
         if (fieldName.equals("chatter") && target.type().equals(ClientDevStore.TYPE_PHRASES)) {
-            // Chatter is nothing without its phrases.
-            return isId(object.get("phrases"), id);
+            // Chatter is nothing without its phrases: it goes when all it says is the target; else only those go.
+            boolean variantsToo = !(object.get("variants") instanceof JsonArray variants) || variants.asList().stream()
+                    .allMatch(variant -> variant instanceof JsonObject said && isId(said.get("phrases"), id));
+            return (isId(object.get("phrases"), id) || !object.has("phrases")) && variantsToo;
         }
         // An objective or a quest start waiting for something about the target can never happen.
         return (fieldName.equals("objectives") || fieldName.equals("start")) && refersTo(object, target);

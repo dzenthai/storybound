@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.client.dev;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import dev.dzenthai.storybound.client.dev.DevModeScreen.MenuItem;
 import dev.dzenthai.storybound.client.dev.DialogueGraph.Edge;
 import dev.dzenthai.storybound.core.story.StoryRenames;
@@ -35,6 +36,17 @@ final class DialogueView extends GraphView {
     static final int NODE_H = 46;
 
     private record Card(String id, String type, String title, String badge, int color, ItemStack icon, int x, int y, boolean start, boolean missingTranslation) {}
+
+    /** " (dialogue screen)": how another dialogue shows (November 6, 2026); empty when it is not in the story. */
+    private static String shownAs(String dialogue) {
+        ResourceLocation id = ResourceLocation.tryParse(dialogue);
+        if (id == null || ClientDevStore.getJson(ClientDevStore.TYPE_DIALOGUE, id) == null) {
+            return "";
+        }
+        JsonObject other = ClientDevStore.parseObject(ClientDevStore.getJson(ClientDevStore.TYPE_DIALOGUE, id));
+        String presentation = other.get("presentation") instanceof JsonPrimitive written ? written.getAsString() : "screen";
+        return " (" + DevUi.str("value." + presentation) + ")";
+    }
 
     /**
      * The card "Start" (October 29, 2026; before, "Make it the start" on every node and in its menu, useful once): it
@@ -281,12 +293,13 @@ final class DialogueView extends GraphView {
                     DevUi.str("node.condition"), 0xFFAB47BC, new ItemStack(Items.COMPARATOR), x, y, start, false);
             case "action" -> new Card(id, type, "→ " + DialogueGraph.next(node), DevUi.str("node.action"), 0xFFFF7043, new ItemStack(Items.REDSTONE), x, y, start, false);
             case "random" -> new Card(id, type, chances(node), DevUi.str("node.random"), 0xFF8E24AA, new ItemStack(Items.DISPENSER), x, y, start, false);
-            // To another dialogue: "elder" or "elder · greet" (its node); within this one, the node (its arrow shows it).
+            // To another dialogue: "→ elder · greet (dialogue screen)", its node and how it shows, as the conversation
+            // takes that dialogue's presentation; within this one, the node (its arrow shows it).
             case "jump" -> new Card(id, type, DialogueGraph.jumpsElsewhere(node)
-                    ? "→ " + node.get("dialogue").getAsString() + (node.has("node") ? " · " + node.get("node").getAsString() : "")
+                    ? "→ " + node.get("dialogue").getAsString() + (node.has("node") ? " · " + node.get("node").getAsString() : "") + shownAs(node.get("dialogue").getAsString())
                     : node.has("node") ? node.get("node").getAsString() : DialogueGraph.END,
                     DevUi.str("node.jump"), 0xFF00ACC1, new ItemStack(Items.ENDER_PEARL), x, y, start, false);
-            case "call" -> new Card(id, type, node.has("dialogue") ? node.get("dialogue").getAsString() : "?",
+            case "call" -> new Card(id, type, node.has("dialogue") ? "⤷ " + node.get("dialogue").getAsString() + shownAs(node.get("dialogue").getAsString()) : "?",
                     DevUi.str("node.call"), 0xFF1E88E5, new ItemStack(Items.BELL), x, y, start, false);
             case "end" -> new Card(id, type, DialogueGraph.END, DevUi.str("node.end"), 0xFFE53935, new ItemStack(Items.BARRIER), x, y, start, false);
             default -> {

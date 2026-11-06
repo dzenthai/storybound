@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.module.dialogue;
 
 import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.Conditions;
@@ -29,7 +30,8 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param entities  the binding is for any of them: one selector, or a list ({@code "entity"} takes both; a list since
  *                  October 29, 2026, so one NPC file covers, say, the elder and his double in another village)
- * @param dialogues tried by priority (highest first); the first whose conditions pass is started
+ * @param dialogues what a click or the talk key gets, tried by priority (highest first): the first entry whose conditions
+ *                  pass; a dialogue started, or phrases said in a bubble with no conversation (since November 6, 2026)
  * @param interact  right-click starts the dialogue
  * @param proximity coming close starts it
  * @param custom    right-click posts {@code npcInteract} to scripts, which decide what happens
@@ -84,17 +86,23 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
      * @param warning   for {@code fight} only: one of them said on each forgiven hit ("Careful!", "Once more and..."); a
      *                  phrases node or a text of its own, as {@code phrases}
      * @param phrases   one of them said on every hit it reacts to: for {@code fight}, those past its patience
+     * @param dialogue  instead of phrases, a dialogue started with the player on such a hit ("What are you doing?!" as a
+     *                  scene), after the one they are in (November 6, 2026; before, a line of the phrases could be one)
      * @param calmAfter seconds without a hit after which the NPC forgives everything: its reaction ends, the count of
      *                  hits and its phrases start over
      */
-    public record WhenAttacked(Reaction reaction, int patience, Optional<PhrasesRef> warning, Optional<PhrasesRef> phrases, float calmAfter) {
-        public static final Codec<WhenAttacked> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+    public record WhenAttacked(Reaction reaction, int patience, Optional<PhrasesRef> warning, Optional<PhrasesRef> phrases,
+                               Optional<ResourceLocation> dialogue, float calmAfter) {
+        public static final Codec<WhenAttacked> CODEC = RecordCodecBuilder.<WhenAttacked>create(instance -> instance.group(
                 Reaction.CODEC.optionalFieldOf("reaction", Reaction.IGNORE).forGetter(WhenAttacked::reaction),
                 Codec.intRange(0, 20).optionalFieldOf("patience", 0).forGetter(WhenAttacked::patience),
                 PhrasesRef.CODEC.optionalFieldOf("warning").forGetter(WhenAttacked::warning),
                 PhrasesRef.CODEC.optionalFieldOf("phrases").forGetter(WhenAttacked::phrases),
+                ResourceLocation.CODEC.optionalFieldOf("dialogue").forGetter(WhenAttacked::dialogue),
                 Codec.floatRange(5f, 600f).optionalFieldOf("calm_after", 30f).forGetter(WhenAttacked::calmAfter)
-        ).apply(instance, WhenAttacked::new));
+        ).apply(instance, WhenAttacked::new)).validate(rules -> rules.phrases().isPresent() && rules.dialogue().isPresent()
+                ? DataResult.error(() -> "when_attacked: \"phrases\" or \"dialogue\", not both: on a hit the NPC says a phrase or starts a scene")
+                : DataResult.success(rules));
 
         /** The hits it forgives: only an NPC that fights back has patience; the others never take revenge anyway. */
         public int forgiven() {
@@ -160,40 +168,61 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
         return entities.stream().flatMap(selector -> selector.tag().stream()).collect(Collectors.toSet());
     }
 
-    /** The dialogue to start for this player, if any entry's conditions pass. */
-    public Optional<ResourceLocation> pick(StoryContext context) {
+    /** What a click gets from this player, if any entry's conditions pass: a dialogue or phrases. */
+    public Optional<Entry> pick(StoryContext context) {
         return pick(context, null);
     }
 
     /**
-     * The dialogue to start for this player, if any entry's conditions pass.
+     * What a click gets from this player, if any entry's conditions pass: a dialogue or phrases.
      *
      * @param source names the binding in the trace when the player talks (see {@link Conditions#check}); null for
      *               checks that are only asked, such as whether the talk key works on the NPC
      */
-    public Optional<ResourceLocation> pick(StoryContext context, @Nullable String source) {
+    public Optional<Entry> pick(StoryContext context, @Nullable String source) {
         return dialogues.stream()
                 .sorted(Comparator.comparingInt(Entry::priority).reversed())
-                // A dialogue that is gone (deleted, a typo) is passed over, so the next entry still talks.
+                // A dialogue or phrases node that is gone (deleted, a typo) is passed over, so the next entry still talks.
                 .filter(entry -> {
-                    boolean known = Dialogues.definition(entry.dialogue()) != null;
+                    boolean known = entry.known();
                     if (!known && source != null) {
-                        StoryTrace.note(context.player(), source + " entry " + entry.dialogue(), "skipped: no such dialogue");
+                        StoryTrace.note(context.player(), source + " entry " + entry.describe(), "skipped: no such " + (entry.dialogue().isPresent() ? "dialogue" : "phrases"));
                     }
                     return known;
                 })
                 .filter(entry -> source == null ? entry.conditions().test(context)
-                        : Conditions.check(entry.conditions(), context, source + " entry " + entry.dialogue()))
-                .map(Entry::dialogue)
+                        : Conditions.check(entry.conditions(), context, source + " entry " + entry.describe()))
                 .findFirst();
     }
 
-    public record Entry(ResourceLocation dialogue, Condition conditions, int priority) {
-        public static final Codec<Entry> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                ResourceLocation.CODEC.fieldOf("dialogue").forGetter(Entry::dialogue),
+    /**
+     * One thing a click may get: a dialogue started, or phrases said in a bubble (a node's next line, or a text of its
+     * own) with no conversation ("Wolves again…", "Thank you!"; November 6, 2026). Exactly one of the two.
+     */
+    public record Entry(Optional<ResourceLocation> dialogue, Optional<PhrasesRef> phrases, Condition conditions, int priority) {
+        public static final Codec<Entry> CODEC = RecordCodecBuilder.<Entry>create(instance -> instance.group(
+                ResourceLocation.CODEC.optionalFieldOf("dialogue").forGetter(Entry::dialogue),
+                PhrasesRef.CODEC.optionalFieldOf("phrases").forGetter(Entry::phrases),
                 LogicCodecs.CONDITION.optionalFieldOf("conditions", LogicConditions.ALWAYS).forGetter(Entry::conditions),
                 Codec.INT.optionalFieldOf("priority", 0).forGetter(Entry::priority)
-        ).apply(instance, Entry::new));
+        ).apply(instance, Entry::new)).validate(entry -> entry.dialogue().isPresent() == entry.phrases().isPresent()
+                ? DataResult.error(() -> "A dialogues entry is a \"dialogue\" or \"phrases\", one of the two")
+                : DataResult.success(entry));
+
+        public static Entry of(ResourceLocation dialogue) {
+            return new Entry(Optional.of(dialogue), Optional.empty(), LogicConditions.ALWAYS, 0);
+        }
+
+        /** Whether what it names is loaded (an own text always is). */
+        boolean known() {
+            return dialogue.map(id -> Dialogues.definition(id) != null)
+                    .orElseGet(() -> phrases.flatMap(PhrasesRef::node).map(id -> DialogueRegistries.PHRASES.serverStore().contains(id)).orElse(true));
+        }
+
+        /** "mypack:elder" or "phrases mypack:wolves", for the trace and commands. */
+        public String describe() {
+            return dialogue.map(ResourceLocation::toString).orElseGet(() -> phrases.orElseThrow().describe());
+        }
     }
 
     /**
@@ -217,16 +246,54 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
      * in a dialogue, not angry), it says one of its phrases. The {@code conditions} are tested for the nearest of
      * those players.
      *
+     * @param phrases     what it says when no variant's conditions pass (or it has none)
+     * @param variants    what it says as the story goes on (November 6, 2026): tried by priority, highest first, for the
+     *                    nearest player; the first whose conditions pass is said instead of {@code phrases}
      * @param minInterval seconds between two phrases at least; the wait is random up to {@code maxInterval}
      */
-    public record Chatter(PhrasesRef phrases, float minInterval, float maxInterval, float radius, Condition conditions) {
-        public static final Codec<Chatter> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                PhrasesRef.CODEC.fieldOf("phrases").forGetter(Chatter::phrases),
+    public record Chatter(Optional<PhrasesRef> phrases, List<Variant> variants, float minInterval, float maxInterval, float radius, Condition conditions) {
+        public static final Codec<Chatter> CODEC = RecordCodecBuilder.<Chatter>create(instance -> instance.group(
+                PhrasesRef.CODEC.optionalFieldOf("phrases").forGetter(Chatter::phrases),
+                Variant.CODEC.listOf().optionalFieldOf("variants", List.of()).forGetter(Chatter::variants),
                 Codec.floatRange(2f, 3600f).optionalFieldOf("min_interval", 20f).forGetter(Chatter::minInterval),
                 Codec.floatRange(2f, 3600f).optionalFieldOf("max_interval", 40f).forGetter(Chatter::maxInterval),
                 Codec.floatRange(1f, 32f).optionalFieldOf("radius", 8f).forGetter(Chatter::radius),
                 LogicCodecs.CONDITION.optionalFieldOf("conditions", LogicConditions.ALWAYS).forGetter(Chatter::conditions)
-        ).apply(instance, Chatter::new));
+        ).apply(instance, Chatter::new)).validate(chatter -> chatter.phrases().isEmpty() && chatter.variants().isEmpty()
+                ? DataResult.error(() -> "chatter needs \"phrases\" or \"variants\": something to say")
+                : DataResult.success(chatter));
+
+        /** What is said: a variant's index and phrases (-1: the chatter's own), or empty when nothing applies. */
+        public record Said(int variant, PhrasesRef phrases) {}
+
+        /** The phrases to say to this player: the first variant by priority whose conditions pass, else its own. */
+        public Optional<Said> pick(StoryContext context) {
+            List<Integer> order = new java.util.ArrayList<>(java.util.stream.IntStream.range(0, variants.size()).boxed().toList());
+            order.sort(Comparator.comparingInt((Integer index) -> variants.get(index).priority()).reversed());
+            for (int index : order) {
+                if (variants.get(index).conditions().test(context)) {
+                    return Optional.of(new Said(index, variants.get(index).phrases()));
+                }
+            }
+            return phrases.map(own -> new Said(-1, own));
+        }
+
+        /** Every phrases it may say, for checks and links. */
+        public List<PhrasesRef> allPhrases() {
+            List<PhrasesRef> all = new java.util.ArrayList<>();
+            phrases.ifPresent(all::add);
+            variants.forEach(variant -> all.add(variant.phrases()));
+            return all;
+        }
+
+        /** Phrases for part of the story: "after the wolves are dealt with". */
+        public record Variant(PhrasesRef phrases, Condition conditions, int priority) {
+            public static final Codec<Variant> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                    PhrasesRef.CODEC.fieldOf("phrases").forGetter(Variant::phrases),
+                    LogicCodecs.CONDITION.optionalFieldOf("conditions", LogicConditions.ALWAYS).forGetter(Variant::conditions),
+                    Codec.INT.optionalFieldOf("priority", 0).forGetter(Variant::priority)
+            ).apply(instance, Variant::new));
+        }
     }
 
     /**
@@ -242,7 +309,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
         NpcBinding toBinding(Entity entity) {
             return new NpcBinding(EntitySelector.of(entity.getUUID()),
                     // Attached to the entity, so never rewritten: a renamed dialogue is looked up by its new id.
-                    List.of(new Entry(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue), LogicConditions.ALWAYS, 0)), interact,
+                    List.of(Entry.of(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue))), interact,
                     proximity ? Optional.of(Proximity.DEFAULT) : Optional.empty(), false);
         }
     }

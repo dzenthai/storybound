@@ -1,0 +1,28 @@
+{
+  "entity": {
+    "type": "minecraft:iron_golem",
+    "tag": "scenario_kamen"
+  },
+  "dialogues": [
+    {
+      "dialogue": "scenario:shoulder/battle",
+      "conditions": {
+        "type": "quest",
+        "quest": "scenario:shoulder/quest",
+        "stage": "hold"
+      }
+    }
+  ],
+  "interact": false,
+  "proximity": {
+    "radius": 6,
+    "line_of_sight": false
+  },
+  "invulnerable": true,
+  "when_attacked": {
+    "reaction": "ignore",
+    "phrases": {
+      "text": "scenario.shoulder.hit"
+    }
+  }
+}
