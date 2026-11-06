@@ -397,6 +397,7 @@ public class DevModeScreen extends Screen {
             status(DevUi.text(nothing), DevUi.MUTED);
             return;
         }
+        view().beforeHistoryReload();
         view().reload();
         rebuild();
         status(DevUi.text(done, step.label()), color);

@@ -115,6 +115,8 @@ final class StoryView extends GraphView {
     /** The selected definition as edited in the inspector, not yet saved when {@link #dirty}. */
     @Nullable JsonObject editing;
     boolean dirty;
+    /** What the last save sent or kept as a draft: an inspector showing just that has nothing unsaved. */
+    private @Nullable String lastSaved;
     final StoryInspector inspector = new StoryInspector(this);
     private final StoryLibrary library = new StoryLibrary(this);
     /** Pan and zoom of the tabs not open. */
@@ -687,7 +689,18 @@ final class StoryView extends GraphView {
         if (problem.isPresent()) {
             // Still being filled in: kept here (over the snapshots too), sent once it loads.
             dirty = true;
-            ClientDevStore.putDraft(selected.type(), selected.id(), DevUi.GSON.toJson(editing));
+            NodeKey drafted = selected;
+            String draftBefore = ClientDevStore.getJson(drafted.type(), drafted.id());
+            String draft = DevUi.GSON.toJson(editing);
+            lastSaved = draft;
+            ClientDevStore.putDraft(drafted.type(), drafted.id(), draft);
+            // Undoable as any edit (November 7, 2026; before, an edit that left the node unfinished, a switch that
+            // cleared what the entity was known by, could not be undone).
+            if (draftBefore != null && !draftBefore.equals(draft)) {
+                screen.remember(DevUi.str("history.save", drafted.id().getPath()),
+                        () -> DevRequests.restore(drafted.type(), drafted.id(), draftBefore, Optional.empty()),
+                        () -> DevRequests.restore(drafted.type(), drafted.id(), draft, Optional.empty()));
+            }
             screen.status(DevUi.text("status.incomplete", DevChecks.shorten(problem.get())), DevUi.WARN);
             return;
         }
@@ -697,6 +710,7 @@ final class StoryView extends GraphView {
         String after = DevUi.GSON.toJson(editing);
         Optional<String> afterText = inspector.documentText();
         dirty = false;
+        lastSaved = after;
         ClientDevStore.putLocal(target.type(), target.id(), after);
         DevRequests.save(target.type(), target.id(), after, afterText);
         inspector.textSaved();
@@ -733,6 +747,14 @@ final class StoryView extends GraphView {
     }
 
     /** A toggle in the inspector changed the definition: saved at once, so nothing is lost when switching cards. */
+    @Override
+    void beforeHistoryReload() {
+        // A draft keeps the inspector "dirty"; with nothing typed since it was kept, the undone state shows.
+        if (dirty && editing != null && DevUi.GSON.toJson(editing).equals(lastSaved)) {
+            dirty = false;
+        }
+    }
+
     void changed(DevModeScreen screen) {
         dirty = true;
         save(screen);

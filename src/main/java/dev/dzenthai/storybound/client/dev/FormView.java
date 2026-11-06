@@ -157,6 +157,7 @@ final class FormView {
         // A switch's way chosen for a field not written yet belongs to this node, not to the next one shown at the same
         // path (November 7, 2026; before, another jump or NPC opened on the way picked here).
         entityModes.clear();
+        switchedAway.clear();
     }
 
     void scroll(double amount) {
@@ -1875,18 +1876,19 @@ final class FormView {
                 JsonObject target = ensureObject(path);
                 String next = switch (mode) {
                     case "type" -> {
-                        target.remove("type");
+                        putAway(path, target, "type");
                         yield "name";
                     }
                     case "name" -> {
-                        target.remove("name");
+                        putAway(path, target, "name");
                         yield "uuid";
                     }
                     default -> {
-                        target.remove("uuid");
+                        putAway(path, target, "uuid");
                         yield "type";
                     }
                 };
+                giveBack(path, target, next);
                 // An empty way still shows as chosen: the switch writes nothing until the field is filled.
                 entityModes.put(path.toString(), next);
                 host.changed();
@@ -1989,6 +1991,27 @@ final class FormView {
 
     /** The way an entity is known by, chosen on its page before its field is filled (per path; the form's own state). */
     private final Map<String, String> entityModes = new java.util.HashMap<>();
+    /**
+     * What a switch cleared, per path and field, given back when it is switched to that way again (November 7, 2026;
+     * before, switching an entity from the one picked to its type lost the pick for good). For this node only.
+     */
+    private final Map<String, JsonElement> switchedAway = new java.util.HashMap<>();
+
+    /** Clears the field, keeping its value to give back. */
+    private void putAway(List<Object> path, JsonObject target, String field) {
+        JsonElement value = target.remove(field);
+        if (value != null) {
+            switchedAway.put(path + "#" + field, value);
+        }
+    }
+
+    /** Gives back what a switch cleared from the field, if the field is empty. */
+    private void giveBack(List<Object> path, JsonObject target, String field) {
+        JsonElement value = switchedAway.remove(path + "#" + field);
+        if (value != null && !target.has(field)) {
+            target.add(field, value);
+        }
+    }
 
     /** "stage" for a quest stage's page ({@code stages/<i>}), "objective" for an objective's, null elsewhere. */
     private static @Nullable String insideQuest(List<Object> path) {
@@ -2926,11 +2949,22 @@ final class FormView {
         int modeW = Math.min(150, w * 2 / 5);
         Button switcher = Button.builder(Component.literal(DevUi.str("phrases.mode." + mode) + " \u25B8"), b -> {
             JsonObject target = ensureObject(path);
+            // What this way wrote is kept to give back when it is switched to again.
+            String field = mode.equals("dialogue") ? "dialogue" : name;
+            JsonElement current = target.get(field);
+            if (current != null) {
+                switchedAway.put(at + "#" + mode, current);
+            }
             target.remove(name);
             if (orDialogue) {
                 target.remove("dialogue");
             }
-            entityModes.put(at.toString(), modes.get((modes.indexOf(mode) + 1) % modes.size()));
+            String next = modes.get((modes.indexOf(mode) + 1) % modes.size());
+            JsonElement back = switchedAway.remove(at + "#" + next);
+            if (back != null) {
+                target.add(next.equals("dialogue") ? "dialogue" : name, back);
+            }
+            entityModes.put(at.toString(), next);
             host.changed();
         }).bounds(x, rowTop, modeW, CONTROL_H).build();
         switcher.setTooltip(Tooltip.create(DevUi.text(orDialogue ? "phrases.mode.tooltip_dialogue" : "phrases.mode.tooltip")));
@@ -3025,9 +3059,16 @@ final class FormView {
             labelRow(DevUi.text("jump.where"));
             Button switcher = Button.builder(Component.literal(DevUi.str(elsewhere ? "jump.mode.other" : "jump.mode.here") + " \u25B8"), b -> {
                 JsonObject target = ensureObject(path);
-                target.remove("dialogue");
-                target.remove("node");
-                entityModes.put(key, elsewhere ? "here" : "other");
+                // Each way's dialogue and node are kept to give back when it is switched to again.
+                String from = elsewhere ? "other" : "here";
+                String to = elsewhere ? "here" : "other";
+                List<Object> fromPath = with(path, from);
+                List<Object> toPath = with(path, to);
+                putAway(fromPath, target, "dialogue");
+                putAway(fromPath, target, "node");
+                giveBack(toPath, target, "dialogue");
+                giveBack(toPath, target, "node");
+                entityModes.put(key, to);
                 host.changed();
             }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
             switcher.setTooltip(Tooltip.create(DevUi.text("jump.mode.tooltip")));

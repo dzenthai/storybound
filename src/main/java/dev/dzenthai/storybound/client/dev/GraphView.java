@@ -40,6 +40,9 @@ abstract class GraphView {
     /** Re-reads what it shows from the store: after a snapshot, a language switch, undo or redo. */
     abstract void reload();
 
+    /** Before the reload of an undo or redo: edits already saved (or kept as a draft) give way to what it restored. */
+    void beforeHistoryReload() {}
+
     /** Sends what was edited in the inspector. */
     abstract void saveEdits(DevModeScreen screen);
 

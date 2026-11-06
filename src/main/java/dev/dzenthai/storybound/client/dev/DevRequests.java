@@ -36,6 +36,9 @@ final class DevRequests {
             return;
         }
         ClientDevStore.dropDraft(type, id);
+        // Here at once, as a save does: the inspector reloads right after an undo, before the server's snapshot comes
+        // (November 7, 2026; before, it showed the undone edit still, and undo seemed not to work on a node's settings).
+        ClientDevStore.putLocal(type, id, json);
         PacketDistributor.sendToServer(new DevModePayloads.SaveDefinition(type, id, json, text, ClientDevStore.activeLanguage(), Map.of()));
     }
 
