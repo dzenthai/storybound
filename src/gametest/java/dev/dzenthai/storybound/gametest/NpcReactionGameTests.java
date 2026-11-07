@@ -17,6 +17,14 @@ import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
 import dev.dzenthai.storybound.module.dialogue.NpcChatter;
+import dev.dzenthai.storybound.module.dialogue.NpcNames;
+import dev.dzenthai.storybound.module.dialogue.NpcParts;
+import dev.dzenthai.storybound.module.waypoint.AreaLook;
+import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
+import dev.dzenthai.storybound.module.waypoint.WaypointTarget;
+import dev.dzenthai.storybound.module.waypoint.Waypoints;
+import dev.dzenthai.storybound.core.text.StoryText;
+import net.minecraft.server.MinecraftServer;
 import dev.dzenthai.storybound.module.dialogue.NpcPhrases;
 import dev.dzenthai.storybound.module.dialogue.NpcReactions;
 import dev.dzenthai.storybound.module.dialogue.PhrasesDefinition;
@@ -25,11 +33,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -40,6 +50,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.behavior.SleepInBed;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.IronGolem;
+import net.minecraft.world.entity.monster.ZombieVillager;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.npc.VillagerType;
@@ -274,6 +285,63 @@ public final class NpcReactionGameTests {
         helper.succeed();
     }
 
+    /**
+     * A share (November 8, 2026): "Guards" are 50% of villagers, over "Villagers". The roll: about the share over many
+     * entities, the same for good, raising the share keeps those in, another binding rolls anew. On villagers: those in
+     * the share have Guards before Villagers (a share counts as a filter), the others Villagers only; written back as
+     * written; on a "one" or tagged NPC it is not used.
+     */
+    @GameTest(template = "open", batch = "npc_share")
+    public static void aShareOfThemIsRolledOnceForGood(GameTestHelper helper) {
+        ResourceLocation guards = key("s_guards");
+        java.util.Random random = new java.util.Random(42);
+        int in30 = 0;
+        for (int i = 0; i < 10_000; i++) {
+            java.util.UUID uuid = new java.util.UUID(random.nextLong(), random.nextLong());
+            boolean at30 = NpcBinding.inShare(uuid, guards, 30);
+            in30 += at30 ? 1 : 0;
+            helper.assertTrue(!at30 || NpcBinding.inShare(uuid, guards, 50), "raised to 50%, those in at 30% stay in");
+            helper.assertTrue(at30 == NpcBinding.inShare(uuid, guards, 30), "the same roll every time");
+        }
+        helper.assertTrue(in30 > 2_800 && in30 < 3_200, "30% of 10 000 is about 3 000: " + in30);
+        int same = 0;
+        for (int i = 0; i < 1_000; i++) {
+            java.util.UUID uuid = new java.util.UUID(random.nextLong(), random.nextLong());
+            same += NpcBinding.inShare(uuid, guards, 50) == NpcBinding.inShare(uuid, key("s_other"), 50) ? 1 : 0;
+        }
+        helper.assertTrue(same > 400 && same < 600, "another binding rolls anew: agrees about half the time: " + same);
+
+        List<Villager> villagers = new java.util.ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            villagers.add(villager(helper, 1 + i % 4, VillagerProfession.NONE, VillagerType.PLAINS));
+        }
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions()
+                .binding("s_villagers", "{ \"entity\": { \"type\": \"minecraft:villager\" } }")
+                .binding("s_guards", "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"share\": 50 }");
+        defs.install(helper);
+        try {
+            for (Villager villager : villagers) {
+                boolean in = NpcBinding.inShare(villager.getUUID(), guards, 50);
+                expect(helper, chain(villager), in ? List.of("gametest:s_guards", "gametest:s_villagers") : List.of("gametest:s_villagers"),
+                        in ? "in the share: Guards first, a share being a filter" : "out of the share: Villagers only");
+            }
+            // Read, not installed: an installed "one" could pick one of these villagers.
+            NpcBinding one = NpcBinding.CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()),
+                    JsonParser.parseString("{ \"entity\": { \"type\": \"minecraft:villager\" }, \"one\": true, \"share\": 10 }"))
+                    .getOrThrow(GameTestAssertException::new);
+            helper.assertTrue(one.crowdShare().isEmpty(), "a share on a \"one\" NPC is not used");
+            JsonElement written = NpcBinding.CODEC.encodeStart(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()),
+                    DialogueRegistries.NPC_BINDINGS.serverStore().all().get(guards)).getOrThrow(GameTestAssertException::new);
+            expect(helper, written.getAsJsonObject().get("share").getAsInt(), 50, "written back as written");
+            helper.assertFalse(written.getAsJsonObject().has("one"), "one not written stays unwritten");
+        } finally {
+            defs.uninstall(player);
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
     private static Villager villager(GameTestHelper helper, int x, VillagerProfession profession, VillagerType type) {
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, x, 1, 1);
         villager.setVillagerData(villager.getVillagerData().setProfession(profession).setType(type));
@@ -328,6 +396,46 @@ public final class NpcReactionGameTests {
                     helper.assertFalse(NpcReactions.angryAt(golem, player), "no longer angry: it talks again");
                 })
                 .thenExecute(() -> defs.uninstall(player))
+                .thenExecute(() -> remove(helper, player))
+                .thenSucceed();
+    }
+
+    /**
+     * Killed, an NPC forgets its grudges (November 8, 2026): a fleeing golem hit by the player is angry at them; killed, it
+     * comes back 5 s later with the same uuid (respawn) and talks with its killer at once. Before, it was still angry
+     * until calm_after (30 s) had passed since the last hit, which the check of a "one" Elder found.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 300)
+    public static void aKilledNpcComesBackWithoutAGrudge(GameTestHelper helper) {
+        IronGolem golem = helper.spawnWithNoFreeWill(EntityType.IRON_GOLEM, 1, 1, 4);
+        golem.addTag("gt_react_reborn");
+        java.util.UUID uuid = golem.getUUID();
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions()
+                .binding("react_reborn", "{ \"entity\": { \"tag\": \"gt_react_reborn\" }, \"when_attacked\": { \"reaction\": \"flee\" }, \"respawn\": true }");
+        defs.install(helper);
+        helper.startSequence()
+                .thenExecute(() -> golem.hurt(player.damageSources().playerAttack(player), 1f))
+                .thenExecute(() -> helper.assertTrue(NpcReactions.angryAt(golem, player), "hit: it runs from the player and does not talk"))
+                .thenExecute(() -> {
+                    // The body removed at once, as the end of the death animation does (GameTest chunks may not tick it).
+                    golem.kill();
+                    golem.remove(Entity.RemovalReason.KILLED);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(helper.getLevel().getEntity(uuid) instanceof IronGolem back && back != golem, "it comes back"))
+                .thenExecute(() -> {
+                    Entity back = helper.getLevel().getEntity(uuid);
+                    helper.assertFalse(NpcReactions.angryAt(back, player), "back: no grudge, it talks with its killer at once");
+                    expect(helper, NpcReactions.hits(back, player), 0, "back: the count of hits starts over");
+                })
+                .thenExecute(() -> defs.uninstall(player))
+                .thenExecute(() -> {
+                    // Its binding gone, it does not come back again.
+                    Entity back = helper.getLevel().getEntity(uuid);
+                    if (back != null) {
+                        back.discard();
+                    }
+                })
                 .thenExecute(() -> remove(helper, player))
                 .thenSucceed();
     }
@@ -747,6 +855,176 @@ public final class NpcReactionGameTests {
         hidden.uninstall(player);
         remove(helper, player);
         helper.succeed();
+    }
+
+    /**
+     * Names from a list (November 7, 2026). Villagers: every villager, names Agna, Bertil, Ilsa. Smiths: weaponsmiths,
+     * the name Hammer. Elder: the villager tagged so, display_name Miron. Expected: three farmers get the three names, one
+     * each, shown only when looked at; a fourth gets one of them again (the list ran out); the smith gets Hammer (the
+     * closest binding naming him) and keeps it when he loses his job; the Elder is Miron, always shown, and with his tag
+     * taken off gets a name from the list; a name tag put on a villager is its own, the list's forgotten; a name taken
+     * out of the list is taken off and another given; the bindings gone, the names they gave go. A villager turned into
+     * a zombie villager carries no name the mod gave.
+     */
+    @GameTest(template = "open", batch = "npc_names")
+    public static void namesFromAListAreGivenOneEachAndKeptForLife(GameTestHelper helper) {
+        List<Villager> farmers = List.of(villager(helper, 1, VillagerProfession.FARMER, VillagerType.PLAINS),
+                villager(helper, 2, VillagerProfession.FARMER, VillagerType.PLAINS), villager(helper, 3, VillagerProfession.FARMER, VillagerType.PLAINS));
+        Villager fourth = villager(helper, 4, VillagerProfession.FARMER, VillagerType.PLAINS);
+        Villager smith = villager(helper, 5, VillagerProfession.WEAPONSMITH, VillagerType.PLAINS);
+        Villager elder = villager(helper, 6, VillagerProfession.FARMER, VillagerType.PLAINS);
+        elder.addTag("gt_name_elder");
+        ServerPlayer player = player(helper);
+        String villagers = "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"names\": [ { \"literal\": \"Agna\" }, { \"literal\": \"Bertil\" }, { \"literal\": \"Ilsa\" } ] }";
+        Definitions defs = new Definitions()
+                .binding("n_villagers", villagers)
+                .binding("n_smiths", "{ \"entity\": { \"type\": \"minecraft:villager\", \"profession\": \"minecraft:weaponsmith\" }, \"names\": [ { \"literal\": \"Hammer\" } ] }")
+                .binding("n_elder", "{ \"entity\": { \"type\": \"minecraft:villager\", \"tag\": \"gt_name_elder\" }, \"display_name\": { \"literal\": \"Miron\" } }");
+        defs.install(helper);
+        try {
+            farmers.forEach(NpcNames::apply);
+            expect(helper, farmers.stream().map(NpcReactionGameTests::named).collect(java.util.stream.Collectors.toSet()), Set.of("Agna", "Bertil", "Ilsa"),
+                    "three farmers: the three names, one each");
+            helper.assertFalse(farmers.getFirst().isCustomNameVisible(), "shown only when looked at");
+            NpcNames.apply(fourth);
+            helper.assertTrue(Set.of("Agna", "Bertil", "Ilsa").contains(named(fourth)), "a fourth: one of them again, the list ran out");
+
+            NpcNames.apply(smith);
+            expect(helper, named(smith), "Hammer", "the smith: the closest binding naming him");
+            smith.setVillagerData(smith.getVillagerData().setProfession(VillagerProfession.FARMER));
+            NpcBindings.forget(smith);
+            NpcNames.apply(smith);
+            expect(helper, named(smith), "Hammer", "no longer a smith: he keeps his name");
+
+            NpcNames.apply(elder);
+            expect(helper, named(elder), "Miron", "the Elder: his own name");
+            helper.assertTrue(elder.isCustomNameVisible(), "always shown");
+            elder.removeTag("gt_name_elder");
+            NpcNames.apply(elder);
+            helper.assertTrue(Set.of("Agna", "Bertil", "Ilsa").contains(named(elder)), "his tag taken off: a name from the list");
+            helper.assertFalse(elder.isCustomNameVisible(), "shown when looked at, as the others'");
+
+            Villager tagged = farmers.getFirst();
+            tagged.setCustomName(Component.literal("Sharik"));
+            NpcNames.apply(tagged);
+            expect(helper, named(tagged), "Sharik", "a name tag: its own name");
+            helper.assertFalse(tagged.hasData(DialogueRegistries.NPC_NAME), "the list's forgotten");
+
+            Villager second = farmers.get(1);
+            String before = named(second);
+            defs.binding("n_villagers", "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"names\": [ { \"literal\": \"Dagny\" } ] }").install(helper);
+            NpcNames.apply(second);
+            expect(helper, named(second), "Dagny", "its name (" + before + ") out of the list: taken off, another given");
+
+            defs.uninstall(player);
+            NpcNames.apply(second);
+            NpcNames.apply(smith);
+            helper.assertTrue(second.getCustomName() == null && smith.getCustomName() == null, "the bindings gone: the names they gave go");
+            expect(helper, named(tagged), "Sharik", "a name tag stays");
+
+            defs.binding("n_villagers", villagers).install(helper);
+            Villager turned = farmers.get(2);
+            NpcNames.apply(turned);
+            helper.assertTrue(turned.getCustomName() != null, "named again");
+            ZombieVillager zombie = turned.convertTo(EntityType.ZOMBIE_VILLAGER, false);
+            net.neoforged.neoforge.event.EventHooks.onLivingConvert(turned, zombie);
+            helper.assertTrue(zombie != null && zombie.getCustomName() == null, "a zombie villager carries no name the mod gave");
+            if (zombie != null) {
+                zombie.discard();
+            }
+        } finally {
+            defs.uninstall(player);
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * One, picked by the mod (November 7, 2026). Villagers: every villager, the name Agna. Elder: one grown farmer, the
+     * name Miron. Brann: the villager tagged so, by hand. Expected: a child and Brann are never picked; the first grown
+     * farmer worked out is, and carries the Elder's tag; no second one, also not one given a copy of the tag; the Elder
+     * is Elder → Villagers, called Miron, always shown, coming back when he dies (on by default for one); he stays the
+     * Elder when he is no longer a farmer; a waypoint at the Elder shows nothing until he is picked, then follows him;
+     * one at Villagers points at the nearest villager. Freed, the part goes to the next one worked out; with respawn
+     * off, it ends when its holder is discarded and is never given again; the binding gone, the part is dropped.
+     */
+    @GameTest(template = "open", batch = "npc_parts")
+    public static void oneIsPickedNearAPlayerAndKeptForGood(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        NpcParts.clearForTests(server);
+        Villager child = villager(helper, 1, VillagerProfession.FARMER, VillagerType.PLAINS);
+        child.setAge(-24000);
+        Villager brann = villager(helper, 2, VillagerProfession.FARMER, VillagerType.PLAINS);
+        brann.addTag("gt_part_brann");
+        Villager miron = villager(helper, 3, VillagerProfession.FARMER, VillagerType.PLAINS);
+        Villager other = villager(helper, 4, VillagerProfession.FARMER, VillagerType.PLAINS);
+        ServerPlayer player = player(helper);
+        ResourceLocation elder = key("p_elder");
+        String elderJson = "{ \"entity\": { \"type\": \"minecraft:villager\", \"profession\": \"minecraft:farmer\", \"baby\": false }, \"one\": true,"
+                + " \"display_name\": { \"literal\": \"Miron\" }%s }";
+        Definitions defs = new Definitions()
+                .binding("p_villagers", "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"names\": [ { \"literal\": \"Agna\" } ] }")
+                .binding("p_elder", elderJson.formatted(""))
+                .binding("p_brann", "{ \"entity\": { \"type\": \"minecraft:villager\", \"tag\": \"gt_part_brann\" } }");
+        defs.install(helper);
+        ResourceLocation waypoint = key("p_to_elder");
+        ResourceLocation crowd = key("p_to_villagers");
+        try {
+            Waypoints.add(player, waypoint, StoryText.key("gametest.elder"), new WaypointTarget.Npc(elder, 64), 0, 0, AreaLook.DEFAULT, StoryScope.PLAYER);
+            Waypoints.add(player, crowd, StoryText.key("gametest.crowd"), new WaypointTarget.Npc(key("p_villagers"), 64), 0, 0, AreaLook.DEFAULT, StoryScope.PLAYER);
+            helper.assertFalse(Waypoints.visible(player).containsKey("player/" + waypoint), "nobody picked yet: the Elder's waypoint shows nothing");
+            helper.assertTrue(Waypoints.visible(player).containsKey("player/" + crowd), "the villagers' one points at the nearest villager");
+
+            NpcParts.consider(child);
+            NpcParts.consider(brann);
+            expect(helper, NpcParts.part(server, elder), Optional.empty(), "a child and Brann (by hand) are never picked");
+            NpcParts.consider(miron);
+            expect(helper, NpcParts.part(server, elder).map(NpcParts.Part::holder), Optional.of(miron.getUUID()), "the first grown farmer worked out is");
+            helper.assertTrue(miron.getTags().contains("p_elder"), "and carries the Elder's tag");
+            NpcParts.consider(other);
+            expect(helper, NpcParts.part(server, elder).map(NpcParts.Part::holder), Optional.of(miron.getUUID()), "one per world: no second");
+            other.addTag("p_elder");
+            expect(helper, chain(other), List.of("gametest:p_villagers"), "a copy of the tag does not make a second Elder");
+
+            expect(helper, chain(miron), List.of("gametest:p_elder", "gametest:p_villagers"), "the Elder: his part first, then every villager");
+            helper.assertTrue(NpcBindings.find(miron).orElseThrow().respawn(), "he comes back when he dies: on by default for one");
+            NpcNames.apply(miron);
+            expect(helper, named(miron), "Miron", "called Miron");
+            helper.assertTrue(miron.isCustomNameVisible(), "always shown");
+            miron.setVillagerData(miron.getVillagerData().setProfession(VillagerProfession.WEAPONSMITH));
+            NpcBindings.forget(miron);
+            expect(helper, chain(miron).getFirst(), "gametest:p_elder", "no longer a farmer: still the Elder");
+            ClientWaypoint shown = Waypoints.visible(player).get("player/" + waypoint);
+            helper.assertTrue(shown != null && shown.entity() == miron.getId(), "the Elder's waypoint follows him");
+
+            helper.assertTrue(NpcParts.reset(server, elder), "freed");
+            helper.assertFalse(miron.getTags().contains("p_elder"), "his tag taken off");
+            other.removeTag("p_elder");
+            NpcParts.consider(other);
+            expect(helper, NpcParts.part(server, elder).map(NpcParts.Part::holder), Optional.of(other.getUUID()), "picked again: the next one worked out");
+
+            defs.binding("p_elder", elderJson.formatted(", \"respawn\": false")).install(helper);
+            other.discard();
+            helper.assertTrue(NpcParts.part(server, elder).map(NpcParts.Part::ended).orElse(false), "respawn off, discarded: the part has ended");
+            NpcParts.consider(miron);
+            helper.assertTrue(NpcParts.part(server, elder).map(part -> part.ended() && part.holder().equals(other.getUUID())).orElse(false),
+                    "and is never given again");
+            helper.assertFalse(Waypoints.visible(player).containsKey("player/" + waypoint), "ended: the waypoint shows nothing");
+
+            defs.uninstall(player);
+            expect(helper, NpcParts.part(server, elder), Optional.empty(), "the binding gone: its part dropped");
+        } finally {
+            Waypoints.remove(server, waypoint, StoryScope.PLAYER, player.getUUID());
+            Waypoints.remove(server, crowd, StoryScope.PLAYER, player.getUUID());
+            defs.uninstall(player);
+            NpcParts.clearForTests(server);
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    private static String named(Entity entity) {
+        return entity.getCustomName() == null ? "none" : entity.getCustomName().getString();
     }
 
     /**

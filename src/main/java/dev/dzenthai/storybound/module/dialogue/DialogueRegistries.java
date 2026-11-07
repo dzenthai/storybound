@@ -36,6 +36,13 @@ public final class DialogueRegistries {
     public static final Supplier<AttachmentType<String>> OPEN_DIALOGUE = ATTACHMENT_TYPES.register("open_dialogue",
             () -> AttachmentType.builder(() -> "").serialize(Codec.STRING).build());
 
+    /**
+     * What the mod named an entity (November 7, 2026; see {@link NpcNames}): a name from a binding's list and the custom
+     * name it put on it; check {@code hasData}.
+     */
+    public static final Supplier<AttachmentType<NpcNames.Given>> NPC_NAME = ATTACHMENT_TYPES.register("npc_name",
+            () -> AttachmentType.builder(() -> NpcNames.Given.NONE).serialize(NpcNames.Given.CODEC).build());
+
     private DialogueRegistries() {}
 
     public static void register(IEventBus modBus) {

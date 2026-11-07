@@ -12,22 +12,24 @@ import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * Where a waypoint points: {@code { "pos": [x, y, z], "dimension": "minecraft:overworld" }}, {@code { "entity": "<uuid>" }},
- * {@code { "structure": "#minecraft:village" }} or {@code { "nearest": "minecraft:zombie" }}.
+ * {@code { "structure": "#minecraft:village" }}, {@code { "nearest": "minecraft:zombie" }} or {@code { "npc": "mypack:elder" }}.
  */
 public sealed interface WaypointTarget {
-    Codec<WaypointTarget> CODEC = Codec.either(Fixed.CODEC, Codec.either(Follow.CODEC, Codec.either(Structure.CODEC, Nearest.CODEC))).xmap(
+    Codec<WaypointTarget> CODEC = Codec.either(Fixed.CODEC, Codec.either(Follow.CODEC, Codec.either(Structure.CODEC, Codec.either(Npc.CODEC, Nearest.CODEC)))).xmap(
             either -> either.map(fixed -> (WaypointTarget) fixed, rest -> rest.map(follow -> (WaypointTarget) follow,
-                    last -> last.map(structure -> (WaypointTarget) structure, nearest -> nearest))),
+                    more -> more.map(structure -> (WaypointTarget) structure, last -> last.map(npc -> (WaypointTarget) npc, nearest -> nearest)))),
             target -> switch (target) {
                 case Fixed fixed -> Either.left(fixed);
                 case Follow follow -> Either.right(Either.left(follow));
                 case Structure structure -> Either.right(Either.right(Either.left(structure)));
-                case Nearest nearest -> Either.right(Either.right(Either.right(nearest)));
+                case Npc npc -> Either.right(Either.right(Either.right(Either.left(npc))));
+                case Nearest nearest -> Either.right(Either.right(Either.right(Either.right(nearest))));
             });
 
     /** @param dimension defaults to the overworld */
@@ -62,6 +64,20 @@ public sealed interface WaypointTarget {
         StructureLocator.Search searchFrom(BlockPos from) {
             return new StructureLocator.Search(structure, dimension, from, searchRadius);
         }
+    }
+
+    /**
+     * An NPC, by its binding (November 7, 2026, stage 4 of "Who an NPC is"): {@code { "npc": "mypack:elder" }}. One picked by
+     * the mod (a {@code "one"} binding) is followed as {@link Follow}: its last known place while it is not loaded; nothing
+     * while its part is empty (nobody picked yet) or has ended. Any other NPC: the nearest entity it is, within
+     * {@code range} blocks of each player, as {@link Nearest}. Without it, a quest could not point at an Elder the mod
+     * picked, whose uuid nobody knows beforehand.
+     */
+    record Npc(ResourceLocation npc, int range) implements WaypointTarget {
+        public static final Codec<Npc> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                ResourceLocation.CODEC.fieldOf("npc").forGetter(Npc::npc),
+                Codec.intRange(1, 256).optionalFieldOf("range", Nearest.DEFAULT_RANGE).forGetter(Npc::range)
+        ).apply(instance, Npc::new));
     }
 
     /**

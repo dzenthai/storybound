@@ -8,6 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
+import dev.dzenthai.storybound.module.dialogue.NpcParts;
+import java.util.Map;
+import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -18,7 +23,8 @@ import net.minecraft.world.entity.Entity;
  * {@code /storybound debug npc <entity>}: the bindings it matches, closest first, and which of them each setting comes
  * from (November 7, 2026; before, the one binding that applied); {@code ... unbind} takes away a
  * binding stored on the entity by the old {@code /storybound npc bind} (removed November 7, 2026), which still works in
- * worlds that have one.
+ * worlds that have one. {@code ... npc parts} lists the parts of "one" NPCs, who holds each, where, ended or not; {@code ... npc
+ * part <npc> reset} frees one, to try a picking again (November 7, 2026).
  */
 final class NpcCommands {
 
@@ -26,8 +32,38 @@ final class NpcCommands {
 
     static LiteralArgumentBuilder<CommandSourceStack> npc() {
         return Commands.literal("npc")
+                .then(Commands.literal("parts").executes(NpcCommands::parts))
+                .then(Commands.literal("part").then(Commands.argument("npc", ResourceLocationArgument.id())
+                        .suggests((context, builder) -> SharedSuggestionProvider.suggestResource(
+                                NpcParts.all(context.getSource().getServer()).keySet(), builder))
+                        .then(Commands.literal("reset").executes(NpcCommands::reset))))
                 .then(Commands.argument("entity", EntityArgument.entity()).executes(NpcCommands::info)
                         .then(Commands.literal("unbind").executes(NpcCommands::unbind)));
+    }
+
+    private static int parts(CommandContext<CommandSourceStack> context) {
+        Map<ResourceLocation, NpcParts.Part> parts = NpcParts.all(context.getSource().getServer());
+        // "One" NPCs nobody holds yet: waiting for a fitting entity near a player.
+        List<ResourceLocation> empty = DialogueRegistries.NPC_BINDINGS.serverStore().all().entrySet().stream()
+                .filter(entry -> entry.getValue().isOne() && !parts.containsKey(entry.getKey())).map(Map.Entry::getKey).sorted().toList();
+        if (parts.isEmpty() && empty.isEmpty()) {
+            context.getSource().sendSuccess(() -> Component.translatable("commands.storybound.npc.parts.none"), false);
+            return 0;
+        }
+        empty.forEach(npc -> context.getSource().sendSuccess(() -> Component.translatable("commands.storybound.npc.parts.empty", npc.toString()), false));
+        parts.forEach((npc, part) -> context.getSource().sendSuccess(() -> Component.translatable(
+                part.ended() ? "commands.storybound.npc.parts.ended" : "commands.storybound.npc.parts.held", npc.toString(), part.holder().toString(),
+                part.dimension().location().toString(), part.pos().toShortString()), false));
+        return parts.size();
+    }
+
+    private static int reset(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ResourceLocation npc = ResourceLocationArgument.getId(context, "npc");
+        if (!NpcParts.reset(context.getSource().getServer(), npc)) {
+            throw new SimpleCommandExceptionType(Component.translatable("commands.storybound.npc.part.none", npc.toString())).create();
+        }
+        context.getSource().sendSuccess(() -> Component.translatable("commands.storybound.npc.part.reset", npc.toString()), true);
+        return 1;
     }
 
     private static int unbind(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {

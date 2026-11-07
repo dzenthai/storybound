@@ -2,13 +2,20 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "storybound/npc_binding.schema.json",
   "title": "Storybound NPC binding",
-  "description": "data/<namespace>/storybound/npc_bindings/<path>.json — which entities start which dialogue, and how. The first file by id whose selector matches applies; /storybound npc bind on an entity wins over files.",
+  "description": "data/<namespace>/storybound/npc_bindings/<path>.json — which entities start which dialogue, and how. Every file whose selector matches an entity applies, closest first (by uuid, then by a tag or a name, then by kind with more filters first): each setting comes from the closest file that writes it.",
   "type": "object",
   "required": ["entity"],
   "additionalProperties": false,
   "properties": {
-    "display_name": { "description": "The NPC's name: over its head (unless show_name is off) and in its dialogues, each player reading it in their own language.", "$ref": "logic.schema.json#/definitions/story_text" },
+    "display_name": { "description": "The NPC's name: over its head (unless show_name is off) and in its dialogues, each player reading it in their own language. Only for an NPC by hand (a tag): for every entity of a kind it names nobody, use names.", "$ref": "logic.schema.json#/definitions/story_text" },
     "show_name": { "description": "Show the name over its head. Off: only dialogues use it.", "type": "boolean", "default": true },
+    "names": {
+      "description": "For every entity of a kind (an NPC without a tag): names to give them, one each, the one least used nearby, so a village has no two alike while the list lasts. Kept for life; shown when looked at.",
+      "type": "array",
+      "items": { "$ref": "logic.schema.json#/definitions/story_text" }
+    },
+    "one": { "description": "For every entity of a kind (an NPC without a tag): one entity only, picked by the mod near a player (an Elder in the first village a player comes to), kept for good: it stays the one when it no longer passes the filters, and comes back when it dies unless respawn is off.", "type": "boolean", "default": false },
+    "share": { "description": "For every entity of a kind, all such (an NPC without a tag, not one): only this per cent of them (30: about every third villager is a guard). Each entity is rolled once, for good, by its uuid and this NPC; raising it keeps those in and adds others. Absent: all.", "type": "integer", "minimum": 1, "maximum": 100, "default": 100 },
     "entity": {
       "description": "Which entities talk: one selector, or a list of them; the binding is for any entity that matches one.",
       "oneOf": [
@@ -46,21 +53,6 @@
     },
     "exclusive": { "description": "While the NPC talks with one player, others cannot start its dialogues (they get busy_dialogue, or nothing). Off: several players talk with it at once.", "type": "boolean", "default": false },
     "busy_dialogue": { "description": "What others get while an exclusive NPC talks: e.g. a bubble \"Wait, I am busy\".", "$ref": "logic.schema.json#/definitions/id" },
-    "respawn": { "description": "When the NPC dies or disappears, the same NPC (its name, look, trades and uuid) comes back where it was 5 seconds later. It drops nothing when it dies.", "type": "boolean", "default": false },
-    "invulnerable": { "description": "Nothing hurts the NPC (mobs, fire, a fall, players) but the void and /kill. Mobs still go for it.", "type": "boolean", "default": false },
-    "when_attacked": {
-      "description": "What the NPC does when a player hits it. Without it, what its kind does (an iron golem fights back). Mobs' hits leave it to its kind.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "reaction": { "description": "ignore: no revenge. flee: runs from the player for 5 seconds. fight: goes for the player (only kinds that can attack).", "enum": ["ignore", "flee", "fight"], "default": "ignore" },
-        "patience": { "description": "For fight: hits forgiven before it fights back, as followers forgive a stray blow in a fight.", "type": "integer", "minimum": 0, "maximum": 20, "default": 0 },
-        "warning": { "description": "For fight: said on the hits it forgives (in order: \"Careful!\", \"Once more and...\"); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
-        "phrases": { "description": "Said on every hit it reacts to (for fight, those past its patience); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
-        "dialogue": { "description": "Instead of phrases: a dialogue started with the player on such a hit, after the one they are in (a scene: \"What are you doing?!\").", "$ref": "logic.schema.json#/definitions/id" },
-        "calm_after": { "description": "Seconds without a hit after which it forgives everything: the reaction ends, the count of hits and the phrases start over.", "type": "number", "minimum": 5, "maximum": 600, "default": 30 }
-      }
-    },
     "chatter": {
       "description": "Now and then the NPC says one of its phrases to players near it, while it is free (not in a dialogue, not angry).",
       "type": "object",
@@ -88,6 +80,21 @@
         "conditions": { "description": "Tested for the nearest player within the radius; it keeps quiet while they fail (night, a quest stage).", "$ref": "logic.schema.json#/definitions/conditions" }
       }
     },
+    "when_attacked": {
+      "description": "What the NPC does when a player hits it. Without it, what its kind does (an iron golem fights back). Mobs' hits leave it to its kind.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reaction": { "description": "ignore: no revenge. flee: runs from the player for 5 seconds. fight: goes for the player (only kinds that can attack).", "enum": ["ignore", "flee", "fight"], "default": "ignore" },
+        "patience": { "description": "For fight: hits forgiven before it fights back, as followers forgive a stray blow in a fight.", "type": "integer", "minimum": 0, "maximum": 20, "default": 0 },
+        "warning": { "description": "For fight: said on the hits it forgives (in order: \"Careful!\", \"Once more and...\"); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
+        "phrases": { "description": "Said on every hit it reacts to (for fight, those past its patience); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
+        "dialogue": { "description": "Instead of phrases: a dialogue started with the player on such a hit, after the one they are in (a scene: \"What are you doing?!\").", "$ref": "logic.schema.json#/definitions/id" },
+        "calm_after": { "description": "Seconds without a hit after which it forgives everything: the reaction ends, the count of hits and the phrases start over.", "type": "number", "minimum": 5, "maximum": 600, "default": 30 }
+      }
+    },
+    "invulnerable": { "description": "Nothing hurts the NPC (mobs, fire, a fall, players) but the void and /kill. Mobs still go for it.", "type": "boolean", "default": false },
+    "respawn": { "description": "When the NPC dies or disappears, the same NPC (its name, look, trades and uuid) comes back where it was 5 seconds later. It drops nothing when it dies.", "type": "boolean", "default": false },
     "custom": { "description": "Talking to the NPC (talk key or right-click) fires the KubeJS event npcInteract. Its dialogues still start too while interact is on: for the script alone, turn interact off or leave dialogues empty. Needs KubeJS; only for binding files, not /storybound npc bind.", "type": "boolean", "default": false }
   }
 }

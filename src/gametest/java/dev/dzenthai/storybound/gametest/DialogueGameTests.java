@@ -858,6 +858,35 @@ public final class DialogueGameTests {
      * A binding for several entities talks through any of them; one alone is written back as an object, as files had it
      * before lists, and an empty list is no binding at all.
      */
+    /**
+     * A name belongs to one NPC, names from a list to every entity of a kind (November 7, 2026). Expected: a warning for
+     * display_name on a binding by kind (it names nobody), one for names on a binding by tag (not given); none for each
+     * in its place, and a binding giving only names does something; "one" with a tag is not used (the tag decides), and
+     * display_name on one picked by the mod is in its place.
+     */
+    @GameTest(template = "empty")
+    public static void namesInTheWrongPlaceAreWarnedOf(GameTestHelper helper) {
+        with(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(
+                key("name_kind"), "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"display_name\": { \"literal\": \"Willy\" } }",
+                key("name_list_tag"), "{ \"entity\": { \"tag\": \"gt_guard\" }, \"names\": [ { \"literal\": \"Agna\" } ] }",
+                key("name_tag"), "{ \"entity\": { \"tag\": \"gt_miron\" }, \"display_name\": { \"literal\": \"Miron\" } }",
+                key("name_list_kind"), "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"names\": [ { \"literal\": \"Agna\" } ] }",
+                key("name_one"), "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"one\": true, \"display_name\": { \"literal\": \"Miron\" } }",
+                key("name_one_tag"), "{ \"entity\": { \"tag\": \"gt_one\" }, \"one\": true, \"display_name\": { \"literal\": \"Miron\" } }"), () -> {
+            List<ValidationIssue> issues = ValidationService.validate().issues();
+            helper.assertTrue(messages(issues, key("name_kind"), false).stream().anyMatch(message -> message.contains("display_name names nobody")),
+                    "display_name by kind: " + messages(issues, key("name_kind"), false));
+            helper.assertTrue(messages(issues, key("name_list_tag"), false).stream().anyMatch(message -> message.contains("names are not given")),
+                    "names by tag: " + messages(issues, key("name_list_tag"), false));
+            expect(helper, messages(issues, key("name_tag"), false), List.of(), "display_name by tag: nothing to say");
+            expect(helper, messages(issues, key("name_list_kind"), false), List.of(), "names by kind: nothing to say, it does something");
+            expect(helper, messages(issues, key("name_one"), false), List.of(), "display_name on one picked by the mod: nothing to say");
+            helper.assertTrue(messages(issues, key("name_one_tag"), false).stream().anyMatch(message -> message.contains("one is not used")),
+                    "one with a tag: " + messages(issues, key("name_one_tag"), false));
+        });
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void aBindingForSeveralEntitiesTalksThroughEach(GameTestHelper helper) {
         NpcBinding binding = NpcBinding.CODEC.parse(ops(helper), JsonParser.parseString("""

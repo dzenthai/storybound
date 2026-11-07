@@ -57,6 +57,15 @@
         },
         {
           "type": "object",
+          "required": ["npc"],
+          "additionalProperties": false,
+          "properties": {
+            "npc": { "description": "An NPC by its binding. One picked by the mod (\"one\") is followed, its last known place while it is not loaded, nothing until it is picked; any other NPC: the nearest entity it is, within range.", "$ref": "logic.schema.json#/definitions/id" },
+            "range": { "description": "For an NPC that is not one picked by the mod: blocks around each player.", "type": "integer", "minimum": 1, "maximum": 256, "default": 64 }
+          }
+        },
+        {
+          "type": "object",
           "required": ["nearest"],
           "additionalProperties": false,
           "properties": {

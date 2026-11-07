@@ -2,6 +2,10 @@ package dev.dzenthai.storybound.module.waypoint;
 
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.logic.EntityReturns;
+import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
+import dev.dzenthai.storybound.module.dialogue.NpcBinding;
+import dev.dzenthai.storybound.module.dialogue.NpcBindings;
+import dev.dzenthai.storybound.module.dialogue.NpcParts;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.QuestProgress;
@@ -23,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -367,7 +372,7 @@ public final class Waypoints {
      * there: the waypoint shows the area where it was last seen ({@link WaypointSightings}, kept through relogs) until a
      * loaded match is in range. One that died, was removed or no longer matches is dropped. Null while there is none.
      */
-    private static @Nullable Place nearestEntity(ServerPlayer player, String key, WaypointTarget.Nearest target, List<ServerPlayer> companions) {
+    private static @Nullable Place nearestEntity(ServerPlayer player, String key, Seek target, List<ServerPlayer> companions) {
         Map<String, Entity> picks = NEAREST_PICKS.computeIfAbsent(player.getUUID(), uuid -> new HashMap<>());
         ServerLevel level = player.serverLevel();
         Entity picked = picks.get(key);
@@ -410,7 +415,7 @@ public final class Waypoints {
      * the one nearest to the player); otherwise the area where a companion last saw it. Only when the player's own
      * search found nothing, so their own target, nearer to them, comes first.
      */
-    private static @Nullable Place shared(ServerPlayer player, String key, WaypointTarget.Nearest target, List<ServerPlayer> companions,
+    private static @Nullable Place shared(ServerPlayer player, String key, Seek target, List<ServerPlayer> companions,
                                           Map<String, Entity> picks) {
         Entity nearest = null;
         WaypointSightings.Sighting seen = null;
@@ -445,9 +450,16 @@ public final class Waypoints {
         return place;
     }
 
-    private static boolean isCandidate(Entity entity, WaypointTarget.Nearest target) {
-        return entity.isAlive() && !(entity instanceof Player) && target.entity().matches(entity);
+    private static boolean isCandidate(Entity entity, Seek target) {
+        return entity.isAlive() && !(entity instanceof Player) && target.matches().test(entity);
     }
+
+    /**
+     * What a nearest entity is sought by: a selector's match ({@code nearest}) or being an NPC ({@code npc}).
+     *
+     * @param range blocks around the player
+     */
+    private record Seek(Predicate<Entity> matches, int range) {}
 
     /**
      * Whether an entity the player cannot find in their level is still where it was seen. Gone when anyone killed or
@@ -508,7 +520,7 @@ public final class Waypoints {
     }
 
     private static boolean moves(WaypointTarget target) {
-        return target instanceof WaypointTarget.Follow || target instanceof WaypointTarget.Nearest;
+        return target instanceof WaypointTarget.Follow || target instanceof WaypointTarget.Nearest || target instanceof WaypointTarget.Npc;
     }
 
     private static boolean sees(ServerPlayer player, WaypointData.Added added) {
@@ -523,27 +535,53 @@ public final class Waypoints {
     private static @Nullable Place locate(ServerPlayer player, String key, WaypointTarget target, List<ServerPlayer> companions) {
         return switch (target) {
             case WaypointTarget.Fixed fixed -> new Place(fixed.dimension().location(), fixed.pos(), ClientWaypoint.NO_ENTITY);
-            case WaypointTarget.Follow follow -> {
-                for (ServerLevel level : player.server.getAllLevels()) {
-                    Entity entity = level.getEntity(follow.entity());
-                    if (entity != null && entity.isAlive()) {
-                        Place place = placeOf(entity, true);
-                        WaypointSightings.Sighting sighting = new WaypointSightings.Sighting(follow.entity(), place.dimension(), place.pos());
-                        LAST_SEEN.put(follow.entity(), sighting);
-                        WaypointSightings.put(player, key, sighting);
-                        WaypointTargets.get(player.server).seen(follow.entity());
-                        yield place;
-                    }
-                }
-                // Not loaded anywhere: where this player last saw it, else where anyone did since the server started.
-                WaypointSightings.Sighting own = WaypointSightings.get(player, key);
-                WaypointSightings.Sighting seen = own != null && own.entity().equals(follow.entity()) ? own : LAST_SEEN.get(follow.entity());
-                yield seen == null || (WaypointTargets.get(player.server).isGone(follow.entity())
-                        && !EntityReturns.comingBack(player.server, follow.entity())) ? null : lastSeen(seen);
-            }
+            case WaypointTarget.Follow follow -> follow(player, key, follow.entity());
             case WaypointTarget.Structure structure -> nearestStructure(player, key, structure);
-            case WaypointTarget.Nearest nearest -> nearestEntity(player, key, nearest, companions);
+            case WaypointTarget.Nearest nearest -> nearestEntity(player, key, new Seek(nearest.entity()::matches, nearest.range()), companions);
+            case WaypointTarget.Npc npc -> npc(player, key, npc, companions);
         };
+    }
+
+    /** An entity followed wherever it is loaded; while it is not, where it was last seen; null once it is gone for good. */
+    private static @Nullable Place follow(ServerPlayer player, String key, UUID followed) {
+        for (ServerLevel level : player.server.getAllLevels()) {
+            Entity entity = level.getEntity(followed);
+            if (entity != null && entity.isAlive()) {
+                Place place = placeOf(entity, true);
+                WaypointSightings.Sighting sighting = new WaypointSightings.Sighting(followed, place.dimension(), place.pos());
+                LAST_SEEN.put(followed, sighting);
+                WaypointSightings.put(player, key, sighting);
+                WaypointTargets.get(player.server).seen(followed);
+                return place;
+            }
+        }
+        // Not loaded anywhere: where this player last saw it, else where anyone did since the server started.
+        WaypointSightings.Sighting own = WaypointSightings.get(player, key);
+        WaypointSightings.Sighting seen = own != null && own.entity().equals(followed) ? own : LAST_SEEN.get(followed);
+        return seen == null || (WaypointTargets.get(player.server).isGone(followed)
+                && !EntityReturns.comingBack(player.server, followed)) ? null : lastSeen(seen);
+    }
+
+    /**
+     * An NPC by its binding (see {@link WaypointTarget.Npc}): one picked by the mod followed, where the mod last worked
+     * it out while nobody has seen it (a player who never met the Elder is led to his village); the nearest of any other.
+     */
+    private static @Nullable Place npc(ServerPlayer player, String key, WaypointTarget.Npc npc, List<ServerPlayer> companions) {
+        NpcBinding binding = DialogueRegistries.NPC_BINDINGS.serverStore().all().get(npc.npc());
+        if (binding == null) {
+            return null;
+        }
+        if (binding.isOne()) {
+            NpcParts.Part part = NpcParts.holding(player.server, npc.npc());
+            if (part == null) {
+                return null;
+            }
+            Place followed = follow(player, key, part.holder());
+            return followed != null ? followed
+                    : lastSeen(new WaypointSightings.Sighting(part.holder(), part.dimension().location(), Vec3.atBottomCenterOf(part.pos())));
+        }
+        return nearestEntity(player, key, new Seek(entity -> NpcBindings.find(entity)
+                .map(found -> found.chain().stream().anyMatch(layer -> npc.npc().equals(layer.id()))).orElse(false), npc.range()), companions);
     }
 
     /** A quest, and the stage it must be at (any stage when null). */

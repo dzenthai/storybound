@@ -32,6 +32,7 @@ import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
@@ -467,8 +468,17 @@ final class FormView {
         Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
                 : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
         JsonObject object = objectAt(path);
-        for (Map.Entry<String, Node> property : ordered(Schemas.properties(schema), form != null ? NODE_ORDER.getOrDefault(form, List.of()) : List.of())) {
+        if (npc) {
+            // Who it is, under its heading: the rule, the kind, the filters and the name, in the author's order.
+            group(DevUi.text("npc.group.who"));
+            npcWho(schema, object);
+        }
+        List<String> order = npc ? NPC_ORDER : form != null ? NODE_ORDER.getOrDefault(form, List.of()) : List.of();
+        for (Map.Entry<String, Node> property : ordered(Schemas.properties(schema), order)) {
             String name = property.getKey();
+            if (npc && NPC_WHO.contains(name)) {
+                continue;
+            }
             // "Hits forgiven" and their warnings only for an NPC that fights back: the others never take revenge anyway.
             // "Calms down after" not for one that does not react: it never gets angry (November 6, 2026).
             String reaction = object != null && object.get("reaction") instanceof JsonPrimitive written ? written.getAsString() : "ignore";
@@ -481,6 +491,9 @@ final class FormView {
             }
             if (groups.containsKey(name)) {
                 group(DevUi.text(groups.get(name)));
+            }
+            if (npc && NPC_SUBGROUPS.containsKey(name)) {
+                subgroup(DevUi.text(NPC_SUBGROUPS.get(name)));
             }
             if (npc && name.equals("proximity")) {
                 proximityField(path, property.getValue(), object);
@@ -516,6 +529,9 @@ final class FormView {
                 relationshipField(host.npcBinding());
             }
         }
+        if (npc && isOneNode(object)) {
+            npcPicked();
+        }
     }
 
     /**
@@ -524,13 +540,20 @@ final class FormView {
      * starts; what happens with several players; the rest. Each group but the first opens with a heading at this field.
      */
     private static final Map<String, String> NPC_GROUPS = Map.of(
-            // The name first, then the entity: who it is, then how it is known in the world (November 6, 2026).
-            "display_name", "npc.group.who",
-            "interact", "npc.group.start",
-            "exclusive", "npc.group.players",
-            "respawn", "npc.group.other",
+            // "Who it is" opens the form, drawn by npcWho; then the sections (November 8, 2026: before, the chatter's
+            // heading said the same as its field, the script's switch stood under it, and how a talk starts and the
+            // players were sections of their own beside the dialogues they are about).
+            "dialogues", "npc.group.talk",
             "chatter", "npc.group.chatter",
-            "when_attacked", "npc.group.attacked");
+            "when_attacked", "npc.group.hits",
+            "custom", "npc.group.scripts");
+    /** Within a section, a lighter heading over the fields of one question: how a talk starts, several players. */
+    private static final Map<String, String> NPC_SUBGROUPS = Map.of(
+            "interact", "npc.group.start",
+            "exclusive", "npc.group.players");
+    /** The NPC form's order after "Who it is", as the schema lists it. */
+    private static final List<String> NPC_ORDER = List.of("dialogues", "interact", "override_interact", "proximity", "exclusive", "busy_dialogue",
+            "chatter", "when_attacked", "invulnerable", "respawn", "custom");
 
     /**
      * What depends on a switch shows only while it is on, unless the file still sets it: "instead of trading" with
@@ -542,6 +565,312 @@ final class FormView {
             case "busy_dialogue" -> flag(binding, "exclusive", false) || binding != null && binding.has("busy_dialogue");
             default -> true;
         };
+    }
+
+    /** The fields of an NPC's "Who it is", drawn by {@link #npcWho} rather than one by one. */
+    private static final Set<String> NPC_WHO = Set.of("display_name", "show_name", "names", "one", "share", "entity");
+    /** What makes an NPC one "by hand": the parts of its selector naming particular entities. */
+    private static final List<String> HAND_PARTS = List.of("tag", "name", "uuid");
+    /** The filters of a dynamic NPC, put away while it is by hand (they would narrow it unseen) and given back. */
+    private static final List<String> FILTERS = List.of("profession", "outfit", "baby", "biome", "in_village");
+    private static final List<Object> ENTITY = List.of("entity");
+
+    /**
+     * An NPC's "Who it is" (November 8, 2026, stage 5 of "Who an NPC is"), as its author asks: the rule, by hand (the
+     * entities carrying its tag) or dynamic (every entity of its kind passing its filters); for dynamic, how many: all
+     * such, or one picked by the mod; then its name: the displayed name for one NPC (by hand, or one), names from a
+     * list for all such. A field of the other way shows only while the file still writes it, so it can be cleared (the
+     * validator says it is not used). Several entities written in a list keep their list, with no rule to switch.
+     */
+    private void npcWho(Node schema, @Nullable JsonObject binding) {
+        Map<String, Node> fields = Schemas.properties(schema);
+        JsonElement entity = binding != null ? binding.get("entity") : null;
+        if (entity != null && entity.isJsonArray()) {
+            entityListField(List.of(), "entity", fields.get("entity"), entity, true);
+            npcNames(schema, binding, true, false);
+            return;
+        }
+        JsonObject selector = entity instanceof JsonObject object ? object : null;
+        boolean byHand = selector != null && HAND_PARTS.stream().anyMatch(selector::has);
+        boolean one = flag(binding, "one", false);
+        npcRule(byHand);
+        Picker kinds = new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick"));
+        idListRows(ENTITY, "type", kinds, DevUi.text(byHand ? "npc.kind_optional" : "npc.kind"));
+        if (byHand) {
+            if (selector.has("uuid") || selector.has("name")) {
+                // An old or hand-written file: shown as it is, the form no longer offers these ways.
+                String known = selector.has("uuid") ? DevUi.str("entity.summary.uuid", tail(selector.get("uuid").getAsString()))
+                        : DevUi.str("entity.summary.name", selector.get("name").getAsString());
+                text(DevUi.text("npc.known_from_file", known), DevUi.MUTED);
+            }
+            npcLink(ENTITY, selector);
+            npcNames(schema, binding, true, false);
+            return;
+        }
+        npcCount(one);
+        if (!one) {
+            npcShare(binding);
+        }
+        if (mayHaveVillagerData(selector) || selector != null && (selector.has("profession") || selector.has("outfit"))) {
+            idListRows(ENTITY, "profession", professions(), DevUi.text("field.profession"));
+            idListRows(ENTITY, "outfit", outfits(), DevUi.text("field.outfit"));
+        }
+        npcTriState("baby", "npc.age", selector);
+        idListRows(ENTITY, "biome", new Picker(Catalog.Kind.BIOME, null, List.of(), DevUi.text("form.pick_title.biome")), DevUi.text("field.biome"));
+        npcTriState("in_village", "npc.village", selector);
+        npcNames(schema, binding, one, !one);
+    }
+
+    private static String tail(String uuid) {
+        return uuid.length() > 4 ? uuid.substring(uuid.length() - 4) : uuid;
+    }
+
+    /** The displayed name and whether it shows, and the names from a list; each also while the file writes it. */
+    private void npcNames(Node schema, @Nullable JsonObject binding, boolean display, boolean names) {
+        Map<String, Node> fields = Schemas.properties(schema);
+        if (display || binding != null && binding.has("display_name")) {
+            field(List.of(), "display_name", fields.get("display_name"), false, schema);
+        }
+        if (display || binding != null && binding.has("show_name")) {
+            field(List.of(), "show_name", fields.get("show_name"), false, schema);
+        }
+        if (names || binding != null && binding.has("names")) {
+            field(List.of(), "names", fields.get("names"), false, schema);
+        }
+    }
+
+    /**
+     * "Rule: By hand / Dynamic". To dynamic: the tag (a name, a uuid) is put away and the kind kept; back to by hand:
+     * the tag given back, else the node's own written; the filters and "one" go the other way, as they mean nothing on
+     * an NPC by hand. Whatever a switch put away comes back on switching again, while this node is open.
+     */
+    private void npcRule(boolean byHand) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("npc.rule"));
+        Button button = Button.builder(Component.literal(DevUi.str(byHand ? "npc.rule.hand" : "npc.rule.dynamic") + " ▸"), b -> {
+            JsonObject root = host.root();
+            JsonObject selector = ensureObject(ENTITY);
+            if (byHand) {
+                HAND_PARTS.forEach(part -> putAway(ENTITY, selector, part));
+                FILTERS.forEach(part -> giveBack(ENTITY, selector, part));
+                giveBack(List.of(), root, "one");
+            } else {
+                FILTERS.forEach(part -> putAway(ENTITY, selector, part));
+                putAway(List.of(), root, "one");
+                HAND_PARTS.forEach(part -> giveBack(ENTITY, selector, part));
+                if (HAND_PARTS.stream().noneMatch(selector::has)) {
+                    // The node's name, as npcLink and a new node write it.
+                    selector.addProperty("tag", host.npcBinding().getPath().replace('/', '_'));
+                }
+            }
+            tidyNames(root);
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("npc.rule.tooltip")));
+        screen.add(button);
+    }
+
+    /** "How many: All such / One, picked by the mod". A new "one" is written grown-up, so no child is made the Elder. */
+    private void npcCount(boolean one) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("npc.count"));
+        Button button = Button.builder(Component.literal(DevUi.str(one ? "npc.count.one" : "npc.count.all") + " ▸"), b -> {
+            JsonObject root = host.root();
+            if (one) {
+                root.remove("one");
+            } else {
+                root.addProperty("one", true);
+                JsonObject selector = ensureObject(ENTITY);
+                if (!selector.has("baby")) {
+                    selector.addProperty("baby", false);
+                }
+            }
+            tidyNames(root);
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("npc.count.tooltip")));
+        screen.add(button);
+    }
+
+    /** Whether the NPC is "one, picked by the mod": dynamic, with {@code one}. */
+    private static boolean isOneNode(@Nullable JsonObject binding) {
+        return flag(binding, "one", false) && binding.get("entity") instanceof JsonObject selector && HAND_PARTS.stream().noneMatch(selector::has);
+    }
+
+    /**
+     * "Share": a slider from 1 to 100 per cent, under "How many" for all such (November 8, 2026). Written when let go
+     * (or moved by the keys), as every write reloads the story; 100 writes nothing, all of them.
+     */
+    private void npcShare(@Nullable JsonObject binding) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("npc.share"));
+        int written = binding != null && binding.get("share") instanceof JsonPrimitive share && share.isNumber() ? Math.clamp(share.getAsInt(), 1, 100) : 100;
+        AbstractSliderButton slider = new AbstractSliderButton(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H, Component.empty(), (written - 1) / 99.0) {
+            {
+                updateMessage();
+            }
+
+            private int percent() {
+                return 1 + (int) Math.round(value * 99);
+            }
+
+            @Override
+            protected void updateMessage() {
+                int percent = percent();
+                setMessage(percent >= 100 ? DevUi.text("npc.share.all") : DevUi.text("npc.share.value", percent));
+            }
+
+            @Override
+            protected void applyValue() {
+                // Written once let go: see onRelease.
+            }
+
+            @Override
+            public void onRelease(double mouseX, double mouseY) {
+                super.onRelease(mouseX, mouseY);
+                commit();
+            }
+
+            @Override
+            public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+                boolean moved = super.keyPressed(keyCode, scanCode, modifiers);
+                if (moved) {
+                    commit();
+                }
+                return moved;
+            }
+
+            private void commit() {
+                int percent = percent();
+                if (percent == written) {
+                    return;
+                }
+                if (percent >= 100) {
+                    host.root().remove("share");
+                } else {
+                    host.root().addProperty("share", percent);
+                }
+                host.changed();
+            }
+        };
+        slider.setTooltip(Tooltip.create(DevUi.text("npc.share.tooltip")));
+        screen.add(slider);
+    }
+
+    /**
+     * After a switch of the rule or of how many: the name of one NPC (displayed, shown over the head) for one NPC, by
+     * hand or "one", the names from a list for all such; the other kind is put away, and given back on switching again
+     * (November 8, 2026: before, "All such" left the displayed name in the form, naming nobody).
+     */
+    private void tidyNames(JsonObject root) {
+        boolean oneNpc = !(root.get("entity") instanceof JsonObject selector) || HAND_PARTS.stream().anyMatch(selector::has) || flag(root, "one", false);
+        // A share is for all such too: one NPC is all of itself.
+        List<String> mine = oneNpc ? List.of("display_name", "show_name") : List.of("names", "share");
+        List<String> theirs = oneNpc ? List.of("names", "share") : List.of("display_name", "show_name");
+        theirs.forEach(field -> putAway(List.of(), root, field));
+        mine.forEach(field -> giveBack(List.of(), root, field));
+    }
+
+    /**
+     * The end of a "one" NPC's form: who the mod picked is kept for good, also when they no longer pass the filters,
+     * so changed filters need a new pick, which a button asks for ({@code /storybound debug npc part <npc> reset}).
+     */
+    private void npcPicked() {
+        group(DevUi.text("npc.group.picked"));
+        text(DevUi.text("npc.picked.note"), DevUi.MUTED);
+        if (!row(CONTROL_H)) {
+            return;
+        }
+        ResourceLocation npc = host.npcBinding();
+        Button button = Button.builder(DevUi.text("npc.picked.reset"), b -> {
+            if (Minecraft.getInstance().getConnection() != null) {
+                Minecraft.getInstance().getConnection().sendCommand("storybound debug npc part " + npc + " reset");
+            }
+        }).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("npc.picked.reset.tooltip")));
+        screen.add(button);
+    }
+
+    /**
+     * A filter that is yes, no or not given, as one switch going round: age ("Any / Grown-ups only / Children only") and
+     * place ("Anywhere / Only in a village / Only outside villages").
+     */
+    private void npcTriState(String field, String key, @Nullable JsonObject selector) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text(key));
+        Boolean value = selector != null && selector.get(field) instanceof JsonPrimitive written && written.isBoolean() ? written.getAsBoolean() : null;
+        String state = value == null ? "any" : value ? "yes" : "no";
+        Button button = Button.builder(Component.literal(DevUi.str(key + "." + state) + " ▸"), b -> {
+            JsonObject target = ensureObject(ENTITY);
+            // Round: not given, then yes, then no; age goes grown-ups first, as an NPC mostly is.
+            boolean firstYes = !field.equals("baby");
+            if (value == null) {
+                target.addProperty(field, firstYes);
+            } else if (value == firstYes) {
+                target.addProperty(field, !firstYes);
+            } else {
+                target.remove(field);
+            }
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text(key + ".tooltip")));
+        screen.add(button);
+    }
+
+    /** Villager professions, by their names in the game (a mod's too, from the same registry). */
+    private static Picker professions() {
+        List<Entry> entries = new ArrayList<>();
+        for (ResourceLocation id : BuiltInRegistries.VILLAGER_PROFESSION.keySet().stream().sorted(java.util.Comparator.comparing(ResourceLocation::toString)).toList()) {
+            String key = "entity." + id.getNamespace() + ".villager." + id.getPath();
+            String name = Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : id.getPath();
+            entries.add(new Entry(id.toString(), id.getPath().equals("none") ? DevUi.str("npc.profession.none") : name, ItemStack.EMPTY));
+        }
+        return Picker.rows(entries, DevUi.text("field.profession"), DevUi.text("npc.pick_empty"));
+    }
+
+    /** Villager types, the clothes they were born in (plains, desert, snow...). */
+    private static Picker outfits() {
+        List<Entry> entries = new ArrayList<>();
+        for (ResourceLocation id : BuiltInRegistries.VILLAGER_TYPE.keySet().stream().sorted(java.util.Comparator.comparing(ResourceLocation::toString)).toList()) {
+            String key = "storybound.dev.outfit." + id.getPath();
+            entries.add(new Entry(id.toString(), Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : id.getPath(), ItemStack.EMPTY));
+        }
+        return Picker.rows(entries, DevUi.text("field.outfit"), DevUi.text("npc.pick_empty"));
+    }
+
+    /** Whether each concrete kind has villager data, worked out on a client-only instance (as portraits do). */
+    private static final Map<net.minecraft.world.entity.EntityType<?>, Boolean> VILLAGER_DATA = new java.util.HashMap<>();
+
+    /**
+     * Whether an entity of the selector's kind can have villager data (a villager, a zombie villager, a mod's kind built
+     * on them): a profession and outfit mean something only then. No kind, a #tag or one unknown here: maybe.
+     */
+    private static boolean mayHaveVillagerData(@Nullable JsonObject selector) {
+        JsonElement type = selector != null ? selector.get("type") : null;
+        List<String> kinds = stringsOf(type instanceof JsonPrimitive one ? asList(one) : type);
+        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+        if (kinds.isEmpty() || level == null) {
+            return true;
+        }
+        for (String kind : kinds) {
+            ResourceLocation key = kind.startsWith("#") ? null : ResourceLocation.tryParse(kind);
+            if (key == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(key)) {
+                return true;
+            }
+            net.minecraft.world.entity.EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.get(key);
+            if (VILLAGER_DATA.computeIfAbsent(entityType, created -> created.create(level) instanceof net.minecraft.world.entity.npc.VillagerDataHolder)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean flag(@Nullable JsonObject object, String name, boolean byDefault) {
@@ -1720,6 +2049,15 @@ final class FormView {
     }
 
     /**
+     * A lighter heading within a group, over the fields of one question (November 8, 2026): golden sections, light
+     * questions in them, grey labels over each field.
+     */
+    private void subgroup(Component title) {
+        y += 2;
+        text(title, DevUi.TEXT);
+    }
+
+    /**
      * Speaking up when a player comes near: yes/no, and while yes its settings in words ("4 blocks · every 30 s"), which
      * open them. Before, one row "1 ▸" or "—", and "—" for {@code {}} too, which is on with the defaults.
      */
@@ -1732,7 +2070,9 @@ final class FormView {
         JsonObject settings = binding != null && binding.get("proximity") instanceof JsonObject value ? value : null;
         boolean on = settings != null;
         int toggleW = on ? Math.min(60, w / 3) : w;
-        Button toggle = Button.builder(Component.literal(DevUi.yesNo(on)), b -> {
+        // Not written, it is the nodes' below (layers), else off: there is no "off" over theirs (November 8, 2026).
+        Component state = on ? Component.literal(DevUi.yesNo(true)) : DevUi.text("form.from_below", DevUi.yesNo(false));
+        Button toggle = Button.builder(state, b -> {
             if (on) {
                 ensureObject(path).remove("proximity");
             } else {
@@ -2551,16 +2891,30 @@ final class FormView {
         }
         JsonElement fallback = node.defaultValue();
         boolean byDefault = fallback != null && fallback.isJsonPrimitive() && fallback.getAsBoolean();
+        // An NPC's switches add up with the nodes below it (layers): not written, it is theirs (November 8, 2026).
+        boolean layered = path.isEmpty() && host.npcBinding() != null;
+        if (layered && name.equals("respawn") && flag(host.root(), "one", false)) {
+            // A "one" NPC comes back unless it says otherwise.
+            byDefault = true;
+        }
         boolean current = value != null && value.isJsonPrimitive() ? value.getAsBoolean() : byDefault;
-        Component shown = value == null ? DevUi.text("form.unset", DevUi.yesNo(byDefault)) : Component.literal(DevUi.yesNo(current));
+        Component shown = value == null ? DevUi.text(layered ? "form.from_below" : "form.unset", DevUi.yesNo(byDefault)) : Component.literal(DevUi.yesNo(current));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        boolean reset = layered && value != null;
         Button button = Button.builder(shown, b -> {
             ensureObject(path).addProperty(name, !current);
             host.changed();
-        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        }).bounds(x, rowTop, reset ? w - 20 : w, CONTROL_H).build();
         if (tooltip != null) {
             button.setTooltip(tooltip);
         }
         screen.add(button);
+        if (reset) {
+            screen.add(Button.builder(Component.literal("↺"), b -> {
+                ensureObject(path).remove(name);
+                host.changed();
+            }).tooltip(Tooltip.create(DevUi.text("form.give_below"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
+        }
     }
 
     private void inputField(List<Object> path, String name, Node node, Kind kind, @Nullable JsonElement value, Component label,
@@ -3227,6 +3581,10 @@ final class FormView {
         if (target.get("structure") instanceof JsonPrimitive structure) {
             String id = structure.getAsString();
             return DevUi.str("waypoint.target.structure", id.substring(id.indexOf(':') + 1).replace('_', ' ')) + dimension;
+        }
+        if (target.get("npc") instanceof JsonPrimitive npc) {
+            String id = npc.getAsString();
+            return DevUi.str("waypoint.target.npc", id.substring(id.indexOf(':') + 1));
         }
         if (target.has("nearest")) {
             JsonElement nearest = target.get("nearest");

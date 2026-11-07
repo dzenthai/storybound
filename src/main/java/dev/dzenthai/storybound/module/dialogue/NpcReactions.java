@@ -25,6 +25,7 @@ import net.minecraft.world.entity.schedule.Activity;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.ai.util.DefaultRandomPos;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import org.jetbrains.annotations.Nullable;
@@ -99,6 +100,24 @@ public final class NpcReactions {
             if (grudge != null && grudge.active(level.getServer().getTickCount()) && !grudge.fighting) {
                 event.setCanceled(true);
             }
+        }
+    }
+
+    /**
+     * An NPC dying or discarded forgets its grudges (November 8, 2026): one that comes back with the same uuid
+     * ({@link NpcRespawns}) is whole and on its own, and talks at once; before, it kept running from its killer and
+     * refused to talk until {@code calm_after} had passed since the last hit.
+     */
+    static void onLeave(EntityLeaveLevelEvent event) {
+        Entity npc = event.getEntity();
+        Entity.RemovalReason reason = npc.getRemovalReason();
+        if (event.getLevel().isClientSide() || reason != Entity.RemovalReason.KILLED && reason != Entity.RemovalReason.DISCARDED) {
+            return;
+        }
+        GRUDGES.remove(npc.getUUID());
+        if (npc instanceof Mob mob) {
+            FLEEING.remove(mob);
+            CALMING.remove(mob);
         }
     }
 

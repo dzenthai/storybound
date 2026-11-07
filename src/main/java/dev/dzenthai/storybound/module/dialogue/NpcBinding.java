@@ -1,8 +1,10 @@
 package dev.dzenthai.storybound.module.dialogue;
 
 import com.mojang.datafixers.util.Either;
+import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.Conditions;
@@ -19,6 +21,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.ExtraCodecs;
 import net.minecraft.util.StringRepresentable;
@@ -43,7 +46,16 @@ import org.jetbrains.annotations.Nullable;
  * @param chatter      the NPC says its phrases now and then to players near it (see {@link NpcChatter})
  * @param showName     the entities it matches carry {@code displayName} over their heads (see {@link NpcNames}); on
  *                     unless turned off, so a name written is a name shown
- * @param displayName  the NPC's one name: over its head, and in dialogues, where a participant names nothing else
+ * @param displayName  the NPC's one name: over its head, and in dialogues, where a participant names nothing else; on a
+ *                     binding by hand (a tag, a name, a uuid) only: one for every entity of a kind would name them all
+ *                     alike (November 7, 2026; before, it did)
+ * @param names        on a binding for every entity of a kind (no tag), names to give them, one each, the one least used
+ *                     around (see {@link NpcNames}; November 7, 2026)
+ * @param one          on a binding for every entity of a kind (no tag): one entity only, picked by the mod (an Elder; see
+ *                     {@link NpcParts}; November 7, 2026)
+ * @param share        on a binding for every entity of a kind, all such (no tag, not {@code one}): only this per cent of
+ *                     them, each entity rolled once for good by its uuid and the binding (see {@link #inShare}; November 8,
+ *                     2026); absent or 100: all
  *                     <p>
  * Several bindings on one entity are layers (November 7, 2026; see {@link NpcBindings#find}): each setting comes from
  * the closest binding that writes it, so the on/off ones are kept as written or not ({@link Optional#empty()}: "from
@@ -52,11 +64,16 @@ import org.jetbrains.annotations.Nullable;
 public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, Optional<Boolean> interact, Optional<Proximity> proximity,
                          Optional<Boolean> custom, Optional<Boolean> overrideInteract, Optional<Boolean> exclusive, Optional<ResourceLocation> busyDialogue,
                          Optional<Boolean> respawn, Optional<Boolean> invulnerable, Optional<WhenAttacked> whenAttacked, Optional<Chatter> chatter,
-                         Optional<Boolean> showName, Optional<StoryText> displayName) {
+                         Optional<Boolean> showName, Optional<StoryText> displayName, List<StoryText> names, boolean one,
+                         Optional<Integer> share) {
     /** One selector, or a non-empty list of them; one is written back as an object, as files had it before lists. */
     private static final Codec<List<EntitySelector>> ENTITIES = Codec.either(EntitySelector.CODEC, ExtraCodecs.nonEmptyList(EntitySelector.CODEC.listOf()))
             .xmap(either -> either.map(List::of, Function.identity()),
                     entities -> entities.size() == 1 ? Either.left(entities.getFirst()) : Either.right(entities));
+
+    /** How many of those it matches it is: {@code one}, and {@code share} (1 to 100 per cent). */
+    private static final MapCodec<Pair<Boolean, Optional<Integer>>> CROWD = Codec.mapPair(
+            Codec.BOOL.optionalFieldOf("one", false), Codec.intRange(1, 100).optionalFieldOf("share"));
 
     public static final Codec<NpcBinding> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ENTITIES.fieldOf("entity").forGetter(NpcBinding::entities),
@@ -72,8 +89,14 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
             WhenAttacked.CODEC.optionalFieldOf("when_attacked").forGetter(NpcBinding::whenAttacked),
             Chatter.CODEC.optionalFieldOf("chatter").forGetter(NpcBinding::chatter),
             Codec.BOOL.optionalFieldOf("show_name").forGetter(NpcBinding::showName),
-            StoryText.CODEC.optionalFieldOf("display_name").forGetter(NpcBinding::displayName)
-    ).apply(instance, NpcBinding::new));
+            StoryText.CODEC.optionalFieldOf("display_name").forGetter(NpcBinding::displayName),
+            StoryText.CODEC.listOf().optionalFieldOf("names", List.of()).forGetter(NpcBinding::names),
+            // Two fields as one: a record codec takes at most 16.
+            CROWD.forGetter(binding -> Pair.of(binding.one(), binding.share()))
+    ).apply(instance, (entities, dialogues, interact, proximity, custom, overrideInteract, exclusive, busyDialogue, respawn, invulnerable,
+                       whenAttacked, chatter, showName, displayName, names, crowd) -> new NpcBinding(entities, dialogues, interact, proximity, custom,
+            overrideInteract, exclusive, busyDialogue, respawn, invulnerable, whenAttacked, chatter, showName, displayName, names, crowd.getFirst(),
+            crowd.getSecond())));
 
     /**
      * What the NPC does when a player hits it (November 5, 2026; before, what its kind does: an iron golem killed the
@@ -160,8 +183,10 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
      */
     public record Rank(int by, int filters) implements Comparable<Rank> {
         /** The binding stored on the entity by the removed {@code /storybound npc bind}: before any file. */
-        public static final int OWN = 4;
-        public static final int UUID = 3;
+        public static final int OWN = 5;
+        public static final int UUID = 4;
+        /** The part of a "one" binding the entity holds ({@link NpcParts}): one entity, as by hand. */
+        public static final int PART = 3;
         public static final int TAG = 2;
         public static final int KIND = 1;
 
@@ -175,6 +200,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
             String way = switch (by) {
                 case OWN -> "its own binding";
                 case UUID -> "by uuid";
+                case PART -> "the one picked";
                 case TAG -> "by tag or name";
                 default -> "by kind";
             };
@@ -193,6 +219,36 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
         List<String> reasons = entities.stream().map(selector -> selector.mismatch(entity)).toList();
         List<String> sameType = reasons.stream().filter(reason -> !reason.startsWith("type is ")).toList();
         return String.join(" | or ", sameType.isEmpty() ? reasons : sameType);
+    }
+
+    /** The per cent of the entities it matches that it is, when that is less than all: all such of a kind, not by hand or one. */
+    public Optional<Integer> crowdShare() {
+        return share.filter(percent -> percent < 100 && !one && !byHand());
+    }
+
+    /**
+     * Whether the entity is within a binding's share (November 8, 2026): a roll of its own, from its uuid and the
+     * binding's id, the same for good (a restart, a respawn), so a guard stays a guard; raising the share keeps those
+     * in it and adds others, lowering it takes some out. Another binding rolls anew; a renamed one too.
+     */
+    public static boolean inShare(UUID entity, ResourceLocation binding, int percent) {
+        long h = entity.getMostSignificantBits() * 0x9E3779B97F4A7C15L ^ entity.getLeastSignificantBits()
+                ^ binding.toString().hashCode() * 0xC2B2AE3D27D4EB4FL;
+        // SplitMix64's finish: every bit of the input moves the roll.
+        h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L;
+        h = (h ^ (h >>> 27)) * 0x94D049BB133111EBL;
+        h ^= h >>> 31;
+        return Math.floorMod(h, 100) < percent;
+    }
+
+    /** Whether it is one entity picked by the mod ({@link NpcParts}): "one" on a binding for every entity of a kind; by hand, the tag decides. */
+    public boolean isOne() {
+        return one && !byHand();
+    }
+
+    /** Whether it is for particular entities, by hand (a tag, a name or a uuid in every selector), not every one of a kind. */
+    public boolean byHand() {
+        return entities.stream().allMatch(selector -> selector.tag().isPresent() || selector.name().isPresent() || selector.uuid().isPresent());
     }
 
     /** The scoreboard tags its selectors look for. */
@@ -345,7 +401,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                     // Attached to the entity, so never rewritten: a renamed dialogue is looked up by its new id.
                     List.of(Entry.of(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue))), Optional.of(interact),
                     proximity ? Optional.of(Proximity.DEFAULT) : Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of(), false, Optional.empty());
         }
     }
 }

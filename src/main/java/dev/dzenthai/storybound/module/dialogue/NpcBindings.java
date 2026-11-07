@@ -67,6 +67,7 @@ public final class NpcBindings {
     /** Caches the loaded binding files in id order; called after every data load. */
     public static void rebuild() {
         CACHE.clear();
+        NpcParts.bindingsChanged();
         List<Map.Entry<ResourceLocation, NpcBinding>> sorted = new ArrayList<>(DialogueRegistries.NPC_BINDINGS.serverStore().all().entrySet());
         sorted.sort(Map.Entry.comparingByKey(Comparator.comparing(ResourceLocation::toString)));
         files = List.copyOf(sorted);
@@ -75,6 +76,11 @@ public final class NpcBindings {
         searchRadius = Math.max(searchRadius, NpcBinding.Proximity.DEFAULT.radius());
         chatterReach = files.stream().flatMap(entry -> entry.getValue().chatter().stream())
                 .mapToDouble(NpcBinding.Chatter::radius).max().orElse(0);
+    }
+
+    /** The binding files, in id order. */
+    static List<Map.Entry<ResourceLocation, NpcBinding>> files() {
+        return files;
     }
 
     /** How far from a player an NPC with chatter may be heard: the largest chatter radius; 0 when none chatters. */
@@ -114,8 +120,17 @@ public final class NpcBindings {
             chain.add(new Layer(null, entity.getData(DialogueRegistries.NPC_BINDING).toBinding(entity), new NpcBinding.Rank(NpcBinding.Rank.OWN, 0), false));
         }
         List<Layer> fromFiles = new ArrayList<>();
+        ResourceLocation part = NpcParts.partOf(entity).orElse(null);
         for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
-            NpcBinding.Rank rank = entry.getValue().rank(entity);
+            // A "one" binding is for the entity holding its part, whatever its filters say now; for no other.
+            NpcBinding.Rank rank = entry.getValue().isOne() ? (entry.getKey().equals(part) ? new NpcBinding.Rank(NpcBinding.Rank.PART, 0) : null)
+                    : entry.getValue().rank(entity);
+            Optional<Integer> share = entry.getValue().crowdShare();
+            if (rank != null && share.isPresent()) {
+                // Only a share of them ("30% of villagers are guards"): the roll decides; a share is a filter too, so
+                // Guards come before Villagers.
+                rank = NpcBinding.inShare(entity.getUUID(), entry.getKey(), share.get()) ? new NpcBinding.Rank(rank.by(), rank.filters() + 1) : null;
+            }
             if (rank != null) {
                 fromFiles.add(new Layer(entry.getKey(), entry.getValue(), rank, false));
             }
@@ -477,7 +492,11 @@ public final class NpcBindings {
         }
         List<String> reasons = new ArrayList<>();
         for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
-            String mismatch = entry.getValue().mismatch(target);
+            NpcBinding binding = entry.getValue();
+            String mismatch = binding.mismatch(target);
+            if (mismatch.isEmpty() && binding.crowdShare().isPresent()) {
+                mismatch = "not in its share of " + binding.crowdShare().get() + "%";
+            }
             if (!mismatch.startsWith("type is ")) {
                 reasons.add(entry.getKey() + ": " + mismatch);
             }
@@ -538,13 +557,28 @@ public final class NpcBindings {
                     Optional.of(first(chain, sources, "override_interact", NpcBinding::overrideInteract).orElse(false)),
                     Optional.of(first(chain, sources, "exclusive", NpcBinding::exclusive).orElse(false)),
                     first(chain, sources, "busy_dialogue", NpcBinding::busyDialogue),
-                    Optional.of(first(chain, sources, "respawn", NpcBinding::respawn).orElse(false)),
+                    // One picked by the mod comes back unless its binding says otherwise: a story NPC, not one of a crowd.
+                    Optional.of(first(chain, sources, "respawn", binding -> binding.isOne() ? Optional.of(binding.respawn().orElse(true)) : binding.respawn())
+                            .orElse(false)),
                     Optional.of(first(chain, sources, "invulnerable", NpcBinding::invulnerable).orElse(false)),
                     first(chain, sources, "when_attacked", NpcBinding::whenAttacked),
                     first(chain, sources, "chatter", NpcBinding::chatter),
                     Optional.of(first(chain, sources, "show_name", NpcBinding::showName).orElse(true)),
-                    first(chain, sources, "display_name", NpcBinding::displayName));
+                    // A name only from a binding that names one NPC: one for every entity of a kind gives names instead.
+                    first(byHand(chain), sources, "display_name", NpcBinding::displayName),
+                    first(dynamic(chain), sources, "names", binding -> binding.names().isEmpty() ? Optional.empty() : Optional.of(binding.names()))
+                            .orElse(List.of()), false, Optional.empty());
             return new Found(List.copyOf(chain), merged, Collections.unmodifiableMap(sources));
+        }
+
+        /** The bindings by hand (and the one stored on the entity), which name one NPC each. */
+        private static List<Layer> byHand(List<Layer> chain) {
+            return chain.stream().filter(layer -> layer.rank().by() >= NpcBinding.Rank.TAG).toList();
+        }
+
+        /** The bindings for every entity of a kind. */
+        private static List<Layer> dynamic(List<Layer> chain) {
+            return chain.stream().filter(layer -> layer.rank().by() == NpcBinding.Rank.KIND).toList();
         }
 
         /** The value of the first binding of the chain that writes the setting, noting where it came from. */
