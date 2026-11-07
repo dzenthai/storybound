@@ -17,7 +17,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * {@code /storybound trace on [players] | off | status}: writes what the story logic does for the players (everyone
+ * {@code /storybound debug trace on [players] | off | status}: writes what the story logic does for the players (everyone
  * without them) to {@code logs/storybound-trace.log}, see {@link StoryTrace}.
  */
 final class TraceCommands {

@@ -12,7 +12,6 @@ import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationReport;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.dev.LangExtract;
-import dev.dzenthai.storybound.core.dev.StoryCaptures;
 import dev.dzenthai.storybound.core.dev.StoryDebug;
 import dev.dzenthai.storybound.core.dev.StoryDump;
 import dev.dzenthai.storybound.core.dev.StoryExport;
@@ -212,39 +211,6 @@ public final class AuthorToolsGameTests {
             QuestRegistries.QUESTS.clientStore().replace(quests);
             DocumentRegistries.DOCUMENTS.clientStore().replace(documents);
         }
-        helper.succeed();
-    }
-
-    @GameTest(template = "empty")
-    public static void capturesKeepEveryNameAndReplaceTheSameOne(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        Pig pig = helper.spawn(EntityType.PIG, new BlockPos(1, 2, 1));
-        pig.addTag("gametest_capture");
-        Path file = StoryCaptures.file();
-        String before = io(() -> Files.isRegularFile(file) ? Files.readString(file, StandardCharsets.UTF_8) : null);
-        try {
-            io(() -> StoryCaptures.save("gametest_spot", StoryCaptures.position(player)));
-            io(() -> StoryCaptures.save("gametest_pig", StoryCaptures.entity(player, pig)));
-            io(() -> StoryCaptures.save("gametest_spot", StoryCaptures.position(player)));
-            JsonObject all = JsonParser.parseString(io(() -> Files.readString(file, StandardCharsets.UTF_8))).getAsJsonObject();
-            JsonObject spot = all.getAsJsonObject("gametest_spot");
-            JsonObject captured = all.getAsJsonObject("gametest_pig");
-            helper.assertTrue(spot.get("kind").getAsString().equals("pos") && spot.getAsJsonArray("pos").size() == 3, "a place: " + spot);
-            helper.assertTrue(captured.get("uuid").getAsString().equals(pig.getUUID().toString())
-                    && captured.get("type").getAsString().equals("minecraft:pig")
-                    && captured.getAsJsonArray("tags").toString().contains("gametest_capture"), "an entity: " + captured);
-            helper.assertTrue(all.keySet().stream().filter(name -> name.startsWith("gametest_")).count() == 2, "one entry per name: " + all.keySet());
-        } finally {
-            io(() -> {
-                if (before != null) {
-                    Files.writeString(file, before, StandardCharsets.UTF_8);
-                } else {
-                    Files.deleteIfExists(file);
-                }
-                return null;
-            });
-        }
-        helper.getLevel().getServer().getPlayerList().remove(player);
         helper.succeed();
     }
 

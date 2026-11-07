@@ -16,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * NPC bindings' {@code chatter} (November 5, 2026): an NPC with players within its radius says one of its phrases now
  * and then, a random wait between the intervals apart. It keeps quiet while it is in a dialogue (with anyone, also
- * paused by a fight), while it is angry at anyone (fighting, running, its kind's own anger), and right after it said something else; with nobody near it
+ * paused by a fight), while it sleeps (November 7, 2026), while it is angry at anyone (fighting, running, its kind's own anger), and right after it said something else; with nobody near it
  * keeps quiet too, and its phrases do not move on. Two NPCs near each other each wait their own random time, so they do
  * not speak in chorus. Looked at once a second.
  */
@@ -81,7 +81,8 @@ public final class NpcChatter {
         if (now < next) {
             return;
         }
-        if (Dialogues.inDialogue(npc) || NpcReactions.angryAtAnyone(npc, now) || now - NpcPhrases.lastSpoke(npc) < NpcPhrases.LINE_GAP_TICKS) {
+        // Asleep in its bed, it says nothing (November 7, 2026; before, villagers chattered in their sleep); awake, it goes on.
+        if (npc.isSleeping() || Dialogues.inDialogue(npc) || NpcReactions.angryAtAnyone(npc, now) || now - NpcPhrases.lastSpoke(npc) < NpcPhrases.LINE_GAP_TICKS) {
             NEXT_AT.put(id, now + RETRY_TICKS);
             return;
         }

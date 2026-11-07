@@ -18,7 +18,7 @@ import java.util.TreeMap;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * {@code /storybound lang extract}: texts written straight into the story folder's JSON ({@code {"literal": "..."}})
+ * {@code /storybound debug lang extract}: texts written straight into the story folder's JSON ({@code {"literal": "..."}})
  * move to {@code lang/<language>.json} under the dev mode's canonical keys ({@code <ns>.<type>.<path>.<field>}, list
  * elements by their id; dialogue nodes as {@code node.<node>}), and the JSON keeps only the key. A key whose
  * {@code fallback} the lang file lacks gets the fallback as its text (the fallback stays). So a story can be written in

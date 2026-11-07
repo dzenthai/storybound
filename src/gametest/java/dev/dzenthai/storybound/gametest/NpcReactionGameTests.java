@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -35,9 +37,16 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.behavior.SleepInBed;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.entity.npc.VillagerType;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -137,38 +146,150 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * Several bindings matching one villager: the one naming it most closely applies, whatever the ids' order. "Every
-     * villager" (a_every, by kind, comes back) matches all three; z_elder (by its tag, does not come back) is the
-     * tagged one's, though a_every comes first by id; m_one (by uuid) beats both; the plain villager keeps a_every.
-     * Whether it comes back follows the binding that applies. In a batch of its own: "every villager" would take others'.
+     * Several bindings matching one villager: the one naming it most closely comes first, whatever the ids' order.
+     * "Every villager" (a_every, by kind, comes back) matches all four; z_elder (by its tag, says nothing of coming
+     * back) is the tagged one's first, though a_every comes first by id; m_one (by uuid) is over both; the plain
+     * villager has only a_every. Coming back is the closest binding's that writes it (November 7, 2026, layers): the
+     * elder comes back as every villager does, since his file does not say; y_stay, by a tag and writing
+     * {@code "respawn": false}, keeps its villager from coming back. In a batch of its own: "every villager" would take
+     * others'.
      */
     @GameTest(template = "open", batch = "npc_precision")
     public static void theClosestBindingApplies(GameTestHelper helper) {
         Villager plain = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
         Villager elder = helper.spawn(EntityType.VILLAGER, 3, 1, 1);
         Villager one = helper.spawn(EntityType.VILLAGER, 5, 1, 1);
-        for (Villager villager : List.of(plain, elder, one)) {
+        Villager stays = helper.spawn(EntityType.VILLAGER, 7, 1, 1);
+        for (Villager villager : List.of(plain, elder, one, stays)) {
             villager.setNoAi(true);
         }
         elder.addTag("gt_prec_elder");
         one.addTag("gt_prec_elder");
+        stays.addTag("gt_prec_stay");
         ServerPlayer player = player(helper);
         Definitions defs = new Definitions()
                 .binding("a_every", "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"respawn\": true }")
                 .binding("z_elder", "{ \"entity\": { \"type\": \"minecraft:villager\", \"tag\": \"gt_prec_elder\" } }")
+                .binding("y_stay", "{ \"entity\": { \"type\": \"minecraft:villager\", \"tag\": \"gt_prec_stay\" }, \"respawn\": false }")
                 .binding("m_one", "{ \"entity\": { \"uuid\": \"" + one.getUUID() + "\" } }");
         defs.install(helper);
         try {
             expect(helper, boundTo(plain), "gametest:a_every", "a plain villager: every villager's");
-            expect(helper, boundTo(elder), "gametest:z_elder", "the tagged one: its tag's binding, before a_every by id");
+            expect(helper, boundTo(elder), "gametest:z_elder", "the tagged one: its tag's binding first, before a_every by id");
             expect(helper, boundTo(one), "gametest:m_one", "by uuid: over the tag and the kind");
+            expect(helper, chain(one), List.of("gametest:m_one", "gametest:z_elder", "gametest:a_every"), "and the others below it");
             helper.assertTrue(NpcBindings.respawns(plain), "every villager comes back");
-            helper.assertFalse(NpcBindings.respawns(elder), "the elder's own binding does not say so");
+            helper.assertTrue(NpcBindings.respawns(elder), "the elder's file says nothing: he comes back with every villager");
+            helper.assertFalse(NpcBindings.respawns(stays), "a file writing respawn: false keeps its villager from coming back");
         } finally {
             defs.uninstall(player);
             remove(helper, player);
         }
         helper.succeed();
+    }
+
+    /**
+     * Layers as in The Witcher (November 7, 2026), on a village. Villagers: every villager, chatter, flees when hit,
+     * comes back, no talking on a click ({@code interact: false}), a greeting on a click anyway written for the others
+     * below. Desert folk: villagers in desert clothes, chatter of their own. Smiths: weaponsmiths, chatter, tell the
+     * script ({@code custom}), a phrase on a click. Elder: the villager tagged so, the name Miron, talks on a click
+     * ({@code interact: true} over the Villagers' false, kept though it is the default), a dialogue line once a flag is
+     * set. Expected: the elder (a plains weaponsmith) is Elder → Smiths → Villagers: his name from Elder, chatter from
+     * Smiths, fleeing and coming back from Villagers, the script told of Smiths; a click gets Smiths' phrase until the
+     * flag, then the Elder's own. A desert smith ties Desert folk and Smiths (a filter each): Desert folk first by id,
+     * chatter from them, the tie marked. A farmer is only Villagers. The elder losing his job keeps Smiths for a second
+     * (the chain is kept), not once forgotten; his tag taken off drops Elder at once. In a batch of its own: "every villager" would take others'.
+     */
+    @GameTest(template = "open", batch = "npc_layers")
+    public static void layersAddUpAsInTheWitcher(GameTestHelper helper) {
+        Villager elder = villager(helper, 1, VillagerProfession.WEAPONSMITH, VillagerType.PLAINS);
+        Villager desertSmith = villager(helper, 3, VillagerProfession.WEAPONSMITH, VillagerType.DESERT);
+        Villager farmer = villager(helper, 5, VillagerProfession.FARMER, VillagerType.PLAINS);
+        elder.addTag("gt_layer_elder");
+        ServerPlayer player = player(helper);
+        ResourceLocation met = key("layer_met");
+        Definitions defs = new Definitions()
+                .binding("l_villagers", "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"interact\": false, \"respawn\": true,"
+                        + " \"chatter\": { \"phrases\": { \"text\": { \"literal\": \"Wolves again...\" } } }, \"when_attacked\": { \"reaction\": \"flee\" },"
+                        + " \"dialogues\": [ { \"phrases\": { \"text\": { \"literal\": \"Good day.\" } } } ] }")
+                .binding("l_desert", "{ \"entity\": { \"type\": \"minecraft:villager\", \"outfit\": \"minecraft:desert\" },"
+                        + " \"chatter\": { \"phrases\": { \"text\": { \"literal\": \"So hot.\" } } } }")
+                .binding("l_smiths", "{ \"entity\": { \"type\": \"minecraft:villager\", \"profession\": \"minecraft:weaponsmith\" }, \"custom\": true,"
+                        + " \"chatter\": { \"phrases\": { \"text\": { \"literal\": \"Horseshoes, nails!\" } } },"
+                        + " \"dialogues\": [ { \"phrases\": { \"text\": { \"literal\": \"Need a blade?\" } } } ] }")
+                .binding("l_elder", "{ \"entity\": { \"type\": \"minecraft:villager\", \"tag\": \"gt_layer_elder\" }, \"interact\": true,"
+                        + " \"display_name\": { \"literal\": \"Miron\" },"
+                        + " \"dialogues\": [ { \"phrases\": { \"text\": { \"literal\": \"I am the elder.\" } },"
+                        + "   \"conditions\": { \"type\": \"flag\", \"key\": \"" + met + "\", \"scope\": \"player\" } } ] }");
+        defs.install(helper);
+        try {
+            expect(helper, chain(elder), List.of("gametest:l_elder", "gametest:l_smiths", "gametest:l_villagers"),
+                    "the elder: by tag first, then the one filter, then every villager");
+            NpcBindings.Found found = NpcBindings.find(elder).orElseThrow();
+            expect(helper, found.binding().displayName().map(text -> text.asComponent().getString()), Optional.of("Miron"), "his name from Elder");
+            expect(helper, source(found, "display_name"), "gametest:l_elder", "noted as Elder's");
+            expect(helper, source(found, "chatter"), "gametest:l_smiths", "chatter from Smiths: Elder writes none");
+            expect(helper, source(found, "when_attacked"), "gametest:l_villagers", "fleeing from Villagers");
+            helper.assertTrue(found.respawn(), "coming back from Villagers");
+            helper.assertTrue(found.interact(), "Elder's written interact: true is kept over Villagers' false");
+            expect(helper, String.valueOf(found.customId()), "gametest:l_smiths", "the script is told of Smiths, which gave custom");
+            expect(helper, picked(found, player, elder), "gametest:l_smiths", "a click, before the flag: Elder's entry does not pass, Smiths' does");
+            try {
+                StoryState.set(player, StoryScope.PLAYER, met, new StoryValue.Bool(true));
+            } catch (StoryException e) {
+                throw new GameTestAssertException(e.getMessage());
+            }
+            expect(helper, picked(found, player, elder), "gametest:l_elder", "after it: the Elder's own entry first");
+
+            expect(helper, chain(desertSmith), List.of("gametest:l_desert", "gametest:l_smiths", "gametest:l_villagers"),
+                    "a desert smith: two bindings of one filter each, the first by id first");
+            NpcBindings.Found desert = NpcBindings.find(desertSmith).orElseThrow();
+            helper.assertTrue(desert.chain().get(1).tie(), "marked as a tie");
+            expect(helper, source(desert, "chatter"), "gametest:l_desert", "chatter from Desert folk");
+            helper.assertFalse(desert.interact(), "no click: Villagers' interact: false, nobody above writes it");
+
+            expect(helper, chain(farmer), List.of("gametest:l_villagers"), "a farmer: every villager's only");
+            expect(helper, source(NpcBindings.find(farmer).orElseThrow(), "custom"), "default", "custom: nobody writes it");
+
+            elder.setVillagerData(elder.getVillagerData().setProfession(VillagerProfession.FARMER));
+            expect(helper, chain(elder).get(1), "gametest:l_smiths", "a new job: the chain is kept for a second");
+            NpcBindings.forget(elder);
+            expect(helper, chain(elder), List.of("gametest:l_elder", "gametest:l_villagers"), "forgotten: worked out again, no Smiths");
+            elder.removeTag("gt_layer_elder");
+            expect(helper, chain(elder), List.of("gametest:l_villagers"), "the tag taken off: no Elder at once, as a story re-tagging an NPC needs");
+
+            JsonElement written = NpcBinding.CODEC.encodeStart(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()),
+                    DialogueRegistries.NPC_BINDINGS.serverStore().all().get(key("l_elder"))).getOrThrow(GameTestAssertException::new);
+            helper.assertTrue(written.getAsJsonObject().has("interact"), "a written interact: true is written back: " + written);
+            helper.assertFalse(written.getAsJsonObject().has("respawn"), "one not written stays unwritten");
+        } finally {
+            try {
+                StoryState.clear(player, StoryScope.PLAYER, met);
+            } catch (StoryException e) {
+                throw new GameTestAssertException(e.getMessage());
+            }
+            defs.uninstall(player);
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    private static Villager villager(GameTestHelper helper, int x, VillagerProfession profession, VillagerType type) {
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, x, 1, 1);
+        villager.setVillagerData(villager.getVillagerData().setProfession(profession).setType(type));
+        return villager;
+    }
+
+    private static List<String> chain(Entity entity) {
+        return NpcBindings.find(entity).map(found -> found.chain().stream().map(layer -> String.valueOf(layer.id())).toList()).orElse(List.of());
+    }
+
+    private static String source(NpcBindings.Found found, String setting) {
+        return found.source(setting).map(layer -> String.valueOf(layer.id())).orElse("default");
+    }
+
+    private static String picked(NpcBindings.Found found, ServerPlayer player, Entity npc) {
+        return found.pick(new dev.dzenthai.storybound.core.logic.StoryContext(player, npc)).map(picked -> String.valueOf(picked.layer().id())).orElse("none");
     }
 
     private static String boundTo(Entity entity) {
@@ -367,8 +488,8 @@ public final class NpcReactionGameTests {
                         + " { \"phrases\": { \"text\": { \"literal\": \"Thank you!\" } }, \"priority\": 10,"
                         + "   \"conditions\": { \"type\": \"flag\", \"key\": \"" + thanked + "\", \"scope\": \"player\" } } ] }");
         defs.install(helper);
-        String wolves = NpcPhrases.clickCounterFor(npc, player, 0);
-        String thanks = NpcPhrases.clickCounterFor(npc, player, 1);
+        String wolves = NpcPhrases.clickCounterFor(npc, player, key("click"), 0);
+        String thanks = NpcPhrases.clickCounterFor(npc, player, key("click"), 1);
         helper.startSequence()
                 .thenExecute(() -> {
                     helper.assertTrue(NpcBindings.rightClick(player, npc), "the click is the NPC's: no trading");
@@ -425,7 +546,7 @@ public final class NpcReactionGameTests {
                 .thenExecute(() -> {
                     helper.assertTrue(Dialogues.start(player, key("bark_monologue"), talker), "a talk in subtitles");
                     NpcBindings.talk(player, barker);
-                    expect(helper, NpcPhrases.position(NpcPhrases.clickCounterFor(barker, player, 0)), 1, "the other NPC says its phrase");
+                    expect(helper, NpcPhrases.position(NpcPhrases.clickCounterFor(barker, player, key("bark"), 0)), 1, "the other NPC says its phrase");
                     expect(helper, Dialogues.state(player).map(Dialogues.State::dialogue), Optional.of(key("bark_monologue")), "and the talk goes on");
                 })
                 .thenExecute(() -> {
@@ -628,8 +749,11 @@ public final class NpcReactionGameTests {
         helper.succeed();
     }
 
-    /** With a player near, chatter speaks every 2 s, in order; with nobody near, in a dialogue, it keeps quiet. */
-    @GameTest(template = "open", batch = BATCH, timeoutTicks = 600)
+    /**
+     * With a player near, chatter speaks every 2 s, in order; with nobody near, in a dialogue or asleep (a villager in
+     * its bed at night; November 7, 2026), it keeps quiet, and speaks again once free or awake.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 1000)
     public static void chatterSpeaksWithAPlayerNearAndKeepsQuietOtherwise(GameTestHelper helper) {
         Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 3);
         npc.addTag("gt_chatter");
@@ -663,9 +787,73 @@ public final class NpcReactionGameTests {
                     helper.assertTrue(NpcChatter.nextAt(npc) >= 0, "it still waits its turn");
                 })
                 .thenWaitUntil(() -> helper.assertTrue(NpcPhrases.position(counter) > said[0], "free again: it speaks"))
+                .thenExecute(() -> {
+                    npc.startSleeping(npc.blockPosition());
+                    said[0] = NpcPhrases.position(counter);
+                })
+                .thenIdle(100)
+                .thenExecute(() -> {
+                    expect(helper, NpcPhrases.position(counter), said[0], "asleep: quiet");
+                    npc.stopSleeping();
+                })
+                .thenWaitUntil(() -> helper.assertTrue(NpcPhrases.position(counter) > said[0], "awake: it speaks"))
                 .thenExecute(() -> defs.uninstall(player))
                 .thenExecute(() -> remove(helper, player))
                 .thenSucceed();
+    }
+
+    /**
+     * Bed time and talking (November 7, 2026). Expected: a villager next to its bed (its home) does not lie down while it
+     * is in a dialogue, nor while its phrase is still over its head; once it is done, it does. In bed it is not talked to:
+     * no talk hint, the talk key and a click say nothing (the click is vanilla's, which does nothing with a sleeping
+     * villager); woken, it talks again.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 300)
+    public static void aTalkingVillagerGoesToBedAfterwardsAndASleepingOneIsNotTalkedTo(GameTestHelper helper) {
+        Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 3);
+        npc.addTag("gt_sleepy");
+        BlockPos bed = npc.blockPosition();
+        helper.getLevel().setBlockAndUpdate(bed, Blocks.RED_BED.defaultBlockState().setValue(BedBlock.PART, BedPart.HEAD));
+        npc.getBrain().setMemory(MemoryModuleType.HOME, GlobalPos.of(helper.getLevel().dimension(), bed));
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions()
+                .dialogue("sleepy_talk", "{ \"presentation\": \"hud\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }")
+                .binding("sleepy", "{ \"entity\": { \"tag\": \"gt_sleepy\" }, \"dialogues\": [ { \"phrases\": { \"text\": { \"literal\": \"Good night soon.\" } } } ] }");
+        defs.install(helper);
+        String counter = NpcPhrases.clickCounterFor(npc, player, key("sleepy"), 0);
+        helper.startSequence()
+                .thenExecute(() -> {
+                    helper.assertTrue(Dialogues.start(player, key("sleepy_talk"), npc), "a dialogue with it");
+                    helper.assertFalse(goesToBed(helper, npc), "in a dialogue: it does not lie down");
+                    Dialogues.interrupt(player, EndReason.STOPPED);
+                    NpcBindings.talk(player, npc);
+                    expect(helper, NpcPhrases.position(counter), 1, "it says its phrase");
+                    helper.assertFalse(goesToBed(helper, npc), "its phrase over its head: it does not lie down yet");
+                })
+                // "Good night soon." stays 3.5 s over its head.
+                .thenIdle(75)
+                .thenExecute(() -> {
+                    helper.assertTrue(goesToBed(helper, npc), "done talking: it lies down");
+                    helper.assertTrue(npc.isSleeping(), "asleep");
+                    helper.assertFalse(NpcBindings.canTalk(player, npc.getId()), "no talk hint over a sleeping villager");
+                    NpcBindings.talk(player, npc);
+                    helper.assertFalse(NpcBindings.rightClick(player, npc), "a click is vanilla's");
+                    expect(helper, NpcPhrases.position(counter), 1, "neither says anything");
+                    expect(helper, Dialogues.state(player), Optional.empty(), "nor starts a dialogue");
+                    npc.stopSleeping();
+                    helper.assertTrue(NpcBindings.canTalk(player, npc.getId()), "woken: it talks again");
+                })
+                .thenExecute(() -> {
+                    defs.uninstall(player);
+                    remove(helper, player);
+                    helper.getLevel().setBlockAndUpdate(bed, Blocks.AIR.defaultBlockState());
+                })
+                .thenSucceed();
+    }
+
+    /** Vanilla's going to bed, tried once now: whether the villager lay down. */
+    private static boolean goesToBed(GameTestHelper helper, Villager npc) {
+        return new SleepInBed().tryStart(helper.getLevel(), npc, helper.getLevel().getGameTime()) && npc.isSleeping();
     }
 
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)

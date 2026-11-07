@@ -13,7 +13,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
-/** {@code /storybound trigger fire <id> <targets>}: fires a {@code custom} trigger, e.g. from a command block. */
+/** {@code /storybound debug trigger fire <id> <targets>}: fires a {@code custom} trigger, e.g. from a command block. */
 final class TriggerCommands {
     private TriggerCommands() {}
 

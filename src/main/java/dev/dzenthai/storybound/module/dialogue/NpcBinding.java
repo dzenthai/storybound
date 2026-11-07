@@ -44,11 +44,15 @@ import org.jetbrains.annotations.Nullable;
  * @param showName     the entities it matches carry {@code displayName} over their heads (see {@link NpcNames}); on
  *                     unless turned off, so a name written is a name shown
  * @param displayName  the NPC's one name: over its head, and in dialogues, where a participant names nothing else
+ *                     <p>
+ * Several bindings on one entity are layers (November 7, 2026; see {@link NpcBindings#find}): each setting comes from
+ * the closest binding that writes it, so the on/off ones are kept as written or not ({@link Optional#empty()}: "from
+ * the binding below", the default when none writes it: {@code interact} and {@code show_name} on, the rest off).
  */
-public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity,
-                         boolean custom, boolean overrideInteract, boolean exclusive, Optional<ResourceLocation> busyDialogue, boolean respawn,
-                         boolean invulnerable, Optional<WhenAttacked> whenAttacked, Optional<Chatter> chatter,
-                         boolean showName, Optional<StoryText> displayName) {
+public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, Optional<Boolean> interact, Optional<Proximity> proximity,
+                         Optional<Boolean> custom, Optional<Boolean> overrideInteract, Optional<Boolean> exclusive, Optional<ResourceLocation> busyDialogue,
+                         Optional<Boolean> respawn, Optional<Boolean> invulnerable, Optional<WhenAttacked> whenAttacked, Optional<Chatter> chatter,
+                         Optional<Boolean> showName, Optional<StoryText> displayName) {
     /** One selector, or a non-empty list of them; one is written back as an object, as files had it before lists. */
     private static final Codec<List<EntitySelector>> ENTITIES = Codec.either(EntitySelector.CODEC, ExtraCodecs.nonEmptyList(EntitySelector.CODEC.listOf()))
             .xmap(either -> either.map(List::of, Function.identity()),
@@ -57,24 +61,19 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
     public static final Codec<NpcBinding> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ENTITIES.fieldOf("entity").forGetter(NpcBinding::entities),
             Entry.CODEC.listOf().optionalFieldOf("dialogues", List.of()).forGetter(NpcBinding::dialogues),
-            Codec.BOOL.optionalFieldOf("interact", true).forGetter(NpcBinding::interact),
+            Codec.BOOL.optionalFieldOf("interact").forGetter(NpcBinding::interact),
             Proximity.CODEC.optionalFieldOf("proximity").forGetter(NpcBinding::proximity),
-            Codec.BOOL.optionalFieldOf("custom", false).forGetter(NpcBinding::custom),
-            Codec.BOOL.optionalFieldOf("override_interact", false).forGetter(NpcBinding::overrideInteract),
-            Codec.BOOL.optionalFieldOf("exclusive", false).forGetter(NpcBinding::exclusive),
+            Codec.BOOL.optionalFieldOf("custom").forGetter(NpcBinding::custom),
+            Codec.BOOL.optionalFieldOf("override_interact").forGetter(NpcBinding::overrideInteract),
+            Codec.BOOL.optionalFieldOf("exclusive").forGetter(NpcBinding::exclusive),
             ResourceLocation.CODEC.optionalFieldOf("busy_dialogue").forGetter(NpcBinding::busyDialogue),
-            Codec.BOOL.optionalFieldOf("respawn", false).forGetter(NpcBinding::respawn),
-            Codec.BOOL.optionalFieldOf("invulnerable", false).forGetter(NpcBinding::invulnerable),
+            Codec.BOOL.optionalFieldOf("respawn").forGetter(NpcBinding::respawn),
+            Codec.BOOL.optionalFieldOf("invulnerable").forGetter(NpcBinding::invulnerable),
             WhenAttacked.CODEC.optionalFieldOf("when_attacked").forGetter(NpcBinding::whenAttacked),
             Chatter.CODEC.optionalFieldOf("chatter").forGetter(NpcBinding::chatter),
-            Codec.BOOL.optionalFieldOf("show_name", true).forGetter(NpcBinding::showName),
+            Codec.BOOL.optionalFieldOf("show_name").forGetter(NpcBinding::showName),
             StoryText.CODEC.optionalFieldOf("display_name").forGetter(NpcBinding::displayName)
     ).apply(instance, NpcBinding::new));
-
-    public NpcBinding(EntitySelector entity, List<Entry> dialogues, boolean interact, Optional<Proximity> proximity, boolean custom) {
-        this(List.of(entity), dialogues, interact, proximity, custom, false, false, Optional.empty(), false, false, Optional.empty(), Optional.empty(),
-                true, Optional.empty());
-    }
 
     /**
      * What the NPC does when a player hits it (November 5, 2026; before, what its kind does: an iron golem killed the
@@ -135,19 +134,52 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
     }
 
     /**
-     * How closely the binding names the entity, for when several match it (November 6, 2026; before, the first by id
-     * won, so "every villager" named {@code all_villagers} took the elder from {@code elder}): 3 by its uuid, 2 by a tag
-     * or a name it carries, 1 by its kind alone; -1 when no selector matches. The best matching selector counts.
+     * How closely the binding names the entity, for when several match it; null when no selector matches. The best
+     * matching selector counts.
      */
-    public int precision(Entity entity) {
-        int best = -1;
+    public @Nullable Rank rank(Entity entity) {
+        Rank best = null;
         for (EntitySelector selector : entities) {
             if (selector.matches(entity)) {
-                int precision = selector.uuid().isPresent() ? 3 : selector.tag().isPresent() || selector.name().isPresent() ? 2 : 1;
-                best = Math.max(best, precision);
+                Rank rank = new Rank(selector.uuid().isPresent() ? Rank.UUID : selector.tag().isPresent() || selector.name().isPresent() ? Rank.TAG : Rank.KIND,
+                        selector.filters());
+                best = best == null || rank.compareTo(best) < 0 ? rank : best;
             }
         }
         return best;
+    }
+
+    /**
+     * How closely a binding names an entity (November 6, 2026; before, the first by id won, so "every villager" named
+     * {@code all_villagers} took the elder from {@code elder}; filters November 7, 2026): by its uuid, over by a tag or a
+     * name it carries, over by its kind (and filters) alone; of the last, more filters first ("weaponsmiths" over
+     * "villagers"). Ordered closest first.
+     *
+     * @param by      {@link #OWN}, {@link #UUID}, {@link #TAG} or {@link #KIND}
+     * @param filters the matching selector's filters ({@link EntitySelector#filters})
+     */
+    public record Rank(int by, int filters) implements Comparable<Rank> {
+        /** The binding stored on the entity by the removed {@code /storybound npc bind}: before any file. */
+        public static final int OWN = 4;
+        public static final int UUID = 3;
+        public static final int TAG = 2;
+        public static final int KIND = 1;
+
+        @Override
+        public int compareTo(Rank other) {
+            return by != other.by ? Integer.compare(other.by, by) : Integer.compare(other.filters, filters);
+        }
+
+        /** "by tag", "by kind, 2 filters": for the trace and {@code /storybound debug npc}. */
+        public String describe() {
+            String way = switch (by) {
+                case OWN -> "its own binding";
+                case UUID -> "by uuid";
+                case TAG -> "by tag or name";
+                default -> "by kind";
+            };
+            return filters == 0 ? way : way + ", " + filters + (filters == 1 ? " filter" : " filters");
+        }
     }
 
     /**
@@ -297,7 +329,9 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
     }
 
     /**
-     * The binding {@code /storybound npc bind} stores on one entity; it wins over binding files.
+     * The binding the removed {@code /storybound npc bind} stores on one entity; the first layer, over binding files,
+     * giving what it has: its dialogue, whether a click starts it and, when on, the default proximity (November 7, 2026;
+     * before, it was the whole NPC).
      */
     public record Attached(ResourceLocation dialogue, boolean interact, boolean proximity) {
         public static final Codec<Attached> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -307,10 +341,11 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, b
         ).apply(instance, Attached::new));
 
         NpcBinding toBinding(Entity entity) {
-            return new NpcBinding(EntitySelector.of(entity.getUUID()),
+            return new NpcBinding(List.of(EntitySelector.of(entity.getUUID())),
                     // Attached to the entity, so never rewritten: a renamed dialogue is looked up by its new id.
-                    List.of(Entry.of(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue))), interact,
-                    proximity ? Optional.of(Proximity.DEFAULT) : Optional.empty(), false);
+                    List.of(Entry.of(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue))), Optional.of(interact),
+                    proximity ? Optional.of(Proximity.DEFAULT) : Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
     }
 }

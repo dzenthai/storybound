@@ -16,23 +16,23 @@ public final class StoryboundCommands {
     private StoryboundCommands() {}
 
     public static void register(RegisterCommandsEvent event) {
+        // The author's debugging tools are under debug (November 7, 2026; before, at the top: twenty entries in the
+        // command hints). capture is gone (the dev mode's 🎯 pickers took its place), and so is npc bind (a dialogue
+        // stored on an entity beside the NPC nodes, two ways to make an NPC).
         event.getDispatcher().register(Commands.literal("storybound")
-                .then(Commands.literal("validate")
-                        .requires(source -> source.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                        .executes(StoryboundCommands::validate))
+                .then(DebugCommands.debug()
+                        .then(Commands.literal("validate").executes(StoryboundCommands::validate))
+                        .then(TriggerCommands.trigger())
+                        .then(TraceCommands.trace())
+                        .then(DumpCommands.dump())
+                        .then(DumpCommands.export())
+                        .then(LangCommands.lang())
+                        .then(NpcCommands.npc()))
                 .then(StoryStateCommands.flag())
                 .then(StoryStateCommands.var())
-                .then(TriggerCommands.trigger())
-                .then(TraceCommands.trace())
-                .then(DumpCommands.dump())
-                .then(DumpCommands.export())
-                .then(CaptureCommands.capture())
-                .then(LangCommands.lang())
-                .then(DebugCommands.debug())
                 .then(DocumentCommands.document())
                 .then(QuestCommands.quest())
                 .then(DialogueCommands.dialogue())
-                .then(NpcCommands.npc())
                 .then(CodexCommands.codex())
                 .then(CodexCommands.boss())
                 .then(WaypointCommands.waypoint())

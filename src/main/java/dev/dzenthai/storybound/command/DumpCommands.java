@@ -15,8 +15,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Files for authors who read instead of watching: {@code /storybound dump <player>} (the player's story state, see
- * {@link StoryDump}) and {@code /storybound export} (every name a story can use, see {@link StoryExport}).
+ * Files for authors who read instead of watching: {@code /storybound debug dump <player>} (the player's story state, see
+ * {@link StoryDump}) and {@code /storybound debug export} (every name a story can use, see {@link StoryExport}).
  */
 final class DumpCommands {
     private DumpCommands() {}

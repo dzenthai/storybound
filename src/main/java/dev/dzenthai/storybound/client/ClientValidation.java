@@ -123,7 +123,7 @@ public final class ClientValidation {
         if (text instanceof StoryText.Key key && key.fallback().isEmpty() && !translated.test(key.key())) {
             issues.add(new Issue(where, "no translation for " + key.key()));
         } else if (text instanceof StoryText.Literal) {
-            issues.add(new Issue(where, "written into the JSON (literal): not translated; /storybound lang extract makes it a key"));
+            issues.add(new Issue(where, "written into the JSON (literal): not translated; /storybound debug lang extract makes it a key"));
         }
     }
 

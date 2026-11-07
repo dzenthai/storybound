@@ -247,14 +247,15 @@ public final class DialogueEvents {
             }
         });
         DialogueRegistries.NPC_BINDINGS.serverStore().all().forEach((id, binding) -> {
-            // An NPC that only chatters, reacts to hits, is invulnerable or named does something too (November 6, 2026).
-            if (binding.dialogues().isEmpty() && !binding.custom() && binding.chatter().isEmpty() && binding.whenAttacked().isEmpty()
-                    && !binding.invulnerable() && !binding.respawn() && binding.displayName().isEmpty()) {
+            // An NPC that only chatters, reacts to hits, is invulnerable or named does something too (November 6, 2026); so does
+            // one writing custom, invulnerable or respawn either way, over the bindings below it (November 7, 2026).
+            if (binding.dialogues().isEmpty() && binding.custom().isEmpty() && binding.chatter().isEmpty() && binding.whenAttacked().isEmpty()
+                    && binding.invulnerable().isEmpty() && binding.respawn().isEmpty() && binding.displayName().isEmpty()) {
                 sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "Binds no dialogue and sets nothing else; it does nothing"));
             }
             Consumer<String> bindingError = message -> sink.accept(ValidationIssue.error(DialogueRegistries.NPC_BINDINGS.id(), id, message));
             Consumer<String> bindingWarning = message -> sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, message));
-            if (binding.showName() && binding.displayName().isPresent() && NpcNames.byName(binding)) {
+            if (binding.showName().orElse(true) && binding.displayName().isPresent() && NpcNames.byName(binding)) {
                 bindingWarning.accept("display_name is not shown over its head: the NPC is known by the name it carries (entity name), which it keeps");
             }
             binding.dialogues().forEach(entry -> entry.phrases().flatMap(PhrasesRef::node)

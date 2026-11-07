@@ -31,7 +31,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * {@code /storybound export}: every name a story can use, as one JSON file, so references are right the first time:
+ * {@code /storybound debug export}: every name a story can use, as one JSON file, so references are right the first time:
  * the condition, action and trigger types (other mods' included), the handlers scripts registered, every definition id
  * of every kind with what can be named inside it (a quest's stages and objectives, a dialogue's nodes, a Codex
  * entry's sections), the declared flags and the flags used without a declaration.

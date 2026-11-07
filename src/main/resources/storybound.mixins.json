@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "LecternBlockEntityMixin",
-    "LivingEntityAccessor"
+    "LivingEntityAccessor",
+    "SleepInBedMixin"
   ],
   "client": [
     "client.BookFontMixin",

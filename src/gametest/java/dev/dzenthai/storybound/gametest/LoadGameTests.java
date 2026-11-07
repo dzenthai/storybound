@@ -43,6 +43,7 @@ import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -53,7 +54,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 /**
  * A busy server, measured: {@value #PLAYERS} players with {@value #ACTIVE} active quests each (of {@value #QUESTS},
  * with hints, item objectives, {@code fail_when} and time limits), {@value #EVENTS} story events on {@code entity_seen} and {@value #AREA_EVENTS} on biomes, villages, levels and statistics,
- * {@value #WAYPOINTS} waypoints at the nearest pig, {@value #BINDINGS} NPC bindings and {@value #PIGS} pigs around. Each
+ * {@value #WAYPOINTS} waypoints at the nearest pig, {@value #BINDINGS} NPC bindings by tag and {@value #PIGS} pigs around, and a
+ * village: {@value #VILLAGERS} villagers and five bindings layered on them (every villager, smiths, desert folk, children,
+ * in a village; November 7, 2026). Each
  * of the mod's server tick handlers runs many times and its cost per tick (a handler that runs every n ticks counts
  * 1/n) goes to the log and {@code logs/storybound-load.txt}. Not part of the usual run: {@code -PloadTest=true}.
  */
@@ -69,6 +72,7 @@ public final class LoadGameTests {
     private static final int WAYPOINTS = 20;
     private static final int BINDINGS = 30;
     private static final int PIGS = 60;
+    private static final int VILLAGERS = 200;
     private static final int RUNS = 100;
     /** What the mod may take of the 50 ms a tick has, at most. */
     private static final double BUDGET_MS = 2.5;
@@ -120,6 +124,12 @@ public final class LoadGameTests {
         for (int i = 0; i < BINDINGS; i++) {
             bindings.put(key("load_b" + i), "{ \"entity\": { \"tag\": \"load_npc_%d\" }, \"dialogues\": [ { \"dialogue\": \"gametest:none\" } ] }".formatted(i));
         }
+        // A village's layers: what each villager is, worked out from every binding of its kind.
+        bindings.put(key("load_l_villagers"), "{ \"entity\": { \"type\": \"minecraft:villager\" }, \"respawn\": true }");
+        bindings.put(key("load_l_smiths"), "{ \"entity\": { \"type\": \"minecraft:villager\", \"profession\": \"minecraft:weaponsmith\" }, \"custom\": true }");
+        bindings.put(key("load_l_desert"), "{ \"entity\": { \"type\": \"minecraft:villager\", \"outfit\": \"minecraft:desert\" }, \"invulnerable\": true }");
+        bindings.put(key("load_l_children"), "{ \"entity\": { \"type\": \"minecraft:villager\", \"baby\": true, \"biome\": \"#minecraft:is_overworld\" }, \"interact\": false }");
+        bindings.put(key("load_l_village"), "{ \"entity\": { \"type\": \"minecraft:villager\", \"in_village\": true }, \"exclusive\": true }");
         add(ops, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, quests);
         add(ops, CoreDefinitions.EVENTS.serverStore(), StoryEvent.CODEC, events);
         add(ops, WaypointRegistries.WAYPOINTS.serverStore(), WaypointDefinition.CODEC, waypoints);
@@ -130,6 +140,10 @@ public final class LoadGameTests {
         Waypoints.rebuild();
         for (int i = 0; i < PIGS; i++) {
             helper.spawn(EntityType.PIG, 1 + i % 8 * 2, 2, 1 + i / 8 * 2);
+        }
+        List<Entity> villagers = new ArrayList<>();
+        for (int i = 0; i < VILLAGERS; i++) {
+            villagers.add(helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1 + i % 14, 2, 1 + i / 14));
         }
         List<ServerPlayer> players = new ArrayList<>();
         for (int p = 0; p < PLAYERS; p++) {
@@ -152,6 +166,11 @@ public final class LoadGameTests {
             total += measure(report, "areas (location, structures, biomes), every 10 ticks", 10, () -> TriggerDispatcher.tickAreas(server));
             total += measure(report, "values (levels, statistics), every 20 ticks", 20, () -> ProgressTriggers.checkValues(server));
             total += measure(report, "NPC proximity, every 10 ticks", 10, () -> players.forEach(player -> NpcBindings.checkProximity(player, server.getTickCount())));
+            // The worst case: each villager's chain worked out anew once a second, as the cache keeps it a second.
+            total += measure(report, "NPC layers worked out for " + VILLAGERS + " villagers, every 20 ticks", 20, () -> villagers.forEach(villager -> {
+                NpcBindings.forget(villager);
+                NpcBindings.find(villager);
+            }));
             total += measure(report, "waypoints (nearest pig), every 20 ticks", 20, () -> players.forEach(Waypoints::refresh));
             total += measure(report, "dialogue sessions, every tick", 1, () -> Dialogues.tick(server));
             report.add(String.format(Locale.ROOT, "total per tick: %.3f ms of the %.1f ms allowed", total, BUDGET_MS));
@@ -162,7 +181,7 @@ public final class LoadGameTests {
             ValidationService.validate();
             report.add(String.format(Locale.ROOT, "validation once: %.1f ms", (System.nanoTime() - start) / 1e6));
             report.add(0, "Storybound load test: " + PLAYERS + " players, " + ACTIVE + " active quests each of " + QUESTS + ", " + EVENTS
-                    + " entity_seen events, " + AREA_EVENTS + " area and value events, " + WAYPOINTS + " nearest-entity waypoints, " + BINDINGS + " NPC bindings, " + PIGS + " pigs");
+                    + " entity_seen events, " + AREA_EVENTS + " area and value events, " + WAYPOINTS + " nearest-entity waypoints, " + BINDINGS + " NPC bindings, " + PIGS + " pigs, " + VILLAGERS + " villagers under 5 layered bindings");
             report.forEach(line -> Storybound.LOGGER.info("{}", line));
             try {
                 Path file = FMLPaths.GAMEDIR.get().resolve("logs").resolve("storybound-load.txt");

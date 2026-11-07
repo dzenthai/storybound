@@ -57,12 +57,12 @@ public final class NpcNames {
 
     /** Gives the entity its binding's name, or takes back one a binding gave; public for tests. */
     public static void apply(Entity entity) {
-        NpcBinding binding = NpcBindings.find(entity).map(NpcBindings.Found::binding).orElse(null);
-        if (binding != null && byName(binding)) {
+        NpcBindings.Found found = NpcBindings.find(entity).orElse(null);
+        if (found != null && found.chain().stream().anyMatch(layer -> byName(layer.binding()))) {
             // Known by the name it carries (a name tag's "Murka"): renaming it would lose it, and then name it back.
             return;
         }
-        Component name = binding != null && binding.showName() ? binding.displayName().map(text -> text.asComponent()).orElse(null) : null;
+        Component name = found != null && found.showName() ? found.binding().displayName().map(text -> text.asComponent()).orElse(null) : null;
         if (name != null) {
             if (!Objects.equals(entity.getCustomName(), name) || !entity.isCustomNameVisible()) {
                 entity.setCustomName(name);

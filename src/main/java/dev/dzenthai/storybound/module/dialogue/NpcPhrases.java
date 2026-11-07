@@ -8,10 +8,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * An NPC's voice for its phrases (November 5, 2026): which of a {@link PhrasesDefinition}'s lines comes next. Chatter
@@ -32,6 +34,8 @@ public final class NpcPhrases {
     private static final Map<String, Integer> POSITION = new HashMap<>();
     private static final Map<String, Long> USED = new HashMap<>();
     private static final Map<UUID, Long> LAST_SPOKE = new HashMap<>();
+    /** NPC → the tick its last bubble fades: until then it is still speaking (it does not go to bed). */
+    private static final Map<UUID, Long> SPEAKS_UNTIL = new HashMap<>();
 
     private NpcPhrases() {}
 
@@ -73,7 +77,22 @@ public final class NpcPhrases {
         }
         StoryTrace.note(player, ref.describe(), "line " + (index + 1) + " said by " + npc.getName().getString());
         LAST_SPOKE.put(npc.getUUID(), now);
+        SPEAKS_UNTIL.put(npc.getUUID(), now + bubbleTicks(text.resolve(player).toComponent().getString()));
         return true;
+    }
+
+    /**
+     * How long a bubble with this text stays over a head, in ticks: as the client shows it ({@code SpeechBubbles}, 2.5 s
+     * and 60 ms a letter, 3 to 10 s). The server does not translate: a translation key counts by its own length, near
+     * enough.
+     */
+    static long bubbleTicks(String text) {
+        return Math.clamp(2500L + 60L * text.length(), 3000L, 10000L) / 50L;
+    }
+
+    /** Whether the NPC is still saying a phrase: its bubble has not faded yet. */
+    public static boolean speaking(LivingEntity npc, long now) {
+        return now < SPEAKS_UNTIL.getOrDefault(npc.getUUID(), Long.MIN_VALUE);
     }
 
     /** The tick the NPC last said something of its phrases. */
@@ -115,16 +134,19 @@ public final class NpcPhrases {
     }
 
     /**
-     * Phrases said on a click (November 6, 2026): per player and per click entry (its place in the NPC's list), so each
-     * player goes through each entry's lines in order on their own.
+     * Phrases said on a click (November 6, 2026): per player and per click entry (its binding and its place in that
+     * binding's list; the binding since November 7, 2026, as an NPC's entries now come from several), so each player
+     * goes through each entry's lines in order on their own.
+     *
+     * @param binding the binding of the entry; null for the one stored on the entity
      */
-    static String clickCounter(Entity npc, ServerPlayer player, int entry) {
-        return "click:" + npc.getUUID() + ":" + player.getUUID() + ":" + entry;
+    static String clickCounter(Entity npc, ServerPlayer player, @Nullable ResourceLocation binding, int entry) {
+        return "click:" + npc.getUUID() + ":" + player.getUUID() + ":" + (binding != null ? binding : "own") + ":" + entry;
     }
 
-    /** For tests: the counter of the phrases a player gets on clicking the NPC, for its entry at that place. */
-    public static String clickCounterFor(Entity npc, ServerPlayer player, int entry) {
-        return clickCounter(npc, player, entry);
+    /** For tests: the counter of the phrases a player gets on clicking the NPC, for an entry of a binding at that place. */
+    public static String clickCounterFor(Entity npc, ServerPlayer player, @Nullable ResourceLocation binding, int entry) {
+        return clickCounter(npc, player, binding, entry);
     }
 
     /** For tests: the counter of a chatter variant (-1: the chatter's own phrases). */
@@ -141,12 +163,14 @@ public final class NpcPhrases {
             return old;
         });
         LAST_SPOKE.values().removeIf(tick -> now - tick > FORGET_TICKS);
+        SPEAKS_UNTIL.values().removeIf(tick -> tick < now);
     }
 
     static void reset() {
         POSITION.clear();
         USED.clear();
         LAST_SPOKE.clear();
+        SPEAKS_UNTIL.clear();
     }
 
     /** For tests: the counter of a player's hits on an NPC. */

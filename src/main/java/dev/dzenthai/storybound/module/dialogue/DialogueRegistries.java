@@ -24,7 +24,7 @@ public final class DialogueRegistries {
 
     private static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES = DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, Storybound.MOD_ID);
 
-    /** A binding stored on one entity by {@code /storybound npc bind}; check {@code hasData}, the default is a placeholder. */
+    /** A binding stored on one entity by the removed {@code /storybound npc bind}; check {@code hasData}, the default is a placeholder. */
     public static final Supplier<AttachmentType<NpcBinding.Attached>> NPC_BINDING = ATTACHMENT_TYPES.register("npc_binding",
             () -> AttachmentType.builder(() -> new NpcBinding.Attached(Storybound.id("none"), false, false)).serialize(NpcBinding.Attached.CODEC).build());
 

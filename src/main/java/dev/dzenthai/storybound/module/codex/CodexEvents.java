@@ -59,7 +59,7 @@ public final class CodexEvents {
                         case Unlock.Source.Killed killed -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntityKilled(Optional.of(set), true)).orElse(null);
                         case Unlock.Source.Read read -> new DocumentLogic.Read(Optional.of(read.document()), false);
                         case Unlock.Source.Observed observed -> definition.entity().<Trigger<?>>map(set -> CoreTriggers.Observed.of(
-                                new EntitySelector(Optional.of(set), Optional.empty(), Optional.empty(), Optional.empty()), observed.seconds())).orElse(null);
+                                EntitySelector.ofTypes(set), observed.seconds())).orElse(null);
                         case Unlock.Source.Manual manual -> null;
                     };
                     if (trigger != null) {

@@ -87,7 +87,7 @@ public final class NpcReactions {
         if (event.getSource().getEntity() instanceof ServerPlayer player && player != npc && binding.whenAttacked().isPresent()) {
             hit(level.getServer().getTickCount(), npc, player, binding.whenAttacked().get());
         }
-        if (binding.invulnerable() && !event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+        if (binding.invulnerable().orElse(false) && !event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             event.setCanceled(true);
         }
     }

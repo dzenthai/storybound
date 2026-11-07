@@ -34,9 +34,8 @@ To see a mechanic at work, an operator can install a small scenario next to them
 project.json turns on the players' chapter map and sets the difficulty to stars; change it as you like.
 
 Writing a story from files (without watching the game), these commands write for you to read:
-  /storybound trace on [players]    what the story logic does, line by line: logs/storybound-trace.log
-  /storybound dump <player>         the player's story state: logs/storybound-dump-<player>.json
-  /storybound export                every type, id, stage, node and flag a story can name: logs/storybound-export.json
-  /storybound capture pos <name>    where you stand, into captures.json here (capture entity <name>: what you look at)
+  /storybound debug trace on [players]    what the story logic does, line by line: logs/storybound-trace.log
+  /storybound debug dump <player>         the player's story state: logs/storybound-dump-<player>.json
+  /storybound debug export                every type, id, stage, node and flag a story can name: logs/storybound-export.json
 
 This folder is created once, when it does not exist. Delete it to get the starter files back.

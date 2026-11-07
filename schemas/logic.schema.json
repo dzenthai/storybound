@@ -52,7 +52,7 @@
       ]
     },
     "entity_selector": {
-      "description": "Picks particular entities. Every part that is given must match; at least one is required.",
+      "description": "Picks particular entities. Every part that is given must match; at least one of type, tag, name, uuid, profession or outfit is required.",
       "type": "object",
       "additionalProperties": false,
       "minProperties": 1,
@@ -60,7 +60,12 @@
         "type": { "description": "An entity type, a #tag or a list.", "$ref": "#/definitions/id_list" },
         "tag": { "description": "A scoreboard tag (/tag @e add elder).", "type": "string" },
         "name": { "description": "Only an entity with exactly this custom name (from a name tag or /summon). It is a filter, not the name shown in dialogues: that is the dialogue participant's name.", "type": "string" },
-        "uuid": { "description": "One entity, e.g. an Easy NPC.", "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }
+        "uuid": { "description": "One entity, e.g. an Easy NPC.", "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+        "profession": { "description": "A villager profession (minecraft:weaponsmith, minecraft:none for the jobless) or a list. Only entities with villager data match: villagers, zombie villagers.", "$ref": "#/definitions/id_list" },
+        "outfit": { "description": "A villager's own type, seen on its clothes (minecraft:plains, minecraft:desert, minecraft:snow…), or a list. Only entities with villager data match.", "$ref": "#/definitions/id_list" },
+        "baby": { "description": "true: only babies; false: only grown-ups (an entity that cannot be a baby counts as grown).", "type": "boolean" },
+        "biome": { "description": "The biome the entity stands in now: an id, a #tag (#minecraft:is_nether) or a list.", "$ref": "#/definitions/id_list" },
+        "in_village": { "description": "true: only in a village; false: only outside one. A village as vanilla sees it (raids use it): beds, workstations or a bell claimed by villagers nearby, so any village counts, generated, modded or built by players.", "type": "boolean" }
       }
     },
     "structure": {

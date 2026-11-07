@@ -74,7 +74,7 @@ public sealed interface WaypointTarget {
         public static final int DEFAULT_RANGE = 64;
         private static final Codec<EntitySelector> SELECTOR = Codec.either(EntitySelector.CODEC, RegistryCodecs.homogeneousList(Registries.ENTITY_TYPE))
                 .xmap(either -> either.map(selector -> selector,
-                        types -> new EntitySelector(Optional.of(types), Optional.empty(), Optional.empty(), Optional.empty())), Either::left);
+                        EntitySelector::ofTypes), Either::left);
         public static final Codec<Nearest> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 SELECTOR.fieldOf("nearest").forGetter(Nearest::entity),
                 Codec.intRange(1, 256).optionalFieldOf("range", DEFAULT_RANGE).forGetter(Nearest::range)

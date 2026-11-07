@@ -33,7 +33,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Writes what the story logic did for the traced players to {@code logs/storybound-trace.log}, one JSON object per
  * line, so a story can be debugged without watching the game: which trigger fired, which condition failed and on
- * which part, which action ran or failed, and why something was skipped. Turned on with {@code /storybound trace};
+ * which part, which action ran or failed, and why something was skipped. Turned on with {@code /storybound debug trace};
  * kept in memory until the server stops. Server thread only.
  */
 public final class StoryTrace {

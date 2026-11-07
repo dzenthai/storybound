@@ -15,8 +15,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * {@code /storybound lang extract [language]} moves texts written in the story's JSON to the lang file and reloads;
- * {@code /storybound lang preview [language]} only says what would change. The language defaults to the project's
+ * {@code /storybound debug lang extract [language]} moves texts written in the story's JSON to the lang file and reloads;
+ * {@code /storybound debug lang preview [language]} only says what would change. The language defaults to the project's
  * source language. See {@link LangExtract}.
  */
 final class LangCommands {

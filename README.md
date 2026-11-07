@@ -14,7 +14,7 @@ in-game editor. Required on both client and server.
    demo story, which starts when you join a world. It is yours to play, change or delete (its files are in `demo/`
    folders; `/storybound demo install` brings it back).
 2. Write your story in `config/storybound/` (or in datapacks under `data/<namespace>/storybound/`) and run `/reload`.
-   Problems are listed by `/storybound validate` and in `logs/storybound-validation.txt`.
+   Problems are listed by `/storybound debug validate` and in `logs/storybound-validation.txt`.
 
 ## Build
 

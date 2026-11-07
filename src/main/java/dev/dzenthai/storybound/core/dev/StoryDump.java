@@ -39,7 +39,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * {@code /storybound dump <player>}: everything the story knows about a player as one JSON file, so it can be read
+ * {@code /storybound debug dump <player>}: everything the story knows about a player as one JSON file, so it can be read
  * instead of the save's NBT: flags and variables of every scope, quests with stages, counts and log, the tracked
  * quest, Codex, bosses, the Journal, the party and an ongoing dialogue.
  */
