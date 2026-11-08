@@ -176,6 +176,7 @@ public final class NpcRespawns extends SavedData {
             changed = true;
             if (level == null) {
                 Storybound.LOGGER.warn("Storybound: an NPC cannot come back: the dimension {} is gone", next.dimension().location());
+                notBack(server, next.entity());
             } else {
                 respawn(level, next.entity());
             }
@@ -193,10 +194,12 @@ public final class NpcRespawns extends SavedData {
         Entity entity = EntityType.loadEntityRecursive(tag.copy(), level, loaded -> loaded);
         if (entity == null) {
             Storybound.LOGGER.warn("Storybound: an NPC cannot come back: {} no longer loads", tag.getString("id"));
+            notBack(level.getServer(), tag);
             return;
         }
         if (!NpcBindings.respawns(entity)) {
             // Its binding was changed or removed meanwhile: it stays gone.
+            notBack(level.getServer(), tag);
             return;
         }
         if (entity instanceof LivingEntity living) {
@@ -207,6 +210,16 @@ public final class NpcRespawns extends SavedData {
             return;
         }
         Storybound.LOGGER.debug("Storybound: NPC {} ({}) came back at {}", entity.getName().getString(), entity.getUUID(), entity.blockPosition());
+    }
+
+    /**
+     * It does not come back after all: a part it held ends (see {@link NpcParts#notBack}). A uuid taken is not this: the
+     * entity with it is the NPC, there already.
+     */
+    private static void notBack(MinecraftServer server, CompoundTag tag) {
+        if (tag.hasUUID("UUID")) {
+            NpcParts.notBack(server, tag.getUUID("UUID"));
+        }
     }
 
     /** The entity's NBT with its id, without what the copy must not keep ({@link #RESET}). */

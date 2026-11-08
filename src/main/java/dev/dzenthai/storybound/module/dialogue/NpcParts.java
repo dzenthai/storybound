@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.state.StoryMigrations;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -63,6 +64,11 @@ public final class NpcParts extends SavedData {
     }
 
     private final Map<ResourceLocation, Part> parts = new LinkedHashMap<>();
+    /**
+     * Entities not loaded when a part left them (freed, its binding renamed or gone) → the tags to take off them when
+     * they are next worked out (November 9, 2026: before, the tag stayed, and {@code @e[tag=...]} found two).
+     */
+    private final Map<UUID, List<String>> untag = new LinkedHashMap<>();
     private int generation = -1;
 
     private NpcParts() {}
@@ -81,16 +87,22 @@ public final class NpcParts extends SavedData {
         NpcParts data = server.overworld().getDataStorage().computeIfAbsent(FACTORY, NAME);
         if (data.generation != bindingsGeneration) {
             data.generation = bindingsGeneration;
-            data.follow();
+            data.follow(server);
         }
         return data;
     }
 
-    /** Moves the parts of renamed bindings to their new ids; drops those of bindings gone or no longer "one". */
-    private void follow() {
+    /**
+     * Moves the parts of renamed bindings to their new ids; drops those of bindings gone or no longer "one". The tag of
+     * the old id comes off the holder (now, or when it is next worked out), the new one goes on when it is worked out.
+     */
+    private void follow(MinecraftServer server) {
         Map<ResourceLocation, Part> next = new LinkedHashMap<>();
         parts.forEach((id, part) -> {
             ResourceLocation current = isOne(id) ? id : StoryMigrations.current().id(StoryMigrations.Kind.NPC_BINDINGS, id);
+            if (!current.equals(id) || !isOne(current) || next.containsKey(current)) {
+                takeTag(server, part.holder(), tagOf(id));
+            }
             if (isOne(current) && !next.containsKey(current)) {
                 next.put(current, part);
             } else {
@@ -145,9 +157,20 @@ public final class NpcParts extends SavedData {
             return;
         }
         NpcParts data = get(level.getServer());
+        List<String> stale = data.untag.remove(entity.getUUID());
+        if (stale != null) {
+            // A part left it while it was not loaded: the tag goes now.
+            stale.forEach(entity::removeTag);
+            data.setDirty();
+            NpcBindings.forget(entity);
+        }
         Optional<ResourceLocation> held = partOf(entity);
         if (held.isPresent()) {
             Part part = data.parts.get(held.get());
+            if (entity.addTag(tagOf(held.get()))) {
+                // Its binding was renamed: the new name's tag (the old one came off above or at the rename).
+                NpcBindings.forget(entity);
+            }
             if (!part.dimension().equals(level.dimension()) || !part.pos().equals(entity.blockPosition())) {
                 data.parts.put(held.get(), new Part(part.holder(), level.dimension(), entity.blockPosition(), false));
                 data.setDirty();
@@ -172,6 +195,37 @@ public final class NpcParts extends SavedData {
         }
     }
 
+    /** Takes a part's tag off the entity: now, if it is loaded, else when it is next worked out. */
+    private void takeTag(MinecraftServer server, UUID holder, String tag) {
+        for (ServerLevel level : server.getAllLevels()) {
+            Entity entity = level.getEntity(holder);
+            if (entity != null) {
+                entity.removeTag(tag);
+                NpcBindings.forget(entity);
+                return;
+            }
+        }
+        untag.computeIfAbsent(holder, uuid -> new java.util.ArrayList<>()).add(tag);
+        setDirty();
+    }
+
+    /**
+     * The holder of a part did not come back after all (its binding no longer has it come back, its kind no longer
+     * loads, its dimension is gone; November 9, 2026: before, the part stayed his for good, a waypoint led to his grave
+     * and nobody else was ever picked): the part ends, as when it dies without coming back.
+     */
+    static void notBack(MinecraftServer server, UUID holder) {
+        NpcParts data = get(server);
+        data.parts.replaceAll((id, part) -> {
+            if (part.ended() || !part.holder().equals(holder)) {
+                return part;
+            }
+            data.setDirty();
+            Storybound.LOGGER.debug("Storybound: NPC {} did not come back: its part has ended", id);
+            return new Part(part.holder(), part.dimension(), part.pos(), true);
+        });
+    }
+
     /** Whether a binding by hand (or one stored on the entity) is for the entity. */
     private static boolean byHand(Entity entity) {
         return entity.hasData(DialogueRegistries.NPC_BINDING)
@@ -179,8 +233,8 @@ public final class NpcParts extends SavedData {
     }
 
     /**
-     * Frees a part, to try a picking again: its tag is taken off the holder while it is loaded (left on an unloaded one,
-     * where it does nothing). For {@code /storybound debug npc part <npc> reset} and tests.
+     * Frees a part, to try a picking again: its tag is taken off the holder, now while it is loaded, else when it is next
+     * worked out. For {@code /storybound debug npc part <npc> reset}, the form's button and tests.
      *
      * @return whether there was a part
      */
@@ -191,13 +245,7 @@ public final class NpcParts extends SavedData {
             return false;
         }
         data.setDirty();
-        for (ServerLevel level : server.getAllLevels()) {
-            Entity holder = level.getEntity(part.holder());
-            if (holder != null) {
-                holder.removeTag(tagOf(binding));
-                NpcBindings.forget(holder);
-            }
-        }
+        data.takeTag(server, part.holder(), tagOf(binding));
         return true;
     }
 
@@ -226,14 +274,27 @@ public final class NpcParts extends SavedData {
         Codec.unboundedMap(ResourceLocation.CODEC, Part.CODEC).parse(NbtOps.INSTANCE, tag.get("parts"))
                 .resultOrPartial(error -> Storybound.LOGGER.error("Storybound: failed to load the NPCs' parts: {}", error))
                 .ifPresent(data.parts::putAll);
+        if (tag.contains("untag")) {
+            UNTAG.parse(NbtOps.INSTANCE, tag.get("untag"))
+                    .resultOrPartial(error -> Storybound.LOGGER.error("Storybound: failed to load the tags to take off NPCs: {}", error))
+                    .ifPresent(map -> map.forEach((uuid, tags) -> data.untag.put(uuid, new java.util.ArrayList<>(tags))));
+        }
         return data;
     }
+
+    /** Entity uuid → tags to take off it. */
+    private static final Codec<Map<UUID, List<String>>> UNTAG = Codec.unboundedMap(UUIDUtil.STRING_CODEC, Codec.STRING.listOf());
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         Codec.unboundedMap(ResourceLocation.CODEC, Part.CODEC).encodeStart(NbtOps.INSTANCE, parts)
                 .resultOrPartial(error -> Storybound.LOGGER.error("Storybound: failed to save the NPCs' parts: {}", error))
                 .ifPresent(map -> tag.put("parts", map));
+        if (!untag.isEmpty()) {
+            UNTAG.encodeStart(NbtOps.INSTANCE, untag)
+                    .resultOrPartial(error -> Storybound.LOGGER.error("Storybound: failed to save the tags to take off NPCs: {}", error))
+                    .ifPresent(map -> tag.put("untag", map));
+        }
         return tag;
     }
 
@@ -241,6 +302,7 @@ public final class NpcParts extends SavedData {
     public static void clearForTests(MinecraftServer server) {
         NpcParts data = get(server);
         data.parts.clear();
+        data.untag.clear();
         data.setDirty();
     }
 

@@ -18,7 +18,8 @@ import net.minecraft.util.StringRepresentable;
  * or a hit), and a phrases node names nothing.
  *
  * @param order {@code random}: one at random, never the same twice in a row; {@code sequence}: top to bottom, then the
- *              last one again
+ *              last one again (lines that build up: "Careful!", "Last warning!"); {@code loop}: top to bottom, then from
+ *              the top again (chatter going round)
  */
 public record PhrasesDefinition(Order order, List<StoryText> lines) {
     /** An old line {@code { "dialogue": id }}, read only to say where it goes now. */
@@ -38,7 +39,9 @@ public record PhrasesDefinition(Order order, List<StoryText> lines) {
 
     public enum Order implements StringRepresentable {
         RANDOM("random"),
-        SEQUENCE("sequence");
+        SEQUENCE("sequence"),
+        // Top to bottom, then from the top again (November 9, 2026): chatter that goes round, where "sequence" stays on its last.
+        LOOP("loop");
 
         public static final Codec<Order> CODEC = StringRepresentable.fromEnum(Order::values);
 

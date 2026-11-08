@@ -9,15 +9,11 @@
       "entity": "minecraft:villager",
       "tag": "scenario_mira",
       "unique": true,
-      "name": "scenario.ambush.mira",
       "offset": [
         2,
         0,
         2
-      ],
-      "nbt": {
-        "CustomNameVisible": true
-      }
+      ]
     },
     {
       "type": "set_quest_state",

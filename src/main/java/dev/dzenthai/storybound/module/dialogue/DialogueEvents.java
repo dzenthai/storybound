@@ -71,7 +71,6 @@ public final class DialogueEvents {
                 entry.dialogue().ifPresent(references::dialogue);
                 entry.conditions().collectReferences(references);
             });
-            binding.busyDialogue().ifPresent(references::dialogue);
             binding.whenAttacked().flatMap(NpcBinding.WhenAttacked::dialogue).ifPresent(references::dialogue);
             binding.chatter().ifPresent(chatter -> {
                 chatter.conditions().collectReferences(references);
@@ -278,6 +277,8 @@ public final class DialogueEvents {
             binding.dialogues().forEach(entry -> entry.phrases().flatMap(PhrasesRef::node)
                     .filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
                     .ifPresent(phrases -> bindingError.accept("dialogues: unknown phrases " + phrases)));
+            binding.busy().flatMap(PhrasesRef::node).filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
+                    .ifPresent(phrases -> bindingError.accept("busy: unknown phrases " + phrases));
             binding.chatter().ifPresent(chatter -> {
                 chatter.allPhrases().forEach(said -> said.node().filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
                         .ifPresent(phrases -> bindingError.accept("chatter: unknown phrases " + phrases)));

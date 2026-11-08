@@ -9,15 +9,11 @@
       "entity": "minecraft:iron_golem",
       "tag": "scenario_kamen",
       "unique": true,
-      "name": "scenario.shoulder.kamen",
       "offset": [
         2,
         0,
         0
-      ],
-      "nbt": {
-        "CustomNameVisible": true
-      }
+      ]
     },
     {
       "type": "set_quest_state",

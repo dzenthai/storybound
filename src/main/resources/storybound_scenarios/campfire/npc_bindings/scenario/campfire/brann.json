@@ -1,4 +1,5 @@
 {
+  "display_name": "scenario.campfire.brann",
   "entity": {
     "type": "minecraft:iron_golem",
     "tag": "scenario_brann"

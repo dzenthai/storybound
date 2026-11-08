@@ -1,0 +1,7 @@
+{
+  "order": "random",
+  "lines": [
+    "scenario.village.greet.hello",
+    "scenario.village.greet.busy"
+  ]
+}

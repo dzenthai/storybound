@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -267,6 +268,15 @@ final class FormView {
     }
 
     /** {@code stages.hunt.objectives.wolves.}: list elements by their id when they have one, for stable text keys. */
+    /**
+     * The key of a list's texts, before the item's index: the list's path already ends with its field, named once
+     * ("npc_50.names.0"; November 9, 2026: before, "npc_50.names.names.0"; keys already written stay as they are).
+     */
+    private String listKey(List<Object> path, String field) {
+        boolean named = !path.isEmpty() && field.equals(path.getLast());
+        return host.textKey(keyPath(named ? path.subList(0, path.size() - 1) : path), field);
+    }
+
     private String keyPath(List<Object> path) {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < path.size(); i++) {
@@ -528,6 +538,11 @@ final class FormView {
             if (npc && name.equals("dialogues")) {
                 relationshipField(host.npcBinding());
             }
+            if (npc && name.equals("busy") && (object == null || !object.has("busy"))) {
+                // Without it, others get nothing while it talks, not even the talk hint (November 9, 2026: an author
+                // wondered where the second player's button had gone).
+                text(DevUi.text("npc.busy_missing"), DevUi.MUTED);
+            }
         }
         if (npc && isOneNode(object)) {
             npcPicked();
@@ -552,7 +567,7 @@ final class FormView {
             "interact", "npc.group.start",
             "exclusive", "npc.group.players");
     /** The NPC form's order after "Who it is", as the schema lists it. */
-    private static final List<String> NPC_ORDER = List.of("dialogues", "interact", "override_interact", "proximity", "exclusive", "busy_dialogue",
+    private static final List<String> NPC_ORDER = List.of("dialogues", "interact", "override_interact", "proximity", "exclusive", "busy",
             "chatter", "when_attacked", "invulnerable", "respawn", "custom");
 
     /**
@@ -562,7 +577,7 @@ final class FormView {
     private static boolean npcFieldShown(String name, @Nullable JsonObject binding) {
         return switch (name) {
             case "override_interact" -> flag(binding, "interact", true) || flag(binding, "override_interact", false);
-            case "busy_dialogue" -> flag(binding, "exclusive", false) || binding != null && binding.has("busy_dialogue");
+            case "busy" -> flag(binding, "exclusive", false) || binding != null && binding.has("busy");
             default -> true;
         };
     }
@@ -604,11 +619,16 @@ final class FormView {
                 text(DevUi.text("npc.known_from_file", known), DevUi.MUTED);
             }
             npcLink(ENTITY, selector);
+            if (binding.has("share")) {
+                // Not used by hand (the validator says so): shown while written, to take it out.
+                npcShare(binding);
+            }
             npcNames(schema, binding, true, false);
             return;
         }
         npcCount(one);
-        if (!one) {
+        if (!one || binding != null && binding.has("share")) {
+            // For all such; a "one" file still writing it shows it, to take it out.
             npcShare(binding);
         }
         if (mayHaveVillagerData(selector) || selector != null && (selector.has("profession") || selector.has("outfit"))) {
@@ -737,20 +757,42 @@ final class FormView {
                 commit();
             }
 
+            /**
+             * The arrows move it by 1%, Enter or leaving it writes it (November 9, 2026: before, each key wrote it and
+             * rebuilt the form, the slider losing its focus after one step).
+             */
             @Override
             public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-                boolean moved = super.keyPressed(keyCode, scanCode, modifiers);
-                if (moved) {
+                if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT || keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT) {
+                    int next = Math.clamp(percent() + (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT ? 1 : -1), 1, 100);
+                    value = (next - 1) / 99.0;
+                    updateMessage();
+                    return true;
+                }
+                if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER || keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER) {
+                    commit();
+                    return true;
+                }
+                return super.keyPressed(keyCode, scanCode, modifiers);
+            }
+
+            @Override
+            public void setFocused(boolean focused) {
+                super.setFocused(focused);
+                if (!focused) {
                     commit();
                 }
-                return moved;
             }
+
+            /** Written once: the form is rebuilt after it, and this slider, gone, loses its focus (which writes) again. */
+            private boolean done;
 
             private void commit() {
                 int percent = percent();
-                if (percent == written) {
+                if (done || percent == written) {
                     return;
                 }
+                done = true;
                 if (percent >= 100) {
                     host.root().remove("share");
                 } else {
@@ -788,14 +830,27 @@ final class FormView {
             return;
         }
         ResourceLocation npc = host.npcBinding();
-        Button button = Button.builder(DevUi.text("npc.picked.reset"), b -> {
-            if (Minecraft.getInstance().getConnection() != null) {
-                Minecraft.getInstance().getConnection().sendCommand("storybound debug npc part " + npc + " reset");
+        // Two clicks (November 9, 2026): the first asks, the second frees the part; a pick cannot be undone.
+        boolean armed = Util.getMillis() < resetArmedUntil;
+        Button button = Button.builder(DevUi.text(armed ? "npc.picked.reset.sure" : "npc.picked.reset"), b -> {
+            if (Util.getMillis() < resetArmedUntil) {
+                resetArmedUntil = 0;
+                if (Minecraft.getInstance().getConnection() != null) {
+                    Minecraft.getInstance().getConnection().sendCommand("storybound debug npc part " + npc + " reset");
+                }
+            } else {
+                resetArmedUntil = Util.getMillis() + RESET_CONFIRM_MILLIS;
             }
+            screen.rebuild();
         }).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build();
         button.setTooltip(Tooltip.create(DevUi.text("npc.picked.reset.tooltip")));
         screen.add(button);
     }
+
+    /** How long the "forget the one picked" button waits for its second click. */
+    private static final long RESET_CONFIRM_MILLIS = 4000;
+    /** Until when the button asks "Sure?"; 0 when it does not. */
+    private long resetArmedUntil;
 
     /**
      * A filter that is yes, no or not given, as one switch going round: age ("Any / Grown-ups only / Children only") and
@@ -829,11 +884,32 @@ final class FormView {
     private static Picker professions() {
         List<Entry> entries = new ArrayList<>();
         for (ResourceLocation id : BuiltInRegistries.VILLAGER_PROFESSION.keySet().stream().sorted(java.util.Comparator.comparing(ResourceLocation::toString)).toList()) {
-            String key = "entity." + id.getNamespace() + ".villager." + id.getPath();
+            // As the game names a villager by its job: "entity.minecraft.villager.farmer", a mod's with its namespace
+            // ("entity.minecraft.villager.villagersplus.alchemist"; November 9, 2026: before, a mod's showed its id).
+            String key = "entity.minecraft.villager." + (id.getNamespace().equals("minecraft") ? "" : id.getNamespace() + ".") + id.getPath();
             String name = Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : id.getPath();
-            entries.add(new Entry(id.toString(), id.getPath().equals("none") ? DevUi.str("npc.profession.none") : name, ItemStack.EMPTY));
+            entries.add(new Entry(id.toString(), id.getPath().equals("none") ? DevUi.str("npc.profession.none") : name,
+                    workstation(BuiltInRegistries.VILLAGER_PROFESSION.get(id))));
         }
         return Picker.rows(entries, DevUi.text("field.profession"), DevUi.text("npc.pick_empty"));
+    }
+
+    /**
+     * The block a villager takes the job at, as an item for its row (the lectern for a librarian, a mod's Alchemist
+     * Table): November 9, 2026, so the author sees what to place to get one. Empty for the jobless and the nitwit.
+     */
+    private static ItemStack workstation(net.minecraft.world.entity.npc.VillagerProfession profession) {
+        for (net.minecraft.core.Holder<net.minecraft.world.entity.ai.village.poi.PoiType> poi : BuiltInRegistries.POINT_OF_INTEREST_TYPE.holders().toList()) {
+            if (profession.heldJobSite().test(poi)) {
+                for (net.minecraft.world.level.block.state.BlockState state : poi.value().matchingStates()) {
+                    ItemStack item = new ItemStack(state.getBlock().asItem());
+                    if (!item.isEmpty()) {
+                        return item;
+                    }
+                }
+            }
+        }
+        return ItemStack.EMPTY;
     }
 
     /** Villager types, the clothes they were born in (plains, desert, snow...). */
@@ -844,6 +920,19 @@ final class FormView {
             entries.add(new Entry(id.toString(), Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : id.getPath(), ItemStack.EMPTY));
         }
         return Picker.rows(entries, DevUi.text("field.outfit"), DevUi.text("npc.pick_empty"));
+    }
+
+    /**
+     * Whether an instance of the kind has villager data. A mod's kind whose constructor fails on a client (it reaches for
+     * something of the server's) counts as maybe (November 9, 2026: before, it would take the editor down).
+     */
+    private static boolean hasVillagerData(net.minecraft.world.entity.EntityType<?> type, net.minecraft.client.multiplayer.ClientLevel level) {
+        try {
+            return type.create(level) instanceof net.minecraft.world.entity.npc.VillagerDataHolder;
+        } catch (RuntimeException | LinkageError e) {
+            Storybound.LOGGER.debug("Storybound: could not make a {} to see whether it is a villager: {}", BuiltInRegistries.ENTITY_TYPE.getKey(type), e.toString());
+            return true;
+        }
     }
 
     /** Whether each concrete kind has villager data, worked out on a client-only instance (as portraits do). */
@@ -866,7 +955,7 @@ final class FormView {
                 return true;
             }
             net.minecraft.world.entity.EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.get(key);
-            if (VILLAGER_DATA.computeIfAbsent(entityType, created -> created.create(level) instanceof net.minecraft.world.entity.npc.VillagerDataHolder)) {
+            if (VILLAGER_DATA.computeIfAbsent(entityType, created -> hasVillagerData(created, level))) {
                 return true;
             }
         }
@@ -2541,7 +2630,9 @@ final class FormView {
             // A click entry's or a hit's dialogue is the third way of its phrases' switch, shown there.
             return;
         }
-        if ((name.equals("phrases") || name.equals("warning")) && phrasesOwner) {
+        // An NPC's busy line is said as its phrases are: its own text or a phrases node (November 9, 2026).
+        boolean busyLine = name.equals("busy") && path.isEmpty() && host.npcBinding() != null;
+        if ((name.equals("phrases") || name.equals("warning")) && phrasesOwner || busyLine) {
             phrasesField(path, name, value, label, owner);
             return;
         }
@@ -3130,7 +3221,7 @@ final class FormView {
                 if (!ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage())) {
                     box.setHint(Component.literal(ClientDevStore.readStoryTextAt(array, i, ClientDevStore.sourceLanguage())));
                 }
-                String key = host.textKey(keyPath(path), field) + "." + i;
+                String key = listKey(path, field) + "." + i;
                 box.setResponder(text -> {
                     JsonArray list = ensureArray(path);
                     if (index < list.size()) {
@@ -3247,7 +3338,7 @@ final class FormView {
     private void phraseRow(List<Object> path, String field, JsonArray array, int index, int rowY, int width) {
         int right = x;
         int rightW = width;
-        String key = host.textKey(keyPath(path), field) + "." + index;
+        String key = listKey(path, field) + "." + index;
         EditBox box = new EditBox(screen.font(), right, rowY + 1, rightW - 20, CONTROL_H - 2, Component.empty());
         box.setMaxLength(1024);
         box.setValue(ClientDevStore.readStoryTextAt(array, index, ClientDevStore.activeLanguage()));
@@ -3555,6 +3646,11 @@ final class FormView {
                 put(ensureParent(path), path, path.size() - 1, Schemas.skeleton(next));
                 host.changed();
             }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
+        }
+        if (target && Schemas.required(variants.get(current)).contains("nearest")) {
+            // It finds only what is loaded near the player (November 9, 2026: a quest pointing at "the nearest alchemist"
+            // from its start showed nothing in a new world).
+            text(DevUi.text("waypoint.kind.nearest.note"), DevUi.MUTED);
         }
         objectPage(path, variants.get(current), Set.of(), null);
     }
@@ -4126,13 +4222,14 @@ final class FormView {
         ResourceLocation story = switch (field) {
             case "content" -> Schemas.properties(owner).containsKey("journal") ? ClientDevStore.TYPE_DOCUMENT : null;
             case "quest" -> ClientDevStore.TYPE_QUEST;
-            case "dialogue", "busy_dialogue" -> ClientDevStore.TYPE_DIALOGUE;
+            case "dialogue" -> ClientDevStore.TYPE_DIALOGUE;
             case "document" -> ClientDevStore.TYPE_DOCUMENT;
             case "boss" -> ClientDevStore.TYPE_BOSS;
-            case "phrases", "warning" -> ClientDevStore.TYPE_PHRASES;
+            case "phrases", "warning", "busy" -> ClientDevStore.TYPE_PHRASES;
             case "entry" -> ClientDevStore.TYPE_CODEX;
             case "waypoint" -> ClientDevStore.TYPE_WAYPOINT;
             case "key", "variant_by" -> ClientDevStore.TYPE_FLAG;
+            case "npc" -> Schemas.properties(owner).containsKey("range") ? ClientDevStore.TYPE_NPC : null;
             default -> null;
         };
         if (story != null) {

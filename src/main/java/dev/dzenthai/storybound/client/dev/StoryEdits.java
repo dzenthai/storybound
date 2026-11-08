@@ -345,8 +345,8 @@ final class StoryEdits {
             changed = true;
         }
         if (target.type().equals(ClientDevStore.TYPE_PHRASES)) {
-            // When hit: the phrases or the warnings named go, the reaction stays.
-            for (String field : List.of("phrases", "warning")) {
+            // When hit: the phrases or the warnings named go, the reaction stays; the busy line goes (November 9, 2026).
+            for (String field : List.of("phrases", "warning", "busy")) {
                 if (isId(object.get(field), id)) {
                     object.remove(field);
                     changed = true;

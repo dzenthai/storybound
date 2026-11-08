@@ -97,7 +97,9 @@ public final class DocumentGameTests {
         helper.assertTrue(DialogueRegistries.DIALOGUES.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath("demo", "elder")) != null,
                 "and its dialogues");
         for (String scenario : StoryFolder.scenarios()) {
-            helper.assertTrue(QuestRegistries.QUESTS.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath(StoryFolder.SCENARIO, scenario + "/quest")) != null,
+            // The village is left out of the test story (its NPCs are every villager) and checked alone in ScenarioGameTests.
+            helper.assertTrue(scenario.equals("village")
+                            || QuestRegistries.QUESTS.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath(StoryFolder.SCENARIO, scenario + "/quest")) != null,
                     "scenario " + scenario + " has its quest");
             // The server knows the mod's English only; both languages' keys are compared by the lang check.
             helper.assertTrue(net.minecraft.locale.Language.getInstance().has(StoryFolder.SCENARIO + "." + scenario + ".hint"),

@@ -50,7 +50,7 @@
   "demo.dialogue.elder.node.trusted.text": "Ты друг Брода. Я бы доверил тебе колокол.",
   "demo.dialogue.elder.node.what.text": "Чего тебе, путник?",
   "demo.dialogue.elder.participants.narrator.name": "Рассказчик",
-  "demo.dialogue.elder_busy.node.busy.text": "Погоди, я говорю с другим путником.",
+  "demo.npc.elder.busy": "Погоди, я говорю с другим путником.",
   "demo.dialogue.elder_meeting.node.accepted.text": "Тогда держи дневник Тихона. Запасись факелами: Жнец не любит огня. И приходи ко мне после заката.",
   "demo.dialogue.elder_meeting.node.bread.text": "Тёплый хлеб от чужака… Давно такого не было. Спасибо.",
   "demo.dialogue.elder_meeting.node.cat.text": "Ха! Ты ещё мою кошку не видел. Вот где работа.",

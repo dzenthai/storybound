@@ -39,7 +39,9 @@ import org.jetbrains.annotations.Nullable;
  * @param proximity coming close starts it
  * @param custom    right-click posts {@code npcInteract} to scripts, which decide what happens
  * @param exclusive while the NPC talks with one player, others cannot start its dialogues (parallel talks are the default)
- * @param busyDialogue what others get meanwhile, e.g. a bubble "Wait, I am busy"; without it, nothing
+ * @param busy         what others get meanwhile: a line in a bubble ("Wait, I am busy"), the next of its phrases each time;
+ *                     without it, nothing (November 9, 2026; before, {@code busy_dialogue} started a dialogue with them, which an
+ *                     NPC busy talking should not)
  * @param respawn   the NPC comes back where it died or disappeared (see {@link NpcRespawns})
  * @param invulnerable nothing hurts the NPC but the void and {@code /kill} (see {@link NpcReactions})
  * @param whenAttacked what the NPC does when a player hits it; without it, what its kind does in vanilla
@@ -62,7 +64,7 @@ import org.jetbrains.annotations.Nullable;
  * the binding below", the default when none writes it: {@code interact} and {@code show_name} on, the rest off).
  */
 public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, Optional<Boolean> interact, Optional<Proximity> proximity,
-                         Optional<Boolean> custom, Optional<Boolean> overrideInteract, Optional<Boolean> exclusive, Optional<ResourceLocation> busyDialogue,
+                         Optional<Boolean> custom, Optional<Boolean> overrideInteract, Optional<Boolean> exclusive, Optional<PhrasesRef> busy,
                          Optional<Boolean> respawn, Optional<Boolean> invulnerable, Optional<WhenAttacked> whenAttacked, Optional<Chatter> chatter,
                          Optional<Boolean> showName, Optional<StoryText> displayName, List<StoryText> names, boolean one,
                          Optional<Integer> share) {
@@ -70,6 +72,16 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
     private static final Codec<List<EntitySelector>> ENTITIES = Codec.either(EntitySelector.CODEC, ExtraCodecs.nonEmptyList(EntitySelector.CODEC.listOf()))
             .xmap(either -> either.map(List::of, Function.identity()),
                     entities -> entities.size() == 1 ? Either.left(entities.getFirst()) : Either.right(entities));
+
+    /**
+     * What others get while it talks with one player: a line in a bubble. {@code busy_dialogue}, a dialogue, is gone
+     * (November 9, 2026): a file still writing it fails with a word on what to write instead.
+     */
+    private static final MapCodec<Optional<PhrasesRef>> BUSY = Codec.mapPair(PhrasesRef.CODEC.optionalFieldOf("busy"), Codec.STRING.optionalFieldOf("busy_dialogue"))
+            .flatXmap(pair -> pair.getSecond().isPresent()
+                            ? DataResult.<Optional<PhrasesRef>>error(() -> "busy_dialogue is gone: write busy, a line said in a bubble (a phrases node or { \"text\": ... })")
+                            : DataResult.success(pair.getFirst()),
+                    busy -> DataResult.success(Pair.of(busy, Optional.<String>empty())));
 
     /** How many of those it matches it is: {@code one}, and {@code share} (1 to 100 per cent). */
     private static final MapCodec<Pair<Boolean, Optional<Integer>>> CROWD = Codec.mapPair(
@@ -83,7 +95,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
             Codec.BOOL.optionalFieldOf("custom").forGetter(NpcBinding::custom),
             Codec.BOOL.optionalFieldOf("override_interact").forGetter(NpcBinding::overrideInteract),
             Codec.BOOL.optionalFieldOf("exclusive").forGetter(NpcBinding::exclusive),
-            ResourceLocation.CODEC.optionalFieldOf("busy_dialogue").forGetter(NpcBinding::busyDialogue),
+            BUSY.forGetter(NpcBinding::busy),
             Codec.BOOL.optionalFieldOf("respawn").forGetter(NpcBinding::respawn),
             Codec.BOOL.optionalFieldOf("invulnerable").forGetter(NpcBinding::invulnerable),
             WhenAttacked.CODEC.optionalFieldOf("when_attacked").forGetter(NpcBinding::whenAttacked),
@@ -93,9 +105,9 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
             StoryText.CODEC.listOf().optionalFieldOf("names", List.of()).forGetter(NpcBinding::names),
             // Two fields as one: a record codec takes at most 16.
             CROWD.forGetter(binding -> Pair.of(binding.one(), binding.share()))
-    ).apply(instance, (entities, dialogues, interact, proximity, custom, overrideInteract, exclusive, busyDialogue, respawn, invulnerable,
+    ).apply(instance, (entities, dialogues, interact, proximity, custom, overrideInteract, exclusive, busy, respawn, invulnerable,
                        whenAttacked, chatter, showName, displayName, names, crowd) -> new NpcBinding(entities, dialogues, interact, proximity, custom,
-            overrideInteract, exclusive, busyDialogue, respawn, invulnerable, whenAttacked, chatter, showName, displayName, names, crowd.getFirst(),
+            overrideInteract, exclusive, busy, respawn, invulnerable, whenAttacked, chatter, showName, displayName, names, crowd.getFirst(),
             crowd.getSecond())));
 
     /**

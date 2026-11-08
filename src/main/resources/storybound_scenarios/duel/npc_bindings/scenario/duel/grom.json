@@ -1,4 +1,5 @@
 {
+  "display_name": "scenario.duel.grom",
   "entity": {
     "type": "minecraft:vindicator",
     "tag": "scenario_grom"

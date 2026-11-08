@@ -1,4 +1,5 @@
 {
+  "display_name": "scenario.last_stand.tikhon",
   "entity": {
     "type": "minecraft:villager",
     "tag": "scenario_tikhon"

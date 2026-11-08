@@ -1,4 +1,5 @@
 {
+  "display_name": "scenario.ambush.mira",
   "entity": {
     "type": "minecraft:villager",
     "tag": "scenario_mira"

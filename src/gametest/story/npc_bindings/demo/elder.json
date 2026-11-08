@@ -56,6 +56,8 @@
   },
   "override_interact": true,
   "exclusive": true,
-  "busy_dialogue": "demo:elder_busy",
+  "busy": {
+    "text": "demo.npc.elder.busy"
+  },
   "respawn": true
 }

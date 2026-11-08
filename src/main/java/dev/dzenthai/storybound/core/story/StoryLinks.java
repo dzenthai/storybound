@@ -86,6 +86,10 @@ public final class StoryLinks {
                 }
             }
             phrasesOf(obj, "when_attacked").ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "hit")));
+            // The busy line (November 9, 2026), a phrases node or a text of its own.
+            if (obj.get("busy") instanceof JsonPrimitive busy) {
+                parseId(busy.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "busy")));
+            }
             if (obj.get("when_attacked") instanceof JsonObject hit && hit.get("warning") instanceof JsonPrimitive warning) {
                 parseId(warning.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "warning")));
             }

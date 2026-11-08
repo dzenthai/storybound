@@ -1,0 +1,7 @@
+{
+  "order": "random",
+  "lines": [
+    "scenario.village.guard.halt",
+    "scenario.village.guard.quiet"
+  ]
+}

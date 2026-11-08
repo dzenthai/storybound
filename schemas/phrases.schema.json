@@ -7,8 +7,8 @@
   "additionalProperties": false,
   "properties": {
     "order": {
-      "description": "random: one at random, never the same twice in a row. sequence: top to bottom, then the last one again.",
-      "enum": ["random", "sequence"],
+      "description": "random: one at random, never the same twice in a row. sequence: top to bottom, then the last one again (lines that build up: \"Careful!\", \"Last warning!\"). loop: top to bottom, then from the top again (chatter going round).",
+      "enum": ["random", "sequence", "loop"],
       "default": "random"
     },
     "lines": {

@@ -83,8 +83,12 @@ public final class NpcNames {
         }
         Set<Entity> seen = new HashSet<>();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            for (Entity entity : player.level().getEntities(player, player.getBoundingBox().inflate(REACH),
-                    candidate -> candidate instanceof LivingEntity && !(candidate instanceof Player))) {
+            List<Entity> around = new java.util.ArrayList<>(player.level().getEntities(player, player.getBoundingBox().inflate(REACH),
+                    candidate -> candidate instanceof LivingEntity && !(candidate instanceof Player)));
+            // Nearest first: "one" picks the fitting entity nearest the player (November 9, 2026; before, the first the
+            // level listed, maybe one behind a wall rather than the villager in front of them).
+            around.sort(java.util.Comparator.comparingDouble(entity -> entity.distanceToSqr(player)));
+            for (Entity entity : around) {
                 if (seen.add(entity)) {
                     // A part picked first, so its holder is named as that NPC at once.
                     NpcParts.consider(entity);

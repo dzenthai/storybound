@@ -1,0 +1,18 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:village"
+  },
+  "actions": [
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:village/quest",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:village/quest",
+      "state": "active"
+    }
+  ]
+}

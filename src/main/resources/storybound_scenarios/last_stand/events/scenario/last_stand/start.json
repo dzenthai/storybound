@@ -9,15 +9,11 @@
       "entity": "minecraft:villager",
       "tag": "scenario_tikhon",
       "unique": true,
-      "name": "scenario.last_stand.tikhon",
       "offset": [
         2,
         0,
         0
-      ],
-      "nbt": {
-        "CustomNameVisible": true
-      }
+      ]
     },
     {
       "type": "set_quest_state",

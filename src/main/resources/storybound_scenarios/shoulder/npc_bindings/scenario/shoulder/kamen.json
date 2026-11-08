@@ -1,4 +1,5 @@
 {
+  "display_name": "scenario.shoulder.kamen",
   "entity": {
     "type": "minecraft:iron_golem",
     "tag": "scenario_kamen"

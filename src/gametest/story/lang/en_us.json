@@ -50,7 +50,7 @@
   "demo.dialogue.elder.node.trusted.text": "You're a friend of the Ford. I'd trust you with the bell.",
   "demo.dialogue.elder.node.what.text": "What do you need, traveller?",
   "demo.dialogue.elder.participants.narrator.name": "Narrator",
-  "demo.dialogue.elder_busy.node.busy.text": "Hold on, I'm talking with another traveller.",
+  "demo.npc.elder.busy": "Hold on, I'm talking with another traveller.",
   "demo.dialogue.elder_meeting.node.accepted.text": "Then take Tikhon's journal. Stock up on torches: the Reaper hates fire. And come to me after sunset.",
   "demo.dialogue.elder_meeting.node.bread.text": "Warm bread from a stranger... It's been a long time. Thank you.",
   "demo.dialogue.elder_meeting.node.cat.text": "Ha! You haven't met my cat yet. Now that is work.",

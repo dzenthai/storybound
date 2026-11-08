@@ -1,0 +1,6 @@
+{
+  "name": "scenario.village.elder",
+  "target": {
+    "npc": "scenario:village/elder"
+  }
+}

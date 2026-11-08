@@ -55,6 +55,13 @@ public final class ScenarioGameTests {
                     expect(helper, tagged(helper, player, EntityType.VILLAGER, "scenario_tikhon").size(), 1, "last_stand: Tikhon");
                     expect(helper, status(player, "campfire"), Optional.of(QuestStatus.ACTIVE), "campfire's quest");
                     expect(helper, status(player, "last_stand"), Optional.of(QuestStatus.ACTIVE), "last_stand's quest");
+                    // His name is his node's now (November 8, 2026; before, the spawn wrote it): put on as names are, always shown.
+                    Entity brann = tagged(helper, player, EntityType.IRON_GOLEM, "scenario_brann").getFirst();
+                    dev.dzenthai.storybound.module.dialogue.NpcNames.apply(brann);
+                    helper.assertTrue(brann.getCustomName() != null && brann.getCustomName().getContents()
+                                    instanceof net.minecraft.network.chat.contents.TranslatableContents name && name.getKey().equals("scenario.campfire.brann"),
+                            "Brann named by his node: " + brann.getCustomName());
+                    helper.assertTrue(brann.isCustomNameVisible(), "his name always over his head");
                     fire(player, "campfire");
                     expect(helper, tagged(helper, player, EntityType.IRON_GOLEM, "scenario_brann").size(), 1, "run again: still one Brann");
                     fire(player, "ambush");
@@ -67,6 +74,97 @@ public final class ScenarioGameTests {
                         "out of a fight (the mock player is not targeted), Mira's story starts"))
                 .thenExecute(() -> done(helper, player))
                 .thenSucceed();
+    }
+
+    /**
+     * The village scenario (November 8, 2026, stage 6 of "Who an NPC is"). Its NPCs are every villager, so it is left
+     * out of the GameTest story (they would be every other test's villagers too) and loaded here alone, from the mod's
+     * own files as {@code /storybound debug scenario village} copies them: they load and the validator has nothing to say
+     * of them; each villager gets a name from the list, all different while it lasts; smiths have their node; a grown-up
+     * is a guard exactly when the roll puts it in the 30%, a child never; the Elder is "one" and its waypoint follows him.
+     * Taken out, the names go.
+     */
+    @GameTest(template = "open", batch = "scenario_village", timeoutTicks = 100)
+    public static void theVillageGivesEveryVillagerItsLayers(GameTestHelper helper) {
+        java.nio.file.Path folder = net.neoforged.fml.ModList.get().getModFileById(Storybound.MOD_ID).getFile().findResource("storybound_scenarios", "village");
+        net.minecraft.resources.RegistryOps<com.google.gson.JsonElement> ops = net.minecraft.resources.RegistryOps.create(
+                com.mojang.serialization.JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        java.util.Map<dev.dzenthai.storybound.core.data.DefinitionType<?>, java.util.Map<ResourceLocation, ?>> before = new java.util.LinkedHashMap<>();
+        List<dev.dzenthai.storybound.core.data.ValidationIssue> loading = new java.util.ArrayList<>();
+        dev.dzenthai.storybound.core.data.DefinitionTypes.all().forEach(type -> install(type, folder, ops, before, loading));
+        NpcBindings.rebuild();
+        List<net.minecraft.world.entity.npc.Villager> villagers = List.of(
+                villager(helper, 1, net.minecraft.world.entity.npc.VillagerProfession.FARMER),
+                villager(helper, 2, net.minecraft.world.entity.npc.VillagerProfession.ARMORER),
+                villager(helper, 3, net.minecraft.world.entity.npc.VillagerProfession.WEAPONSMITH),
+                villager(helper, 4, net.minecraft.world.entity.npc.VillagerProfession.NONE),
+                villager(helper, 5, net.minecraft.world.entity.npc.VillagerProfession.NONE),
+                villager(helper, 6, net.minecraft.world.entity.npc.VillagerProfession.NONE));
+        villagers.getLast().setAge(-24000);
+        ResourceLocation guards = id("village/guards");
+        try {
+            expect(helper, loading, List.of(), "every file of the village loads");
+            List<String> said = dev.dzenthai.storybound.core.data.ValidationService.validate().issues().stream()
+                    .filter(issue -> issue.entry() != null && issue.entry().getNamespace().equals("scenario") && issue.entry().getPath().startsWith("village/"))
+                    .map(issue -> issue.entry() + ": " + issue.message()).toList();
+            expect(helper, said, List.of(), "the validator has nothing to say of the village");
+
+            java.util.Set<String> names = new java.util.HashSet<>();
+            for (net.minecraft.world.entity.npc.Villager villager : villagers) {
+                dev.dzenthai.storybound.module.dialogue.NpcNames.apply(villager);
+                helper.assertTrue(villager.getCustomName() != null && villager.getCustomName().getContents()
+                                instanceof net.minecraft.network.chat.contents.TranslatableContents name && name.getKey().startsWith("scenario.village.name."),
+                        "a name from the list: " + villager.getCustomName());
+                names.add(((net.minecraft.network.chat.contents.TranslatableContents) villager.getCustomName().getContents()).getKey());
+                List<String> chain = NpcBindings.find(villager).map(found -> found.chain().stream().map(layer -> String.valueOf(layer.id())).toList()).orElse(List.of());
+                helper.assertTrue(chain.contains("scenario:village/villagers"), "every villager is a Villager: " + chain);
+                boolean smith = villager.getVillagerData().getProfession() != net.minecraft.world.entity.npc.VillagerProfession.FARMER
+                        && villager.getVillagerData().getProfession() != net.minecraft.world.entity.npc.VillagerProfession.NONE;
+                expect(helper, chain.contains("scenario:village/smiths"), smith, "a smith is a Smith: " + chain);
+                boolean guard = !villager.isBaby() && dev.dzenthai.storybound.module.dialogue.NpcBinding.inShare(villager.getUUID(), guards, 30);
+                expect(helper, chain.contains("scenario:village/guards"), guard, "a guard when grown and rolled into the 30%: " + chain);
+            }
+            expect(helper, names.size(), villagers.size(), "no two alike while the list lasts");
+            helper.assertTrue(dev.dzenthai.storybound.module.dialogue.DialogueRegistries.NPC_BINDINGS.serverStore().all().get(id("village/elder")).isOne(),
+                    "the Elder is one, picked by the mod");
+            helper.assertTrue(dev.dzenthai.storybound.module.waypoint.WaypointRegistries.WAYPOINTS.serverStore().all().get(id("village/elder")).target()
+                    instanceof dev.dzenthai.storybound.module.waypoint.WaypointTarget.Npc npc && npc.npc().equals(id("village/elder")), "the marker follows the Elder");
+        } finally {
+            before.forEach((type, definitions) -> restore(type, definitions));
+            NpcBindings.rebuild();
+        }
+        villagers.forEach(dev.dzenthai.storybound.module.dialogue.NpcNames::apply);
+        helper.assertTrue(villagers.stream().allMatch(villager -> villager.getCustomName() == null), "the village gone, the names it gave go");
+        helper.succeed();
+    }
+
+    private static net.minecraft.world.entity.npc.Villager villager(GameTestHelper helper, int x, net.minecraft.world.entity.npc.VillagerProfession profession) {
+        net.minecraft.world.entity.npc.Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, x, 1, 2);
+        villager.setVillagerData(villager.getVillagerData().setProfession(profession));
+        return villager;
+    }
+
+    /** A type's files of the folder put into its store beside what is there; what was there kept to give back. */
+    private static <T> void install(dev.dzenthai.storybound.core.data.DefinitionType<T> type, java.nio.file.Path folder,
+                                    net.minecraft.resources.RegistryOps<com.google.gson.JsonElement> ops,
+                                    java.util.Map<dev.dzenthai.storybound.core.data.DefinitionType<?>, java.util.Map<ResourceLocation, ?>> before,
+                                    List<dev.dzenthai.storybound.core.data.ValidationIssue> issues) {
+        java.util.Map<ResourceLocation, com.google.gson.JsonElement> files = new java.util.LinkedHashMap<>();
+        dev.dzenthai.storybound.core.data.ConfigStorySource.scan(folder, type, files, issues);
+        if (files.isEmpty()) {
+            return;
+        }
+        dev.dzenthai.storybound.core.data.DefinitionLoader.ParseResult<T> parsed = dev.dzenthai.storybound.core.data.DefinitionLoader.parse(type, files, ops);
+        issues.addAll(parsed.issues());
+        before.put(type, new java.util.LinkedHashMap<>(type.serverStore().all()));
+        java.util.Map<ResourceLocation, T> all = new java.util.LinkedHashMap<>(type.serverStore().all());
+        all.putAll(parsed.definitions());
+        type.serverStore().replace(all);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> void restore(dev.dzenthai.storybound.core.data.DefinitionType<T> type, java.util.Map<ResourceLocation, ?> definitions) {
+        type.serverStore().replace((java.util.Map<ResourceLocation, T>) definitions);
     }
 
     @GameTest(template = "open", batch = "scenario_brann", timeoutTicks = 400)

@@ -1,0 +1,30 @@
+{
+  "entity": {
+    "type": "minecraft:villager"
+  },
+  "names": [
+    "scenario.village.name.agna",
+    "scenario.village.name.bertil",
+    "scenario.village.name.ilsa",
+    "scenario.village.name.dagny",
+    "scenario.village.name.eirik",
+    "scenario.village.name.sigrun",
+    "scenario.village.name.torvald",
+    "scenario.village.name.ingrid"
+  ],
+  "dialogues": [
+    {
+      "phrases": "scenario:village/greet"
+    }
+  ],
+  "chatter": {
+    "phrases": "scenario:village/chatter",
+    "min_interval": 20,
+    "max_interval": 40,
+    "radius": 8
+  },
+  "when_attacked": {
+    "reaction": "flee",
+    "phrases": "scenario:village/hit"
+  }
+}

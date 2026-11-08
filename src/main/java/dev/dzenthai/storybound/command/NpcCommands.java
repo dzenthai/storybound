@@ -79,6 +79,11 @@ final class NpcCommands {
     private static int info(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         Entity entity = EntityArgument.getEntity(context, "entity");
         NpcBindings.forget(entity);
+        // Bindings it fits but for its roll: "guards (30%)" (November 9, 2026), also when nothing else is for it.
+        List<String> outOfShare = NpcBindings.outOfShare(entity);
+        if (!outOfShare.isEmpty()) {
+            context.getSource().sendSuccess(() -> Component.translatable("commands.storybound.npc.out_of_share", String.join(", ", outOfShare)), false);
+        }
         NpcBindings.Found found = NpcBindings.find(entity).orElse(null);
         if (found == null) {
             context.getSource().sendSuccess(() -> Component.translatable("commands.storybound.npc.none", entity.getDisplayName()), false);
@@ -86,7 +91,8 @@ final class NpcCommands {
         }
         // "elder (by tag or name) → smiths (by kind, 1 filter) → villagers (by kind)"
         String chain = String.join(" → ", found.chain().stream()
-                .map(layer -> name(layer) + " (" + layer.rank().describe() + (layer.tie() ? ", tie" : "") + ")").toList());
+                .map(layer -> name(layer) + " (" + layer.rank().describe()
+                        + layer.binding().crowdShare().map(share -> ", in its " + share + "%").orElse("") + (layer.tie() ? ", tie" : "") + ")").toList());
         // "display_name: elder; chatter: smiths; when_attacked: villagers"; the rest is the default.
         List<String> settings = new ArrayList<>();
         found.sources().forEach((key, layer) -> {

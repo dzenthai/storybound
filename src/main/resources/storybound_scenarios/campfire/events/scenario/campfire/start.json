@@ -9,15 +9,11 @@
       "entity": "minecraft:iron_golem",
       "tag": "scenario_brann",
       "unique": true,
-      "name": "scenario.campfire.brann",
       "offset": [
         3,
         0,
         0
-      ],
-      "nbt": {
-        "CustomNameVisible": true
-      }
+      ]
     },
     {
       "type": "set_quest_state",

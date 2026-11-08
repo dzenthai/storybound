@@ -1,0 +1,16 @@
+{
+  "entity": {
+    "type": "minecraft:villager",
+    "profession": [
+      "minecraft:armorer",
+      "minecraft:toolsmith",
+      "minecraft:weaponsmith"
+    ]
+  },
+  "chatter": {
+    "phrases": "scenario:village/smith",
+    "min_interval": 15,
+    "max_interval": 30,
+    "radius": 8
+  }
+}

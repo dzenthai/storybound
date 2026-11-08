@@ -9,15 +9,11 @@
       "entity": "minecraft:vindicator",
       "tag": "scenario_grom",
       "unique": true,
-      "name": "scenario.duel.grom",
       "offset": [
         7,
         0,
         0
-      ],
-      "nbt": {
-        "CustomNameVisible": true
-      }
+      ]
     },
     {
       "type": "set_quest_state",

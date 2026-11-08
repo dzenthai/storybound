@@ -1,0 +1,25 @@
+{
+  "category": "side",
+  "title": "scenario.village.quest.title",
+  "text": {
+    "active": "scenario.village.quest.text"
+  },
+  "stages": [
+    {
+      "id": "find",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "scenario.village.quest.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "scenario:village/elder"
+          }
+        }
+      ],
+      "waypoints": [
+        "scenario:village/elder"
+      ]
+    }
+  ]
+}

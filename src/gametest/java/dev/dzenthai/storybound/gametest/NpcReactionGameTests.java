@@ -579,6 +579,50 @@ public final class NpcReactionGameTests {
     }
 
     /**
+     * Phrases in order and round (November 9, 2026): of two lines, "sequence" says the first, the second, then the second
+     * again (lines that build up); "loop" says the first, the second, then the first again (chatter going round). A
+     * counter's position is the next line: the round one goes 1, 0, 1, the one in order 1, 2, 3 (staying on the last).
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
+    public static void phrasesInOrderStayOnTheLastAndRoundOnesGoRound(GameTestHelper helper) {
+        Villager round = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 3);
+        round.addTag("gt_round");
+        Villager inOrder = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 1, 3);
+        inOrder.addTag("gt_in_order");
+        ServerPlayer player = player(helper);
+        String lines = "\"lines\": [ { \"literal\": \"Wolves again...\" }, { \"literal\": \"A poor harvest.\" } ]";
+        Definitions defs = new Definitions()
+                .phrases("round_lines", "{ \"order\": \"loop\", " + lines + " }")
+                .phrases("in_order_lines", "{ \"order\": \"sequence\", " + lines + " }")
+                .binding("round", "{ \"entity\": { \"tag\": \"gt_round\" }, \"dialogues\": [ { \"phrases\": \"gametest:round_lines\" } ] }")
+                .binding("in_order", "{ \"entity\": { \"tag\": \"gt_in_order\" }, \"dialogues\": [ { \"phrases\": \"gametest:in_order_lines\" } ] }");
+        defs.install(helper);
+        String roundCounter = NpcPhrases.clickCounterFor(round, player, key("round"), 0);
+        String inOrderCounter = NpcPhrases.clickCounterFor(inOrder, player, key("in_order"), 0);
+        List<Integer> roundSeen = new java.util.ArrayList<>();
+        List<Integer> inOrderSeen = new java.util.ArrayList<>();
+        Runnable talk = () -> {
+            NpcBindings.talk(player, round);
+            NpcBindings.talk(player, inOrder);
+            roundSeen.add(NpcPhrases.position(roundCounter));
+            inOrderSeen.add(NpcPhrases.position(inOrderCounter));
+        };
+        helper.startSequence()
+                .thenExecute(talk)
+                .thenIdle(25)
+                .thenExecute(talk)
+                .thenIdle(25)
+                .thenExecute(talk)
+                .thenExecute(() -> {
+                    expect(helper, roundSeen, List.of(1, 0, 1), "round: first, second, the first again");
+                    expect(helper, inOrderSeen, List.of(1, 2, 3), "in order: first, second, the second again");
+                })
+                .thenExecute(() -> defs.uninstall(player))
+                .thenExecute(() -> remove(helper, player))
+                .thenSucceed();
+    }
+
+    /**
      * Phrases on a click (November 6, 2026): an entry of phrases says the next line in a bubble and starts no
      * conversation; the click is the NPC's (no trading), also a quick second one that says nothing (not more than one
      * phrase a second); once the story moves on (a flag), a higher entry's phrases apply and start at their first line.
@@ -948,6 +992,44 @@ public final class NpcReactionGameTests {
      * one at Villagers points at the nearest villager. Freed, the part goes to the next one worked out; with respawn
      * off, it ends when its holder is discarded and is never given again; the binding gone, the part is dropped.
      */
+    /**
+     * The Elder who was to come back but does not (November 9, 2026): picked, he dies while his binding has him come back
+     * (on by default for one), so his part waits; then the binding is changed to "respawn": false before his 5 seconds
+     * are up. Expected: when his time comes he stays gone and his part ends (before, it stayed his for good, a waypoint
+     * led to his grave and nobody was picked again).
+     */
+    @GameTest(template = "open", batch = "npc_parts_back", timeoutTicks = 300)
+    public static void aPartEndsWhenItsHolderDoesNotComeBack(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        NpcParts.clearForTests(server);
+        Villager miron = villager(helper, 3, VillagerProfession.FARMER, VillagerType.PLAINS);
+        miron.setNoAi(true);
+        ServerPlayer player = player(helper);
+        ResourceLocation elder = key("b_elder");
+        String elderJson = "{ \"entity\": { \"type\": \"minecraft:villager\", \"profession\": \"minecraft:farmer\" }, \"one\": true%s }";
+        Definitions defs = new Definitions().binding("b_elder", elderJson.formatted(""));
+        defs.install(helper);
+        helper.startSequence()
+                .thenExecute(() -> {
+                    NpcParts.consider(miron);
+                    expect(helper, NpcParts.part(server, elder).map(NpcParts.Part::holder), Optional.of(miron.getUUID()), "the Elder is picked");
+                    // The body removed at once, as the end of the death animation does.
+                    miron.kill();
+                    miron.remove(Entity.RemovalReason.KILLED);
+                    helper.assertFalse(NpcParts.part(server, elder).map(NpcParts.Part::ended).orElse(true), "dead, but to come back: the part waits");
+                    defs.binding("b_elder", elderJson.formatted(", \"respawn\": false")).install(helper);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(NpcParts.part(server, elder).map(NpcParts.Part::ended).orElse(false),
+                        "his time came, his binding no longer has him come back: the part has ended"))
+                .thenExecute(() -> helper.assertTrue(helper.getLevel().getEntity(miron.getUUID()) == null, "and he stays gone"))
+                .thenExecute(() -> {
+                    defs.uninstall(player);
+                    NpcParts.clearForTests(server);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
     @GameTest(template = "open", batch = "npc_parts")
     public static void oneIsPickedNearAPlayerAndKeptForGood(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();

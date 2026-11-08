@@ -1,0 +1,17 @@
+{
+  "entity": {
+    "type": "minecraft:villager",
+    "baby": false
+  },
+  "share": 30,
+  "chatter": {
+    "phrases": "scenario:village/guard",
+    "min_interval": 15,
+    "max_interval": 30,
+    "radius": 8
+  },
+  "when_attacked": {
+    "reaction": "ignore",
+    "phrases": "scenario:village/guard_hit"
+  }
+}

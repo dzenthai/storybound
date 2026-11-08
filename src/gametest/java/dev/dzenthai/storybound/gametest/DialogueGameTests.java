@@ -822,15 +822,18 @@ public final class DialogueGameTests {
         withDialogues(helper, "exclusive", true, () -> with(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(
                 key("exclusive"), """
                         { "entity": { "type": "minecraft:villager", "tag": "gametest_exclusive" }, "exclusive": true,
-                          "busy_dialogue": "gametest:aside", "dialogues": [ { "dialogue": "gametest:talk" } ] }
+                          "busy": { "text": { "literal": "Wait, I am busy." } }, "dialogues": [ { "dialogue": "gametest:talk" } ] }
                         """), () -> {
             NpcBindings.rebuild();
             NpcBindings.talkRequested(first, npc.getId());
             expect(helper, state(first).dialogue(), TALK, "the first player talks");
             helper.assertTrue(NpcBindings.canTalk(second, npc.getId()), "the second sees the talk hint: there is a busy line");
+            String busy = dev.dzenthai.storybound.module.dialogue.NpcPhrases.busyCounter(npc, second, key("exclusive"));
+            expect(helper, dev.dzenthai.storybound.module.dialogue.NpcPhrases.position(busy), -1, "no busy line said yet");
             NpcBindings.talkRequested(second, npc.getId());
-            expect(helper, state(second).dialogue(), ASIDE, "the second gets the busy line, not the dialogue");
-            Dialogues.interrupt(second, EndReason.STOPPED);
+            expect(helper, Dialogues.state(second), Optional.empty(), "the second gets no dialogue (November 9, 2026: a busy NPC starts none)");
+            helper.assertTrue(dev.dzenthai.storybound.module.dialogue.NpcPhrases.position(busy) >= 0, "but the busy line, in a bubble");
+            expect(helper, state(first).dialogue(), TALK, "the first player's talk goes on");
             Dialogues.interrupt(first, EndReason.STOPPED);
             NpcBindings.talkRequested(second, npc.getId());
             expect(helper, state(second).dialogue(), TALK, "free again: the dialogue");
@@ -851,6 +854,10 @@ public final class DialogueGameTests {
         NpcBindings.rebuild();
         helper.getLevel().getServer().getPlayerList().remove(first);
         helper.getLevel().getServer().getPlayerList().remove(second);
+        String old = NpcBinding.CODEC.parse(ops(helper), JsonParser.parseString("""
+                { "entity": { "tag": "gametest_exclusive" }, "exclusive": true, "busy_dialogue": "gametest:aside" }
+                """)).error().map(error -> error.message()).orElse("");
+        helper.assertTrue(old.contains("busy_dialogue is gone"), "a file still writing busy_dialogue fails, saying what to write: " + old);
         helper.succeed();
     }
 

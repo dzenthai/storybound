@@ -109,6 +109,21 @@ public final class NpcBindings {
         return found;
     }
 
+    /**
+     * The bindings the entity fits but for its roll, "id (30%)", for {@code /storybound debug npc}: a share leaves it out
+     * (November 9, 2026).
+     */
+    public static List<String> outOfShare(Entity entity) {
+        List<String> out = new ArrayList<>();
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
+            Optional<Integer> share = entry.getValue().crowdShare();
+            if (share.isPresent() && entry.getValue().rank(entity) != null && !NpcBinding.inShare(entity.getUUID(), entry.getKey(), share.get())) {
+                out.add(entry.getKey() + " (" + share.get() + "%)");
+            }
+        }
+        return out;
+    }
+
     /** Forgets what the entity was worked out to be, e.g. after a tag was put on it; public for tests and commands. */
     public static void forget(Entity entity) {
         CACHE.remove(entity.getUUID());
@@ -197,7 +212,7 @@ public final class NpcBindings {
         }
         if (found.interact() && busyWith(found, target, player) != null) {
             // A busy NPC offers its busy line, or nothing.
-            return found.binding().busyDialogue().isPresent() || found.customId() != null;
+            return found.binding().busy().isPresent() || found.customId() != null;
         }
         return found.customId() != null || (found.interact() && found.pick(new StoryContext(player, target)).isPresent());
     }
@@ -302,9 +317,16 @@ public final class NpcBindings {
         if (found.interact() && (Dialogues.state(player).isEmpty() || saysPhrases(player, target, found))) {
             ServerPlayer other = busyWith(found, target, player);
             if (other != null) {
-                // Taken: the busy line, if the binding has one, instead of its dialogues.
+                // Taken: the busy line in a bubble, if the binding has one, instead of its dialogues (November 9, 2026;
+                // before, a dialogue was started with this player, which a busy NPC should not).
                 StoryTrace.note(player, bindingName(found, target), "talk: busy with " + other.getGameProfile().getName());
-                return found.binding().busyDialogue().map(busy -> Dialogues.start(player, busy, target)).orElse(false) || handled;
+                Optional<PhrasesRef> busy = found.binding().busy();
+                if (busy.isPresent() && target instanceof LivingEntity living) {
+                    ResourceLocation source = found.source("busy").map(Layer::id).orElse(null);
+                    NpcPhrases.say(living, busy.get(), NpcPhrases.busyCounter(target, player, source), player, player.server.getTickCount(), true);
+                    return true;
+                }
+                return handled;
             }
             Optional<Picked> picked = found.pick(new StoryContext(player, target), target, "");
             if (picked.isEmpty()) {
@@ -556,7 +578,7 @@ public final class NpcBindings {
                     Optional.of(first(chain, sources, "custom", NpcBinding::custom).orElse(false)),
                     Optional.of(first(chain, sources, "override_interact", NpcBinding::overrideInteract).orElse(false)),
                     Optional.of(first(chain, sources, "exclusive", NpcBinding::exclusive).orElse(false)),
-                    first(chain, sources, "busy_dialogue", NpcBinding::busyDialogue),
+                    first(chain, sources, "busy", NpcBinding::busy),
                     // One picked by the mod comes back unless its binding says otherwise: a story NPC, not one of a crowd.
                     Optional.of(first(chain, sources, "respawn", binding -> binding.isOne() ? Optional.of(binding.respawn().orElse(true)) : binding.respawn())
                             .orElse(false)),

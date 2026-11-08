@@ -1,0 +1,8 @@
+{
+  "order": "random",
+  "lines": [
+    "scenario.village.chatter.wolves",
+    "scenario.village.chatter.harvest",
+    "scenario.village.chatter.elder"
+  ]
+}

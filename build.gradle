@@ -186,6 +186,8 @@ def prepareGameTestStory = tasks.register('prepareGameTestStory', Sync) {
     from('src/main/resources/storybound_starter') { exclude 'lang/**' }
     from 'src/gametest/story'
     from('src/main/resources/storybound_scenarios') {
+        // The village's NPCs are every villager: they would be every other test's too; ScenarioGameTests loads them alone.
+        exclude 'village/**'
         eachFile { relativePath = new RelativePath(true, *relativePath.segments.drop(1)) }
     }
     includeEmptyDirs = false

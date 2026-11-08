@@ -1,0 +1,14 @@
+{
+  "display_name": "scenario.village.elder",
+  "entity": {
+    "type": "minecraft:villager",
+    "baby": false,
+    "in_village": true
+  },
+  "one": true,
+  "dialogues": [
+    {
+      "dialogue": "scenario:village/elder"
+    }
+  ]
+}

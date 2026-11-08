@@ -79,15 +79,28 @@ class StoryRenamesTest {
         JsonObject binding = JsonParser.parseString("""
                 { "entity": { "type": "minecraft:villager", "tag": "elder" },
                   "dialogues": [ { "dialogue": "demo:elder", "conditions": { "type": "quest", "quest": "demo:elder", "state": "active" } } ],
-                  "busy_dialogue": "demo:elder" }
+                  "busy": "demo:elder" }
                 """).getAsJsonObject();
         int changed = StoryRenames.rewrite(StoryLinks.NPC, binding, List.of(new Rename(StoryLinks.DIALOGUE, ELDER, OLD_MAN)));
-        assertEquals(2, changed);
+        assertEquals(1, changed);
         assertEquals("demo:old_man", binding.getAsJsonArray("dialogues").get(0).getAsJsonObject().get("dialogue").getAsString());
-        assertEquals("demo:old_man", binding.get("busy_dialogue").getAsString());
+        assertEquals("demo:elder", binding.get("busy").getAsString(), "the busy line names phrases, not the dialogue");
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.NPC, binding, List.of(new Rename(StoryLinks.PHRASES, ELDER, OLD_MAN))));
+        assertEquals("demo:old_man", binding.get("busy").getAsString(), "the busy line follows its phrases");
         assertEquals("demo:elder", binding.getAsJsonArray("dialogues").get(0).getAsJsonObject().getAsJsonObject("conditions").get("quest").getAsString(),
                 "the quest demo:elder is not the dialogue");
         assertEquals("elder", binding.getAsJsonObject("entity").get("tag").getAsString(), "a scoreboard tag is not an id");
+    }
+
+    @Test
+    void aWaypointFollowsTheNpcItPointsAt() {
+        JsonObject waypoint = JsonParser.parseString("""
+                { "name": "Elder", "target": { "npc": "demo:elder" } }
+                """).getAsJsonObject();
+        assertEquals(0, StoryRenames.rewrite(StoryLinks.WAYPOINT, waypoint, List.of(new Rename(StoryLinks.DIALOGUE, ELDER, OLD_MAN))),
+                "a dialogue of that id is not the NPC");
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.WAYPOINT, waypoint, List.of(new Rename(StoryLinks.NPC, ELDER, OLD_MAN))));
+        assertEquals("demo:old_man", waypoint.getAsJsonObject("target").get("npc").getAsString(), "the renamed NPC (November 9, 2026)");
     }
 
     @Test

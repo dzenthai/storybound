@@ -146,7 +146,7 @@ public final class StoryRenames {
 
     /**
      * Rewrites what names a renamed id in a definition of {@code ownerType}, in place: fields that name a quest
-     * ({@code quest}), a dialogue ({@code dialogue}, {@code busy_dialogue}), a document, a boss, a Codex entry
+     * ({@code quest}), a dialogue ({@code dialogue}), a document, a boss, a Codex entry
      * ({@code entry}) or a flag ({@code key} of a logic element), a quest stage's {@code waypoints}, a chapter's nodes,
      * and {@code {var:}} / {@code {flag:}} in texts. Returns how many values changed.
      */
@@ -524,10 +524,12 @@ public final class StoryRenames {
     private static @Nullable ResourceLocation referenceType(String field, boolean logic) {
         return switch (field) {
             case "quest" -> StoryLinks.QUEST;
-            case "dialogue", "busy_dialogue" -> StoryLinks.DIALOGUE;
+            case "dialogue" -> StoryLinks.DIALOGUE;
             case "document" -> StoryLinks.DOCUMENT;
             case "boss" -> StoryLinks.BOSS;
-            case "phrases", "warning" -> StoryLinks.PHRASES;
+            case "phrases", "warning", "busy" -> StoryLinks.PHRASES;
+            // A waypoint's target { "npc": ... } (November 9, 2026: before, a renamed NPC left its waypoints pointing at nothing).
+            case "npc" -> StoryLinks.NPC;
             case "entry" -> logic ? StoryLinks.CODEX : null;
             case "key" -> logic ? FLAG : null;
             default -> null;

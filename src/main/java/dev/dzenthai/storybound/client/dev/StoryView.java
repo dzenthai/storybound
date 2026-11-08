@@ -407,8 +407,8 @@ final class StoryView extends GraphView {
     static String badge(ResourceLocation type, JsonObject json) {
         if (type.equals(ClientDevStore.TYPE_PHRASES)) {
             int lines = json.get("lines") instanceof JsonArray array ? array.size() : 0;
-            boolean sequence = json.get("order") instanceof JsonPrimitive order && order.getAsString().equals("sequence");
-            return DevUi.str(sequence ? "badge.phrases_sequence" : "badge.phrases_random", lines);
+            String order = json.get("order") instanceof JsonPrimitive written ? written.getAsString() : "random";
+            return DevUi.str(order.equals("sequence") ? "badge.phrases_sequence" : order.equals("loop") ? "badge.phrases_loop" : "badge.phrases_random", lines);
         }
         if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
             return DevUi.str("badge.script");

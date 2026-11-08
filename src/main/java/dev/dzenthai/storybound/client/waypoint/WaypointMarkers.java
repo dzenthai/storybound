@@ -51,6 +51,17 @@ public final class WaypointMarkers {
     /** Far markers fade down to this, between the style's fade start and maximum distance. */
     private static final float FAR_ALPHA = 0.4f;
     private static final float DISTANCE_SCALE = 0.75f;
+    /** Icons this close on screen, in HUD pixels, are one place: their names are stacked (see {@link #stacks}). */
+    private static final float STACK_RADIUS = 8f;
+    /**
+     * And this close in the world, in blocks, or this share of the distance to them (two searches finding one village a
+     * few blocks apart): November 9, 2026; before, a mark 500 blocks behind another was stacked with it, its distance
+     * hidden.
+     */
+    private static final double STACK_WORLD = 4;
+    private static final double STACK_WORLD_SHARE = 0.05;
+    /** One stacked name above the next, in HUD pixels: the font's line and a pixel. */
+    private static final int NAME_LINE = 10;
 
     private static @Nullable Matrix4f view;
     private static @Nullable Matrix4f projection;
@@ -106,12 +117,13 @@ public final class WaypointMarkers {
 
         // Far ones first, the tracked quest's on top.
         markers.sort(Comparator.comparing(Marker::tracked).thenComparing(Comparator.comparingDouble(Marker::distance).reversed()));
+        int[] stack = stacks(markers);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         // In HUD pixels, whatever the GUI scale: the markers were projected onto the HUD's width and height.
         HudScale.push(graphics);
-        for (Marker marker : markers) {
-            draw(graphics, minecraft.font, marker, now);
+        for (int i = 0; i < markers.size(); i++) {
+            draw(graphics, minecraft.font, markers.get(i), stack[i], now);
         }
         HudScale.pop(graphics);
         graphics.setColor(1f, 1f, 1f, 1f);
@@ -164,10 +176,47 @@ public final class WaypointMarkers {
         int tint = MarkerContrast.readable(waypoint.color());
         Component label = inside ? Component.translatable("storybound.waypoint.in_area")
                 : style.distance() ? distanceText(area ? Math.max(0, horizontal - waypoint.radius()) : distance) : null;
-        return new Marker(waypoint, style, screen, tracked, area, distance, alpha, size, tint, label);
+        return new Marker(waypoint, style, screen, anchor, tracked, area, distance, alpha, size, tint, label);
     }
 
-    private static void draw(GuiGraphics graphics, Font font, Marker marker, long now) {
+    /**
+     * Markers drawn at one place on screen (two quests' marks on one NPC, a village found by two searches): each one's
+     * place in their stack, 0 for the one drawn on top (the tracked or the nearest), counted per group of icons
+     * closer than {@link #STACK_RADIUS} to the group's top one. Their names stand one above another instead of over each
+     * other, and the distance is drawn once (November 9, 2026: before, the names were drawn over each other, unreadable).
+     */
+    private static int[] stacks(List<Marker> markers) {
+        int[] stack = new int[markers.size()];
+        List<Integer> leads = new ArrayList<>();
+        Map<Integer, Integer> sizes = new HashMap<>();
+        // From the top drawn down, so the tracked or nearest one is each group's first.
+        for (int i = markers.size() - 1; i >= 0; i--) {
+            Screen screen = markers.get(i).screen();
+            if (!screen.onScreen()) {
+                continue;
+            }
+            Integer lead = null;
+            for (int candidate : leads) {
+                Marker top = markers.get(candidate);
+                Screen at = top.screen();
+                // One place in the world too: a mark far behind another one is not stacked with it.
+                boolean near = top.anchor().distanceTo(markers.get(i).anchor()) <= Math.max(STACK_WORLD, top.distance() * STACK_WORLD_SHARE);
+                if (near && Math.abs(at.x() - screen.x()) <= STACK_RADIUS && Math.abs(at.y() - screen.y()) <= STACK_RADIUS) {
+                    lead = candidate;
+                    break;
+                }
+            }
+            if (lead == null) {
+                leads.add(i);
+                sizes.put(i, 1);
+            } else {
+                stack[i] = sizes.merge(lead, 1, Integer::sum) - 1;
+            }
+        }
+        return stack;
+    }
+
+    private static void draw(GuiGraphics graphics, Font font, Marker marker, int stack, long now) {
         WaypointStyle style = marker.style();
         float x = marker.screen().x();
         float y = marker.screen().y();
@@ -186,9 +235,9 @@ public final class WaypointMarkers {
             }
             // The name in the waypoint's colour, unless it keeps the default (then the look's text colour, as before).
             int nameColor = marker.waypoint().color() == WaypointDefinition.DEFAULT_COLOR ? style.textColor() : marker.tint();
-            text(graphics, font, name, x, y - half - 10, 1f, nameColor, marker.alpha() * nameAlpha);
+            text(graphics, font, name, x, y - half - 10 - stack * NAME_LINE, 1f, nameColor, marker.alpha() * nameAlpha);
         }
-        if (marker.label() != null) {
+        if (marker.label() != null && stack == 0) {
             text(graphics, font, marker.label(), x, y + half + 2, DISTANCE_SCALE, style.distanceColor(), marker.alpha());
         }
     }
@@ -328,6 +377,6 @@ public final class WaypointMarkers {
 
     private record Glide(Vec3 from, long start) {}
 
-    private record Marker(ClientWaypoint waypoint, WaypointStyle style, Screen screen, boolean tracked, boolean area, double distance,
+    private record Marker(ClientWaypoint waypoint, WaypointStyle style, Screen screen, Vec3 anchor, boolean tracked, boolean area, double distance,
                           float alpha, float size, int tint, @Nullable Component label) {}
 }

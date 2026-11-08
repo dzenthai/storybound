@@ -1,0 +1,22 @@
+{
+  "start": "l1",
+  "nodes": {
+    "l1": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.village.elder.l1",
+      "next": "p1"
+    },
+    "p1": {
+      "type": "line",
+      "speaker": "player",
+      "text": "scenario.village.elder.p1",
+      "next": "l2"
+    },
+    "l2": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.village.elder.l2"
+    }
+  }
+}

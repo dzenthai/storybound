@@ -60,6 +60,10 @@ public final class NpcPhrases {
             int next = POSITION.getOrDefault(counter, 0);
             index = Math.min(next, lines.size() - 1);
             POSITION.put(counter, next + 1);
+        } else if (phrases.order() == PhrasesDefinition.Order.LOOP) {
+            // Round: after the last, the first again (kept within the lines, so a list made shorter goes on from its top).
+            index = POSITION.getOrDefault(counter, 0) % lines.size();
+            POSITION.put(counter, (index + 1) % lines.size());
         } else {
             int last = POSITION.getOrDefault(counter, -1);
             index = npc.getRandom().nextInt(lines.size());
@@ -142,6 +146,14 @@ public final class NpcPhrases {
      */
     static String clickCounter(Entity npc, ServerPlayer player, @Nullable ResourceLocation binding, int entry) {
         return "click:" + npc.getUUID() + ":" + player.getUUID() + ":" + (binding != null ? binding : "own") + ":" + entry;
+    }
+
+    /**
+     * The counter of an NPC's busy line for a player (November 9, 2026): the binding that gave {@code busy}, its own
+     * order of lines; public for tests.
+     */
+    public static String busyCounter(Entity npc, ServerPlayer player, @Nullable ResourceLocation binding) {
+        return "busy:" + npc.getUUID() + ":" + player.getUUID() + ":" + (binding != null ? binding : "own");
     }
 
     /** For tests: the counter of the phrases a player gets on clicking the NPC, for an entry of a binding at that place. */
