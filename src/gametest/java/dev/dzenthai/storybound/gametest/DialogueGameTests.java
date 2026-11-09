@@ -551,7 +551,8 @@ public final class DialogueGameTests {
      * An NPC whose binding says {@code respawn} comes back where it died or disappeared: the same one (uuid, name, tags),
      * unhurt, without dropping what it carried; an entity no such binding matches stays gone.
      */
-    @GameTest(template = "empty", timeoutTicks = 600)
+    // A batch of its own: a test beside it restoring the bindings meanwhile took its binding away, and the NPC stayed gone.
+    @GameTest(template = "empty", timeoutTicks = 600, batch = "npc_respawn")
     public static void respawningNpcsComeBackWhereTheyWereGone(GameTestHelper helper) {
         Map<ResourceLocation, NpcBinding> previous = DialogueRegistries.NPC_BINDINGS.serverStore().all();
         installAll(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(key("respawning"),

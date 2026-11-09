@@ -32,6 +32,19 @@ public sealed interface WaypointTarget {
                 case Nearest nearest -> Either.right(Either.right(Either.right(Either.right(nearest))));
             });
 
+    /**
+     * Where the target is, as written, for the validator ({@link dev.dzenthai.storybound.core.logic.WorldPlaces}): a
+     * structure in its dimension, the nearest mob's place; empty for the others.
+     */
+    static Optional<dev.dzenthai.storybound.core.logic.WorldPlaces.Place> place(WaypointTarget target) {
+        return switch (target) {
+            case Structure structure -> Optional.of(new dev.dzenthai.storybound.core.logic.WorldPlaces.Place(Optional.of(structure.dimension()),
+                    Optional.empty(), Optional.of(java.util.List.of(structure.structure()))));
+            case Nearest nearest -> Optional.of(nearest.entity().place());
+            default -> Optional.empty();
+        };
+    }
+
     /** @param dimension defaults to the overworld */
     record Fixed(Vec3 pos, ResourceKey<Level> dimension) implements WaypointTarget {
         public static final Codec<Fixed> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -88,7 +101,7 @@ public sealed interface WaypointTarget {
      */
     record Nearest(EntitySelector entity, int range) implements WaypointTarget {
         public static final int DEFAULT_RANGE = 64;
-        private static final Codec<EntitySelector> SELECTOR = Codec.either(EntitySelector.CODEC, RegistryCodecs.homogeneousList(Registries.ENTITY_TYPE))
+        static final Codec<EntitySelector> SELECTOR = Codec.either(EntitySelector.CODEC, RegistryCodecs.homogeneousList(Registries.ENTITY_TYPE))
                 .xmap(either -> either.map(selector -> selector,
                         EntitySelector::ofTypes), Either::left);
         public static final Codec<Nearest> CODEC = RecordCodecBuilder.create(instance -> instance.group(

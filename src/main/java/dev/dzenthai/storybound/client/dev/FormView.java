@@ -411,6 +411,10 @@ final class FormView {
     }
 
     private void page(List<Object> path, Node schema) {
+        if (!path.isEmpty() && MORE_DATA.equals(path.getLast())) {
+            moreDataPage(path.subList(0, path.size() - 1));
+            return;
+        }
         if (isEntitySelector(schema)) {
             entityPage(path);
             return;
@@ -484,9 +488,30 @@ final class FormView {
             npcWho(schema, object);
         }
         List<String> order = npc ? NPC_ORDER : form != null ? NODE_ORDER.getOrDefault(form, List.of()) : List.of();
+        // add_waypoint: where it points, as a waypoint's target page asks it, over its own fields (November 9, 2026).
+        boolean addWaypoint = Schemas.properties(schema).containsKey("follow") && Schemas.properties(schema).containsKey("structure")
+                && Schemas.properties(schema).containsKey("show_ring");
+        boolean targetDrawn = false;
+        // The player's condition "location": where, as a mob's variant asks it, dimension → biome → structure, each list
+        // only what fits (November 9, 2026: before, the Nether with plains could be chosen).
+        Map<String, Node> own = Schemas.properties(schema);
+        boolean location = own.containsKey("dimension") && own.containsKey("biome") && own.containsKey("area") && own.containsKey("structure");
         for (Map.Entry<String, Node> property : ordered(Schemas.properties(schema), order)) {
             String name = property.getKey();
             if (npc && NPC_WHO.contains(name)) {
+                continue;
+            }
+            if (location && (name.equals("dimension") || name.equals("biome") || name.equals("structure"))) {
+                if (name.equals("dimension")) {
+                    placeRows(path, false);
+                }
+                continue;
+            }
+            if (addWaypoint && ADD_WAYPOINT_TARGET.contains(name)) {
+                if (!targetDrawn) {
+                    addWaypointTarget(path, schema, object);
+                    targetDrawn = true;
+                }
                 continue;
             }
             // "Hits forgiven" and their warnings only for an NPC that fights back: the others never take revenge anyway.
@@ -585,33 +610,33 @@ final class FormView {
     /** The fields of an NPC's "Who it is", drawn by {@link #npcWho} rather than one by one. */
     private static final Set<String> NPC_WHO = Set.of("display_name", "show_name", "names", "one", "share", "entity");
     /** What makes an NPC one "by hand": the parts of its selector naming particular entities. */
-    private static final List<String> HAND_PARTS = List.of("tag", "name", "uuid");
-    /** The filters of a dynamic NPC, put away while it is by hand (they would narrow it unseen) and given back. */
-    private static final List<String> FILTERS = List.of("profession", "outfit", "baby", "biome", "in_village");
+    private static final List<String> HAND_PARTS = SelectorEdits.HAND_PARTS;
     private static final List<Object> ENTITY = List.of("entity");
 
     /**
-     * An NPC's "Who it is" (November 8, 2026, stage 5 of "Who an NPC is"), as its author asks: the rule, by hand (the
-     * entities carrying its tag) or dynamic (every entity of its kind passing its filters); for dynamic, how many: all
-     * such, or one picked by the mod; then its name: the displayed name for one NPC (by hand, or one), names from a
-     * list for all such. A field of the other way shows only while the file still writes it, so it can be cleared (the
-     * validator says it is not used). Several entities written in a list keep their list, with no rule to switch.
+     * An NPC's "Who it is" (November 8, 2026, stage 5 of "Who an NPC is"; its variants November 9, 2026), as its author
+     * asks: the rule, by hand (the entities carrying its tag) or dynamic (every mob of a variant: its kind, where it is,
+     * its data); for dynamic, how many: all such, or one picked by the mod, and the variants, a row each (a man smith and
+     * a woman farmer of Villagers Reborn as one NPC); then its name: the displayed name for one NPC (by hand, or one),
+     * names from a list for all such. A field of the other way shows only while the file still writes it, so it can be
+     * cleared. Showing it never changes the file.
      */
     private void npcWho(Node schema, @Nullable JsonObject binding) {
         Map<String, Node> fields = Schemas.properties(schema);
         JsonElement entity = binding != null ? binding.get("entity") : null;
-        if (entity != null && entity.isJsonArray()) {
+        boolean byHand = SelectorEdits.byHand(entity);
+        if (byHand && entity.isJsonArray()) {
+            // Several particular entities (an older file): their list, with no rule to switch.
             entityListField(List.of(), "entity", fields.get("entity"), entity, true);
             npcNames(schema, binding, true, false);
             return;
         }
         JsonObject selector = entity instanceof JsonObject object ? object : null;
-        boolean byHand = selector != null && HAND_PARTS.stream().anyMatch(selector::has);
         boolean one = flag(binding, "one", false);
         npcRule(byHand);
         Picker kinds = new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick"));
-        idListRows(ENTITY, "type", kinds, DevUi.text(byHand ? "npc.kind_optional" : "npc.kind"));
         if (byHand) {
+            idListRows(ENTITY, "type", kinds, DevUi.text("npc.kind_optional"));
             if (selector.has("uuid") || selector.has("name")) {
                 // An old or hand-written file: shown as it is, the form no longer offers these ways.
                 String known = selector.has("uuid") ? DevUi.str("entity.summary.uuid", tail(selector.get("uuid").getAsString()))
@@ -631,13 +656,7 @@ final class FormView {
             // For all such; a "one" file still writing it shows it, to take it out.
             npcShare(binding);
         }
-        if (mayHaveVillagerData(selector) || selector != null && (selector.has("profession") || selector.has("outfit"))) {
-            idListRows(ENTITY, "profession", professions(), DevUi.text("field.profession"));
-            idListRows(ENTITY, "outfit", outfits(), DevUi.text("field.outfit"));
-        }
-        npcTriState("baby", "npc.age", selector);
-        idListRows(ENTITY, "biome", new Picker(Catalog.Kind.BIOME, null, List.of(), DevUi.text("form.pick_title.biome")), DevUi.text("field.biome"));
-        npcTriState("in_village", "npc.village", selector);
+        variantRows(ENTITY, entityListItems(fields.get("entity")), one);
         npcNames(schema, binding, one, !one);
     }
 
@@ -660,9 +679,10 @@ final class FormView {
     }
 
     /**
-     * "Rule: By hand / Dynamic". To dynamic: the tag (a name, a uuid) is put away and the kind kept; back to by hand:
-     * the tag given back, else the node's own written; the filters and "one" go the other way, as they mean nothing on
-     * an NPC by hand. Whatever a switch put away comes back on switching again, while this node is open.
+     * "Rule: By hand / Dynamic" (November 9, 2026: the whole entity switches, as the rules ask different things). To
+     * dynamic: the kind kept, the tag gone; to by hand: the node's tag, the kind of the first variant. "One" goes with
+     * dynamic. What a switch took away (the variants with their data, the tag) comes back on switching again, while
+     * this node is open.
      */
     private void npcRule(boolean byHand) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -671,19 +691,24 @@ final class FormView {
         labelRow(DevUi.text("npc.rule"));
         Button button = Button.builder(Component.literal(DevUi.str(byHand ? "npc.rule.hand" : "npc.rule.dynamic") + " ▸"), b -> {
             JsonObject root = host.root();
-            JsonObject selector = ensureObject(ENTITY);
+            JsonElement now = root.get("entity");
+            String from = byHand ? "hand" : "dynamic";
+            String to = byHand ? "dynamic" : "hand";
+            if (now != null) {
+                switchedAway.put("entity#rule:" + from, now.deepCopy());
+            }
+            JsonElement back = switchedAway.remove("entity#rule:" + to);
+            JsonElement next = SelectorEdits.switchedRule(now, back, host.npcBinding().getPath().replace('/', '_'));
+            if (next instanceof JsonObject empty && empty.isEmpty()) {
+                // Dynamic with no kind yet: no variant, "+ Add" asks for one (not a row "no kind" beside it).
+                root.remove("entity");
+            } else {
+                root.add("entity", next);
+            }
             if (byHand) {
-                HAND_PARTS.forEach(part -> putAway(ENTITY, selector, part));
-                FILTERS.forEach(part -> giveBack(ENTITY, selector, part));
                 giveBack(List.of(), root, "one");
             } else {
-                FILTERS.forEach(part -> putAway(ENTITY, selector, part));
                 putAway(List.of(), root, "one");
-                HAND_PARTS.forEach(part -> giveBack(ENTITY, selector, part));
-                if (HAND_PARTS.stream().noneMatch(selector::has)) {
-                    // The node's name, as npcLink and a new node write it.
-                    selector.addProperty("tag", host.npcBinding().getPath().replace('/', '_'));
-                }
             }
             tidyNames(root);
             host.changed();
@@ -692,7 +717,10 @@ final class FormView {
         screen.add(button);
     }
 
-    /** "How many: All such / One, picked by the mod". A new "one" is written grown-up, so no child is made the Elder. */
+    /**
+     * "How many: All such / One, picked by the mod". A new "one" is written grown-up in each variant that can be young,
+     * so no child is made the Elder.
+     */
     private void npcCount(boolean one) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
@@ -704,9 +732,10 @@ final class FormView {
                 root.remove("one");
             } else {
                 root.addProperty("one", true);
-                JsonObject selector = ensureObject(ENTITY);
-                if (!selector.has("baby")) {
-                    selector.addProperty("baby", false);
+                for (JsonObject variant : SelectorEdits.variants(root.get("entity"))) {
+                    if (!variant.has("baby") && MobFields.canBeYoung(kindsOf(variant))) {
+                        variant.addProperty("baby", false);
+                    }
                 }
             }
             tidyNames(root);
@@ -718,7 +747,7 @@ final class FormView {
 
     /** Whether the NPC is "one, picked by the mod": dynamic, with {@code one}. */
     private static boolean isOneNode(@Nullable JsonObject binding) {
-        return flag(binding, "one", false) && binding.get("entity") instanceof JsonObject selector && HAND_PARTS.stream().noneMatch(selector::has);
+        return flag(binding, "one", false) && !SelectorEdits.byHand(binding.get("entity"));
     }
 
     /**
@@ -811,7 +840,7 @@ final class FormView {
      * (November 8, 2026: before, "All such" left the displayed name in the form, naming nobody).
      */
     private void tidyNames(JsonObject root) {
-        boolean oneNpc = !(root.get("entity") instanceof JsonObject selector) || HAND_PARTS.stream().anyMatch(selector::has) || flag(root, "one", false);
+        boolean oneNpc = SelectorEdits.byHand(root.get("entity")) || flag(root, "one", false);
         // A share is for all such too: one NPC is all of itself.
         List<String> mine = oneNpc ? List.of("display_name", "show_name") : List.of("names", "share");
         List<String> theirs = oneNpc ? List.of("names", "share") : List.of("display_name", "show_name");
@@ -853,10 +882,443 @@ final class FormView {
     private long resetArmedUntil;
 
     /**
+     * A dynamic NPC's variants (November 9, 2026, the author: one NPC that is both a Villagers Reborn man smith and a
+     * woman farmer): a row each, "Villager · Smith, male ▸" opening its page ({@link #variantPage}), ✕ taking it out;
+     * "+ Add" asks the kind first and opens the new one. One is written alone, several as a list, as the game reads
+     * them; the same kind as often as wanted.
+     *
+     * @param one a "one" NPC: a new variant that can be young is written grown-up
+     */
+    private void variantRows(List<Object> entityPath, @Nullable Node selectorNode, boolean one) {
+        JsonElement entity = get(entityPath);
+        List<JsonObject> variants = SelectorEdits.variants(entity);
+        if (variants.size() == 1 && variants.getFirst().isEmpty()) {
+            // An empty one (an older switch of the rule): no variant yet; "+ Add" takes its place.
+            variants = List.of();
+        }
+        if (row(LABEL_H)) {
+            labels.add(new Label(DevUi.text("npc.variants"), x, rowY(LABEL_H), DevUi.LABEL));
+        }
+        for (int i = 0; i < variants.size(); i++) {
+            int index = i;
+            List<Object> at = entity instanceof JsonArray ? with(entityPath, i) : entityPath;
+            if (!row(CONTROL_H)) {
+                continue;
+            }
+            int rowTop = rowY(CONTROL_H);
+            String line = variantSummary(variants.get(i));
+            Component shown = Component.literal(screen.font().plainSubstrByWidth(line, w - 36) + (screen.font().width(line) > w - 36 ? "…" : "") + " ▸");
+            screen.add(Button.builder(shown, b -> {
+                if (selectorNode != null) {
+                    push(at, selectorNode, DevUi.str("npc.variant"), false);
+                }
+            }).tooltip(Tooltip.create(Component.literal(line))).bounds(x, rowTop, w - 20, CONTROL_H).build());
+            screen.add(Button.builder(Component.literal("✕"), b -> {
+                JsonElement next = SelectorEdits.withoutVariant(host.root().get("entity"), index);
+                if (next == null) {
+                    host.root().remove("entity");
+                } else {
+                    host.root().add("entity", next);
+                }
+                host.changed();
+            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
+        }
+        if (variants.isEmpty()) {
+            text(DevUi.text("npc.variants.none"), DevUi.MUTED);
+        }
+        if (row(CONTROL_H)) {
+            Picker kinds = new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick"));
+            screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> pick(kinds, entry -> {
+                JsonObject variant = new JsonObject();
+                variant.addProperty("type", entry.id());
+                if (one && MobFields.canBeYoung(kindsOf(variant))) {
+                    variant.addProperty("baby", false);
+                }
+                JsonElement next = SelectorEdits.withVariant(host.root().get("entity"), variant);
+                host.root().add("entity", next);
+                host.changed();
+                if (selectorNode != null) {
+                    // Straight to it: what this variant is like is asked next.
+                    push(next.isJsonArray() ? with(entityPath, next.getAsJsonArray().size() - 1) : entityPath, selectorNode, DevUi.str("npc.variant"), false);
+                }
+            })).tooltip(Tooltip.create(DevUi.text("npc.variants.add"))).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build());
+        }
+    }
+
+    /** "Villager · Smith, male · The Nether": the kind, the values of its data, where it is; "—" with no kind. */
+    private static String variantSummary(JsonObject selector) {
+        List<String> parts = new ArrayList<>();
+        String kinds = entitySummary(selector.has("type") ? typeOnly(selector) : null);
+        parts.add(kinds.equals("—") ? DevUi.str("npc.variant.no_kind") : kinds);
+        List<String> data = new ArrayList<>();
+        if (selector.get("data") instanceof JsonObject written) {
+            written.entrySet().forEach(field -> {
+                for (JsonElement value : field.getValue().isJsonArray() ? field.getValue().getAsJsonArray().asList() : List.of(field.getValue())) {
+                    data.add(writtenLabel(value));
+                }
+            });
+        }
+        if (selector.get("baby") instanceof JsonPrimitive baby && baby.isBoolean()) {
+            data.add(DevUi.str(baby.getAsBoolean() ? "npc.age.yes" : "npc.age.no"));
+        }
+        if (!data.isEmpty()) {
+            parts.add(String.join(", ", data));
+        }
+        List<String> where = new ArrayList<>();
+        if (selector.get("dimension") instanceof JsonPrimitive dimension) {
+            where.add(dimensionName(dimension.getAsString()));
+        }
+        for (String field : List.of("biome", "structure")) {
+            List<String> ids = stringsOf(selector.get(field) instanceof JsonPrimitive one ? asList(one) : selector.get(field));
+            ids.forEach(id -> where.add(DevUi.humanize(id.substring(id.indexOf(':') + 1))));
+        }
+        if (!where.isEmpty()) {
+            parts.add(String.join(", ", where));
+        }
+        return String.join(" · ", parts);
+    }
+
+    private static JsonObject typeOnly(JsonObject selector) {
+        JsonObject only = new JsonObject();
+        only.add("type", selector.get("type"));
+        return only;
+    }
+
+    /** A value written in {@code data} as the author reads it: a game id by its name, yes / no, else as written. */
+    private static String writtenLabel(JsonElement value) {
+        if (value instanceof JsonPrimitive primitive && primitive.isBoolean()) {
+            return DevUi.yesNo(primitive.getAsBoolean());
+        }
+        String text = value.getAsString();
+        ResourceLocation id = text.contains(":") ? ResourceLocation.tryParse(text) : null;
+        return id != null ? DevUi.humanize(id.getPath()) : text;
+    }
+
+    /**
+     * One variant of a mob (an NPC's, a waypoint's nearest mob, a boss, an observed creature), as the author laid it
+     * out (November 9, 2026): who, the kind; where, the base every mob has (dimension → biome → structure, each list
+     * only what fits the one before); its data, read from the mob itself. Older parts (a profession, an outfit, a
+     * variant, "in a village", SNBT) show as a line with ✕. An NPC's variant has no tag: "only those tagged" is for the
+     * others.
+     */
+    private void variantPage(List<Object> path, boolean tagFilter) {
+        JsonObject selector = objectAt(path);
+        if (selector != null && (selector.has("uuid") || selector.has("name"))) {
+            String known = selector.has("uuid") ? DevUi.str("entity.summary.uuid", tail(selector.get("uuid").getAsString()))
+                    : DevUi.str("entity.summary.name", selector.get("name").getAsString());
+            text(DevUi.text("npc.known_from_file", known), DevUi.MUTED);
+        }
+        // Who: the kind, and for the others than an NPC's only those tagged; no heading over them, the page's name says it.
+        variantKind(path, selector, !tagFilter);
+        if (tagFilter) {
+            tagFilterRow(path, selector);
+        }
+        subgroup(DevUi.text("variant.where"));
+        placeRows(path, true);
+        subgroup(DevUi.text("mobdata"));
+        mobDataRows(path, selector);
+        olderRows(path, selector);
+    }
+
+    /** "Only those tagged (optional)": a tag the story put on them (spawn_entity, /tag). */
+    private void tagFilterRow(List<Object> path, @Nullable JsonObject selector) {
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("entity.tag_filter"));
+            EditBox tag = new EditBox(screen.font(), x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H - 2, DevUi.text("entity.tag_filter"));
+            tag.setMaxLength(256);
+            tag.setValue(selector != null && selector.has("tag") ? selector.get("tag").getAsString() : "");
+            tag.setResponder(text -> {
+                JsonObject target = ensureObject(path);
+                if (text.isBlank()) {
+                    target.remove("tag");
+                } else {
+                    target.addProperty("tag", text.trim());
+                }
+                host.edited();
+            });
+            tag.setTooltip(Tooltip.create(DevUi.text("entity.tag_filter.tooltip")));
+            screen.add(tag);
+        }
+    }
+
+    /**
+     * A variant's kind: one (November 9, 2026, the author: two "+ Add" buttons, one for a variant and one for a kind in
+     * it, said nothing of which to press). One button, "Villager ▸", picking another in its place; another kind is
+     * another variant. An older file with several kinds in one variant shows them as rows with ✕, nothing to add.
+     */
+    private void variantKind(List<Object> path, @Nullable JsonObject selector, boolean npc) {
+        Picker kinds = new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick"));
+        List<String> ids = selector == null ? List.of() : stringsOf(selector.get("type") instanceof JsonPrimitive one ? asList(one) : selector.get("type"));
+        if (ids.size() > 1) {
+            idListRows(path, "type", kinds, kinds, DevUi.text("npc.kind"), ids.size(), id -> null);
+            text(DevUi.text("npc.variant.many_kinds"), DevUi.MUTED);
+            return;
+        }
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("npc.kind"));
+        String shown = ids.isEmpty() ? DevUi.str("npc.variant.pick_kind") : idName(ids.getFirst(), kinds);
+        Button button = Button.builder(Component.literal(shown + " ▸"), b -> pick(kinds, entry -> writeIds(path, "type", List.of(entry.id()))))
+                .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text(npc ? "npc.variant.kind.tooltip" : "entity.kind.tooltip")));
+        screen.add(button);
+    }
+
+    /**
+     * Where (November 9, 2026): dimension → biome → structure, each list holding only what fits the parts before, as
+     * the world's map the server sent says ({@link WorldMap}; mods' alike). A part that no longer fits (the dimension
+     * changed) is not taken out: it shows red, with why, and ✕. The same for a mob's variant and for the player's
+     * condition "location", whose structure is one.
+     */
+    private void placeRows(List<Object> path, boolean manyStructures) {
+        JsonObject owner = objectAt(path);
+        String dimension = owner != null && owner.get("dimension") instanceof JsonPrimitive written ? written.getAsString() : null;
+        List<String> biomes = owner == null ? List.of() : stringsOf(owner.get("biome") instanceof JsonPrimitive one ? asList(one) : owner.get("biome"));
+        List<String> structures = owner == null ? List.of() : stringsOf(owner.get("structure") instanceof JsonPrimitive one ? asList(one) : owner.get("structure"));
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("field.dimension"));
+            boolean unknown = dimension != null && WorldMap.known() && !WorldMap.dimensions().contains(dimension);
+            String name = dimension == null ? DevUi.str("place.any_dimension") : dimensionName(dimension);
+            List<Entry> choices = new ArrayList<>();
+            choices.add(new Entry("", DevUi.str("place.any_dimension"), ItemStack.EMPTY));
+            choices.addAll(Catalog.dimensions());
+            Button button = Button.builder(unknown ? Component.literal("⚠ " + name).withColor(DevUi.ERROR) : Component.literal(name + " ▸"),
+                    b -> pick(Picker.rows(choices, DevUi.text("form.pick_title.dimension"), DevUi.text("pick.empty")), entry -> {
+                        if (entry.id().isEmpty()) {
+                            ensureObject(path).remove("dimension");
+                        } else {
+                            ensureObject(path).addProperty("dimension", entry.id());
+                        }
+                        host.changed();
+                    })).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            button.setTooltip(Tooltip.create(unknown ? DevUi.text("place.unknown_dimension", dimension) : DevUi.text("place.dimension.tooltip")));
+            screen.add(button);
+        }
+        String in = dimension == null ? null : dimensionName(dimension);
+        idListRows(path, "biome", Picker.rows(Catalog.biomesFitting(dimension, structures), DevUi.text("form.pick_title.biome"), DevUi.text("place.no_biomes")),
+                new Picker(Catalog.Kind.BIOME, null, List.of(), DevUi.text("form.pick_title.biome")), DevUi.text("field.biome"), 0,
+                id -> WorldMap.biomeFits(id, dimension) ? null : DevUi.text("place.not_in", in));
+        idListRows(path, "structure", Picker.rows(Catalog.structuresFitting(dimension, biomes), DevUi.text("form.pick_title.structure"), DevUi.text("place.no_structures")),
+                new Picker(Catalog.Kind.STRUCTURE, null, List.of(), DevUi.text("form.pick_title.structure")), DevUi.text("field.structure"),
+                manyStructures ? 0 : 1, id -> !WorldMap.structureFits(id, dimension, null) ? DevUi.text("place.not_in", in)
+                        : !WorldMap.structureFits(id, null, biomes) ? DevUi.text("place.not_in_biomes") : null);
+    }
+
+    /**
+     * A mob's data (November 9, 2026): a row per field the kind keeps ({@link MobFields}), "Any" or the values chosen,
+     * any of which matches; a value met is picked from the list (a click on a chosen one takes it out), one not met yet
+     * typed ("Other value..."). "Age" when the kind can be young. A field written that the kind is not seen to have
+     * shows with ✕.
+     */
+    private void mobDataRows(List<Object> path, @Nullable JsonObject selector) {
+        List<net.minecraft.world.entity.EntityType<?>> kinds = kindsOf(selector);
+        if (kinds.isEmpty()) {
+            text(DevUi.text("mobdata.no_kind"), DevUi.MUTED);
+            return;
+        }
+        boolean young = MobFields.canBeYoung(kinds);
+        if (young || selector != null && selector.has("baby")) {
+            npcTriState(path, "baby", "npc.age", selector);
+        }
+        List<MobFields.Field> fields = MobFields.of(kinds, young, screen::rebuild);
+        Set<String> shown = new java.util.HashSet<>();
+        fields.forEach(field -> shown.add(field.path()));
+        // Words first (a profession, a type, a coat) and what is set; numbers and yes / no folded under "More fields",
+        // unless there are no words at all (raiders: all flags), when nothing is folded (November 9, 2026).
+        boolean fold = fields.stream().anyMatch(MobFields.Field::words);
+        List<MobFields.Field> first = !fold ? fields
+                : fields.stream().filter(field -> field.words() || !SelectorEdits.dataValues(selector, field.path()).isEmpty()).toList();
+        List<MobFields.Field> more = fields.stream().filter(field -> !first.contains(field)).toList();
+        for (MobFields.Field field : first) {
+            dataFieldRow(path, selector, field);
+        }
+        if (!more.isEmpty() && row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("mobdata.more"));
+            String names = String.join(" · ", more.stream().map(MobFields.Field::label).toList());
+            Component summary = Component.literal(screen.font().plainSubstrByWidth(names, w - 16) + (screen.font().width(names) > w - 16 ? "…" : "") + " ▸");
+            screen.add(Button.builder(summary, b -> push(with(path, MORE_DATA), Schemas.logic("condition"), DevUi.str("mobdata.more"), false))
+                    .tooltip(Tooltip.create(Component.literal(names).append("\n").append(DevUi.text("mobdata.more.tooltip"))))
+                    .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
+        }
+        if (selector != null && selector.get("data") instanceof JsonObject data) {
+            for (String written : new ArrayList<>(data.keySet())) {
+                if (shown.contains(written) || !row(CONTROL_H)) {
+                    continue;
+                }
+                int top = rowY(CONTROL_H);
+                String values = String.join(", ", SelectorEdits.dataValues(selector, written).stream().map(FormView::writtenLabel).toList());
+                String line = MobFields.label(written, "") + " = " + values + " · " + DevUi.str("mobdata.not_seen");
+                screen.add(Button.builder(Component.literal(screen.font().plainSubstrByWidth(line, w - 30)).withColor(DevUi.ERROR), b -> { })
+                        .tooltip(Tooltip.create(Component.literal(written + " = " + values))).bounds(x, top, w - 20, CONTROL_H).build());
+                screen.add(Button.builder(Component.literal("✕"), b -> {
+                    SelectorEdits.clearData(ensureObject(path), written);
+                    host.changed();
+                }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, top, 18, CONTROL_H).build());
+            }
+        }
+        if (fields.isEmpty() && !young) {
+            text(DevUi.text("mobdata.nothing"), DevUi.MUTED);
+        }
+        if (kinds.stream().anyMatch(kind -> !MobFields.probed(kind))) {
+            text(DevUi.text("mobdata.no_probe"), DevUi.MUTED);
+        }
+    }
+
+    /** The page of a mob's folded fields, under its variant: not a field of the file, the form's own. */
+    private static final String MORE_DATA = "$more_data";
+
+    /** "More fields": the numbers and yes / no of a mob's data, nothing set among them yet; a field set goes back up. */
+    private void moreDataPage(List<Object> path) {
+        JsonObject selector = objectAt(path);
+        List<net.minecraft.world.entity.EntityType<?>> kinds = kindsOf(selector);
+        List<MobFields.Field> fields = MobFields.of(kinds, MobFields.canBeYoung(kinds), screen::rebuild);
+        text(DevUi.text("mobdata.more.note"), DevUi.MUTED);
+        for (MobFields.Field field : fields) {
+            if (!field.words()) {
+                dataFieldRow(path, selector, field);
+            }
+        }
+    }
+
+    /** One field of a mob's data: its name, then "Any ▸" or the values chosen, opening the values to pick from. */
+    private void dataFieldRow(List<Object> path, @Nullable JsonObject selector, MobFields.Field field) {
+        List<JsonPrimitive> chosen = SelectorEdits.dataValues(selector, field.path());
+        List<String> names = new ArrayList<>();
+        for (JsonPrimitive value : chosen) {
+            names.add(field.values().values().stream().filter(tag -> MobFields.holds(value, tag)).findFirst()
+                    .map(tag -> MobFields.valueLabel(tag, field.flag())).orElse(writtenLabel(value)));
+        }
+        String typingKey = path + "#" + field.path();
+        if (row(LABEL_H + CONTROL_H)) {
+            labels.add(new Label(Component.literal(field.label()), x, rowY(LABEL_H + CONTROL_H), DevUi.LABEL));
+            List<Entry> choices = new ArrayList<>();
+            choices.add(new Entry("", DevUi.str("mobdata.any"), ItemStack.EMPTY));
+            field.values().forEach((text, tag) -> {
+                boolean on = chosen.stream().anyMatch(value -> MobFields.holds(value, tag));
+                choices.add(new Entry(text, (on ? "✓ " : "") + MobFields.valueLabel(tag, field.flag()), ItemStack.EMPTY));
+            });
+            // Values written that none met is (typed as "Other value..."): listed too, chosen, so each can be taken out
+            // alone (November 9, 2026: before, only "Any" cleared them, with all the rest).
+            for (int i = 0; i < chosen.size(); i++) {
+                JsonPrimitive value = chosen.get(i);
+                if (field.values().values().stream().noneMatch(tag -> MobFields.holds(value, tag))) {
+                    choices.add(new Entry(WRITTEN_VALUE + i, "✓ " + writtenLabel(value), ItemStack.EMPTY));
+                }
+            }
+            if (!field.flag()) {
+                choices.add(new Entry(OTHER_VALUE, DevUi.str("mobdata.other"), ItemStack.EMPTY));
+            }
+            String value = chosen.isEmpty() ? DevUi.str("mobdata.any") : String.join(", ", names);
+            screen.add(Button.builder(Component.literal(screen.font().plainSubstrByWidth(value, w - 16) + " ▸"),
+                            b -> pick(Picker.rows(choices, Component.literal(field.label()), DevUi.text("npc.pick_empty")), entry -> {
+                                if (entry.id().equals(OTHER_VALUE)) {
+                                    typingOther.add(typingKey);
+                                    screen.rebuild();
+                                    return;
+                                }
+                                // A value picked instead: the box for one not met yet closes.
+                                typingOther.remove(typingKey);
+                                JsonObject target = ensureObject(path);
+                                if (entry.id().isEmpty()) {
+                                    SelectorEdits.clearData(target, field.path());
+                                } else if (entry.id().startsWith(WRITTEN_VALUE)) {
+                                    JsonPrimitive written = chosen.get(Integer.parseInt(entry.id().substring(WRITTEN_VALUE.length())));
+                                    SelectorEdits.toggleData(target, field.path(), written, written::equals);
+                                } else {
+                                    net.minecraft.nbt.Tag tag = field.values().get(entry.id());
+                                    SelectorEdits.toggleData(target, field.path(), MobFields.toJson(tag, field.flag()), written -> MobFields.holds(written, tag));
+                                }
+                                host.changed();
+                            }))
+                    .tooltip(Tooltip.create(Component.literal(field.path()).append("\n").append(DevUi.text("mobdata.tooltip"))))
+                    .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
+        }
+        if (typingOther.contains(typingKey) && row(CONTROL_H)) {
+            // A value not met yet: typed, of the type of the values met (a text, a whole number), added with ✓; ✕ closes
+            // the box with nothing written.
+            int top = rowY(CONTROL_H);
+            EditBox box = new EditBox(screen.font(), x, top + 1, w - 42, CONTROL_H - 2, Component.literal(field.label()));
+            box.setMaxLength(64);
+            box.setHint(DevUi.text("mobdata.other_hint").copy().withStyle(style -> style.withColor(0xFF6B7380)));
+            box.setResponder(text -> box.setTextColor(text.isBlank() || MobFields.typed(text, field.values().values()) != null ? 0xFFE0E0E0 : DevUi.ERROR));
+            screen.add(box);
+            screen.add(Button.builder(Component.literal("✓"), b -> {
+                net.minecraft.nbt.Tag typed = MobFields.typed(box.getValue(), field.values().values());
+                if (typed == null) {
+                    screen.status(DevUi.text("mobdata.other_bad"), DevUi.WARN);
+                    return;
+                }
+                typingOther.remove(typingKey);
+                JsonObject target = ensureObject(path);
+                if (SelectorEdits.dataValues(target, field.path()).stream().noneMatch(written -> MobFields.holds(written, typed))) {
+                    SelectorEdits.toggleData(target, field.path(), MobFields.toJson(typed, false), written -> false);
+                }
+                host.changed();
+            }).tooltip(Tooltip.create(DevUi.text("mobdata.add_typed"))).bounds(x + w - 40, top, 18, CONTROL_H).build());
+            screen.add(Button.builder(Component.literal("✕"), b -> {
+                typingOther.remove(typingKey);
+                screen.rebuild();
+            }).tooltip(Tooltip.create(DevUi.text("mobdata.other_cancel"))).bounds(x + w - 18, top, 18, CONTROL_H).build());
+        }
+    }
+
+    /** The choice "Other value..." in a field's list, and the fields being typed into ("selector path#field path"). */
+    private static final String OTHER_VALUE = "\u0000other";
+    /** A value written that no mob met has, in a field's list: this prefix and its place among the values written. */
+    private static final String WRITTEN_VALUE = "\u0000written:";
+    private final Set<String> typingOther = new java.util.HashSet<>();
+
+    /** Parts of older files the form no longer offers: a line each, as written, with ✕. */
+    private static final List<String> OLDER_PARTS = List.of("profession", "outfit", "variant", "in_village", "nbt");
+
+    private void olderRows(List<Object> path, @Nullable JsonObject selector) {
+        if (selector == null) {
+            return;
+        }
+        for (String part : OLDER_PARTS) {
+            if (!selector.has(part) || !row(CONTROL_H)) {
+                continue;
+            }
+            JsonElement value = selector.get(part);
+            String shown = part.equals("in_village") ? DevUi.str(value.getAsBoolean() ? "npc.village.yes" : "npc.village.no")
+                    : String.join(", ", stringsOf(value.isJsonPrimitive() ? asList(value.getAsJsonPrimitive()) : value).stream()
+                    .map(text -> part.equals("nbt") ? text : DevUi.humanize(text.substring(text.indexOf(':') + 1))).toList());
+            String line = DevUi.str("mobdata.older", DevUi.str("field." + part), shown);
+            int top = rowY(CONTROL_H);
+            screen.add(Button.builder(Component.literal(screen.font().plainSubstrByWidth(line, w - 30)), b -> { })
+                    .tooltip(Tooltip.create(Component.literal(line).append("\n").append(DevUi.text("mobdata.older.tooltip")))).bounds(x, top, w - 20, CONTROL_H).build());
+            screen.add(Button.builder(Component.literal("✕"), b -> {
+                ensureObject(path).remove(part);
+                host.changed();
+            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, top, 18, CONTROL_H).build());
+        }
+    }
+
+    /** The kinds a selector names: its types, a #tag's members. */
+    private static List<net.minecraft.world.entity.EntityType<?>> kindsOf(@Nullable JsonObject selector) {
+        JsonElement type = selector != null ? selector.get("type") : null;
+        List<net.minecraft.world.entity.EntityType<?>> kinds = new ArrayList<>();
+        for (String kind : stringsOf(type instanceof JsonPrimitive one ? asList(one) : type)) {
+            ResourceLocation key = ResourceLocation.tryParse(kind.startsWith("#") ? kind.substring(1) : kind);
+            if (key == null) {
+                continue;
+            }
+            if (kind.startsWith("#")) {
+                BuiltInRegistries.ENTITY_TYPE.getTag(net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ENTITY_TYPE, key))
+                        .ifPresent(tag -> tag.forEach(holder -> kinds.add(holder.value())));
+            } else if (BuiltInRegistries.ENTITY_TYPE.containsKey(key)) {
+                kinds.add(BuiltInRegistries.ENTITY_TYPE.get(key));
+            }
+        }
+        return kinds;
+    }
+
+    /**
      * A filter that is yes, no or not given, as one switch going round: age ("Any / Grown-ups only / Children only") and
      * place ("Anywhere / Only in a village / Only outside villages").
      */
-    private void npcTriState(String field, String key, @Nullable JsonObject selector) {
+    private void npcTriState(List<Object> at, String field, String key, @Nullable JsonObject selector) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
         }
@@ -864,7 +1326,7 @@ final class FormView {
         Boolean value = selector != null && selector.get(field) instanceof JsonPrimitive written && written.isBoolean() ? written.getAsBoolean() : null;
         String state = value == null ? "any" : value ? "yes" : "no";
         Button button = Button.builder(Component.literal(DevUi.str(key + "." + state) + " ▸"), b -> {
-            JsonObject target = ensureObject(ENTITY);
+            JsonObject target = ensureObject(at);
             // Round: not given, then yes, then no; age goes grown-ups first, as an NPC mostly is.
             boolean firstYes = !field.equals("baby");
             if (value == null) {
@@ -878,88 +1340,6 @@ final class FormView {
         }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
         button.setTooltip(Tooltip.create(DevUi.text(key + ".tooltip")));
         screen.add(button);
-    }
-
-    /** Villager professions, by their names in the game (a mod's too, from the same registry). */
-    private static Picker professions() {
-        List<Entry> entries = new ArrayList<>();
-        for (ResourceLocation id : BuiltInRegistries.VILLAGER_PROFESSION.keySet().stream().sorted(java.util.Comparator.comparing(ResourceLocation::toString)).toList()) {
-            // As the game names a villager by its job: "entity.minecraft.villager.farmer", a mod's with its namespace
-            // ("entity.minecraft.villager.villagersplus.alchemist"; November 9, 2026: before, a mod's showed its id).
-            String key = "entity.minecraft.villager." + (id.getNamespace().equals("minecraft") ? "" : id.getNamespace() + ".") + id.getPath();
-            String name = Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : id.getPath();
-            entries.add(new Entry(id.toString(), id.getPath().equals("none") ? DevUi.str("npc.profession.none") : name,
-                    workstation(BuiltInRegistries.VILLAGER_PROFESSION.get(id))));
-        }
-        return Picker.rows(entries, DevUi.text("field.profession"), DevUi.text("npc.pick_empty"));
-    }
-
-    /**
-     * The block a villager takes the job at, as an item for its row (the lectern for a librarian, a mod's Alchemist
-     * Table): November 9, 2026, so the author sees what to place to get one. Empty for the jobless and the nitwit.
-     */
-    private static ItemStack workstation(net.minecraft.world.entity.npc.VillagerProfession profession) {
-        for (net.minecraft.core.Holder<net.minecraft.world.entity.ai.village.poi.PoiType> poi : BuiltInRegistries.POINT_OF_INTEREST_TYPE.holders().toList()) {
-            if (profession.heldJobSite().test(poi)) {
-                for (net.minecraft.world.level.block.state.BlockState state : poi.value().matchingStates()) {
-                    ItemStack item = new ItemStack(state.getBlock().asItem());
-                    if (!item.isEmpty()) {
-                        return item;
-                    }
-                }
-            }
-        }
-        return ItemStack.EMPTY;
-    }
-
-    /** Villager types, the clothes they were born in (plains, desert, snow...). */
-    private static Picker outfits() {
-        List<Entry> entries = new ArrayList<>();
-        for (ResourceLocation id : BuiltInRegistries.VILLAGER_TYPE.keySet().stream().sorted(java.util.Comparator.comparing(ResourceLocation::toString)).toList()) {
-            String key = "storybound.dev.outfit." + id.getPath();
-            entries.add(new Entry(id.toString(), Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : id.getPath(), ItemStack.EMPTY));
-        }
-        return Picker.rows(entries, DevUi.text("field.outfit"), DevUi.text("npc.pick_empty"));
-    }
-
-    /**
-     * Whether an instance of the kind has villager data. A mod's kind whose constructor fails on a client (it reaches for
-     * something of the server's) counts as maybe (November 9, 2026: before, it would take the editor down).
-     */
-    private static boolean hasVillagerData(net.minecraft.world.entity.EntityType<?> type, net.minecraft.client.multiplayer.ClientLevel level) {
-        try {
-            return type.create(level) instanceof net.minecraft.world.entity.npc.VillagerDataHolder;
-        } catch (RuntimeException | LinkageError e) {
-            Storybound.LOGGER.debug("Storybound: could not make a {} to see whether it is a villager: {}", BuiltInRegistries.ENTITY_TYPE.getKey(type), e.toString());
-            return true;
-        }
-    }
-
-    /** Whether each concrete kind has villager data, worked out on a client-only instance (as portraits do). */
-    private static final Map<net.minecraft.world.entity.EntityType<?>, Boolean> VILLAGER_DATA = new java.util.HashMap<>();
-
-    /**
-     * Whether an entity of the selector's kind can have villager data (a villager, a zombie villager, a mod's kind built
-     * on them): a profession and outfit mean something only then. No kind, a #tag or one unknown here: maybe.
-     */
-    private static boolean mayHaveVillagerData(@Nullable JsonObject selector) {
-        JsonElement type = selector != null ? selector.get("type") : null;
-        List<String> kinds = stringsOf(type instanceof JsonPrimitive one ? asList(one) : type);
-        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
-        if (kinds.isEmpty() || level == null) {
-            return true;
-        }
-        for (String kind : kinds) {
-            ResourceLocation key = kind.startsWith("#") ? null : ResourceLocation.tryParse(kind);
-            if (key == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(key)) {
-                return true;
-            }
-            net.minecraft.world.entity.EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.get(key);
-            if (VILLAGER_DATA.computeIfAbsent(entityType, created -> hasVillagerData(created, level))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static boolean flag(@Nullable JsonObject object, String name, boolean byDefault) {
@@ -1592,29 +1972,46 @@ final class FormView {
      * @param label above the rows; null where the page already says it (an entity's type under its switch)
      */
     private void idListRows(List<Object> path, String name, Picker picker, @Nullable Component label) {
+        idListRows(path, name, picker, picker, label, 0, id -> null);
+    }
+
+    /**
+     * As {@link #idListRows(List, String, Picker, Component)}, picking from {@code choose} (a list only of what fits,
+     * November 9, 2026) and naming by {@code names}; a row whose id no longer fits ({@code problem} says why) shows red
+     * with the reason, to be taken out or picked again.
+     *
+     * @param max at most so many (1: a field of one, as a location's structure); 0 for any
+     */
+    private void idListRows(List<Object> path, String name, Picker choose, Picker names, @Nullable Component label, int max,
+                            java.util.function.Function<String, Component> problem) {
         JsonObject owner = objectAt(path);
         List<String> ids = owner == null ? List.of() : stringsOf(owner.get(name) instanceof JsonPrimitive one ? asList(one) : owner.get(name));
         if (label != null && row(LABEL_H)) {
             labels.add(new Label(label, x, rowY(LABEL_H), DevUi.LABEL));
         }
+        Picker picker = choose;
         for (int i = 0; i < ids.size(); i++) {
             int index = i;
             if (!row(CONTROL_H)) {
                 continue;
             }
             int rowTop = rowY(CONTROL_H);
-            screen.add(Button.builder(Component.literal(idName(ids.get(i), picker)), b -> pick(picker, entry -> {
+            Component wrong = problem.apply(ids.get(i));
+            String shown = idName(ids.get(i), names);
+            Component text = wrong == null ? Component.literal(shown) : Component.literal("⚠ " + shown).withColor(DevUi.ERROR);
+            Component tip = wrong == null ? Component.literal(ids.get(i)) : Component.empty().append(wrong).append("\n" + ids.get(i));
+            screen.add(Button.builder(text, b -> pick(picker, entry -> {
                 List<String> next = new ArrayList<>(ids);
                 next.set(index, entry.id());
                 writeIds(path, name, next);
-            })).tooltip(Tooltip.create(Component.literal(ids.get(i)))).bounds(x, rowTop, w - 20, CONTROL_H).build());
+            })).tooltip(Tooltip.create(tip)).bounds(x, rowTop, w - 20, CONTROL_H).build());
             screen.add(Button.builder(Component.literal("✕"), b -> {
                 List<String> next = new ArrayList<>(ids);
                 next.remove(index);
                 writeIds(path, name, next);
             }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
         }
-        if (row(CONTROL_H)) {
+        if ((max == 0 || ids.size() < max) && row(CONTROL_H)) {
             screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> pick(picker, entry -> {
                 if (!ids.contains(entry.id())) {
                     List<String> next = new ArrayList<>(ids);
@@ -1651,6 +2048,13 @@ final class FormView {
             if (entry.id().equals(id)) {
                 return entry.label();
             }
+        }
+        if (id.startsWith("#") && picker.kind() != null) {
+            // A #tag as the list names it ("Raiders"), else its name made readable ("Skeletons"; November 9, 2026: before,
+            // "#minecraft:raiders" on the button and "Raiders" in the list).
+            String listed = Catalog.label(picker.kind(), id);
+            ResourceLocation tag = ResourceLocation.tryParse(id.substring(1));
+            return listed != null ? listed : tag != null ? DevUi.humanize(tag.getPath().substring(tag.getPath().lastIndexOf('/') + 1)) : id;
         }
         ResourceLocation key = id.startsWith("#") ? null : ResourceLocation.tryParse(id);
         if (key == null) {
@@ -2276,6 +2680,13 @@ final class FormView {
             for (JsonElement one : type.isJsonArray() ? type.getAsJsonArray().asList() : List.of(type)) {
                 String id = one.getAsString();
                 ResourceLocation key = id.startsWith("#") ? null : ResourceLocation.tryParse(id);
+                if (id.startsWith("#")) {
+                    // As the list names it ("Raiders"), else made readable.
+                    String listed = Catalog.label(Catalog.Kind.MOB, id);
+                    ResourceLocation tag = ResourceLocation.tryParse(id.substring(1));
+                    names.add(listed != null ? listed : tag != null ? DevUi.humanize(tag.getPath()) : id);
+                    continue;
+                }
                 names.add(key != null && BuiltInRegistries.ENTITY_TYPE.containsKey(key) ? BuiltInRegistries.ENTITY_TYPE.get(key).getDescription().getString() : id);
             }
             parts.add(String.join(", ", names));
@@ -2287,104 +2698,28 @@ final class FormView {
     }
 
     /**
-     * An entity's page, in two parts: what it is known by, one of three, by a switch (its type, with the list of types;
-     * only one with this name from a name tag; one entity, picked by looking at it), and the scoreboard tag it carries.
-     * Switching clears what the previous way wrote, but the type a picked entity brought along stays (it reads well).
-     * A file that gives several ways at once shows the most exact one (the entity, then the name, then the type).
+     * An entity's page (a waypoint's mob, a boss, an observed creature, one of an NPC's several entities), as an NPC's
+     * "Who it is" asks it (November 9, 2026: before, "Known by: type / only with this name from a name tag / one entity
+     * by its uuid", the ways an NPC's form had dropped: a name tag any player can copy, a uuid an author of a pack cannot
+     * know): its kind, its filters, and only those carrying a tag the story put on them (spawn_entity, /tag). A file
+     * still knowing it by a name or a uuid says so in a line; an NPC's own entity keeps its tag line and 🎯 instead.
      */
     private void entityPage(List<Object> path) {
-        JsonObject selector = objectAt(path);
-        // What the file says first; when it says nothing yet, the way last switched to here.
-        String written = selector == null ? null : selector.has("uuid") ? "uuid" : selector.has("name") ? "name" : selector.has("type") ? "type" : null;
-        String mode = written != null ? written : entityModes.getOrDefault(path.toString(), "type");
-        if (row(LABEL_H + CONTROL_H)) {
-            labelRow(DevUi.text("entity.by"));
-            int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
-            int modeW = Math.min(150, w * 2 / 5);
-            Button switcher = Button.builder(Component.literal(DevUi.str("entity.mode." + mode) + " ▸"), b -> {
-                JsonObject target = ensureObject(path);
-                String next = switch (mode) {
-                    case "type" -> {
-                        putAway(path, target, "type");
-                        yield "name";
-                    }
-                    case "name" -> {
-                        putAway(path, target, "name");
-                        yield "uuid";
-                    }
-                    default -> {
-                        putAway(path, target, "uuid");
-                        yield "type";
-                    }
-                };
-                giveBack(path, target, next);
-                // An empty way still shows as chosen: the switch writes nothing until the field is filled.
-                entityModes.put(path.toString(), next);
-                host.changed();
-            }).bounds(x, rowTop, modeW, CONTROL_H).build();
-            switcher.setTooltip(Tooltip.create(DevUi.text("entity.mode.tooltip")));
-            String field = mode;
-            if (field.equals("type")) {
-                // The type is a list: a row each under the switch, added from the mobs, not typed with commas.
-                switcher.setWidth(w);
-            } else {
-                int boxX = x + modeW + 4;
-                int boxW = w - modeW - 4 - (field.equals("uuid") ? 20 : 0);
-                EditBox box = new EditBox(screen.font(), boxX, rowTop + 1, boxW, CONTROL_H - 2, DevUi.text("entity.mode." + field));
-                box.setMaxLength(256);
-                box.setValue(selector != null && selector.has(field) ? display(Kind.STRING, selector.get(field)) : "");
-                box.setResponder(text -> {
-                    JsonObject target = ensureObject(path);
-                    if (text.isBlank()) {
-                        target.remove(field);
-                        box.setTextColor(0xFFE0E0E0);
-                        host.edited();
-                        return;
-                    }
-                    JsonElement parsed = field.equals("uuid") && !text.trim().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}") ? null
-                            : new JsonPrimitive(text.trim());
-                    box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
-                    if (parsed != null) {
-                        target.add(field, parsed);
-                        host.edited();
-                    }
-                });
-                box.setTooltip(Tooltip.create(DevUi.text("entity.field." + field)));
-                screen.add(box);
+        boolean npcEntity = host.npcBinding() != null && !path.isEmpty() && "entity".equals(path.getFirst());
+        if (npcEntity && SelectorEdits.byHand(host.root().get("entity"))) {
+            // One of an NPC's particular entities: its kind and its tag, put on with 🎯.
+            JsonObject selector = objectAt(path);
+            if (selector != null && (selector.has("uuid") || selector.has("name"))) {
+                String known = selector.has("uuid") ? DevUi.str("entity.summary.uuid", tail(selector.get("uuid").getAsString()))
+                        : DevUi.str("entity.summary.name", selector.get("name").getAsString());
+                text(DevUi.text("npc.known_from_file", known), DevUi.MUTED);
             }
-            screen.add(switcher);
-            if (field.equals("uuid")) {
-                screen.add(Button.builder(Component.literal("🎯"), b -> DevWorldPicker.pickEntity(screen, DevUi.text("picker.entity_prompt"), entity -> {
-                    JsonObject target = ensureObject(path);
-                    target.addProperty("uuid", entity.getUUID().toString());
-                    // The type goes along, so the file reads well and survives a typo in the uuid.
-                    target.addProperty("type", BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
-                    host.changed();
-                })).tooltip(Tooltip.create(DevUi.text("form.pick_entity"))).bounds(x + w - 18, rowTop - 1, 18, CONTROL_H).build());
-            }
-        }
-        if (mode.equals("type")) {
-            idListRows(path, "type", new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick")), null);
-        }
-        if (host.npcBinding() != null && !path.isEmpty() && "entity".equals(path.getFirst())) {
+            idListRows(path, "type", new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick")), DevUi.text("npc.kind"));
             npcLink(path, selector);
-        } else if (row(LABEL_H + CONTROL_H)) {
-            labelRow(DevUi.text("entity.tag"));
-            EditBox tag = new EditBox(screen.font(), x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H - 2, DevUi.text("entity.tag"));
-            tag.setMaxLength(256);
-            tag.setValue(selector != null && selector.has("tag") ? selector.get("tag").getAsString() : "");
-            tag.setResponder(text -> {
-                JsonObject target = ensureObject(path);
-                if (text.isBlank()) {
-                    target.remove("tag");
-                } else {
-                    target.addProperty("tag", text.trim());
-                }
-                host.edited();
-            });
-            tag.setTooltip(Tooltip.create(DevUi.text("entity.field.tag")));
-            screen.add(tag);
+            return;
         }
+        // A variant of a dynamic NPC, a waypoint's mob, a boss, an observed creature: who, where, its data.
+        variantPage(path, !npcEntity);
     }
 
     /**
@@ -3628,6 +3963,169 @@ final class FormView {
         objectPage(path, variant, Set.of(), "type");
     }
 
+    /** A waypoint's targets known in advance: a point, one entity followed. */
+    private static final List<String> FIXED_KINDS = List.of("pos", "entity");
+    /** And those found as the game goes: the nearest structure, the nearest mob, an NPC by its node. */
+    private static final List<String> DYNAMIC_KINDS = List.of("structure", "nearest", "npc");
+
+    /**
+     * Where a waypoint points (November 9, 2026, as an NPC's "Who it is"): "Rule: Known place / Dynamic", then "What"
+     * among that rule's two or three (before, one button went round all five, and the author did not find the structure
+     * or the mob behind it); then that kind's fields, with their hints. What a switch took
+     * away comes back on switching to it again, while the node is open.
+     */
+    private void waypointTargetPage(List<Object> path, List<Node> variants, int current) {
+        String kind = Schemas.required(variants.get(current)).iterator().next();
+        boolean dynamic = DYNAMIC_KINDS.contains(kind);
+        String rule = dynamic ? "dynamic" : "fixed";
+        // As every switch of the forms (an NPC's "Rule", "How many"): its label, one button "Value ▸" going round, a
+        // tooltip saying what it is (November 9, 2026: a row of radio buttons first, which no other form had).
+        switchRow(DevUi.text("waypoint.rule"), DevUi.text("waypoint.rule." + rule), DevUi.text("waypoint.rule.tooltip"), () -> {
+            String other = dynamic ? "fixed" : "dynamic";
+            List<String> kinds = other.equals("dynamic") ? DYNAMIC_KINDS : FIXED_KINDS;
+            switchTargetKind(path, variants, kind, entityModes.getOrDefault(path + "#rule:" + other, kinds.getFirst()));
+        });
+        List<String> kinds = dynamic ? DYNAMIC_KINDS : FIXED_KINDS;
+        switchRow(DevUi.text("waypoint.what"), DevUi.text("waypoint.what." + kind),
+                Component.empty().append(DevUi.text("waypoint.what." + kind + ".tooltip")).append(" ").append(DevUi.text("form.click_to_switch")),
+                () -> switchTargetKind(path, variants, kind, kinds.get((kinds.indexOf(kind) + 1) % kinds.size())));
+        if (kind.equals("nearest")) {
+            // It finds only what is loaded near the player (November 9, 2026: a quest pointing at "the nearest alchemist"
+            // from its start showed nothing in a new world).
+            text(DevUi.text("waypoint.kind.nearest.note"), DevUi.MUTED);
+        } else if (kind.equals("npc")) {
+            text(DevUi.text("waypoint.kind.npc.note"), DevUi.MUTED);
+        }
+        objectPage(path, variants.get(current), Set.of(), null);
+    }
+
+    /** Puts the target of this kind in place of the one written, keeping that one to give back. */
+    private void switchTargetKind(List<Object> path, List<Node> variants, String from, String to) {
+        JsonElement now = get(path);
+        if (now != null) {
+            switchedAway.put(path + "#kind:" + from, now.deepCopy());
+        }
+        entityModes.put(path + "#rule:" + (DYNAMIC_KINDS.contains(to) ? "dynamic" : "fixed"), to);
+        JsonElement back = switchedAway.remove(path + "#kind:" + to);
+        Node variant = variants.stream().filter(candidate -> Schemas.required(candidate).contains(to)).findFirst().orElse(null);
+        if (back == null && variant == null) {
+            return;
+        }
+        JsonElement next = back;
+        if (next == null) {
+            // Its own field written empty, so the kind is known (the skeleton leaves out a field with no default: the
+            // target was {}, read as a point again, and the button seemed to do nothing; November 9, 2026). A point
+            // starts without a position rather than at 0 64 0; the status line says what to fill in.
+            JsonObject skeleton = Schemas.skeleton(variant);
+            skeleton.add(to, to.equals("pos") ? new JsonArray() : to.equals("nearest") ? new JsonObject() : new JsonPrimitive(""));
+            next = skeleton;
+        }
+        put(ensureParent(path), path, path.size() - 1, next);
+        host.changed();
+    }
+
+    /**
+     * A switch as every form has it (an NPC's "Rule", "How many"): its label above, one button "Value ▸" across the row
+     * that goes to the next value on a click, and a tooltip saying what the value is.
+     */
+    private void switchRow(Component label, Component value, Component tooltip, Runnable next) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(label);
+        Button button = Button.builder(Component.empty().append(value).append(" ▸"), b -> next.run())
+                .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(tooltip));
+        screen.add(button);
+    }
+
+    /** add_waypoint's fields saying where it points, drawn together by {@link #addWaypointTarget}. */
+    private static final Set<String> ADD_WAYPOINT_TARGET = Set.of("pos", "dimension", "follow", "structure", "search_radius", "npc", "nearest", "range");
+    /** add_waypoint's places known in advance: a point, the one talked to (the context entity), where it stands now. */
+    private static final List<String> ADD_FIXED_KINDS = List.of("pos", "follow", "here");
+    /** Each kind's fields, in the order asked: the dimension before the structure it lists. */
+    private static final Map<String, List<String>> ADD_KIND_FIELDS = Map.of(
+            "pos", List.of("pos", "dimension"),
+            "follow", List.of(),
+            "here", List.of(),
+            "structure", List.of("dimension", "structure", "search_radius"),
+            "nearest", List.of("nearest", "range"),
+            "npc", List.of("npc", "range"));
+
+    /** Which kind an add_waypoint is, as its run reads it: a point, a structure, an NPC, the nearest mob, the one talked to, else here. */
+    private static String addWaypointKind(@Nullable JsonObject action) {
+        if (action == null) {
+            return "here";
+        }
+        for (String kind : List.of("pos", "structure", "npc", "nearest")) {
+            if (action.has(kind)) {
+                return kind;
+            }
+        }
+        return flag(action, "follow", false) ? "follow" : "here";
+    }
+
+    /**
+     * Where add_waypoint points (November 9, 2026): "Rule" and "What" as a waypoint's target page has them, over the
+     * action's own fields (it can also follow the one talked to, or mark where it stands now), then that kind's fields
+     * and hints. Before, every field at once, and no NPC nor mob: a story could not point at Miron or "the nearest
+     * alchemist" from an event or a dialogue.
+     */
+    private void addWaypointTarget(List<Object> path, Node schema, @Nullable JsonObject action) {
+        String kind = addWaypointKind(action);
+        boolean dynamic = DYNAMIC_KINDS.contains(kind);
+        switchRow(DevUi.text("waypoint.rule"), DevUi.text("waypoint.rule." + (dynamic ? "dynamic" : "fixed")), DevUi.text("waypoint.rule.tooltip"), () -> {
+            String other = dynamic ? "fixed" : "dynamic";
+            List<String> kinds = other.equals("dynamic") ? DYNAMIC_KINDS : ADD_FIXED_KINDS;
+            switchAddWaypointKind(path, kind, entityModes.getOrDefault(path + "#rule:" + other, kinds.getFirst()));
+        });
+        List<String> kinds = dynamic ? DYNAMIC_KINDS : ADD_FIXED_KINDS;
+        switchRow(DevUi.text("waypoint.what"), DevUi.text("waypoint.what." + kind),
+                Component.empty().append(DevUi.text("waypoint.what." + kind + ".tooltip")).append(" ").append(DevUi.text("form.click_to_switch")),
+                () -> switchAddWaypointKind(path, kind, kinds.get((kinds.indexOf(kind) + 1) % kinds.size())));
+        if (kind.equals("nearest")) {
+            text(DevUi.text("waypoint.kind.nearest.note"), DevUi.MUTED);
+        } else if (kind.equals("npc")) {
+            text(DevUi.text("waypoint.kind.npc.note"), DevUi.MUTED);
+        } else if (kind.equals("follow") || kind.equals("here")) {
+            text(DevUi.text("waypoint.what." + kind + ".note"), DevUi.MUTED);
+        }
+        Map<String, Node> fields = Schemas.properties(schema);
+        for (String name : ADD_KIND_FIELDS.get(kind)) {
+            if (fields.containsKey(name)) {
+                field(path, name, fields.get(name), false, schema);
+            }
+        }
+    }
+
+    /** Puts away the target fields written and writes this kind's, given back when switched to again. */
+    private void switchAddWaypointKind(List<Object> path, String from, String to) {
+        JsonObject action = ensureObject(path);
+        JsonObject away = new JsonObject();
+        for (String name : ADD_WAYPOINT_TARGET) {
+            JsonElement value = action.remove(name);
+            if (value != null) {
+                away.add(name, value);
+            }
+        }
+        switchedAway.put(path + "#akind:" + from, away);
+        entityModes.put(path + "#rule:" + (DYNAMIC_KINDS.contains(to) ? "dynamic" : "fixed"), to);
+        JsonElement back = switchedAway.remove(path + "#akind:" + to);
+        if (back instanceof JsonObject restored && !restored.isEmpty()) {
+            restored.entrySet().forEach(entry -> action.add(entry.getKey(), entry.getValue()));
+        } else {
+            // Its own field written empty, so the kind is known; the one talked to is a switch on, here is nothing.
+            switch (to) {
+                case "pos" -> action.add("pos", new JsonArray());
+                case "follow" -> action.addProperty("follow", true);
+                case "nearest" -> action.add("nearest", new JsonObject());
+                case "structure", "npc" -> action.addProperty(to, "");
+                default -> { }
+            }
+        }
+        host.changed();
+    }
+
     /** One of several shapes (a waypoint's target: a point, an entity, a structure, the nearest mob). */
     private void variantsPage(List<Object> path, Node schema) {
         List<Node> variants = Schemas.variants(schema);
@@ -3637,6 +4135,10 @@ final class FormView {
         int current = Schemas.variantOf(schema, get(path));
         // A waypoint's target: "Points at: a point / one entity / the nearest structure / the nearest mob".
         boolean target = path.size() == 1 && "target".equals(path.getFirst()) && host.root().has("name") && Schemas.properties(variants.get(0)).containsKey("pos");
+        if (target && !Schemas.required(variants.get(current)).isEmpty()) {
+            waypointTargetPage(path, variants, current);
+            return;
+        }
         if (row(LABEL_H + CONTROL_H)) {
             labelRow(DevUi.text(target ? "waypoint.points_at" : "form.variant"));
             Node shown = variants.get(current);
@@ -3696,9 +4198,14 @@ final class FormView {
         return "—";
     }
 
+    /** A dimension by its name: the editor's own, else as the quest tracker names it (a mod's translation, its id made readable). */
     private static String dimensionName(String dimension) {
         String key = "storybound.dev.dimension." + dimension.substring(dimension.indexOf(':') + 1);
-        return Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : dimension;
+        if (Language.getInstance().has(key)) {
+            return Language.getInstance().getOrDefault(key);
+        }
+        ResourceLocation id = ResourceLocation.tryParse(dimension);
+        return id == null ? dimension : dev.dzenthai.storybound.client.quest.QuestHud.dimensionName(id);
     }
 
     private static Component variantLabel(Node variant) {
@@ -4080,6 +4587,13 @@ final class FormView {
     private @Nullable Picker dependentPicker(String field, Node owner, @Nullable JsonObject object) {
         Map<String, Node> properties = Schemas.properties(owner);
         String type = object != null && object.get("type") instanceof JsonPrimitive written ? written.getAsString() : "";
+        if (field.equals("structure") && properties.containsKey("dimension") && properties.containsKey("search_radius")) {
+            // A waypoint's structure: those of its dimension, picked first (November 9, 2026).
+            ResourceLocation dimension = object != null && object.get("dimension") instanceof JsonPrimitive written
+                    ? ResourceLocation.tryParse(written.getAsString()) : null;
+            ResourceLocation in = dimension != null ? dimension : ResourceLocation.withDefaultNamespace("overworld");
+            return Picker.rows(Catalog.structuresIn(in), DevUi.text("form.pick_title.structure"), DevUi.text("waypoint.no_structures", in.toString()));
+        }
         if (field.equals("stage") && properties.containsKey("quest")) {
             boolean quest = object != null && object.get("quest") instanceof JsonPrimitive named && !named.getAsString().isBlank();
             return Picker.choices(stagesOf(object), DevUi.text("pick.title.stage"), DevUi.text(quest ? "pick.no_stages" : "pick.need_quest"));

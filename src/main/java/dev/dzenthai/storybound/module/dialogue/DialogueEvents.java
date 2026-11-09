@@ -67,6 +67,7 @@ public final class DialogueEvents {
         StoryMigrations.registerKeyPrefix(NpcBindings.ONCE_PREFIX, StoryMigrations.Kind.NPC_BINDINGS, 0);
         LogicOwners.register(DialogueRegistries.DIALOGUES, DialogueEvents::collectReferences);
         LogicOwners.register(DialogueRegistries.NPC_BINDINGS, (binding, references) -> {
+            binding.entities().forEach(selector -> references.place(selector.place()));
             binding.dialogues().forEach(entry -> {
                 entry.dialogue().ifPresent(references::dialogue);
                 entry.conditions().collectReferences(references);

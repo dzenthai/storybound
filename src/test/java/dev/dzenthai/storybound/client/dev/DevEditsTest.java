@@ -183,6 +183,23 @@ class DevEditsTest {
     }
 
     /**
+     * An arrow from a waypoint to an NPC (November 9, 2026): the waypoint points at it, whatever it pointed at before;
+     * unlinking leaves the target to choose again (the form then says "Choose the NPC"); not the other way round.
+     */
+    @Test
+    void aWaypointIsLinkedToTheNpcItPointsAt() {
+        NodeKey waypoint = new NodeKey(ClientDevStore.TYPE_WAYPOINT, Storybound.id("to_smith"));
+        NodeKey npc = new NodeKey(ClientDevStore.TYPE_NPC, Storybound.id("smith"));
+        JsonObject marker = json("{ \"name\": \"x\", \"target\": { \"pos\": [ 1, 2, 3 ] } }");
+        assertTrue(StoryEdits.link(marker, waypoint, npc));
+        assertEquals("{\"npc\":\"storybound:smith\"}", marker.get("target").toString(), "it points at the NPC now");
+        assertTrue(StoryEdits.refersTo(marker, npc));
+        assertTrue(StoryEdits.unlink(marker, npc));
+        assertEquals("{}", marker.get("target").toString(), "unlinked: the target is left to choose");
+        assertFalse(StoryEdits.link(new JsonObject(), npc, waypoint), "not from the NPC");
+    }
+
+    /**
      * Arrows from an NPC to phrases (November 6, 2026): its chatter first, then for when it is hit, then a click entry;
      * phrases point at nothing (a line no longer starts a dialogue). Unlinking takes a click entry and a chatter
      * variant with the phrases, the chatter only when nothing else is left in it, and a hit's dialogue but not the reaction.

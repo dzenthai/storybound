@@ -1,0 +1,7 @@
+{
+  "name": "scenario.dimensions.nether_point",
+  "target": {
+    "pos": [ 0, 64, 0 ],
+    "dimension": "minecraft:the_nether"
+  }
+}

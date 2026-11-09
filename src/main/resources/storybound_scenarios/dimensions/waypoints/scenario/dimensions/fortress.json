@@ -1,0 +1,8 @@
+{
+  "name": "scenario.dimensions.fortress",
+  "target": {
+    "dimension": "minecraft:the_nether",
+    "structure": "minecraft:fortress",
+    "search_radius": 100
+  }
+}

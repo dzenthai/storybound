@@ -64,6 +64,12 @@ public final class QuestHud {
         QuestsView.secondsLeft(definition, progress).ifPresent(left -> lines.add(new Line(
                 Component.translatable("storybound.quests.time_left", QuestsView.clock(left)).getVisualOrderText(),
                 left < 60 ? 0xFFD9534F : theme.hudText())));
+        Component elsewhere = elsewhere(quest);
+        if (elsewhere != null) {
+            for (FormattedCharSequence line : font.split(elsewhere, MAX_WIDTH)) {
+                lines.add(new Line(line, theme.hudText()));
+            }
+        }
         progress.stage().flatMap(definition::stage).ifPresent(stage -> {
             for (int i = 0; i < stage.objectives().size(); i++) {
                 QuestDefinition.Objective objective = stage.objectives().get(i);
@@ -83,6 +89,52 @@ public final class QuestHud {
                 }
             }
         });
+    }
+
+    /**
+     * "📍 The Nether": the dimensions the quest's waypoints are in other than the player's (November 9, 2026: before,
+     * nothing said where to go, as no marker is drawn in another dimension); null when they are all here or it has none.
+     */
+    static @org.jetbrains.annotations.Nullable Component elsewhere(ResourceLocation quest) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) {
+            return null;
+        }
+        ResourceLocation here = minecraft.level.dimension().location();
+        java.util.Set<ResourceLocation> dimensions = new java.util.LinkedHashSet<>();
+        for (dev.dzenthai.storybound.module.waypoint.ClientWaypoint waypoint : dev.dzenthai.storybound.client.waypoint.ClientWaypoints.all()) {
+            if (waypoint.quest().filter(quest::equals).isPresent() && !waypoint.dimension().equals(here)) {
+                dimensions.add(waypoint.dimension());
+            }
+        }
+        if (dimensions.isEmpty()) {
+            return null;
+        }
+        List<String> names = dimensions.stream().map(QuestHud::dimensionName).toList();
+        return Component.translatable("storybound.quests.elsewhere", String.join(", ", names));
+    }
+
+    /**
+     * A dimension's name: ours for the vanilla ones, a mod's own under {@code dimension.<ns>.<path>} (a common way), else
+     * its id made readable ("twilightforest:twilight_forest" → "Twilight Forest").
+     */
+    public static String dimensionName(ResourceLocation dimension) {
+        net.minecraft.locale.Language language = net.minecraft.locale.Language.getInstance();
+        for (String key : List.of("storybound.dimension." + dimension.getNamespace() + "." + dimension.getPath(),
+                "dimension." + dimension.getNamespace() + "." + dimension.getPath())) {
+            if (language.has(key)) {
+                return language.getOrDefault(key);
+            }
+        }
+        String path = dimension.getPath();
+        String last = path.substring(path.lastIndexOf('/') + 1);
+        StringBuilder readable = new StringBuilder();
+        for (String word : last.split("_")) {
+            if (!word.isEmpty()) {
+                readable.append(readable.isEmpty() ? "" : " ").append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+            }
+        }
+        return readable.toString();
     }
 
     private static void render(GuiGraphics graphics, StoryboundClientConfig config, Font font, MenuTheme theme, List<Line> lines) {

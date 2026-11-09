@@ -1,0 +1,8 @@
+{
+  "name": "scenario.dimensions.end_city",
+  "target": {
+    "dimension": "minecraft:the_end",
+    "structure": "minecraft:end_city",
+    "search_radius": 100
+  }
+}

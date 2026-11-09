@@ -31,6 +31,12 @@ public interface References {
     default void spawn(List<String> tags, Optional<Boolean> unique) {}
 
     /**
+     * A place written (a mob's or the player's dimension, biome and structure), which the validator checks can be
+     * ({@link WorldPlaces#problems}); empty ones are not passed.
+     */
+    default void place(WorldPlaces.Place place) {}
+
+    /**
      * The receiver for actions that run once in the world: a {@code world} quest's own actions, a story event with
      * {@code once: world}. Walkers pass such lists through it; everything else may run once per player or party.
      */

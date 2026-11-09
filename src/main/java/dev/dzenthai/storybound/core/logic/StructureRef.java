@@ -99,13 +99,53 @@ public record StructureRef(ResourceLocation id, boolean tag) {
     }
 
     private Optional<? extends HolderSet<Structure>> holders(ServerLevel level) {
-        Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        return holders(level.registryAccess());
+    }
+
+    /** The structures, or empty for an unknown id or tag (not logged). */
+    public Optional<? extends HolderSet<Structure>> holders(net.minecraft.core.RegistryAccess access) {
+        Registry<Structure> registry = access.registryOrThrow(Registries.STRUCTURE);
         return tag ? registry.getTag(TagKey.create(Registries.STRUCTURE, id))
                 : registry.getHolder(ResourceKey.create(Registries.STRUCTURE, id)).map(HolderSet::direct);
     }
 
-    /** The ground at a structure's position when its chunk is loaded (no chunk is loaded for this), else sea level. */
+    /**
+     * Where a marker for this structure found at {@code at} stands (November 9, 2026): the middle of the structure itself
+     * once its chunk is loaded (an underground stronghold underground, a fortress in the Nether's middle); before, the
+     * top block, the surface above a stronghold and the bedrock roof of the Nether. Until then, and for a structure
+     * whose start is not there: the ground, else the sea level in a dimension with a roof (whose top block is the roof).
+     */
+    public net.minecraft.world.phys.Vec3 markerPos(ServerLevel level, BlockPos at) {
+        if (level.getChunkSource().hasChunk(at.getX() >> 4, at.getZ() >> 4)) {
+            net.minecraft.world.level.chunk.ChunkAccess chunk = level.getChunk(at.getX() >> 4, at.getZ() >> 4);
+            Optional<? extends HolderSet<Structure>> set = holders(level);
+            if (set.isPresent()) {
+                for (Holder<Structure> structure : set.get()) {
+                    net.minecraft.world.level.levelgen.structure.StructureStart start = chunk.getStartForStructure(structure.value());
+                    if (start == null || !start.isValid()) {
+                        // Not its start chunk (a place already at the middle): the structure covering that place.
+                        start = level.structureManager().getStructureAt(at, structure.value());
+                    }
+                    if (start != null && start.isValid()) {
+                        net.minecraft.world.level.levelgen.structure.BoundingBox box = start.getBoundingBox();
+                        return new net.minecraft.world.phys.Vec3((box.minX() + box.maxX() + 1) / 2.0, (box.minY() + box.maxY()) / 2.0,
+                                (box.minZ() + box.maxZ() + 1) / 2.0);
+                    }
+                }
+            }
+        }
+        return new net.minecraft.world.phys.Vec3(at.getX() + 0.5, groundY(level, at), at.getZ() + 0.5);
+    }
+
+    /**
+     * The ground at a structure's position when its chunk is loaded (no chunk is loaded for this), else sea level; in a
+     * dimension with a roof, the sea level.
+     */
     public static double groundY(ServerLevel level, BlockPos pos) {
+        if (level.dimensionType().hasCeiling()) {
+            // Its top block is the roof (the Nether's bedrock): the sea level is nearer where things are.
+            return level.getChunkSource().getGenerator().getSeaLevel();
+        }
         return level.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)
                 ? level.getHeight(Heightmap.Types.MOTION_BLOCKING, pos.getX(), pos.getZ())
                 : level.getChunkSource().getGenerator().getSeaLevel();

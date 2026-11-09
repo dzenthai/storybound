@@ -420,6 +420,73 @@ public final class WaypointGameTests {
         helper.succeed();
     }
 
+    /**
+     * A quest's waypoint in another dimension (November 9, 2026). The player is in the overworld. A fortress in the
+     * Nether is not searched for (an unvisited dimension is not touched) and is sent with only its dimension known
+     * ("placed": false, which nothing draws; the quest tracker names the dimension); a point in the Nether is sent with
+     * its place and dimension, which the client does not draw here either.
+     */
+    @GameTest(template = "empty")
+    public static void aWaypointInAnotherDimensionNamesItAndSearchesNothing(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ok(() -> StoryState.set(player, StoryScope.PLAYER, key("nether_seeker"), new StoryValue.Bool(true)));
+        ResourceLocation fortress = key("nether_fortress");
+        ResourceLocation point = key("nether_point");
+        String seeker = ", \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:nether_seeker\" } }";
+        DefinitionStore<WaypointDefinition> store = WaypointRegistries.WAYPOINTS.serverStore();
+        Map<ResourceLocation, WaypointDefinition> previous = store.all();
+        Map<ResourceLocation, WaypointDefinition> installed = new LinkedHashMap<>(previous);
+        installed.put(fortress, parse(helper, "{ \"name\": \"gametest.fortress\", \"target\": { \"structure\": \"minecraft:fortress\","
+                + " \"dimension\": \"minecraft:the_nether\", \"search_radius\": 1 }" + seeker));
+        installed.put(point, parse(helper, "{ \"name\": \"gametest.point\", \"target\": { \"pos\": [ 10, 64, 10 ], \"dimension\": \"minecraft:the_nether\" }" + seeker));
+        store.replace(installed);
+        Waypoints.rebuild();
+        try {
+            Map<String, ClientWaypoint> shown = Waypoints.visible(player);
+            ClientWaypoint there = shown.get(fortress.toString());
+            helper.assertTrue(there != null && !there.placed() && there.dimension().equals(Level.NETHER.location()),
+                    "the fortress: its dimension only, not placed: " + there);
+            StructureLocator.Search search = new StructureLocator.Search(StructureRef.of("minecraft:fortress").orElseThrow(), Level.NETHER,
+                    Waypoints.structureSearchOrigin(player, Level.NETHER), 1);
+            helper.assertFalse(StructureLocator.asked(search), "and not searched for: the player is not in the Nether");
+            ClientWaypoint at = shown.get(point.toString());
+            helper.assertTrue(at != null && at.placed() && at.dimension().equals(Level.NETHER.location()), "the point: placed, in the Nether: " + at);
+        } finally {
+            store.replace(previous);
+            Waypoints.rebuild();
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * add_waypoint can point at the nearest mob of a kind, filters and all, and at an NPC by its node (November 9, 2026:
+     * before, only a point, a structure or the one talked to). Expected: the nearest grown villager is followed, not the
+     * child beside it; an NPC that does not exist fails the action, saying so.
+     */
+    @GameTest(template = "empty")
+    public static void addWaypointPointsAtTheNearestMobAndAtAnNpc(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setPos(helper.absoluteVec(new Vec3(1.5, 2, 1.5)));
+        net.minecraft.world.entity.npc.Villager child = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.VILLAGER, 1, 2, 1);
+        child.setAge(-24000);
+        net.minecraft.world.entity.npc.Villager grown = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.VILLAGER, 3, 2, 3);
+        try {
+            run(helper, player, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:to_grown\", \"name\": \"gametest.g\","
+                    + " \"nearest\": { \"type\": \"minecraft:villager\", \"baby\": false }, \"range\": 16 }");
+            ClientWaypoint shown = Waypoints.visible(player).get("player/gametest:to_grown");
+            helper.assertTrue(shown != null && shown.entity() == grown.getId(), "the nearest grown villager, not the child: " + shown);
+            boolean done = Actions.runAll(LogicCodecs.ACTIONS.parse(ops(helper), JsonParser.parseString(
+                    "{ \"type\": \"add_waypoint\", \"id\": \"gametest:to_nobody\", \"name\": \"gametest.n\", \"npc\": \"gametest:no_such_npc\" }"))
+                    .getOrThrow(GameTestAssertException::new), StoryContext.of(player), "gametest", OnFail.ABORT);
+            helper.assertFalse(done, "an NPC that does not exist fails the action");
+        } finally {
+            Waypoints.remove(player.server, key("to_grown"), StoryScope.PLAYER, player.getUUID());
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
     /** Plants a search answer for the player's cell: a structure {@code dx} blocks east of the cell's middle. */
     private static BlockPos plant(ServerPlayer player, StructureRef structure, int dx) {
         BlockPos cell = Waypoints.structureSearchOrigin(player, Level.OVERWORLD);

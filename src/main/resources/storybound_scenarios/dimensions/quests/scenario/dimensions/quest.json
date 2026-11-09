@@ -1,0 +1,41 @@
+{
+  "category": "side",
+  "title": "scenario.dimensions.quest.title",
+  "text": {
+    "active": "scenario.dimensions.quest.text"
+  },
+  "stages": [
+    {
+      "id": "nether",
+      "objectives": [
+        {
+          "id": "enter",
+          "text": "scenario.dimensions.quest.enter",
+          "trigger": { "type": "dimension_changed", "to": "minecraft:the_nether" }
+        }
+      ],
+      "waypoints": [
+        "scenario:dimensions/nether_point",
+        "scenario:dimensions/fortress",
+        "scenario:dimensions/end_city",
+        "scenario:dimensions/village"
+      ]
+    },
+    {
+      "id": "home",
+      "objectives": [
+        {
+          "id": "back",
+          "text": "scenario.dimensions.quest.back",
+          "trigger": { "type": "dimension_changed", "to": "minecraft:overworld" }
+        }
+      ],
+      "waypoints": [
+        "scenario:dimensions/nether_point",
+        "scenario:dimensions/fortress",
+        "scenario:dimensions/end_city",
+        "scenario:dimensions/village"
+      ]
+    }
+  ]
+}

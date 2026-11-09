@@ -254,6 +254,11 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
                 detail.text(Component.translatable("storybound.quests.difficulty", difficultyLabel(difficulty)), theme.ink()));
         secondsLeft(definition, progress).ifPresent(left -> detail.text(Component.translatable("storybound.quests.time_left", clock(left)),
                 left < 60 ? 0xFFD9534F : theme.ink()));
+        // Where its markers are, when not here: "📍 The Nether", as the tracker says it (November 9, 2026).
+        Component elsewhere = progress.status() == QuestStatus.ACTIVE ? QuestHud.elsewhere(entry.id()) : null;
+        if (elsewhere != null) {
+            detail.text(elsewhere, theme.ink());
+        }
         if (definition.repeatable().isPresent()) {
             OptionalLong again = secondsUntilRepeat(definition, progress);
             Component repeat = progress.status() == QuestStatus.ACTIVE ? Component.translatable("storybound.quests.repeatable")

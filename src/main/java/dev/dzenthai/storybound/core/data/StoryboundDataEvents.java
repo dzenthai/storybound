@@ -20,6 +20,8 @@ public final class StoryboundDataEvents {
     public static void register(IEventBus gameBus) {
         gameBus.addListener(StoryboundDataEvents::onAddReloadListeners);
         gameBus.addListener(StoryboundDataEvents::onTagsUpdated);
+        // HIGH: before the headless validation (LOWEST), which validates on its own.
+        gameBus.addListener(net.neoforged.bus.api.EventPriority.HIGH, StoryboundDataEvents::onServerStarted);
         gameBus.addListener(StoryboundDataEvents::onDatapackSync);
         gameBus.addListener(StoryboundDataEvents::onPlayerLoggedIn);
     }
@@ -36,9 +38,25 @@ public final class StoryboundDataEvents {
         return new DefinitionLoader<>(type, registries);
     }
 
+    /** A data load came before the worlds were made: validated once they are, as a place's checks need them. */
+    private static boolean pending;
+
     // Fires after all reload listeners have run, both on world start and after /reload.
     private static void onTagsUpdated(TagsUpdatedEvent event) {
         if (event.getUpdateCause() == TagsUpdatedEvent.UpdateCause.SERVER_DATA_LOAD) {
+            net.minecraft.server.MinecraftServer server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+            if (server == null || !server.getAllLevels().iterator().hasNext()) {
+                // On world start: the dimensions are not made yet, and "the Nether has no plains" could not be said.
+                pending = true;
+                return;
+            }
+            ValidationService.publish(ValidationService.validate());
+        }
+    }
+
+    private static void onServerStarted(net.neoforged.neoforge.event.server.ServerStartedEvent event) {
+        if (pending) {
+            pending = false;
             ValidationService.publish(ValidationService.validate());
         }
     }

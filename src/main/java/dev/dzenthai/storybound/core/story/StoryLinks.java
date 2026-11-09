@@ -140,6 +140,10 @@ public final class StoryLinks {
                 parseId(obj.get("quest").getAsString())
                         .ifPresent(quest -> edges.add(new Edge(new NodeKey(QUEST, quest), wpKey, "quest")));
             }
+            // It points at an NPC (November 9, 2026).
+            if (obj.get("target") instanceof JsonObject target && target.get("npc") instanceof JsonPrimitive npc) {
+                parseId(npc.getAsString()).ifPresent(binding -> edges.add(new Edge(wpKey, new NodeKey(NPC, binding), "leads")));
+            }
         });
         source.byType(EVENT).forEach((id, raw) -> collectLogicEdges(new NodeKey(EVENT, id), parseObject(raw), edges, hooks));
         for (ResourceLocation type : List.of(NPC, BOSS, CODEX)) {

@@ -357,7 +357,7 @@ public class DevModeScreen extends Screen {
         Component line = !statusText.getString().isEmpty() ? statusText : view.showsIssues() && width > 680 ? DevUi.text("hint") : Component.empty();
         int color = !statusText.getString().isEmpty() ? statusColor : DevUi.HINT;
         if (right - x > 20) {
-            graphics.drawString(font, font.plainSubstrByWidth(line.getString(), right - x), x, 8, color, false);
+            drawCut(graphics, line.getString(), x, 8, right - x, color);
         }
     }
 
@@ -587,6 +587,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        cuts.clear();
         // A window opened or closed without a rebuild (the text window, the catalog: open() only marks them open) gets
         // its widgets before anything can be clicked. Before (October 29, 2026), the text window showed but took no
         // input, and the inspector's buttons under it stayed live: its Save rebuilt the screen, only then the window worked.
@@ -625,6 +626,30 @@ public class DevModeScreen extends Screen {
             renderMenu(graphics, mouseX, mouseY);
         }
         renderIssuesTooltip(graphics, mouseX, mouseY);
+        for (Cut cut : cuts) {
+            if (mouseX >= cut.x() && mouseX < cut.x() + cut.width() && mouseY >= cut.y() && mouseY < cut.y() + 9) {
+                graphics.renderTooltip(font, font.split(Component.literal(cut.text()), 300), mouseX, mouseY);
+                break;
+            }
+        }
+    }
+
+    /** A line drawn cut to fit: its whole text, shown on hover (November 9, 2026). */
+    private record Cut(int x, int y, int width, String text) {}
+
+    private final List<Cut> cuts = new ArrayList<>();
+
+    /**
+     * Draws a line of text cut to the width, its whole text on hover when cut (the status line, the inspector's warning:
+     * November 9, 2026; before, what did not fit was lost, "Choose wh").
+     */
+    void drawCut(GuiGraphics graphics, String text, int x, int y, int width, int color) {
+        String shown = font.plainSubstrByWidth(text, width);
+        if (shown.length() < text.length()) {
+            shown = font.plainSubstrByWidth(text, width - font.width("…")) + "…";
+            cuts.add(new Cut(x, y, width, text));
+        }
+        graphics.drawString(font, shown, x, y, color, false);
     }
 
     private int collapseY() {

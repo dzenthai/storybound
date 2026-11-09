@@ -176,6 +176,11 @@ final class StoryEdits {
             JsonObject contract = from.has("contract") && from.get("contract").isJsonObject() ? from.getAsJsonObject("contract") : new JsonObject();
             contract.addProperty("quest", id);
             from.add("contract", contract);
+        } else if (a.equals(ClientDevStore.TYPE_WAYPOINT) && b.equals(ClientDevStore.TYPE_NPC)) {
+            // The waypoint points at the NPC (November 9, 2026); what it pointed at before is replaced.
+            JsonObject points = new JsonObject();
+            points.addProperty("npc", id);
+            from.add("target", points);
         } else if (a.equals(ClientDevStore.TYPE_QUEST) && b.equals(ClientDevStore.TYPE_WAYPOINT)) {
             JsonArray stages = array(from, "stages");
             if (stages.isEmpty()) {
@@ -293,7 +298,9 @@ final class StoryEdits {
             ClientDevStore.TYPE_BOSS, "boss",
             ClientDevStore.TYPE_CODEX, "entry",
             ClientDevStore.TYPE_SCRIPT, "id",
-            ClientDevStore.TYPE_PHRASES, "phrases");
+            ClientDevStore.TYPE_PHRASES, "phrases",
+            // A waypoint's target { "npc": ... } (November 9, 2026).
+            ClientDevStore.TYPE_NPC, "npc");
     /** Fields holding conditions: a condition naming the target stays, even of a type that is also an action ("Script"). */
     private static final Set<String> CONDITION_FIELDS = Set.of("conditions", "condition", "fail_when");
     /** Fields holding a list of actions: a matching single action becomes an empty list, which every one of them takes. */
@@ -339,6 +346,11 @@ final class StoryEdits {
 
     private static boolean unlinkIn(JsonObject object, NodeKey target, String id) {
         boolean changed = false;
+        if (target.type().equals(ClientDevStore.TYPE_NPC) && isId(object.get("npc"), id)) {
+            // A waypoint pointing at the NPC: its target is left to choose again (the form says "Choose the NPC").
+            object.remove("npc");
+            changed = true;
+        }
         if (target.type().equals(ClientDevStore.TYPE_DIALOGUE) && object.get("when_attacked") instanceof JsonObject hit && isId(hit.get("dialogue"), id)) {
             // The scene started on a hit goes, the reaction stays.
             hit.remove("dialogue");

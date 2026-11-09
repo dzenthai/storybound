@@ -146,7 +146,7 @@ public final class Waypoints {
             if (place != null) {
                 result.put(key, new ClientWaypoint(key, definition.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(definition.radius()), place.showRadius(definition.radius(), definition.look()),
-                        place.showRing(definition.radius(), definition.look()), definition.color(), quest));
+                        place.showRing(definition.radius(), definition.look()), definition.color(), quest, place.placed()));
             }
         });
         for (WaypointData.Added added : WaypointData.get(player.server).all()) {
@@ -158,7 +158,7 @@ public final class Waypoints {
             if (place != null) {
                 result.put(added.key(), new ClientWaypoint(added.key(), added.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(added.radius()), place.showRadius(added.radius(), added.look()), place.showRing(added.radius(), added.look()),
-                        added.color(), Optional.empty()));
+                        added.color(), Optional.empty(), place.placed()));
             }
         }
         return result;
@@ -239,13 +239,15 @@ public final class Waypoints {
             return Teleport.NOT_FOUND;
         }
         Place place = locate(player, id.toString(), waypoint.target(), List.of());
-        if (place == null) {
-            if (waypoint.target() instanceof WaypointTarget.Structure structure) {
-                BlockPos origin = structure.origin().orElseGet(() -> structureSearchOrigin(player, structure.dimension()));
-                if (StructureLocator.result(player.server, structure.searchFrom(origin)) == null) {
-                    return Teleport.SEARCHING;
-                }
+        if ((place == null || !place.placed()) && waypoint.target() instanceof WaypointTarget.Structure structure) {
+            // Asked for: searched also in another dimension than the player's (from its spawn), as a waypoint is not.
+            BlockPos origin = structure.origin().orElseGet(() -> structureSearchOrigin(player, structure.dimension()));
+            if (StructureLocator.result(player.server, structure.searchFrom(origin)) == null) {
+                return Teleport.SEARCHING;
             }
+            place = structurePlace(player.server, structure, origin);
+        }
+        if (place == null || !place.placed()) {
             return Teleport.NOT_FOUND;
         }
         ServerLevel level = player.server.getLevel(ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, place.dimension()));
@@ -254,13 +256,39 @@ public final class Waypoints {
         }
         Vec3 pos = place.pos();
         double y = pos.y;
-        if (waypoint.target() instanceof WaypointTarget.Structure) {
+        if (waypoint.target() instanceof WaypointTarget.Structure structure) {
+            // Loaded, so the structure's own middle is known; then a place to stand near it (November 9, 2026: before, the top
+            // block, the Nether's bedrock roof).
             BlockPos bp = BlockPos.containing(pos.x, pos.y, pos.z);
             level.getChunk(bp);
-            y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bp.getX(), bp.getZ());
+            Vec3 middle = structure.structure().markerPos(level, bp);
+            pos = new Vec3(middle.x, middle.y, middle.z);
+            y = standY(level, BlockPos.containing(middle));
         }
         player.teleportTo(level, pos.x, y, pos.z, java.util.Set.of(), player.getYRot(), player.getXRot());
         return Teleport.DONE;
+    }
+
+    /**
+     * A height to stand at near this block: the nearest, up then down within 64 blocks, with two blocks of room above
+     * something solid (November 9, 2026: a teleport to a structure put the player on the Nether's roof); the block's own
+     * height when there is none.
+     */
+    private static double standY(ServerLevel level, BlockPos near) {
+        for (int d = 0; d <= 64; d++) {
+            for (int y : new int[] {near.getY() + d, near.getY() - d}) {
+                BlockPos feet = new BlockPos(near.getX(), y, near.getZ());
+                if (y > level.getMinBuildHeight() && y + 1 < level.getMaxBuildHeight()
+                        && level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                        && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty()
+                        && level.getBlockState(feet.below()).isFaceSturdy(level, feet.below(), net.minecraft.core.Direction.UP)) {
+                    return y;
+                }
+            }
+        }
+        // None (a stronghold in solid stone): the surface where there is a sky, else the place itself.
+        return level.dimensionType().hasCeiling() ? near.getY()
+                : level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, near.getX(), near.getZ());
     }
 
     static void refreshScope(MinecraftServer server, StoryScope scope, @Nullable UUID owner) {
@@ -360,8 +388,8 @@ public final class Waypoints {
         if (found == null || found.isEmpty() || level == null) {
             return null;
         }
-        BlockPos at = found.get();
-        return new Place(level.dimension().location(), new Vec3(at.getX() + 0.5, StructureRef.groundY(level, at), at.getZ() + 0.5), ClientWaypoint.NO_ENTITY);
+        // The structure's own middle once its chunk is loaded (November 9, 2026; before, the top block there).
+        return new Place(level.dimension().location(), target.structure().markerPos(level, found.get()), ClientWaypoint.NO_ENTITY);
     }
 
     /**
@@ -536,7 +564,9 @@ public final class Waypoints {
         return switch (target) {
             case WaypointTarget.Fixed fixed -> new Place(fixed.dimension().location(), fixed.pos(), ClientWaypoint.NO_ENTITY);
             case WaypointTarget.Follow follow -> follow(player, key, follow.entity());
-            case WaypointTarget.Structure structure -> nearestStructure(player, key, structure);
+            // Not searched for in a dimension the player is not in (an End never visited is never touched); once there, it is.
+            case WaypointTarget.Structure structure -> player.level().dimension().equals(structure.dimension())
+                    ? nearestStructure(player, key, structure) : Place.elsewhere(structure.dimension().location());
             case WaypointTarget.Nearest nearest -> nearestEntity(player, key, new Seek(nearest.entity()::matches, nearest.range()), companions);
             case WaypointTarget.Npc npc -> npc(player, key, npc, companions);
         };
@@ -597,9 +627,21 @@ public final class Waypoints {
      * @param entity the network id of the entity it is above, for the client to follow it smoothly, or {@link ClientWaypoint#NO_ENTITY}
      * @param radius a search area to show at least, for an entity out of sight; negative for the waypoint's own
      */
-    private record Place(ResourceLocation dimension, Vec3 pos, int entity, float radius) {
+    private record Place(ResourceLocation dimension, Vec3 pos, int entity, float radius, boolean placed) {
+        Place(ResourceLocation dimension, Vec3 pos, int entity, float radius) {
+            this(dimension, pos, entity, radius, true);
+        }
+
         Place(ResourceLocation dimension, Vec3 pos, int entity) {
-            this(dimension, pos, entity, -1);
+            this(dimension, pos, entity, -1, true);
+        }
+
+        /**
+         * Only its dimension is known: a structure in a dimension the player is not in, not searched for (November 9,
+         * 2026); the quest tracker names the dimension, nothing is drawn.
+         */
+        static Place elsewhere(ResourceLocation dimension) {
+            return new Place(dimension, Vec3.ZERO, ClientWaypoint.NO_ENTITY, -1, false);
         }
 
         float radius(float own) {

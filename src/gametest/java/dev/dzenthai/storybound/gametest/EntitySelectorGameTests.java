@@ -87,6 +87,165 @@ public final class EntitySelectorGameTests {
         helper.succeed();
     }
 
+    /**
+     * A variant and a mob's data (November 9, 2026), for what mods' mobs keep: a snowy wolf matches "minecraft:snowy",
+     * not "minecraft:pale"; a pig has no variant; a red sheep holds {Color:14b} and not {Color:1b} (the type of the
+     * number counts, as in vanilla's @e[nbt=...]). Both are filters: a selector with them ranks closer.
+     */
+    @GameTest(template = "empty")
+    public static void aVariantAndTheMobsDataPickMobsOfAnyMod(GameTestHelper helper) {
+        net.minecraft.world.entity.animal.Wolf wolf = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.WOLF, 1, 2, 1);
+        wolf.setVariant(helper.getLevel().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.WOLF_VARIANT)
+                .getHolderOrThrow(net.minecraft.world.entity.animal.WolfVariants.SNOWY));
+        net.minecraft.world.entity.animal.Sheep sheep = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.SHEEP, 3, 2, 1);
+        sheep.setColor(net.minecraft.world.item.DyeColor.RED);
+        net.minecraft.world.entity.animal.Pig pig = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.PIG, 3, 2, 3);
+
+        EntitySelector snowy = selector(helper, """
+                { "type": "minecraft:wolf", "variant": "minecraft:snowy" }""");
+        expect(helper, snowy.matches(wolf), true, "the snowy wolf");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:wolf", "variant": [ "minecraft:pale", "minecraft:woods" ] }""").matches(wolf), false, "not a pale or woods one");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:wolf", "variant": [ "minecraft:pale", "minecraft:woods" ] }""").mismatch(wolf), "variant is minecraft:snowy", "the trace says why");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:pig", "variant": "minecraft:snowy" }""").mismatch(pig), "no variant", "a pig has none");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:sheep", "nbt": "{Color:14b}" }""").matches(sheep), true, "the red sheep holds Color 14");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:sheep", "nbt": "{Color:1b}" }""").matches(sheep), false, "not Color 1");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:sheep", "nbt": "{Color:14}" }""").matches(sheep), false, "an int is not the byte it holds, as in vanilla");
+        expect(helper, snowy.filters(), 1, "a variant is a filter");
+        helper.succeed();
+    }
+
+    /**
+     * A mob's data (November 9, 2026): fields of what it saves, nothing known of its kind. Expected: a weaponsmith matches
+     * "VillagerData/profession" weaponsmith or armorer, a farmer does not and the trace says which value it has; a number
+     * matches any numeric tag of that value (a villager's level 1, saved as an int); true / false a 1 or 0 (a sheep not
+     * sheared); a field the mob does not save (a "Stage" of another mod's zombie) never matches; each field is a filter;
+     * a number is written back whole (1, not 1.0), and the filter reads the same from NBT, as a waypoint keeps it.
+     */
+    @GameTest(template = "empty")
+    public static void dataPicksAMobByWhatItSaves(GameTestHelper helper) {
+        Villager farmer = villager(helper, VillagerProfession.FARMER, VillagerType.PLAINS, 1);
+        Villager smith = villager(helper, VillagerProfession.WEAPONSMITH, VillagerType.PLAINS, 3);
+        net.minecraft.world.entity.animal.Sheep sheep = helper.spawnWithNoFreeWill(EntityType.SHEEP, 1, 2, 3);
+
+        EntitySelector smiths = selector(helper, """
+                { "type": "minecraft:villager", "data": { "VillagerData/profession": ["minecraft:weaponsmith", "minecraft:armorer"] } }""");
+        expect(helper, smiths.matches(smith), true, "the weaponsmith");
+        expect(helper, smiths.matches(farmer), false, "not the farmer");
+        expect(helper, smiths.mismatch(farmer), "VillagerData/profession is minecraft:farmer, wanted minecraft:weaponsmith or minecraft:armorer",
+                "and the trace says why");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:villager", "data": { "VillagerData/level": 1 } }""").matches(smith), true, "level 1, an int saved");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:villager", "data": { "VillagerData/level": 2 } }""").matches(smith), false, "not level 2");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:sheep", "data": { "Sheared": false } }""").matches(sheep), true, "a sheep not sheared");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:sheep", "data": { "Sheared": true } }""").matches(sheep), false, "not a sheared one");
+        EntitySelector staged = selector(helper, """
+                { "type": "minecraft:villager", "data": { "Stage": 2 } }""");
+        expect(helper, staged.matches(farmer), false, "a field it does not save never matches");
+        expect(helper, staged.mismatch(farmer), "Stage is not there, wanted 2", "and the trace says why");
+        expect(helper, selector(helper, """
+                { "type": "minecraft:villager", "data": { "VillagerData/profession": "minecraft:farmer", "VillagerData/level": 1 } }""").filters(), 2,
+                "each field is a filter");
+
+        RegistryOps<JsonElement> json = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        expect(helper, EntitySelector.CODEC.encodeStart(json, staged).getOrThrow().getAsJsonObject().getAsJsonObject("data").get("Stage").toString(), "2",
+                "a whole number is written whole");
+        RegistryOps<net.minecraft.nbt.Tag> nbt = RegistryOps.create(net.minecraft.nbt.NbtOps.INSTANCE, helper.getLevel().registryAccess());
+        EntitySelector kept = EntitySelector.CODEC.parse(nbt, EntitySelector.CODEC.encodeStart(nbt, smiths).getOrThrow()).getOrThrow();
+        expect(helper, kept.matches(smith) && !kept.matches(farmer), true, "read back from NBT, it picks the same mobs");
+        helper.succeed();
+    }
+
+    /** The dimension it is in now: the test world is the overworld; the trace names the one it is in. */
+    @GameTest(template = "empty")
+    public static void dimensionIsWhereTheEntityIsNow(GameTestHelper helper) {
+        Villager villager = villager(helper, VillagerProfession.FARMER, VillagerType.PLAINS, 1);
+        expect(helper, selector(helper, """
+                { "type": "minecraft:villager", "dimension": "minecraft:overworld" }""").matches(villager), true, "in the overworld");
+        EntitySelector nether = selector(helper, """
+                { "type": "minecraft:villager", "dimension": "minecraft:the_nether" }""");
+        expect(helper, nether.matches(villager), false, "not in the Nether");
+        expect(helper, nether.mismatch(villager), "in minecraft:overworld", "and the trace says why");
+        expect(helper, nether.filters(), 1, "a dimension is a filter");
+        helper.succeed();
+    }
+
+    /**
+     * What a place can never be, as the game makes its worlds (nothing of vanilla written in the mod): the Nether has no
+     * plains, no biome of #is_overworld, no End city; a bastion is never in basalt deltas; but a fortress in a crimson
+     * forest and an End city in the End highlands can be; an unknown dimension is said so. The location condition passes
+     * its place on to the validator.
+     */
+    @GameTest(template = "empty")
+    public static void aPlaceThatCanNeverBeIsSaid(GameTestHelper helper) {
+        net.minecraft.server.MinecraftServer server = helper.getLevel().getServer();
+        expect(helper, problems(helper, server, "minecraft:the_nether", "minecraft:plains", null),
+                java.util.List.of("biome minecraft:plains is never in minecraft:the_nether"), "plains in the Nether");
+        expect(helper, problems(helper, server, "minecraft:the_nether", "#minecraft:is_overworld", null),
+                java.util.List.of("no biome of #minecraft:is_overworld is ever in minecraft:the_nether"), "an overworld #tag in the Nether");
+        expect(helper, problems(helper, server, "minecraft:the_nether", null, "minecraft:end_city"),
+                java.util.List.of("structure minecraft:end_city is never in minecraft:the_nether"), "an End city in the Nether");
+        expect(helper, problems(helper, server, "minecraft:the_nether", "minecraft:basalt_deltas", "minecraft:bastion_remnant"),
+                java.util.List.of("structure minecraft:bastion_remnant is never in biome minecraft:basalt_deltas"), "a bastion in basalt deltas");
+        expect(helper, problems(helper, server, "minecraft:the_nether", "minecraft:crimson_forest", "minecraft:fortress"), java.util.List.of(),
+                "a fortress in a crimson forest can be");
+        expect(helper, problems(helper, server, "minecraft:the_end", "minecraft:end_highlands", "minecraft:end_city"), java.util.List.of(),
+                "an End city in the End highlands can be");
+        expect(helper, problems(helper, server, "storyboundtest:nowhere", null, null), java.util.List.of("dimension storyboundtest:nowhere is unknown"),
+                "an unknown dimension");
+
+        java.util.List<dev.dzenthai.storybound.core.logic.WorldPlaces.Place> passed = new java.util.ArrayList<>();
+        dev.dzenthai.storybound.core.logic.LogicCodecs.CONDITION.parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()),
+                        JsonParser.parseString("{ \"type\": \"location\", \"dimension\": \"minecraft:the_nether\", \"biome\": \"minecraft:plains\" }"))
+                .getOrThrow().collectReferences(new dev.dzenthai.storybound.core.logic.References() {
+                    @Override
+                    public void place(dev.dzenthai.storybound.core.logic.WorldPlaces.Place place) {
+                        passed.add(place);
+                    }
+                });
+        expect(helper, passed.size() == 1 && !dev.dzenthai.storybound.core.logic.WorldPlaces.problems(server, passed.getFirst()).isEmpty(), true,
+                "the location condition tells the validator its place");
+        helper.succeed();
+    }
+
+    /**
+     * The world's map the editor gets (stage 2): every dimension, the Nether's biomes without plains, a structure with the
+     * biomes it stands in (a #tag the client resolves), the structure tags with their members (a client is not sent them).
+     */
+    @GameTest(template = "empty")
+    public static void theEditorGetsTheWorldsMap(GameTestHelper helper) {
+        java.util.Map<String, java.util.List<String>> map = dev.dzenthai.storybound.core.logic.WorldPlaces.forEditor(helper.getLevel().getServer());
+        expect(helper, map.get("world:dimensions").containsAll(java.util.List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end")), true,
+                "the three dimensions");
+        java.util.List<String> nether = map.get("world:biomes:minecraft:the_nether");
+        expect(helper, nether.contains("minecraft:crimson_forest") && !nether.contains("minecraft:plains"), true, "the Nether's biomes, no plains: " + nether);
+        expect(helper, map.get("world:structures").stream().anyMatch(line -> line.startsWith("minecraft:fortress=#")), true,
+                "a fortress with its biome tag");
+        expect(helper, map.get("world:structure_tags").stream().anyMatch(line -> line.startsWith("#minecraft:village=") && line.contains("minecraft:village_plains")),
+                true, "#village with its members");
+        helper.succeed();
+    }
+
+    private static java.util.List<String> problems(GameTestHelper helper, net.minecraft.server.MinecraftServer server, String dimension,
+                                                  @org.jetbrains.annotations.Nullable String biome, @org.jetbrains.annotations.Nullable String structure) {
+        StringBuilder json = new StringBuilder("{ \"type\": \"minecraft:villager\", \"dimension\": \"" + dimension + "\"");
+        if (biome != null) {
+            json.append(", \"biome\": \"").append(biome).append('"');
+        }
+        if (structure != null) {
+            json.append(", \"structure\": \"").append(structure).append('"');
+        }
+        return dev.dzenthai.storybound.core.logic.WorldPlaces.problems(server, selector(helper, json.append(" }").toString()).place());
+    }
+
     @GameTest(template = "empty")
     public static void biomeIsWhereTheEntityStandsNow(GameTestHelper helper) {
         Villager villager = villager(helper, VillagerProfession.FARMER, VillagerType.PLAINS, 1);
@@ -134,7 +293,8 @@ public final class EntitySelectorGameTests {
     @GameTest(template = "empty")
     public static void aSelectorNeedsToSayWhichEntities(GameTestHelper helper) {
         RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
-        for (String where : new String[] {"{ \"baby\": false }", "{ \"biome\": \"minecraft:plains\" }", "{ \"in_village\": true }"}) {
+        for (String where : new String[] {"{ \"baby\": false }", "{ \"biome\": \"minecraft:plains\" }", "{ \"in_village\": true }",
+                "{ \"dimension\": \"minecraft:the_nether\" }", "{ \"data\": { \"Stage\": 2 } }"}) {
             expect(helper, EntitySelector.CODEC.parse(ops, JsonParser.parseString(where)).isError(), true,
                     where + " alone would take every entity there");
         }

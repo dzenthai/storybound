@@ -74,7 +74,8 @@ public final class ClientWaypoints {
     public static List<ClientWaypoint> shown() {
         List<ClientWaypoint> shown = new ArrayList<>();
         for (ClientWaypoint waypoint : WAYPOINTS.values()) {
-            if (display(waypoint) != Display.HIDDEN) {
+            // One with only its dimension known is drawn nowhere: the quest tracker names the dimension.
+            if (waypoint.placed() && display(waypoint) != Display.HIDDEN) {
                 shown.add(waypoint);
             }
         }

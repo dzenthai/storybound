@@ -97,7 +97,12 @@ public final class DevModeServer {
                 .filter(id -> !id.getPath().startsWith("recipes/")).map(ResourceLocation::toString).sorted().toList();
         List<String> lootTables = server.reloadableRegistries().getKeys(net.minecraft.core.registries.Registries.LOOT_TABLE).stream()
                 .map(ResourceLocation::toString).sorted().toList();
-        return Map.of("advancement", advancements, "loot_table", lootTables);
+        Map<String, List<String>> lists = new LinkedHashMap<>();
+        lists.put("advancement", advancements);
+        lists.put("loot_table", lootTables);
+        // Dimension → biomes, structure → biomes, so the editor lists only what can be (November 9, 2026).
+        lists.putAll(dev.dzenthai.storybound.core.logic.WorldPlaces.forEditor(server));
+        return lists;
     }
 
     /**

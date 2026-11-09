@@ -181,6 +181,11 @@ public final class CoreTriggers {
         }
 
         @Override
+        public void collectReferences(References references) {
+            entity.ifPresent(selector -> references.place(selector.place()));
+        }
+
+        @Override
         public boolean matches(StoryContext context, Observation target) {
             if (target.entity() != null) {
                 return entity.map(selector -> selector.matches(target.entity())).orElse(false);

@@ -103,7 +103,8 @@ public final class NpcBindings {
         if (cached != null && now >= cached.tick() && now - cached.tick() < CACHE_TICKS && cached.same(entity)) {
             return cached.found();
         }
-        Optional<Found> found = Optional.ofNullable(resolve(entity));
+        // Every binding asks the same entity: its saved data read once for all of them.
+        Optional<Found> found = Optional.ofNullable(dev.dzenthai.storybound.core.logic.EntitySelector.sharingSavedData(() -> resolve(entity)));
         CACHE.put(entity.getUUID(), new Cached(now, Set.copyOf(entity.getTags()), entity.getCustomName(),
                 entity.hasData(DialogueRegistries.NPC_BINDING), found));
         return found;
@@ -501,8 +502,6 @@ public final class NpcBindings {
         CACHE.clear();
     }
 
-    /** @param id the binding file, or null for a binding stored on the entity */
-    /** How the trace names a binding: its id, or the entity whose own binding it is. */
     /**
      * For the trace, when the player looks at or talks to an entity no binding matches: what each binding of its type
      * (every binding, when none is of its type) wants that it lacks. Once per entity looked at, as the talk hint asks

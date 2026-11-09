@@ -65,9 +65,15 @@
         "outfit": { "description": "A villager's own type, seen on its clothes (minecraft:plains, minecraft:desert, minecraft:snow…), or a list. Only entities with villager data match.", "$ref": "#/definitions/id_list" },
         "baby": { "description": "true: only babies; false: only grown-ups (an entity that cannot be a baby counts as grown).", "type": "boolean" },
         "biome": { "description": "The biome the entity stands in now: an id, a #tag (#minecraft:is_nether) or a list.", "$ref": "#/definitions/id_list" },
-        "in_village": { "description": "true: only in a village; false: only outside one. A village as vanilla sees it (raids use it): beds, workstations or a bell claimed by villagers nearby, so any village counts, generated, modded or built by players.", "type": "boolean" }
+        "in_village": { "description": "true: only in a village; false: only outside one. A village as vanilla sees it (raids use it): beds, workstations or a bell claimed by villagers nearby, so any village counts, generated, modded or built by players.", "type": "boolean" },
+        "structure": { "description": "Only within such a structure where it stands now (its whole bounds: a village with its fields and paths, a fortress, a mod's structure): an id, a #tag or a list.", "oneOf": [ { "$ref": "#/definitions/structure" }, { "type": "array", "items": { "$ref": "#/definitions/structure" } } ] },
+        "variant": { "description": "Its variant, for mobs that have them the game's common way (a wolf's coat, a cat's breed, a frog's, a horse's, a parrot's; a mod's mob that uses it too): an id (minecraft:snowy) or a name (red), or a list. Pick it in the form after the kind.", "oneOf": [ { "type": "string" }, { "type": "array", "items": { "type": "string" } } ] },
+        "nbt": { "description": "What its saved data must hold, as /execute if entity @e[nbt=...]: SNBT, e.g. {Rank:\"elite\"} or {Color:3b}, written by hand. The form writes data instead.", "type": "string" },
+        "dimension": { "description": "The dimension it is in now. With a biome and a structure: the validator says when they can never be together (the Nether has no plains).", "$ref": "#/definitions/id" },
+        "data": { "description": "Fields of what the mob saves, read from the mob itself (any mod's: a villager's VillagerData/profession, a zombie's Stage), each to one value or a list of them, any matching: { \"VillagerData/profession\": [\"minecraft:weaponsmith\", \"minecraft:armorer\"], \"Stage\": 2 }. A path goes into a field with /. A number matches any number of that value, true and false a 1 or 0.", "type": "object", "additionalProperties": { "oneOf": [ { "$ref": "#/definitions/data_value" }, { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/data_value" } } ] } }
       }
     },
+    "data_value": { "oneOf": [ { "type": "string" }, { "type": "number" }, { "type": "boolean" } ] },
     "structure": {
       "description": "A structure (minecraft:village_plains) or a structure #tag (#minecraft:village). Looked up when used: an unknown one never matches and is logged once.",
       "type": "string",
@@ -625,6 +631,9 @@
             "follow": { "type": "boolean", "default": false },
             "structure": { "description": "Searched near each player who sees it, and again as they travel (as a structure target without origin). The action fails at once if the server does not know the structure. Shown once found, never if none is within search_radius.", "$ref": "#/definitions/structure" },
             "search_radius": { "description": "In chunks, as /locate.", "type": "integer", "minimum": 1, "maximum": 512, "default": 100 },
+            "npc": { "description": "An NPC by its node: a \"one\" NPC is followed (its last known place while not loaded), any other is the nearest entity it is, within range.", "$ref": "#/definitions/id" },
+            "nearest": { "description": "The nearest living entity that matches, near each player who sees it: an entity type, a #tag or a list, or a selector with filters (profession, outfit, baby, biome, in_village).", "oneOf": [ { "$ref": "#/definitions/id_list" }, { "$ref": "#/definitions/entity_selector" } ] },
+            "range": { "description": "For npc and nearest: blocks around the player.", "type": "integer", "minimum": 1, "maximum": 256, "default": 64 },
             "color": { "description": "Colours the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the maps. Left out, the marker keeps its own look. Xaero's Minimap shows only Minecraft's 16 text colours, any other as the nearest of them. #RRGGBB.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
             "radius": { "type": "number", "minimum": 0, "maximum": 1024 },
             "show_radius": { "description": "For a search area: write its radius by the name.", "type": "boolean", "default": true },

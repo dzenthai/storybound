@@ -23,8 +23,33 @@ final class DevChecks {
         if (definition == null || minecraft.level == null) {
             return Optional.empty();
         }
+        Optional<String> plain = type.equals(ClientDevStore.TYPE_WAYPOINT) ? waypointTarget(json) : Optional.empty();
+        if (plain.isPresent()) {
+            return plain;
+        }
         return definition.codec().parse(RegistryOps.create(JsonOps.INSTANCE, minecraft.level.registryAccess()), json).error()
                 .map(error -> error.message());
+    }
+
+    /**
+     * What a waypoint's target still lacks, in the author's words (November 9, 2026: before, the codec's "Failed to parse
+     * either. First: No key pos in MapLike"); empty when it has it, the codec then says the rest.
+     */
+    private static Optional<String> waypointTarget(JsonObject waypoint) {
+        if (!(waypoint.get("target") instanceof JsonObject target)) {
+            return Optional.of(DevUi.str("check.waypoint.target"));
+        }
+        for (String kind : java.util.List.of("pos", "entity", "structure", "nearest", "npc")) {
+            if (target.has(kind)) {
+                boolean empty = target.get(kind) instanceof com.google.gson.JsonPrimitive value && value.getAsString().isBlank()
+                        || target.get(kind) instanceof com.google.gson.JsonArray list && list.isEmpty()
+                        || target.get(kind) instanceof JsonObject selector && selector.isEmpty();
+                return empty ? Optional.of(DevUi.str("check.waypoint." + kind)) : Optional.empty();
+            }
+        }
+        // Nothing written yet: the form shows a point, so its position is what to fill in (November 9, 2026: before, "Choose
+        // where the marker points" beside a form that showed a point).
+        return Optional.of(DevUi.str("check.waypoint.pos"));
     }
 
     /** A codec's message fits the status line: its first part. */

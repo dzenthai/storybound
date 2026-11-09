@@ -81,6 +81,12 @@ public final class WorldConditions {
         }
 
         @Override
+        public void collectReferences(dev.dzenthai.storybound.core.logic.References references) {
+            // The Nether with plains would never hold: the validator says so.
+            references.place(new dev.dzenthai.storybound.core.logic.WorldPlaces.Place(dimension, biome, structure.map(java.util.List::of)));
+        }
+
+        @Override
         public boolean test(StoryContext context) {
             ServerPlayer player = context.player();
             return dimension.map(player.level().dimension()::equals).orElse(true)

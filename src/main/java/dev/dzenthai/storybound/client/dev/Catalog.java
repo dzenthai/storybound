@@ -5,6 +5,7 @@ import dev.dzenthai.storybound.client.sound.StoryAssets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.Optional;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -301,6 +302,70 @@ final class Catalog {
         scroll = Math.max(0, scroll - (int) Math.signum(amount) * 3);
     }
 
+    /**
+     * The structures that appear in a dimension, for a waypoint's structure after its dimension (November 9, 2026: before,
+     * the same list whatever the dimension, a fortress and a village alike).
+     */
+    static List<Entry> structuresIn(ResourceLocation dimension) {
+        return entries(Kind.STRUCTURE, Minecraft.getInstance().level).stream().filter(entry -> structureIn(entry.id(), dimension)).toList();
+    }
+
+    /**
+     * Whether a structure (or any of a #tag) appears in the dimension. In a world of one's own (the dev mode's usual
+     * case) exactly: one of its biomes is one the dimension makes, mods' structures and dimensions too. Else (a server
+     * elsewhere: its worldgen is not sent) by vanilla's: the fortress, the bastion and the Nether fossil in the Nether,
+     * the End city in the End, the rest above; a mod's not known there is kept everywhere.
+     */
+    static boolean structureIn(String id, ResourceLocation dimension) {
+        // From the world's map the server sent (November 9, 2026: before, vanilla's dimensions written here for a server
+        // elsewhere): a mod's structure in a mod's dimension alike.
+        return WorldMap.structureFits(id, dimension.toString(), null);
+    }
+
+    /**
+     * The biomes that can be where a place's parts say (November 9, 2026): those its dimension makes, and, for a
+     * structure, those it stands in; a biome entry a #tag of which any can. Everything when nothing is chosen.
+     */
+    static List<Entry> biomesFitting(@Nullable String dimension, List<String> structures) {
+        return entries(Kind.BIOME, Minecraft.getInstance().level).stream()
+                .filter(entry -> WorldMap.biomeFits(entry.id(), dimension))
+                .filter(entry -> structures.isEmpty() || structures.stream().anyMatch(structure -> {
+                    java.util.Set<String> its = WorldMap.structureIn(structure);
+                    return its == null || WorldMap.biomesOf(entry.id()).stream().anyMatch(its::contains);
+                }))
+                .toList();
+    }
+
+    /** The structures that can be in the dimension and in any of the biome entries (each optional). */
+    static List<Entry> structuresFitting(@Nullable String dimension, List<String> biomes) {
+        return entries(Kind.STRUCTURE, Minecraft.getInstance().level).stream()
+                .filter(entry -> WorldMap.structureFits(entry.id(), dimension, biomes)).toList();
+    }
+
+    /** How the list names an entry ("Raiders" for #minecraft:raiders); null when the list has no such entry. */
+    static @Nullable String label(Kind kind, String id) {
+        for (Entry entry : entries(kind, Minecraft.getInstance().level)) {
+            if (entry.id().equals(id)) {
+                return entry.label();
+            }
+        }
+        return null;
+    }
+
+    /** The world's dimensions, by their names. */
+    static List<Entry> dimensions() {
+        List<Entry> list = new ArrayList<>();
+        List<String> known = WorldMap.dimensions();
+        List<String> ids = known.isEmpty() && Minecraft.getInstance().getConnection() != null
+                ? Minecraft.getInstance().getConnection().levels().stream().map(key -> key.location().toString()).sorted().toList() : known;
+        for (String id : ids) {
+            ResourceLocation key = ResourceLocation.tryParse(id);
+            String name = key == null ? id : dev.dzenthai.storybound.client.quest.QuestHud.dimensionName(key);
+            list.add(new Entry(id, name, new ItemStack(Items.ENDER_EYE)));
+        }
+        return list;
+    }
+
     private static List<Entry> entries(Kind kind, @Nullable ClientLevel level) {
         List<Entry> list = new ArrayList<>();
         switch (kind) {
@@ -324,7 +389,20 @@ final class Catalog {
                 popular(list, "minecraft:swamp_hut", "swamp_hut", Items.CAULDRON);
                 popular(list, "minecraft:igloo", "igloo", Items.SNOW_BLOCK);
                 popular(list, "minecraft:trail_ruins", "trail_ruins", Items.BRUSH);
-                if (level != null) {
+                if (WorldMap.known()) {
+                    // The server's own structures and tags (a client is not sent them): mods' too; a shortcut above
+                    // the server does not have goes.
+                    Set<String> known = new java.util.HashSet<>(WorldMap.structures());
+                    known.addAll(WorldMap.structureTags().keySet());
+                    list.removeIf(entry -> !known.contains(entry.id()));
+                    Set<String> listed = new LinkedHashSet<>(list.stream().map(Entry::id).toList());
+                    WorldMap.structures().forEach(id -> {
+                        if (listed.add(id)) {
+                            ResourceLocation key = ResourceLocation.tryParse(id);
+                            list.add(new Entry(id, DevUi.humanize(key != null ? key.getPath() : id), new ItemStack(Items.FILLED_MAP)));
+                        }
+                    });
+                } else if (level != null) {
                     Set<String> listed = new LinkedHashSet<>(list.stream().map(Entry::id).toList());
                     level.registryAccess().registry(Registries.STRUCTURE).ifPresent(registry -> sortedIds(registry.keySet()).forEach(id -> {
                         if (listed.add(id.toString())) {

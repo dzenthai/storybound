@@ -43,6 +43,7 @@ public final class WaypointEvents {
         LogicOwners.register(WaypointRegistries.WAYPOINTS, (waypoint, references) -> {
             waypoint.conditions().collectReferences(references);
             waypoint.quest().ifPresent(quest -> references.quest(quest, waypoint.stage().orElse(null)));
+            WaypointTarget.place(waypoint.target()).ifPresent(references::place);
         });
         ValidationService.registerValidator(WaypointEvents::validate);
     }

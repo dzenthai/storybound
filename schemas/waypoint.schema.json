@@ -46,11 +46,11 @@
           "required": ["structure"],
           "additionalProperties": false,
           "properties": {
+            "dimension": { "$ref": "logic.schema.json#/definitions/id", "default": "minecraft:overworld" },
             "structure": {
               "description": "Marks the nearest such structure, or any of a #tag, searched in the background (like /locate) near each player; shown once found, never if none is within search_radius. It follows the player: when they travel into another 256-block area, a search from there runs in the background and the waypoint moves if that structure is at least 16 blocks nearer.",
               "$ref": "logic.schema.json#/definitions/structure"
             },
-            "dimension": { "$ref": "logic.schema.json#/definitions/id", "default": "minecraft:overworld" },
             "search_radius": { "description": "In chunks, as /locate: the search costs more the larger it is, mostly when nothing is found.", "type": "integer", "minimum": 1, "maximum": 512, "default": 100 },
             "origin": { "description": "Searched from here, once for everyone, instead of near each player and again as they travel.", "type": "array", "items": { "type": "integer" }, "minItems": 3, "maxItems": 3 }
           }

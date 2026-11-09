@@ -81,6 +81,11 @@ public final class StructureLocator {
         PENDING.remove(search);
     }
 
+    /** Whether this search was ever asked for (running or answered); for tests. */
+    public static boolean asked(Search search) {
+        return RESULTS.containsKey(search) || PENDING.contains(search);
+    }
+
     /** Forgets every answer; a search still running finishes but its result is dropped. */
     public static void reset() {
         generation++;

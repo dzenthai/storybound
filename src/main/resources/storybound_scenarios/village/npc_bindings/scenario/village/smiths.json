@@ -1,11 +1,13 @@
 {
   "entity": {
     "type": "minecraft:villager",
-    "profession": [
-      "minecraft:armorer",
-      "minecraft:toolsmith",
-      "minecraft:weaponsmith"
-    ]
+    "data": {
+      "VillagerData/profession": [
+        "minecraft:armorer",
+        "minecraft:toolsmith",
+        "minecraft:weaponsmith"
+      ]
+    }
   },
   "chatter": {
     "phrases": "scenario:village/smith",

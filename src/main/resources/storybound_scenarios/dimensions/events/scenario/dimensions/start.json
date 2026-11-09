@@ -1,0 +1,11 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:dimensions"
+  },
+  "actions": [
+    { "type": "set_quest_state", "quest": "scenario:dimensions/quest", "state": "unknown" },
+    { "type": "set_quest_state", "quest": "scenario:dimensions/quest", "state": "active" },
+    { "type": "track_quest", "quest": "scenario:dimensions/quest" }
+  ]
+}

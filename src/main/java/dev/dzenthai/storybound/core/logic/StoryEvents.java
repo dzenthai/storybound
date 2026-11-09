@@ -161,8 +161,21 @@ public final class StoryEvents {
      * {@code take_item} placed after other actions in a story event: if it aborts, the earlier actions have already happened.
      */
     static void validate(Consumer<ValidationIssue> sink) {
+        net.minecraft.server.MinecraftServer server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+        // A place's checks need the worlds made (see StoryboundDataEvents).
+        boolean worlds = server != null && server.getAllLevels().iterator().hasNext();
         LogicOwners.walkAll((type, id) -> new References() {
             private final Set<ResourceLocation> reported = new LinkedHashSet<>();
+            private final Set<String> placesReported = new LinkedHashSet<>();
+
+            @Override
+            public void place(WorldPlaces.Place place) {
+                if (worlds && !place.isEmpty()) {
+                    // "biome minecraft:plains is never in minecraft:the_nether": it would never hold, nobody would say why.
+                    WorldPlaces.problems(server, place).stream().filter(placesReported::add)
+                            .forEach(problem -> sink.accept(ValidationIssue.warning(type.id(), id, "Can never be: " + problem)));
+                }
+            }
 
             @Override
             public void flag(ResourceLocation key) {

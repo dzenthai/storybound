@@ -17,9 +17,11 @@ import net.minecraft.world.phys.Vec3;
  * @param quest  the quest it belongs to, so the tracked quest's waypoints can be highlighted
  * @param showRadius for an area: write its radius by the name
  * @param showRing   for an area: draw its edge on the ground
+ * @param placed     false when only its dimension is known (a structure in a dimension the player is not in, not searched
+ *                   for; November 9, 2026): nothing is drawn, the quest tracker names the dimension
  */
 public record ClientWaypoint(String key, ResolvedText name, ResourceLocation dimension, Vec3 pos, int entity, float radius,
-                             boolean showRadius, boolean showRing, int color, Optional<ResourceLocation> quest) {
+                             boolean showRadius, boolean showRing, int color, Optional<ResourceLocation> quest, boolean placed) {
     public static final int NO_ENTITY = -1;
     // More fields than StreamCodec.composite takes.
     public static final StreamCodec<RegistryFriendlyByteBuf, ClientWaypoint> STREAM_CODEC = StreamCodec.of(ClientWaypoint::write, ClientWaypoint::read);
@@ -28,7 +30,7 @@ public record ClientWaypoint(String key, ResolvedText name, ResourceLocation dim
         return new ClientWaypoint(ByteBufCodecs.STRING_UTF8.decode(buf), ResolvedText.STREAM_CODEC.decode(buf), ResourceLocation.STREAM_CODEC.decode(buf),
                 new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble()), buf.readVarInt() - 1, buf.readFloat(), buf.readBoolean(), buf.readBoolean(),
                 buf.readInt(),
-                ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC).decode(buf));
+                ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC).decode(buf), buf.readBoolean());
     }
 
     private static void write(RegistryFriendlyByteBuf buf, ClientWaypoint waypoint) {
@@ -44,5 +46,6 @@ public record ClientWaypoint(String key, ResolvedText name, ResourceLocation dim
         buf.writeBoolean(waypoint.showRing());
         buf.writeInt(waypoint.color());
         ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC).encode(buf, waypoint.quest());
+        buf.writeBoolean(waypoint.placed());
     }
 }

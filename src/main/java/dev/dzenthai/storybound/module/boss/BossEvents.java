@@ -127,6 +127,7 @@ public final class BossEvents {
     }
 
     public static void collectReferences(BossDefinition definition, References references) {
+        references.place(definition.entity().place());
         for (String section : BossDefinition.SECTIONS) {
             definition.unlock(section).ifPresent(unlock -> CodexEvents.collectReferences(unlock, references));
         }

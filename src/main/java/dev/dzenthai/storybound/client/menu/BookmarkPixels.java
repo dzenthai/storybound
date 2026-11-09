@@ -57,10 +57,10 @@ final class BookmarkPixels {
                     ".ss.......ss."
             },
             {
-                    "....sssss....",
-                    "...sshhhss...",
-                    "..sshhhhhss..",
-                    "..sshhhhhss..",
+                    ".hb.sssss.hb.",
+                    "hb.sshhhss.hb",
+                    "bbsshhhhhsbbs",
+                    ".sbshhhhhsbs.",
                     "..s..bbb..s..",
                     "..b.h.b.h.b..",
                     "..sbbbsbbbs..",

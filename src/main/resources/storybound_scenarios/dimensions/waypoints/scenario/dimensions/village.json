@@ -1,0 +1,7 @@
+{
+  "name": "scenario.dimensions.village",
+  "target": {
+    "structure": "#minecraft:village",
+    "search_radius": 100
+  }
+}

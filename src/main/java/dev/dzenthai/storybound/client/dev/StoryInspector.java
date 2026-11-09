@@ -194,8 +194,10 @@ final class StoryInspector {
         }
         boolean askTrigger = false;
         if (key.equals(askFor)) {
-            if (ask == NodeTemplates.Ask.ENTITY) {
-                form.openRoot("entity", DevUi.str(key.type().equals(ClientDevStore.TYPE_BOSS) ? "template.ask_boss" : "template.ask_npc"));
+            // A boss is asked its creature at once, on that page; an NPC's form opens with "Who it is" itself (November 9,
+            // 2026: before, a new NPC jumped to its entity's page, the older way, past the form's own question).
+            if (ask == NodeTemplates.Ask.ENTITY && key.type().equals(ClientDevStore.TYPE_BOSS)) {
+                form.openRoot("entity", DevUi.str("template.ask_boss"));
             }
             askTrigger = ask == NodeTemplates.Ask.TRIGGER;
             askFor = null;
@@ -644,12 +646,11 @@ final class StoryInspector {
                     ? DevUi.str("rename.problem." + problem.get().name().toLowerCase(Locale.ROOT),
                     StoryRenames.parse(renameText != null ? renameText : "", key.id()).map(StoryRenames::relationshipScale).map(Object::toString).orElse(""))
                     : issues.isEmpty() ? "" : "⚠ " + issues.getFirst();
-            graphics.drawString(font, font.plainSubstrByWidth(line, DevUi.RIGHT_PANEL_W - 16), left + 8, DevUi.TOP_BAR_H + 34, DevUi.BAD, false);
+            screen.drawCut(graphics, line, left + 8, DevUi.TOP_BAR_H + 34, DevUi.RIGHT_PANEL_W - 16, DevUi.BAD);
         } else {
             // The id line turns into the first issue, in red, when the validator has something to say about this node.
             String second = issues.isEmpty() ? key.id().toString() : "⚠ " + issues.getFirst();
-            graphics.drawString(font, font.plainSubstrByWidth(second, DevUi.RIGHT_PANEL_W - 16), left + 8, DevUi.TOP_BAR_H + 18,
-                    issues.isEmpty() ? DevUi.MUTED : DevUi.BAD, false);
+            screen.drawCut(graphics, second, left + 8, DevUi.TOP_BAR_H + 18, DevUi.RIGHT_PANEL_W - 16, issues.isEmpty() ? DevUi.MUTED : DevUi.BAD);
         }
         if (textLabel != null) {
             graphics.drawString(font, textLabel, left + 8, textLabelY, textLabelColor, false);
