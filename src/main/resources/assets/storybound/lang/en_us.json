@@ -354,7 +354,7 @@
   "storybound.dev.namespace.tooltip": "The story's namespace: the folder its files are in. New nodes are made in it; their names are written without it.",
   "storybound.dev.namespace.title": "Story namespace",
   "storybound.dev.namespace.label": "New nodes are made in it",
-  "storybound.dev.namespace.invalid": "Lowercase letters, digits, _ - . (not minecraft or demo)",
+  "storybound.dev.namespace.invalid": "Lowercase letters, digits, _ - . (not minecraft or scenario)",
   "storybound.dev.namespace.save": "Save",
   "storybound.dev.namespace.saved": "New nodes are made in %s",
   "storybound.dev.namespace.move_question": "%2$s nodes are still in %1$s. Move them to %3$s?",

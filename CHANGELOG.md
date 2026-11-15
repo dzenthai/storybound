@@ -6,12 +6,6 @@ Storybound is a data-driven story engine for NeoForge 1.21.1 modpacks. Stories a
 `config/storybound/` (or in datapacks) with JSON schemas for VS Code, or are built in the in-game editor.
 Required on both client and server.
 
-### The demo story
-- A new story folder comes with a short demo story in the nearest village: five quests in two chapters, an elder
-  with a relationship scale and day and night lines, a boss, a cat to find, a festival with fireworks. It starts
-  when a player joins; change it or delete it (`/storybound demo install` brings it back). When a newer mod brings
-  a newer demo, operators are told so on joining.
-
 ### Story logic
 - Story flags and variables in player, party and world scopes; parties with shared progress.
 - One "when / if / then" language for everything: triggers (kills, items, places, structures, biomes, dialogues,
@@ -34,11 +28,10 @@ Required on both client and server.
 - A finished quest made active again starts over (completed) or goes on where it failed (failed; reset it first to
   run its `on_start` again); a quest left at a stage that was removed moves to the first stage instead of getting
   stuck.
-- Objectives and quest starts no longer wait for ever when what they wait for happened first: a trigger that
+- Objectives and quest starts do not wait for ever when what they wait for happened first: a trigger that
   announces a state (in a place, a document read, a quest completed, a level reached, ...) counts when that state
   already holds (`since_stage` asks for a new event); `once` story events run by their state too.
-- `spawn_entity` with `"unique": true` spawns an NPC only if it is not there yet (the demo elder no longer appears once
-  per player).
+- `spawn_entity` with `"unique": true` spawns an NPC only if it is not there yet.
 - The validator warns about what would repeat in multiplayer: a story NPC spawned without `unique` where each player
   or party would get a copy, and a story event on a party change that repeats a spawn, a sound, a command or a shared
   counter once per member.
@@ -53,8 +46,14 @@ Required on both client and server.
   to say.
 - Dialogue graphs with choices, conditions, one-time options, timers and calls into other dialogues.
 - A cinematic camera (shot / reverse shot, walls respected), speech bubbles for players nearby, a "thinking" pause.
-- NPC bindings by type, tag, name or uuid, for one entity or a list of them; NPCs that talk to one player at a time; different lines before, during and
-  after a quest.
+- Who an NPC is: one mob by its tag, or every mob of a kind narrowed down by where it is (dimension, biome,
+  structure, a village), its age and its own saved data (a villager's profession, a modded mob's variant). The
+  choices are read from the world and the mob itself, so modded mobs, biomes and structures work with no setup.
+  Several NPCs add up on one mob in layers (every villager, smiths, the elder); `one` lets the mod pick one mob for
+  good, `share` a per cent of them; names from a list. NPCs that talk to one player at a time; different lines
+  before, during and after a quest.
+- Phrases: chatter nearby, answers to a hit or a click, at random or in order. A story paused by a fight picks up
+  again ("Where was I"), or the talk goes on through the fight.
 - NPCs that come back (`"respawn": true`): the same NPC returns where it died or disappeared, and drops nothing.
 - Sounds of your own: `.ogg` files in `config/storybound/sounds/<namespace>/` play as `<namespace>:<name>`, picked
   and heard in the editor; files that would not play are named with the reason.
@@ -68,16 +67,21 @@ Required on both client and server.
 - Search areas show their radius by the name and their edge on the ground near the player (each can be turned off;
   players can turn the edges off in the client settings).
 - A waypoint's colour paints its marker, name, edge arrow and search ring, and its place on the maps; the editor offers the
-  10 colours that look the same in the world and on every map, and a dark colour reads in the world too. Markers no longer have a style of their own.
-- Server waypoints shown in Xaero's Minimap, JourneyMap and as in-world markers, pointing at places, structures or
-  the nearest matching entity (which stays where it was last seen when the player goes far away).
+  10 colours that look the same in the world and on every map, and a dark colour reads in the world too.
+- Server waypoints shown in Xaero's Minimap, JourneyMap and as in-world markers, pointing at places, structures, an
+  NPC or the nearest matching entity (which stays where it was last seen when the player goes far away); a waypoint
+  in another dimension shows in the tracker with the dimension's name.
 
 ### For authors
 - In-game editor (the "Dev Mode" button of the Adventure Menu, for operators): a quest map like FTB Quests, a
   library, dialogue graphs, forms built from the schemas; files are written as the author wrote them.
-- Working without the game: `/storybound trace`, `dump`, `export`, `capture`; a headless check for CI
-  (`-Dstorybound.validate`, JSON report, exit code); `/storybound lang extract` to move texts written in JSON into
-  language files.
+- Working without the game: `/storybound debug trace`, `dump`, `export`; a headless check for CI
+  (`-Dstorybound.validate`, JSON report, exit code); `/storybound debug lang extract` to move texts written in JSON
+  into language files.
+- Debug scenarios: `/storybound debug scenario <name>` installs a small story that shows one mechanic (fights, a
+  village of NPCs, waypoints in other dimensions); `clear` removes them.
+- The validator says when a place can never be: a biome that is not in the chosen dimension, a structure that is in
+  neither.
 - Migrations (`migrations/*.json`) that carry players' progress over when a quest, flag or dialogue is renamed.
 - Renaming any node in the editor: references, its texts, an NPC's relationship scale and players' saved progress
   follow it (the migration is written for you).

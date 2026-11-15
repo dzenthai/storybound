@@ -10,9 +10,9 @@ in-game editor. Required on both client and server.
 
 ## Quick start
 
-1. Install the mod on the server and the clients and start the game once: `config/storybound/` is created with a
-   demo story, which starts when you join a world. It is yours to play, change or delete (its files are in `demo/`
-   folders; `/storybound demo install` brings it back).
+1. Install the mod on the server and the clients and start the game once: `config/storybound/` is created with
+   empty folders, four sample documents and a `README.txt` on how the folder works. To see a mechanic at work, an
+   operator runs `/storybound debug scenario <name>`.
 2. Write your story in `config/storybound/` (or in datapacks under `data/<namespace>/storybound/`) and run `/reload`.
    Problems are listed by `/storybound debug validate` and in `logs/storybound-validation.txt`.
 

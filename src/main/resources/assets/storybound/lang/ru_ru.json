@@ -354,7 +354,7 @@
   "storybound.dev.namespace.tooltip": "Пространство имён истории: папка, в которой лежат её файлы. Новые узлы создаются в нём, а их названия пишутся без него.",
   "storybound.dev.namespace.title": "Пространство истории",
   "storybound.dev.namespace.label": "Новые узлы создаются в нём",
-  "storybound.dev.namespace.invalid": "Строчные латинские буквы, цифры, _ - . (не minecraft и не demo)",
+  "storybound.dev.namespace.invalid": "Строчные латинские буквы, цифры, _ - . (не minecraft и не scenario)",
   "storybound.dev.namespace.save": "Сохранить",
   "storybound.dev.namespace.saved": "Новые узлы создаются в %s",
   "storybound.dev.namespace.move_question": "В «%1$s» осталось узлов: %2$s. Перенести их в «%3$s»?",

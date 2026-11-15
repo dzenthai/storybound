@@ -47,7 +47,8 @@ versionRange = "${cutscene_api_version_range}"
 ordering = "NONE"
 side = "BOTH"
 
-# Only the client-side map renderers use these; the version range is pinned because we use Xaero's internals.
+# Only the client-side map renderers use these. We use Xaero's internals, but every call is guarded: a changed Xaero
+# disables only our renderer, so the range stays open.
 [[dependencies.${mod_id}]]
 modId = "xaerominimap"
 type = "optional"
