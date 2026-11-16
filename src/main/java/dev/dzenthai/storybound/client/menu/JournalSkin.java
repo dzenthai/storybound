@@ -12,8 +12,13 @@ import net.minecraft.resources.ResourceLocation;
 
 /** The selected field-journal concept, with artwork separate from live text and controls. */
 public final class JournalSkin {
-    public static final ResourceLocation FONT = ResourceLocation.withDefaultNamespace("default");
-    public static final ResourceLocation HEADING_FONT = FONT;
+    /**
+     * The menu's own fonts (November 16, 2026; before, {@code minecraft:default} itself): both only reference the game's
+     * default font, so the menu looks the same, but a resource pack can give the menu a font of its own without changing
+     * the whole game's.
+     */
+    public static final ResourceLocation FONT = Storybound.id("journal");
+    public static final ResourceLocation HEADING_FONT = Storybound.id("journal_heading");
     /**
      * The open book (October 30, 2026: the 384×256 pixel-art book, drawn a whole number of window pixels per its pixel;
      * before, a 1536×1024 picture scaled down by any factor).
