@@ -42,15 +42,15 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The story editor's three tabs, with the selected definition's inspector on the right ({@link StoryInspector}):
- * <ul>
- *   <li><b>Story</b>, a map of the quests as in FTB Quests: an arrow from a quest to each quest it leads to, the
- *   dialogues, scripts and documents between them folded into the arrow ({@link StoryFlow}); chapters on the left.</li>
- *   <li><b>Library</b>, every definition as a list ({@link StoryLibrary}).</li>
- *   <li><b>All links</b>, every definition as a card with every link as an arrow, to find what is linked with what.</li>
- * </ul>
- * On both canvases Shift selects several cards; dragging from a card's port to another card writes the link into the
- * first one's JSON ({@link StoryEdits#link}).
+ * The story editor: one workspace (November 16, 2026, stage 1 of the workspace redesign; before, three tabs, Story,
+ * Library and All links): the left panel ({@link StoryPanel}: chapters, search, problems), the canvas, and the selected
+ * definition's inspector on the right ({@link StoryInspector}). The canvas is the story's spine as in FTB Quests: the
+ * quests and story events of the open chapter, an arrow from each to what it leads to with the nodes between folded
+ * into it ({@link StoryFlow}) and its words on it ("after it is completed", "through 💬"); what belongs to a quest or
+ * an event (its giver, dialogues, documents, waypoints, boss) is badges under it ({@link StoryFlow#attached}).
+ * Hovering a node lights its links and dims the rest. "Show all links" ({@link Tab#ALL}) shows every definition as a
+ * card with every link as an arrow. On both, Shift selects several cards; dragging from a card's port to another card
+ * writes the link into the first one's JSON ({@link StoryEdits#link}).
  */
 final class StoryView extends GraphView {
     static final int NODE_W = 136;
@@ -65,11 +65,19 @@ final class StoryView extends GraphView {
     /** The map's grid for quests not placed by hand: a column per step of the story. */
     private static final int MAP_COLUMN_W = 190;
     private static final int MAP_ROW_H = 64;
-    private static final int TABS_TOP = DevUi.TOP_BAR_H + 4;
-    /** Where the left panel's list (chapters, kinds) starts, under the tabs and its heading. */
-    private static final int LIST_TOP = DevUi.TOP_BAR_H + 84;
+    /** A badge under a node of the map: one of its own nodes. */
+    private static final int BADGE_W = 12;
+    private static final int BADGE_H = 11;
+    /** Badges shown under a node before the rest fold into "+N". */
+    private static final int MAX_BADGES = 5;
+    /**
+     * "Not in a chapter": the quests and story events no chapter has, kept at the places of the whole story's view
+     * ({@link Chapters#QUESTS}). Never written as a chapter of its own.
+     */
+    static final ResourceLocation UNSORTED = dev.dzenthai.storybound.Storybound.id("__unsorted__");
 
-    enum Tab { STORY, LIBRARY, ALL }
+    /** The map of the story's spine, or every definition with every link ("Show all links"). */
+    enum Tab { STORY, ALL }
 
     /** A template in the "new" menus, with the kind it makes. */
     private record TemplateItem(String icon, String label, Template template, ResourceLocation kind) {}
@@ -92,10 +100,24 @@ final class StoryView extends GraphView {
     /**
      * A card on a canvas.
      *
-     * @param subtitle the second line: on the map, where a quest starts; elsewhere the id
+     * @param subtitle  the second line: the id
+     * @param own       on the map, the nodes that belong to it, drawn as badges under it
+     * @param selfStart a quest that starts by its own trigger, not given by anything on the canvas
      */
     record Card(NodeKey key, String title, String subtitle, String badge, int color, ItemStack icon, int x, int y, boolean hasError,
-                boolean missingTranslation) {}
+                boolean missingTranslation, List<NodeKey> own, boolean selfStart) {
+        Card(NodeKey key, String title, String subtitle, String badge, int color, ItemStack icon, int x, int y, boolean hasError,
+             boolean missingTranslation) {
+            this(key, title, subtitle, badge, color, icon, x, y, hasError, missingTranslation, List.of(), false);
+        }
+
+        Card withOwn(List<NodeKey> nodes, boolean starts) {
+            return new Card(key, title, subtitle, badge, color, icon, x, y, hasError, missingTranslation, nodes, starts);
+        }
+    }
+
+    /** A badge under a card: one of its own nodes, or "+N" for the rest ({@code node} null). */
+    private record Badge(Card card, int x, int y, int width, @Nullable NodeKey node, List<NodeKey> rest) {}
 
     /**
      * An arrow between two cards.
@@ -118,7 +140,7 @@ final class StoryView extends GraphView {
     /** What the last save sent or kept as a draft: an inspector showing just that has nothing unsaved. */
     private @Nullable String lastSaved;
     final StoryInspector inspector = new StoryInspector(this);
-    private final StoryLibrary library = new StoryLibrary(this);
+    private final StoryPanel panel = new StoryPanel(this);
     /** Pan and zoom of the tabs not open. */
     private final Map<Tab, double[]> views = new EnumMap<>(Tab.class);
 
@@ -150,9 +172,10 @@ final class StoryView extends GraphView {
         screen.onClose();
     }
 
+    /** No title over the map: the chapter strip and the map say where one is (November 16, 2026; before, "⚙ Dev Mode"). */
     @Override
     Component title() {
-        return Component.literal("⚙ ").append(DevUi.text("title"));
+        return Component.empty();
     }
 
     @Override
@@ -160,9 +183,15 @@ final class StoryView extends GraphView {
         return ClientDevStore.missingTranslationCount(ClientDevStore.activeLanguage());
     }
 
+    /** The problems are this view's own ⚠ button, which opens their list ({@link StoryFinder}). */
     @Override
     boolean showsIssues() {
-        return true;
+        return false;
+    }
+
+    @Override
+    int canvasLeft() {
+        return StoryPanel.STRIP_W;
     }
 
     @Override
@@ -170,23 +199,72 @@ final class StoryView extends GraphView {
         return selected != null && editing != null && !screen.inspectorCollapsed();
     }
 
-    /** The chapter whose places the open canvas uses: the map's open chapter, or the hidden one of "All links". */
+    /**
+     * The chapter whose places the open canvas uses: the map's open chapter (the whole story's for the nodes in no
+     * chapter), or the hidden one of "All links".
+     */
     private ResourceLocation chapter() {
-        return tab == Tab.ALL ? Chapters.OVERVIEW : storyChapter;
+        if (tab == Tab.ALL) {
+            return Chapters.OVERVIEW;
+        }
+        return UNSORTED.equals(storyChapter) ? Chapters.QUESTS : storyChapter;
     }
 
-    /** Whether the open tab's canvas shows the node: the map shows only quests, "All links" every kind. */
+    /** The story's spine, the map's nodes: quests and story events; the rest are their badges. */
+    static boolean spine(NodeKey key) {
+        return key.type().equals(ClientDevStore.TYPE_QUEST) || key.type().equals(ClientDevStore.TYPE_EVENT);
+    }
+
+    /** Whether the open canvas shows the node: the map its spine, "All links" every kind. */
     private boolean shows(NodeKey key) {
-        return switch (tab) {
-            case STORY -> key.type().equals(ClientDevStore.TYPE_QUEST);
-            case ALL -> KINDS.contains(key.type());
-            case LIBRARY -> false;
-        };
+        return tab == Tab.STORY ? spine(key) : KINDS.contains(key.type());
+    }
+
+    /** How many quests and story events the story has. */
+    int spineCount() {
+        return ClientDevStore.byType(ClientDevStore.TYPE_QUEST).size() + ClientDevStore.byType(ClientDevStore.TYPE_EVENT).size();
+    }
+
+    /** The quests and story events no chapter has. */
+    private Set<NodeKey> unsorted() {
+        Set<NodeKey> inChapters = new java.util.HashSet<>();
+        for (Map.Entry<ResourceLocation, JsonObject> entry : Chapters.sorted()) {
+            inChapters.addAll(Chapters.positions(entry.getValue()).keySet());
+        }
+        Set<NodeKey> out = new LinkedHashSet<>();
+        for (ResourceLocation type : List.of(ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_EVENT)) {
+            for (ResourceLocation id : ClientDevStore.byType(type).keySet()) {
+                NodeKey key = new NodeKey(type, id);
+                if (!inChapters.contains(key)) {
+                    out.add(key);
+                }
+            }
+        }
+        return out;
+    }
+
+    int unsortedCount() {
+        return unsorted().size();
+    }
+
+    /** The chapter the map shows now (none while every link is shown). */
+    boolean isOpenChapter(ResourceLocation id) {
+        return tab == Tab.STORY && id.equals(storyChapter);
+    }
+
+    /** Opens a chapter of the map, also from "Show all links". */
+    void showChapter(DevModeScreen screen, ResourceLocation id) {
+        if (tab != Tab.STORY) {
+            openTab(screen, Tab.STORY);
+        }
+        openChapter(id);
+        screen.rebuild();
     }
 
     @Override
     void reload() {
-        if (!Chapters.hidden(storyChapter) && ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, storyChapter) == null) {
+        if (!Chapters.hidden(storyChapter) && !UNSORTED.equals(storyChapter)
+                && ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, storyChapter) == null) {
             storyChapter = Chapters.QUESTS;
         }
         if (movedNamespace != null) {
@@ -223,24 +301,25 @@ final class StoryView extends GraphView {
         chapterNodes.clear();
         positions.clear();
         Chapters.positions(ClientDevStore.parseObject(ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, chapter()))).forEach((key, pos) -> {
-            if (key.type().equals(ClientDevStore.TYPE_QUEST)) {
+            if (spine(key)) {
                 chapterNodes.add(key);
             }
             positions.put(key, pos);
         });
+        if (UNSORTED.equals(storyChapter) && tab == Tab.STORY) {
+            chapterNodes.clear();
+            chapterNodes.addAll(unsorted());
+        }
     }
 
-    /** Lays out what the open tab shows: the map, every node, or the library's list. */
+    /** Lays out what the open canvas shows, the map or every node, and the left panel's search. */
     void rebuildCards() {
         cards.clear();
         List<Edge> edges = ClientDevStore.collectEdges();
-        switch (tab) {
-            case STORY -> rebuildMap(edges);
-            case ALL -> rebuildAll(edges);
-            case LIBRARY -> {
-                arrows = List.of();
-                library.rebuild(edges);
-            }
+        if (tab == Tab.STORY) {
+            rebuildMap(edges);
+        } else {
+            rebuildAll(edges);
         }
     }
 
@@ -276,50 +355,69 @@ final class StoryView extends GraphView {
      * quest not placed by hand stands a column after the quests leading to it.
      */
     private void rebuildMap(List<Edge> edges) {
-        List<StoryFlow.Flow> flows = StoryFlow.flows(edges);
-        Map<NodeKey, List<NodeKey>> entries = StoryFlow.entries(edges);
-        List<NodeKey> quests = new ArrayList<>();
-        for (ResourceLocation id : ClientDevStore.byType(ClientDevStore.TYPE_QUEST).keySet()) {
-            NodeKey key = new NodeKey(ClientDevStore.TYPE_QUEST, id);
-            if (Chapters.QUESTS.equals(storyChapter) || chapterNodes.contains(key)) {
-                quests.add(key);
+        List<StoryFlow.Flow> flows = StoryFlow.flows(edges, StoryView::spine);
+        Map<NodeKey, List<NodeKey>> own = StoryFlow.attached(edges, StoryView::spine);
+        List<NodeKey> nodes = new ArrayList<>();
+        for (ResourceLocation type : List.of(ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_EVENT)) {
+            for (ResourceLocation id : ClientDevStore.byType(type).keySet()) {
+                NodeKey key = new NodeKey(type, id);
+                if (Chapters.QUESTS.equals(storyChapter) || chapterNodes.contains(key)) {
+                    nodes.add(key);
+                }
             }
         }
-        Set<NodeKey> shown = new LinkedHashSet<>(quests);
+        Set<NodeKey> shown = new LinkedHashSet<>(nodes);
         List<StoryFlow.Flow> inside = flows.stream().filter(flow -> shown.contains(flow.from()) && shown.contains(flow.to())).toList();
-        Map<NodeKey, Integer> columns = StoryFlow.columns(quests, inside);
+        Map<NodeKey, Integer> columns = StoryFlow.columns(nodes, inside);
         List<NodeKey> unplaced = new ArrayList<>();
-        for (NodeKey quest : quests) {
-            int[] pos = positions.get(quest);
+        for (NodeKey node : nodes) {
+            int[] pos = positions.get(node);
             if (pos == null) {
-                unplaced.add(quest);
+                unplaced.add(node);
             } else {
-                cards.add(mapCard(quest, entries, pos[0], pos[1]));
+                cards.add(mapCard(node, own, pos[0], pos[1]));
             }
         }
         Map<Integer, Integer> rows = new HashMap<>();
-        for (NodeKey quest : unplaced) {
-            int column = columns.getOrDefault(quest, 0);
+        for (NodeKey node : unplaced) {
+            int column = columns.getOrDefault(node, 0);
             int x = column * MAP_COLUMN_W + 20;
             int y;
             do {
                 y = rows.merge(column, 1, Integer::sum) * MAP_ROW_H - MAP_ROW_H + 20;
             } while (occupied(x, y));
-            positions.put(quest, new int[]{x, y});
-            cards.add(mapCard(quest, entries, x, y));
+            positions.put(node, new int[]{x, y});
+            cards.add(mapCard(node, own, x, y));
         }
         List<Arrow> list = new ArrayList<>();
         for (StoryFlow.Flow flow : inside) {
-            list.add(new Arrow(flow.from(), flow.to(), glyphs(flow.via()), names(flow.via())));
+            String words = flowWords(flow, edges);
+            list.add(new Arrow(flow.from(), flow.to(), flow.via().isEmpty() ? words : DevUi.str("arrow.via", glyphs(flow.via())),
+                    flow.via().isEmpty() ? words : DevUi.str("arrow.via", names(flow.via()))));
         }
         arrows = list;
     }
 
-    /** A quest on the map: its second line says where it starts when no quest leads to it. */
-    private Card mapCard(NodeKey quest, Map<NodeKey, List<NodeKey>> entries, int x, int y) {
-        List<NodeKey> entry = entries.get(quest);
-        String subtitle = entry == null || entry.isEmpty() ? quest.id().getPath() : "▶ " + glyphs(entry) + " " + title(entry.getFirst());
-        return card(quest, ClientDevStore.parseObject(ClientDevStore.getJson(quest.type(), quest.id())), subtitle, x, y);
+    /** A node of the map, with its own nodes as badges; a quest with a trigger of its own starts by itself. */
+    private Card mapCard(NodeKey node, Map<NodeKey, List<NodeKey>> own, int x, int y) {
+        JsonObject json = ClientDevStore.parseObject(ClientDevStore.getJson(node.type(), node.id()));
+        boolean starts = node.type().equals(ClientDevStore.TYPE_QUEST) && json.get("start") instanceof JsonObject start && start.has("trigger");
+        return card(node, json, node.id().getPath(), x, y).withOwn(own.getOrDefault(node, List.of()), starts);
+    }
+
+    /**
+     * What an arrow straight from one node to the next means, in words: the next waits for this one to be completed
+     * ("after"), this one starts or moves the next; otherwise the link's own name.
+     */
+    private static String flowWords(StoryFlow.Flow flow, List<Edge> edges) {
+        for (Edge edge : edges) {
+            boolean straight = edge.from().equals(flow.from()) && edge.to().equals(flow.to());
+            if (straight) {
+                String key = "storybound.dev.arrow." + edge.label();
+                return Language.getInstance().has(key) ? Component.translatable(key).getString() : edgeLabel(edge.label());
+            }
+        }
+        return "";
     }
 
     private Card card(NodeKey key, JsonObject json, String subtitle, int x, int y) {
@@ -1166,13 +1264,13 @@ final class StoryView extends GraphView {
      * chapter made before the map showed only quests) stay as they were.
      */
     void saveChapter() {
-        if (tab == Tab.LIBRARY) {
-            return;
-        }
         ResourceLocation open = chapter();
         JsonObject json = ClientDevStore.parseObject(ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, open));
         Map<NodeKey, int[]> placed = Chapters.positions(json);
-        placed.keySet().removeIf(this::shows);
+        if (!UNSORTED.equals(storyChapter) || tab != Tab.STORY) {
+            // "Not in a chapter" shows some of the whole story's places: the others stay as they are.
+            placed.keySet().removeIf(this::shows);
+        }
         for (Card card : cards) {
             placed.put(card.key(), new int[]{card.x(), card.y()});
         }
@@ -1187,7 +1285,7 @@ final class StoryView extends GraphView {
     }
 
     /** A new chapter of the map with the selected quests on it (at their places), opened at once. */
-    private void createChapter(DevModeScreen screen) {
+    void createChapter(DevModeScreen screen) {
         ResourceLocation id = Chapters.nextId();
         String number = id.getPath().substring("chapter_".length());
         JsonObject json = new JsonObject();
@@ -1218,7 +1316,7 @@ final class StoryView extends GraphView {
         screen.status(DevUi.text("status.chapter_created", DevUi.str("chapter.default_title", number)), DevUi.OK);
     }
 
-    private void deleteChapter(DevModeScreen screen, ResourceLocation id) {
+    void deleteChapter(DevModeScreen screen, ResourceLocation id) {
         String before = ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, id);
         if (before == null) {
             return;
@@ -1280,7 +1378,7 @@ final class StoryView extends GraphView {
     }
 
     /** Selects the chapter itself, so the inspector edits its title. */
-    private void renameChapter(DevModeScreen screen, ResourceLocation id) {
+    void renameChapter(DevModeScreen screen, ResourceLocation id) {
         openChapter(id);
         select(screen, new NodeKey(ClientDevStore.TYPE_CHAPTER, id));
         screen.rebuild();
@@ -1313,6 +1411,66 @@ final class StoryView extends GraphView {
                 centerOn(screen, card.x() + NODE_W / 2.0, card.y() + NODE_H / 2.0);
             }
         }
+        screen.rebuild();
+    }
+
+    /**
+     * Shows a node wherever it is (a search row, a problem): a quest or a story event on the map, in a chapter that has
+     * it, centred and selected; anything else selected in the inspector, the map centred on a node it belongs to.
+     */
+    void revealAnywhere(DevModeScreen screen, NodeKey key) {
+        if (tab == Tab.ALL) {
+            reveal(screen, Tab.ALL, key);
+            return;
+        }
+        if (spine(key) && !chapterNodes.contains(key) && !Chapters.QUESTS.equals(storyChapter)) {
+            ResourceLocation home = unsorted().contains(key) ? UNSORTED : Chapters.QUESTS;
+            for (Map.Entry<ResourceLocation, JsonObject> entry : Chapters.sorted()) {
+                if (Chapters.positions(entry.getValue()).containsKey(key)) {
+                    home = entry.getKey();
+                    break;
+                }
+            }
+            openChapter(home);
+        }
+        select(screen, key);
+        for (Card card : cards) {
+            if (card.key().equals(key) || card.own().contains(key)) {
+                centerOn(screen, card.x() + NODE_W / 2.0, card.y() + NODE_H / 2.0);
+                break;
+            }
+        }
+        screen.rebuild();
+    }
+
+    /**
+     * A search row let go on the canvas: a quest or a story event goes on the open chapter there, or moves there when
+     * the map shows it already; anything else is a badge, never a node of the map, and is only shown.
+     */
+    void dropOnCanvas(DevModeScreen screen, NodeKey key, double mouseX, double mouseY) {
+        if (tab != Tab.STORY || !spine(key)) {
+            screen.status(DevUi.text("status.drop_not_spine"), DevUi.WARN);
+            return;
+        }
+        int x = (int) Math.round((worldX(mouseX) - NODE_W / 2.0) / 8.0) * 8;
+        int y = (int) Math.round((worldY(mouseY) - NODE_H / 2.0) / 8.0) * 8;
+        boolean realChapter = !Chapters.hidden(storyChapter) && !UNSORTED.equals(storyChapter);
+        if (realChapter && !chapterNodes.contains(key)) {
+            positions.put(key, new int[]{x, y});
+            setInChapter(screen, storyChapter, key, true);
+        } else if (cards.stream().anyMatch(card -> card.key().equals(key))) {
+            int[] before = positions.getOrDefault(key, new int[]{x, y}).clone();
+            positions.put(key, new int[]{x, y});
+            rebuildCards();
+            saveChapter();
+            ResourceLocation moved = chapter();
+            screen.remember(DevUi.str("history.move", 1), () -> moveBack(moved, Map.of(key, before)), () -> moveBack(moved, Map.of(key, new int[]{x, y})));
+        } else {
+            screen.status(DevUi.text("status.drop_in_chapter", title(key)), DevUi.WARN);
+            return;
+        }
+        select(screen, key);
+        rebuildCards();
         screen.rebuild();
     }
 
@@ -1382,33 +1540,105 @@ final class StoryView extends GraphView {
 
     @Override
     void addWidgets(DevModeScreen screen) {
+        // The top bar's right end, small signs with their words on hover, from the right: the problems, the search,
+        // every link or back to the chapters, whose progress the map shows.
+        int x = screen.width - 4;
+        int problems = ClientDevStore.issues().size();
+        boolean errors = ClientDevStore.issues().stream().anyMatch(line -> line.startsWith("[ERROR]"));
+        Component problemsLabel = problems == 0 ? Component.literal("✔") : Component.literal("⚠ " + problems)
+                .withColor(errors ? DevUi.ERROR : DevUi.WARN);
+        x = topButton(screen, x, problemsLabel, problems == 0 ? "top.problems_none.tooltip" : "top.problems.tooltip",
+                () -> screen.openFinder(StoryFinder.Mode.PROBLEMS));
+        x = topButton(screen, x, Component.literal("🔍"), "top.search.tooltip", () -> screen.openFinder(StoryFinder.Mode.SEARCH));
+        x = topButton(screen, x, Component.literal(tab == Tab.STORY ? "🕸" : "📜"),
+                tab == Tab.STORY ? "canvas.all_links.tooltip" : "canvas.back_to_chapters.tooltip", () -> {
+                    saveEdits(screen);
+                    openTab(screen, tab == Tab.STORY ? Tab.ALL : Tab.STORY);
+                });
         if (tab == Tab.STORY) {
-            screen.add(Button.builder(DevUi.text("chapter.new"), b -> createChapter(screen))
-                    .bounds(6, screen.height - 24, DevUi.LEFT_PANEL_W - 12, 18).build());
-            Component who = progressOf == null ? DevUi.text("progress.off") : Component.literal(progressOf);
-            screen.add(Button.builder(Component.literal("👤 ").append(who), b -> nextProgressPlayer(screen))
-                    .tooltip(Tooltip.create(DevUi.text("progress.tooltip")))
-                    .bounds(6, screen.height - 46, DevUi.LEFT_PANEL_W - 12, 18).build());
-        }
-        if (tab == Tab.LIBRARY) {
-            library.addWidgets(screen);
+            Component who = progressOf == null ? Component.literal("👤") : Component.literal("👤 " + progressOf);
+            topButton(screen, x, who, "progress.tooltip", () -> nextProgressPlayer(screen));
         }
         if (inspectorVisible(screen)) {
             inspector.addWidgets(screen);
         }
     }
 
+    /** A small button of the top bar's right end, right-aligned at {@code right}; returns where the next one ends. */
+    private static int topButton(DevModeScreen screen, int right, Component label, String tooltip, Runnable action) {
+        int w = Math.max(18, screen.font().width(label) + 10);
+        screen.add(Button.builder(label, b -> action.run()).tooltip(Tooltip.create(DevUi.text(tooltip)))
+                .bounds(right - w, 3, w, 18).build());
+        return right - w - 2;
+    }
+
     @Override
     void render(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
-        if (tab == Tab.LIBRARY) {
-            library.render(screen, graphics, mouseX, mouseY);
-        } else {
-            renderCanvas(screen, graphics, mouseX, mouseY);
-        }
-        renderLeftPanel(screen, graphics, mouseX, mouseY);
+        panel.hover(screen, mouseX, mouseY, dragging != null || linkingFrom != null || boxSelecting);
+        renderCanvas(screen, graphics, mouseX, mouseY);
         if (inspectorVisible(screen)) {
             inspector.render(screen, graphics);
         }
+        panel.render(screen, graphics, mouseX, mouseY);
+    }
+
+    /** "On the map" from the search: a quest or a story event goes on the open chapter, in the middle of what is seen. */
+    void putOnMap(DevModeScreen screen, NodeKey key) {
+        if (tab != Tab.STORY) {
+            openTab(screen, Tab.STORY);
+        }
+        dropOnCanvas(screen, key, (canvasLeft() + screen.canvasRight()) / 2.0, (DevUi.TOP_BAR_H + screen.height) / 2.0);
+    }
+
+    /** The badges under a card of the map: its own nodes, "+N" for the rest; a quest starting by itself gets ⚡ first. */
+    private static List<Badge> badges(Card card, Font font) {
+        List<Badge> list = new ArrayList<>();
+        int x = card.x();
+        int y = card.y() + NODE_H + 2;
+        if (card.selfStart()) {
+            list.add(new Badge(card, x, y, BADGE_W, null, List.of()));
+            x += BADGE_W + 1;
+        }
+        List<NodeKey> own = card.own();
+        int shown = own.size() > MAX_BADGES ? MAX_BADGES - 1 : own.size();
+        for (int i = 0; i < shown; i++) {
+            list.add(new Badge(card, x, y, BADGE_W, own.get(i), List.of()));
+            x += BADGE_W + 1;
+        }
+        if (own.size() > shown) {
+            List<NodeKey> rest = own.subList(shown, own.size());
+            list.add(new Badge(card, x, y, font.width("+" + rest.size()) + 4, null, List.copyOf(rest)));
+        }
+        return list;
+    }
+
+    private static boolean hasProblem(NodeKey key) {
+        return !ClientDevStore.issuesFor(key.type(), key.id()).isEmpty() || scriptBroken(key);
+    }
+
+    private @Nullable Badge badgeAt(double worldX, double worldY, Font font) {
+        if (tab != Tab.STORY) {
+            return null;
+        }
+        for (int i = cards.size() - 1; i >= 0; i--) {
+            for (Badge badge : badges(cards.get(i), font)) {
+                if (DevUi.inside(worldX, worldY, badge.x(), badge.y(), badge.width(), BADGE_H)) {
+                    return badge;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** What a badge is, for its tooltip: the node's kind and title, or what the mark means. */
+    private static Component badgeTooltip(Badge badge) {
+        if (badge.node() == null) {
+            return badge.rest().isEmpty() ? DevUi.text("badge.self_start") : DevUi.text("badge.more", badge.rest().size());
+        }
+        NodeKey key = badge.node();
+        String line = glyph(key.type()) + " " + DevUi.str("kind." + key.type().getPath()) + ": " + title(key);
+        List<String> issues = ClientDevStore.issuesFor(key.type(), key.id());
+        return Component.literal(issues.isEmpty() ? line : line + "\n⚠ " + issues.getFirst());
     }
 
     private void renderCanvas(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
@@ -1418,22 +1648,39 @@ final class StoryView extends GraphView {
         for (Card card : cards) {
             byKey.put(card.key(), card);
         }
+        double worldX = worldX(mouseX);
+        double worldY = worldY(mouseY);
+        boolean idle = onCanvas(screen, mouseX, mouseY) && dragging == null && linkingFrom == null && !boxSelecting && !screen.modalOpen() && !panel.holds(screen, mouseX, mouseY);
+        // Hovering a node lights its links and dims what is not linked with it.
+        Card focus = idle ? cardAt(worldX, worldY) : null;
+        Set<NodeKey> lit = new java.util.HashSet<>();
+        if (focus != null) {
+            lit.add(focus.key());
+            for (Arrow arrow : arrows) {
+                if (arrow.from().equals(focus.key())) {
+                    lit.add(arrow.to());
+                } else if (arrow.to().equals(focus.key())) {
+                    lit.add(arrow.from());
+                }
+            }
+        }
         int index = 0;
         for (Arrow arrow : arrows) {
             Card from = byKey.get(arrow.from());
             Card to = byKey.get(arrow.to());
             if (from != null && to != null) {
-                boolean lit = selection.contains(arrow.from()) || selection.contains(arrow.to()) || arrow.from().equals(selected) || arrow.to().equals(selected);
+                boolean bright = focus != null ? arrow.from().equals(focus.key()) || arrow.to().equals(focus.key())
+                        : selection.contains(arrow.from()) || selection.contains(arrow.to()) || arrow.from().equals(selected) || arrow.to().equals(selected);
+                int color = bright ? DevUi.WARN : focus != null ? 0xFF2E3640 : 0xFF546E7A;
                 DevUi.edge(graphics, font, from.x() + NODE_W, from.y() + NODE_H / 2, to.x(), to.y() + NODE_H / 2,
-                        lit ? DevUi.WARN : 0xFF546E7A, lit ? arrow.litLabel() : arrow.label(), index++);
+                        color, bright ? arrow.litLabel() : focus != null ? "" : arrow.label(), index++);
             }
         }
-        double worldX = worldX(mouseX);
-        double worldY = worldY(mouseY);
         Card source = linkingFrom != null ? byKey.get(linkingFrom) : null;
         if (source != null) {
             DevUi.edge(graphics, font, source.x() + NODE_W, source.y() + NODE_H / 2, (int) worldX, (int) worldY, DevUi.LINK, DevUi.str("edge.link"), 0);
         }
+        Badge hoveredBadge = idle ? badgeAt(worldX, worldY, font) : null;
         for (Card card : cards) {
             boolean primary = card.key().equals(selected);
             boolean multi = selection.contains(card.key());
@@ -1443,6 +1690,10 @@ final class StoryView extends GraphView {
                     card.missingTranslation(), card.icon(), card.title(), card.subtitle());
             if (tab == Tab.STORY) {
                 renderProgress(graphics, font, card);
+                renderBadges(graphics, font, card, hoveredBadge);
+            }
+            if (focus != null && !lit.contains(card.key())) {
+                graphics.fill(card.x() - 1, card.y() - 1, card.x() + NODE_W + 1, card.y() + NODE_H + BADGE_H + 4, 0xB0141619);
             }
         }
         if (boxSelecting) {
@@ -1458,13 +1709,39 @@ final class StoryView extends GraphView {
         }
         endCanvas(graphics);
         if (tab == Tab.STORY && cards.isEmpty()) {
-            int left = DevUi.LEFT_PANEL_W + 16;
-            int y = DevUi.TOP_BAR_H + 16;
+            int left = canvasLeft() + 16;
+            int y = DevUi.TOP_BAR_H + 26;
             for (FormattedCharSequence line : font.split(DevUi.text(Chapters.QUESTS.equals(storyChapter) ? "map.empty" : "map.empty_chapter"),
                     screen.canvasRight() - left - 16)) {
                 graphics.drawString(font, line, left, y, DevUi.HINT, false);
                 y += 11;
             }
+        }
+        if (hoveredBadge != null) {
+            graphics.renderTooltip(font, font.split(badgeTooltip(hoveredBadge), 240), mouseX, mouseY);
+        }
+    }
+
+    /** A card's badges: each node's sign, a red dot on one with a problem, the hovered one lit. */
+    private void renderBadges(GuiGraphics graphics, Font font, Card card, @Nullable Badge hovered) {
+        boolean anyProblem = false;
+        for (Badge badge : badges(card, font)) {
+            boolean lit = hovered != null && hovered.card().equals(card) && hovered.x() == badge.x()
+                    || badge.node() != null && (badge.node().equals(selected) || selection.contains(badge.node()));
+            graphics.fill(badge.x(), badge.y(), badge.x() + badge.width(), badge.y() + BADGE_H, lit ? DevUi.ROW_SELECTED : DevUi.CARD);
+            DevUi.horizontal(graphics, badge.x(), badge.x() + badge.width() - 1, badge.y() + BADGE_H - 1, lit ? DevUi.WARN : DevUi.CARD_EDGE);
+            String sign = badge.node() != null ? glyph(badge.node().type()) : badge.rest().isEmpty() ? "⚡" : "+" + badge.rest().size();
+            graphics.drawString(font, sign, badge.x() + (badge.width() - font.width(sign)) / 2 + 1, badge.y() + 2,
+                    badge.node() == null && badge.rest().isEmpty() ? DevUi.WARN : DevUi.TEXT, false);
+            boolean problem = badge.node() != null ? hasProblem(badge.node()) : badge.rest().stream().anyMatch(StoryView::hasProblem);
+            if (problem) {
+                graphics.fill(badge.x() + badge.width() - 3, badge.y(), badge.x() + badge.width(), badge.y() + 3, DevUi.ERROR);
+                anyProblem = true;
+            }
+        }
+        if (anyProblem && !card.hasError()) {
+            // Something of its own has a problem: a dot on the node too, so it is seen from afar.
+            graphics.fill(card.x() + NODE_W - 5, card.y() + 1, card.x() + NODE_W - 1, card.y() + 5, DevUi.ERROR);
         }
     }
 
@@ -1474,37 +1751,13 @@ final class StoryView extends GraphView {
         return Language.getInstance().has(key) ? Component.translatable(key).getString() : kind;
     }
 
-    /** The tabs, then what the open tab lists: the map's chapters, the library's kinds, or what "All links" is for. */
-    private void renderLeftPanel(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
-        Font font = screen.font();
-        DevUi.sidePanel(graphics, 0, DevUi.LEFT_PANEL_W, screen.height, true);
-        String[] tabs = {"📜 " + DevUi.str("tab.story"), "📚 " + DevUi.str("tab.library"), "🕸 " + DevUi.str("tab.links")};
-        for (int i = 0; i < tabs.length; i++) {
-            int y = TABS_TOP + i * 20;
-            DevUi.listRow(graphics, font, tabs[i], y, tab.ordinal() == i, DevUi.inside(mouseX, mouseY, 4, y, DevUi.LEFT_PANEL_W - 8, 18));
-        }
-        graphics.fill(6, LIST_TOP - 20, DevUi.LEFT_PANEL_W - 6, LIST_TOP - 19, DevUi.PANEL_EDGE);
-        switch (tab) {
-            case STORY -> {
-                graphics.drawString(font, DevUi.text("chapter.list"), 8, LIST_TOP - 14, DevUi.ACCENT, false);
-                int y = LIST_TOP;
-                DevUi.listRow(graphics, font, "★ " + DevUi.str("chapter.all_quests", ClientDevStore.byType(ClientDevStore.TYPE_QUEST).size()), y,
-                        Chapters.QUESTS.equals(storyChapter), DevUi.inside(mouseX, mouseY, 4, y, DevUi.LEFT_PANEL_W - 8, 18));
-                for (Map.Entry<ResourceLocation, JsonObject> entry : Chapters.sorted()) {
-                    y += 20;
-                    String name = ClientDevStore.readStoryText(entry.getValue(), "title", entry.getKey().getPath());
-                    DevUi.listRow(graphics, font, "• " + name, y, entry.getKey().equals(storyChapter), DevUi.inside(mouseX, mouseY, 4, y, DevUi.LEFT_PANEL_W - 8, 18));
-                }
-            }
-            case LIBRARY -> library.renderKinds(screen, graphics, LIST_TOP, mouseX, mouseY);
-            case ALL -> {
-                int y = LIST_TOP - 14;
-                for (FormattedCharSequence line : font.split(DevUi.text("links.about"), DevUi.LEFT_PANEL_W - 16)) {
-                    graphics.drawString(font, line, 8, y, DevUi.HINT, false);
-                    y += 11;
-                }
-            }
-        }
+    /**
+     * A link in the inspector's words (November 16, 2026; before, "→ quest_52 (stage)"): what it is to the selected
+     * node, as seen from it ({@code outgoing}: the selected node holds the link), else the link's own name.
+     */
+    static String linkPhrase(String kind, boolean outgoing) {
+        String key = "storybound.dev.links.rel." + kind + (outgoing ? ".out" : ".in");
+        return Language.getInstance().has(key) ? Component.translatable(key).getString() : edgeLabel(kind);
     }
 
     // --- input
@@ -1521,17 +1774,19 @@ final class StoryView extends GraphView {
 
     @Override
     boolean mouseClicked(DevModeScreen screen, double mouseX, double mouseY, int button) {
-        if (mouseX < DevUi.LEFT_PANEL_W && mouseY >= DevUi.TOP_BAR_H) {
+        if (panel.holds(screen, mouseX, mouseY)) {
             return clickLeftPanel(screen, mouseX, mouseY, button);
         }
         if (!onCanvas(screen, mouseX, mouseY)) {
             return false;
         }
-        if (tab == Tab.LIBRARY) {
-            return library.mouseClicked(screen, mouseX, mouseY, button);
-        }
         double worldX = worldX(mouseX);
         double worldY = worldY(mouseY);
+        Badge badge = badgeAt(worldX, worldY, screen.font());
+        if (badge != null && button != GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
+            clickBadge(screen, badge, mouseX, mouseY);
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
             menuWorldX = (int) Math.round(worldX);
             menuWorldY = (int) Math.round(worldY);
@@ -1573,45 +1828,39 @@ final class StoryView extends GraphView {
         return true;
     }
 
-    /** The tabs, then the open tab's list (the buttons at the bottom are widgets). */
     private boolean clickLeftPanel(DevModeScreen screen, double mouseX, double mouseY, int button) {
-        if (mouseY >= TABS_TOP && mouseY < TABS_TOP + Tab.values().length * 20) {
-            Tab next = Tab.values()[((int) mouseY - TABS_TOP) / 20];
-            if (next != tab) {
-                openTab(screen, next);
-            }
-            return true;
-        }
-        if (mouseY < LIST_TOP) {
-            return false;
-        }
-        int row = ((int) mouseY - LIST_TOP) / 20;
-        return switch (tab) {
-            case STORY -> mouseY < screen.height - 50 && clickChapter(screen, mouseX, mouseY, row, button);
-            case LIBRARY -> mouseY < screen.height - 28 && library.clickKind(screen, row);
-            case ALL -> false;
-        };
+        return panel.mouseClicked(screen, mouseX, mouseY, button);
     }
 
-    private boolean clickChapter(DevModeScreen screen, double mouseX, double mouseY, int row, int button) {
-        if (row == 0) {
-            openChapter(Chapters.QUESTS);
-            return true;
+    /**
+     * A badge: its node shows in the inspector (a double click opens a dialogue's graph); "+N" lists the rest to pick
+     * from; ⚡ only says what it means.
+     */
+    private void clickBadge(DevModeScreen screen, Badge badge, double mouseX, double mouseY) {
+        if (badge.node() == null) {
+            if (!badge.rest().isEmpty()) {
+                List<MenuItem> items = new ArrayList<>();
+                for (NodeKey key : badge.rest()) {
+                    items.add(MenuItem.of(Component.literal(glyph(key.type()) + " " + title(key)), () -> {
+                        select(screen, key);
+                        screen.rebuild();
+                    }));
+                }
+                screen.openMenu((int) mouseX, (int) mouseY, items);
+            }
+            return;
         }
-        List<Map.Entry<ResourceLocation, JsonObject>> chapters = Chapters.sorted();
-        if (row - 1 < 0 || row - 1 >= chapters.size()) {
-            return false;
+        NodeKey key = badge.node();
+        long now = System.currentTimeMillis();
+        if (key.equals(lastClicked) && now - lastClickTime < DOUBLE_CLICK_MS && key.type().equals(ClientDevStore.TYPE_DIALOGUE)) {
+            lastClicked = null;
+            screen.openDialogue(key.id());
+            return;
         }
-        ResourceLocation id = chapters.get(row - 1).getKey();
-        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-            String name = ClientDevStore.readStoryText(chapters.get(row - 1).getValue(), "title", id.getPath());
-            screen.openMenu((int) mouseX, (int) mouseY, List.of(
-                    MenuItem.of(Component.literal("✏ ").append(DevUi.text("chapter.rename")), () -> renameChapter(screen, id)),
-                    MenuItem.danger(Component.literal("🗑 ").append(DevUi.text("chapter.delete", name)), () -> deleteChapter(screen, id))));
-            return true;
-        }
-        openChapter(id);
-        return true;
+        lastClickTime = now;
+        lastClicked = key;
+        select(screen, key);
+        screen.rebuild();
     }
 
     private void clickCard(DevModeScreen screen, Card card, double worldX, double worldY) {
@@ -1669,8 +1918,8 @@ final class StoryView extends GraphView {
             return items;
         }
         if (clicked == null) {
-            // The map makes quests; what they use is made from a quest's menu or in the library.
-            return templateMenu(screen, tab == Tab.STORY ? ClientDevStore.TYPE_QUEST : null);
+            // The map makes its own nodes, quests and story events; what they use is made from a node's menu or the search's "+".
+            return templateMenu(screen, tab == Tab.STORY ? Set.of(ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_EVENT) : null, true);
         }
         NodeKey target = clicked.key();
         select(screen, target);
@@ -1735,17 +1984,20 @@ final class StoryView extends GraphView {
         return TEMPLATES.stream().filter(item -> kind == null || item.kind().equals(kind)).map(TemplateItem::template).toList();
     }
 
-    /** "New …" lines for the kind (all kinds without one): on a canvas at the menu's place, in the library nowhere. */
-    List<MenuItem> templateMenu(DevModeScreen screen, @Nullable ResourceLocation kind) {
+    /**
+     * "New …" lines for the kinds (all kinds without them): on the canvas at the menu's place, from the search's "+"
+     * nowhere (shown in the inspector; a quest or a story event also goes on the open chapter).
+     */
+    List<MenuItem> templateMenu(DevModeScreen screen, @Nullable Set<ResourceLocation> kinds, boolean onCanvas) {
         List<MenuItem> items = new ArrayList<>();
         for (TemplateItem item : TEMPLATES) {
-            if (kind == null || item.kind().equals(kind)) {
+            if (kinds == null || kinds.contains(item.kind())) {
                 items.add(MenuItem.of(Component.literal(item.icon() + " ").append(DevUi.text(item.label())), () -> {
-                    if (tab == Tab.LIBRARY) {
-                        createFromList(screen, item.template());
-                    } else {
+                    if (onCanvas) {
                         create(screen, item.template());
                         screen.rebuild();
+                    } else {
+                        createFromList(screen, item.template());
                     }
                 }));
             }
@@ -1762,9 +2014,6 @@ final class StoryView extends GraphView {
 
     @Override
     boolean mouseDragged(DevModeScreen screen, double mouseX, double mouseY) {
-        if (tab == Tab.LIBRARY) {
-            return false;
-        }
         if (boxSelecting) {
             boxEndX = worldX(mouseX);
             boxEndY = worldY(mouseY);
@@ -1844,7 +2093,7 @@ final class StoryView extends GraphView {
         places.forEach((key, pos) -> saved.put(key, pos.clone()));
         Chapters.setPositions(chapterId, json, saved);
         saveChapterJson(chapterId, json);
-        if (tab != Tab.LIBRARY && chapterId.equals(chapter())) {
+        if (chapterId.equals(chapter())) {
             loadChapter();
             rebuildCards();
         }
@@ -1852,11 +2101,12 @@ final class StoryView extends GraphView {
 
     @Override
     void wheel(DevModeScreen screen, double mouseX, double mouseY, double amount) {
-        if (tab == Tab.LIBRARY) {
-            library.scroll(screen, amount);
-        } else {
-            zoomAt(mouseX, mouseY, amount);
-        }
+        zoomAt(mouseX, mouseY, amount);
+    }
+
+    @Override
+    boolean scrollSidePanel(DevModeScreen screen, double mouseX, double mouseY, double amount) {
+        return panel.scroll(screen, mouseX, mouseY, amount);
     }
 
     @Override
@@ -1866,6 +2116,10 @@ final class StoryView extends GraphView {
 
     @Override
     boolean keyPressed(DevModeScreen screen, int keyCode) {
+        if (keyCode == GLFW.GLFW_KEY_F && Screen.hasControlDown()) {
+            screen.openFinder(StoryFinder.Mode.SEARCH);
+            return true;
+        }
         if ((keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE) && (selected != null || !selection.isEmpty())) {
             deleteSelection(screen);
             return true;

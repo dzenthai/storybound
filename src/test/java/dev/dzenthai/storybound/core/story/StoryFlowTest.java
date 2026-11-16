@@ -107,4 +107,39 @@ class StoryFlowTest {
         assertFalse(edges.stream().anyMatch(edge -> edge.from().equals(edge.to())));
         ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
     }
+
+    private static final NodeKey FESTIVAL = key(StoryLinks.EVENT, "festival");
+
+    /** The editor's canvas (November 16, 2026): quests and story events are its nodes, the rest badges under them. */
+    private static boolean spine(NodeKey key) {
+        return key.type().equals(StoryLinks.QUEST) || key.type().equals(StoryLinks.EVENT);
+    }
+
+    @Test
+    void aStoryEventIsANodeOfTheCanvasNotPartOfAnArrow() {
+        // The wolves quest's end runs the festival event, which starts the fire quest.
+        List<Edge> edges = List.of(new Edge(WOLVES, FESTIVAL, "leads"), new Edge(FESTIVAL, FIRE, "set_quest_state"));
+        assertEquals(List.of(new StoryFlow.Flow(WOLVES, FIRE, List.of(FESTIVAL))), StoryFlow.flows(edges), "the players' map folds it");
+        List<StoryFlow.Flow> canvas = StoryFlow.flows(edges, StoryFlowTest::spine);
+        assertTrue(canvas.contains(new StoryFlow.Flow(WOLVES, FESTIVAL, List.of())));
+        assertTrue(canvas.contains(new StoryFlow.Flow(FESTIVAL, FIRE, List.of())));
+    }
+
+    @Test
+    void aQuestsOwnNodesAreItsBadges() {
+        // The elder gives the wolves quest through his dialogue; the quest shows the den, its end starts the report
+        // dialogue leading to the fire quest, and the beast is its boss.
+        List<Edge> edges = List.of(
+                new Edge(ELDER, ELDER_TALK, "talk"),
+                new Edge(ELDER_TALK, WOLVES, "set_quest_state"),
+                new Edge(WOLVES, DEN, "stage"),
+                new Edge(WOLVES, REPORT, "start"),
+                new Edge(REPORT, FIRE, "set_quest_state"),
+                new Edge(WOLVES, BEAST, "unlock_boss_section"),
+                new Edge(ELDER, FIRE, "after"));
+        Map<NodeKey, List<NodeKey>> badges = StoryFlow.attached(edges, StoryFlowTest::spine);
+        assertEquals(List.of(ELDER, ELDER_TALK, REPORT, DEN, BEAST), badges.get(WOLVES), "giver first, then what is between, then the rest");
+        assertTrue(badges.get(FIRE).contains(REPORT), "a node between two quests is under both");
+        assertFalse(badges.get(WOLVES).contains(FIRE), "never another quest");
+    }
 }

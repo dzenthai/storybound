@@ -59,11 +59,21 @@ abstract class GraphView {
     /** The mouse wheel over the inspector: scrolls its form. */
     abstract void scrollInspector(double amount);
 
+    /** The mouse wheel over the left panel: scrolls the list under it; false when the view's panel has none. */
+    boolean scrollSidePanel(DevModeScreen screen, double mouseX, double mouseY, double amount) {
+        return false;
+    }
+
     /** Every client tick while the view is shown. */
     void tick(DevModeScreen screen) {}
 
+    /** Where the canvas begins: after the view's left panel (the story's is a narrow strip of chapters). */
+    int canvasLeft() {
+        return DevUi.LEFT_PANEL_W;
+    }
+
     double worldX(double mouseX) {
-        return (mouseX - DevUi.LEFT_PANEL_W - panX) / zoom;
+        return (mouseX - canvasLeft() - panX) / zoom;
     }
 
     double worldY(double mouseY) {
@@ -71,7 +81,7 @@ abstract class GraphView {
     }
 
     boolean onCanvas(DevModeScreen screen, double mouseX, double mouseY) {
-        return mouseX >= DevUi.LEFT_PANEL_W && mouseX < screen.canvasRight() && mouseY >= DevUi.TOP_BAR_H;
+        return mouseX >= canvasLeft() && mouseX < screen.canvasRight() && mouseY >= DevUi.TOP_BAR_H;
     }
 
     void startPan(double mouseX, double mouseY) {
@@ -102,7 +112,7 @@ abstract class GraphView {
     void zoomAt(double mouseX, double mouseY, double amount) {
         float old = zoom;
         zoom = Mth.clamp(zoom + (float) amount * 0.1f, 0.35f, 2.0f);
-        double relX = mouseX - DevUi.LEFT_PANEL_W - panX;
+        double relX = mouseX - canvasLeft() - panX;
         double relY = mouseY - DevUi.TOP_BAR_H - panY;
         panX -= relX * (zoom / old - 1.0);
         panY -= relY * (zoom / old - 1.0);
@@ -110,17 +120,17 @@ abstract class GraphView {
 
     /** Moves the canvas so the point is in the middle. */
     void centerOn(DevModeScreen screen, double worldX, double worldY) {
-        panX = (screen.canvasRight() - DevUi.LEFT_PANEL_W) / 2.0 - worldX * zoom;
+        panX = (screen.canvasRight() - canvasLeft()) / 2.0 - worldX * zoom;
         panY = (screen.height - DevUi.TOP_BAR_H) / 2.0 - worldY * zoom;
     }
 
     /** Starts drawing in canvas coordinates, clipped to the canvas. */
     void beginCanvas(DevModeScreen screen, GuiGraphics graphics, int gridColor) {
         int right = screen.canvasRight();
-        graphics.enableScissor(DevUi.LEFT_PANEL_W, DevUi.TOP_BAR_H, right, screen.height);
-        DevUi.grid(graphics, DevUi.LEFT_PANEL_W, DevUi.TOP_BAR_H, right, screen.height, panX, panY, zoom, gridColor);
+        graphics.enableScissor(canvasLeft(), DevUi.TOP_BAR_H, right, screen.height);
+        DevUi.grid(graphics, canvasLeft(), DevUi.TOP_BAR_H, right, screen.height, panX, panY, zoom, gridColor);
         graphics.pose().pushPose();
-        graphics.pose().translate((float) (DevUi.LEFT_PANEL_W + panX), (float) (DevUi.TOP_BAR_H + panY), 0);
+        graphics.pose().translate((float) (canvasLeft() + panX), (float) (DevUi.TOP_BAR_H + panY), 0);
         graphics.pose().scale(zoom, zoom, 1.0f);
     }
 

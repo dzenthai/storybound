@@ -9,6 +9,7 @@ import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -68,6 +69,7 @@ public class DevModeScreen extends Screen {
     private final Catalog catalog = new Catalog();
     private final TextEditor textEditor = new TextEditor();
     private final SettingsWindow settings = new SettingsWindow();
+    private final StoryFinder finder = new StoryFinder(STORY);
     private Component statusText = Component.empty();
     private int statusColor = DevUi.OK;
     private List<MenuItem> menu = List.of();
@@ -155,7 +157,7 @@ public class DevModeScreen extends Screen {
     }
 
     private String modalNow() {
-        return catalog.isOpen() ? "catalog" : textEditor.isOpen() ? "text" : settings.isOpen() ? "settings"
+        return catalog.isOpen() ? "catalog" : textEditor.isOpen() ? "text" : settings.isOpen() ? "settings" : finder.isOpen() ? "finder"
                 : languageOpen ? (namespaceWindow ? "namespace" : "language") : "";
     }
 
@@ -178,6 +180,10 @@ public class DevModeScreen extends Screen {
             settings.addWidgets(this);
             return;
         }
+        if (finder.isOpen()) {
+            finder.addWidgets(this);
+            return;
+        }
         if (languageOpen) {
             if (namespaceWindow) {
                 addNamespaceWidgets();
@@ -193,6 +199,7 @@ public class DevModeScreen extends Screen {
     void status(Component text, int color) {
         statusText = text;
         statusColor = color;
+        statusAt = Util.getMillis();
     }
 
     /** Records an edit that was just made, so it can be undone. */
@@ -290,41 +297,42 @@ public class DevModeScreen extends Screen {
     // --- top bar
 
     private void addTopBar() {
+        // Small signs with their words on hover (November 16, 2026, the author: "heavy, not as minimal as FTB"; before,
+        // "← Menu", "↶ Undo", "Redo ↷", "🌐 EN_US", "+", "Story: …", "⚙ Settings" written out).
         GraphView view = view();
         int x = 4;
-        int backW = font.width(view.backLabel()) + 12;
-        add(Button.builder(view.backLabel(), b -> view.back(this)).bounds(x, 3, backW, 18).build());
-        x += backW + 2;
-        x = topButton(DevUi.text("undo"), HISTORY.canUndo(), x, this::undo);
-        x = topButton(DevUi.text("redo"), HISTORY.canRedo(), x, this::redo);
+        x = topButton(Component.literal("←"), view.backLabel(), true, x, () -> view.back(this));
         x += 4;
-        x = topButton(Component.literal("🌐 " + ClientDevStore.activeLanguage().toUpperCase(Locale.ROOT)), true, x, this::cycleLanguage);
-        add(Button.builder(Component.literal("+"), b -> {
-            languageOpen = true;
-            languageError = Component.empty();
-            rebuild();
-        }).tooltip(Tooltip.create(DevUi.text("language.add_tooltip"))).bounds(x, 3, 18, 18).build());
-        x += 24;
-        Component story = DevUi.text("namespace.button", ClientDevStore.namespace());
-        add(Button.builder(story, b -> {
-            languageOpen = true;
-            namespaceWindow = true;
-            namespaceMoveFrom = null;
-            languageError = Component.empty();
-            rebuild();
-        }).tooltip(Tooltip.create(DevUi.text("namespace.tooltip"))).bounds(x, 3, font.width(story) + 12, 18).build());
-        x += font.width(story) + 14;
-        Component settingsLabel = Component.literal("⚙ ").append(DevUi.text("settings.button"));
-        add(Button.builder(settingsLabel, b -> {
-            view.saveEdits(this);
-            settings.open();
-            rebuild();
-        }).tooltip(Tooltip.create(DevUi.text("settings.tooltip"))).bounds(x, 3, font.width(settingsLabel) + 12, 18).build());
+        x = topButton(Component.literal("↶"), DevUi.text("undo"), HISTORY.canUndo(), x, this::undo);
+        x = topButton(Component.literal("↷"), DevUi.text("redo"), HISTORY.canRedo(), x, this::redo);
+        x += 4;
+        String language = ClientDevStore.activeLanguage().split("_")[0].toUpperCase(Locale.ROOT);
+        x = topButton(Component.literal("🌐 " + language), DevUi.text("top.language.tooltip", ClientDevStore.activeLanguage()), true, x, this::cycleLanguage);
+        int settingsX = x;
+        // The story's settings, its languages and its namespace, in one menu.
+        topButton(Component.literal("⚙"), DevUi.text("top.settings.tooltip"), true, x, () -> openMenu(settingsX, DevUi.TOP_BAR_H, List.of(
+                MenuItem.of(Component.literal("⚙ ").append(DevUi.text("top.menu.settings")), () -> {
+                    view.saveEdits(this);
+                    settings.open();
+                    rebuild();
+                }),
+                MenuItem.of(Component.literal("🌐 ").append(DevUi.text("top.menu.language")), () -> {
+                    languageOpen = true;
+                    languageError = Component.empty();
+                    rebuild();
+                }),
+                MenuItem.of(Component.literal("📁 ").append(DevUi.text("top.menu.namespace", ClientDevStore.namespace())), () -> {
+                    languageOpen = true;
+                    namespaceWindow = true;
+                    namespaceMoveFrom = null;
+                    languageError = Component.empty();
+                    rebuild();
+                }))));
     }
 
-    private int topButton(Component label, boolean active, int x, Runnable action) {
-        int w = font.width(label) + 12;
-        Button button = Button.builder(label, b -> action.run()).bounds(x, 3, w, 18).build();
+    private int topButton(Component label, Component tooltip, boolean active, int x, Runnable action) {
+        int w = Math.max(18, font.width(label) + 10);
+        Button button = Button.builder(label, b -> action.run()).tooltip(Tooltip.create(tooltip)).bounds(x, 3, w, 18).build();
         button.active = active;
         add(button);
         return x + w + 2;
@@ -346,32 +354,44 @@ public class DevModeScreen extends Screen {
         graphics.fill(0, 0, width, DevUi.TOP_BAR_H, DevUi.BAR);
         graphics.fill(0, DevUi.TOP_BAR_H - 1, width, DevUi.TOP_BAR_H, DevUi.PANEL_EDGE);
         int x = topBarTextX();
-        graphics.drawString(font, view.title(), x, 8, DevUi.ACCENT, false);
-        x += font.width(view.title()) + 12;
-
-        Component language;
-        int languageColor;
-        if (ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage())) {
-            language = DevUi.text("language.source", ClientDevStore.sourceLanguage());
-            languageColor = DevUi.MUTED;
-        } else {
-            int missing = view.untranslated();
-            language = missing == 0 ? DevUi.text("language.complete") : DevUi.text("language.missing", missing);
-            languageColor = missing == 0 ? DevUi.GOOD : DevUi.WARN;
+        if (!view.title().getString().isEmpty()) {
+            graphics.drawString(font, view.title(), x, 8, DevUi.ACCENT, false);
+            x += font.width(view.title()) + 12;
         }
-        graphics.drawString(font, language, x, 8, languageColor, false);
-        x += font.width(language) + 12;
-
-        int right = view.showsIssues() ? issuesX() - 10 : canvasRight() - 106;
+        // Writing in the source language needs no word; a translation says how much is left.
+        if (!ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage())) {
+            int missing = view.untranslated();
+            Component language = missing == 0 ? DevUi.text("language.complete") : DevUi.text("language.missing", missing);
+            graphics.drawString(font, language, x, 8, missing == 0 ? DevUi.GOOD : DevUi.WARN, false);
+            x += font.width(language) + 12;
+        }
+        int right = view.showsIssues() ? issuesX() - 10 : topBarRightButtons() - 8;
         if (view.showsIssues()) {
             List<String> issues = ClientDevStore.issues();
             graphics.drawString(font, issuesLabel(), issuesX(), 8, issues.isEmpty() ? DevUi.GOOD : 0xFFFF7043, false);
         }
-        Component line = !statusText.getString().isEmpty() ? statusText : view.showsIssues() && width > 680 ? DevUi.text("hint") : Component.empty();
-        int color = !statusText.getString().isEmpty() ? statusColor : DevUi.HINT;
-        if (right - x > 20) {
-            drawCut(graphics, line.getString(), x, 8, right - x, color);
+        // What was just done shows a few seconds, then the bar is quiet again.
+        boolean fresh = !statusText.getString().isEmpty() && Util.getMillis() - statusAt < STATUS_MILLIS;
+        if (fresh && right - x > 20) {
+            drawCut(graphics, statusText.getString(), x, 8, right - x, statusColor);
         }
+    }
+
+    /** How long a status line stays in the top bar. */
+    private static final long STATUS_MILLIS = 6000;
+    private long statusAt;
+
+    /** Where the buttons at the top bar's right end begin (the view's own), else the canvas's right edge. */
+    private int topBarRightButtons() {
+        int x = canvasRight() - 106;
+        boolean any = false;
+        for (GuiEventListener child : children()) {
+            if (child instanceof Button button && button.getY() == 3 && button.getX() > width / 2) {
+                x = any ? Math.min(x, button.getX()) : button.getX();
+                any = true;
+            }
+        }
+        return any ? x : canvasRight() - 106;
     }
 
     private Component issuesLabel() {
@@ -615,7 +635,7 @@ public class DevModeScreen extends Screen {
         }
         renderTopBar(graphics);
 
-        boolean modal = catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen();
+        boolean modal = catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen() || finder.isOpen();
         if (modal) {
             graphics.pose().pushPose();
             graphics.pose().translate(0, 0, 250);
@@ -625,6 +645,8 @@ public class DevModeScreen extends Screen {
                 textEditor.render(this, graphics);
             } else if (settings.isOpen()) {
                 settings.render(this, graphics);
+            } else if (finder.isOpen()) {
+                finder.render(this, graphics, mouseX, mouseY);
             } else if (namespaceWindow) {
                 renderNamespaceWindow(graphics);
             } else {
@@ -679,6 +701,28 @@ public class DevModeScreen extends Screen {
         return Math.min(menuY, height - (menu.size() * MENU_ITEM_H + 6) - 6);
     }
 
+    /** A click while the context menu is open: runs the line under it, and the menu closes either way. */
+    private boolean clickMenu(double mouseX, double mouseY) {
+        List<MenuItem> items = menu;
+        int left = menuLeft();
+        int top = menuTop();
+        menu = List.of();
+        for (int i = 0; i < items.size(); i++) {
+            if (DevUi.inside(mouseX, mouseY, left, top + 3 + i * MENU_ITEM_H, MENU_W, MENU_ITEM_H)) {
+                items.get(i).action().run();
+                break;
+            }
+        }
+        return true;
+    }
+
+    /** Opens the story's search or its problems over the map (the top bar's 🔍 and ⚠, Ctrl+F). */
+    void openFinder(StoryFinder.Mode mode) {
+        STORY.saveEdits(this);
+        finder.open(mode);
+        rebuild();
+    }
+
     private void renderMenu(GuiGraphics graphics, int mouseX, int mouseY) {
         int left = menuLeft();
         int top = menuTop();
@@ -719,6 +763,13 @@ public class DevModeScreen extends Screen {
             super.mouseClicked(mouseX, mouseY, button);
             return true;
         }
+        if (finder.isOpen()) {
+            if (!menu.isEmpty()) {
+                // A row's menu over the window: its line is picked as any menu's is.
+                return clickMenu(mouseX, mouseY);
+            }
+            return super.mouseClicked(mouseX, mouseY, button) || finder.mouseClicked(this, mouseX, mouseY, button);
+        }
         if (languageOpen) {
             if (!super.mouseClicked(mouseX, mouseY, button)
                     && !DevUi.inside(mouseX, mouseY, languageLeft(), languageTop(), LANGUAGE_W, LANGUAGE_H)) {
@@ -727,17 +778,7 @@ public class DevModeScreen extends Screen {
             return true;
         }
         if (!menu.isEmpty()) {
-            List<MenuItem> items = menu;
-            int left = menuLeft();
-            int top = menuTop();
-            menu = List.of();
-            for (int i = 0; i < items.size(); i++) {
-                if (DevUi.inside(mouseX, mouseY, left, top + 3 + i * MENU_ITEM_H, MENU_W, MENU_ITEM_H)) {
-                    items.get(i).action().run();
-                    break;
-                }
-            }
-            return true;
+            return clickMenu(mouseX, mouseY);
         }
         if (view().inspectorVisible(this) && button == GLFW.GLFW_MOUSE_BUTTON_LEFT
                 && DevUi.onCollapseButton(mouseX, mouseY, canvasRight(), collapseY())) {
@@ -750,7 +791,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY) || catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen()) {
+        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY) || catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen() || finder.isOpen()) {
             return true;
         }
         return view().mouseDragged(this, mouseX, mouseY);
@@ -758,7 +799,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen()) {
+        if (catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen() || finder.isOpen()) {
             return super.mouseReleased(mouseX, mouseY, button);
         }
         if (view().mouseReleased(this, mouseX, mouseY)) {
@@ -781,7 +822,14 @@ public class DevModeScreen extends Screen {
             rebuild();
             return true;
         }
+        if (finder.isOpen()) {
+            finder.scroll(scrollY);
+            return true;
+        }
         GraphView view = view();
+        if (!languageOpen && mouseY >= DevUi.TOP_BAR_H && view.scrollSidePanel(this, mouseX, mouseY, scrollY)) {
+            return true;
+        }
         if (!languageOpen && view.inspectorVisible(this) && mouseX >= width - DevUi.RIGHT_PANEL_W && mouseY >= DevUi.TOP_BAR_H) {
             view.scrollInspector(scrollY);
             rebuild();
@@ -805,6 +853,16 @@ public class DevModeScreen extends Screen {
         }
         if (settings.isOpen()) {
             return keyCode == GLFW.GLFW_KEY_ESCAPE ? settings.escape(this) : super.keyPressed(keyCode, scanCode, modifiers);
+        }
+        if (finder.isOpen()) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                if (!menu.isEmpty()) {
+                    menu = List.of();
+                    return true;
+                }
+                return finder.escape(this);
+            }
+            return super.keyPressed(keyCode, scanCode, modifiers);
         }
         if (languageOpen) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {

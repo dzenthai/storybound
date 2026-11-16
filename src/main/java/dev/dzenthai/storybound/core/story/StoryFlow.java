@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * The story map's view of the links: which quest follows which, with the nodes between them folded into the arrow (a
@@ -66,10 +67,15 @@ public final class StoryFlow {
 
     /** Every quest that follows another, by the shortest chain of other nodes between them. */
     public static List<Flow> flows(Collection<Edge> edges) {
+        return flows(edges, StoryFlow::isQuest);
+    }
+
+    /** As {@link #flows(Collection)}, between the {@code spine} nodes (the editor's canvas: quests and story events). */
+    public static List<Flow> flows(Collection<Edge> edges, Predicate<NodeKey> spine) {
         Map<NodeKey, List<NodeKey>> next = forward(edges);
         Set<NodeKey> quests = new LinkedHashSet<>();
         next.forEach((cause, effects) -> {
-            if (isQuest(cause)) {
+            if (spine.test(cause)) {
                 quests.add(cause);
             }
         });
@@ -91,7 +97,7 @@ public final class StoryFlow {
                     }
                     depth.put(effect, d + 1);
                     cameFrom.put(effect, node);
-                    if (isQuest(effect)) {
+                    if (spine.test(effect)) {
                         reached.add(effect);
                     } else if (d + 1 <= MAX_VIA) {
                         queue.add(effect);
@@ -115,10 +121,15 @@ public final class StoryFlow {
      * nothing starts, have none.
      */
     public static Map<NodeKey, List<NodeKey>> entries(Collection<Edge> edges) {
+        return entries(edges, StoryFlow::isQuest);
+    }
+
+    /** As {@link #entries(Collection)}, for the {@code spine} nodes; a spine node is no beginning, as a quest is not. */
+    public static Map<NodeKey, List<NodeKey>> entries(Collection<Edge> edges, Predicate<NodeKey> spine) {
         Map<NodeKey, List<NodeKey>> previous = backward(forward(edges));
         Map<NodeKey, List<NodeKey>> entries = new LinkedHashMap<>();
         Set<NodeKey> quests = new LinkedHashSet<>();
-        previous.keySet().stream().filter(StoryFlow::isQuest).forEach(quests::add);
+        previous.keySet().stream().filter(spine).forEach(quests::add);
         for (NodeKey quest : quests) {
             Map<NodeKey, NodeKey> towards = new HashMap<>();
             Map<NodeKey, Integer> depth = new HashMap<>();
@@ -131,7 +142,7 @@ public final class StoryFlow {
                 int d = depth.get(node);
                 for (NodeKey cause : previous.getOrDefault(node, List.of())) {
                     // A quest is no beginning: the map draws it as an arrow.
-                    if (isQuest(cause) || depth.containsKey(cause) || d + 1 > MAX_VIA) {
+                    if (spine.test(cause) || depth.containsKey(cause) || d + 1 > MAX_VIA) {
                         continue;
                     }
                     depth.put(cause, d + 1);
@@ -161,6 +172,31 @@ public final class StoryFlow {
      * The map's columns: a quest stands one column after the farthest quest leading to it, so the story reads left to
      * right. A loop (a repeatable quest leading back) is cut where it closes.
      */
+    /**
+     * What belongs to each spine node, for the editor's badges under it (November 16, 2026): the chain where it starts
+     * (its giver NPC and that NPC's dialogue), the nodes between it and the spine nodes it leads to, and every other
+     * node linked with it directly (its waypoints, its boss, a document it gives). Never a spine node; each once, in
+     * that order. A node shared by several spine nodes is under each of them.
+     */
+    public static Map<NodeKey, List<NodeKey>> attached(Collection<Edge> edges, Predicate<NodeKey> spine) {
+        Map<NodeKey, Set<NodeKey>> own = new LinkedHashMap<>();
+        entries(edges, spine).forEach((node, chain) -> own.computeIfAbsent(node, key -> new LinkedHashSet<>()).addAll(chain));
+        for (Flow flow : flows(edges, spine)) {
+            own.computeIfAbsent(flow.from(), key -> new LinkedHashSet<>()).addAll(flow.via());
+        }
+        for (Edge edge : edges) {
+            if (spine.test(edge.from()) && !spine.test(edge.to())) {
+                own.computeIfAbsent(edge.from(), key -> new LinkedHashSet<>()).add(edge.to());
+            }
+            if (spine.test(edge.to()) && !spine.test(edge.from())) {
+                own.computeIfAbsent(edge.to(), key -> new LinkedHashSet<>()).add(edge.from());
+            }
+        }
+        Map<NodeKey, List<NodeKey>> attached = new LinkedHashMap<>();
+        own.forEach((node, nodes) -> attached.put(node, List.copyOf(nodes)));
+        return attached;
+    }
+
     public static Map<NodeKey, Integer> columns(Collection<NodeKey> quests, Collection<Flow> flows) {
         Map<NodeKey, Integer> columns = new LinkedHashMap<>();
         quests.forEach(quest -> columns.put(quest, 0));

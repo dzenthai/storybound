@@ -590,7 +590,7 @@ final class StoryInspector {
             NodeKey partner = outgoing ? edge.to() : edge.from();
             if (listed.add(outgoing + " " + partner)) {
                 boolean missing = ClientDevStore.getJson(partner.type(), partner.id()) == null;
-                links.add(new Link(partner, outgoing, StoryView.edgeLabel(edge.label()), missing, StoryEdits.unlink(json.deepCopy(), partner)));
+                links.add(new Link(partner, outgoing, StoryView.linkPhrase(edge.label(), outgoing), missing, StoryEdits.unlink(json.deepCopy(), partner)));
             }
         }
         // Broken links first: they are the ones to fix.
@@ -616,7 +616,9 @@ final class StoryInspector {
         int rows = Math.min(links.size(), MAX_LINKS);
         for (int i = 0; i < rows; i++) {
             Link link = links.get(i);
-            String line = (link.outgoing() ? "→ " : "← ") + link.partner().id().getPath() + " (" + link.label() + ")"
+            // In words (November 16, 2026): "← Gives it: 🧑 The elder" rather than "← elder (talk)".
+            String partner = link.missing() ? link.partner().id().getPath() : StoryView.glyph(link.partner().type()) + " " + StoryView.title(link.partner());
+            String line = (link.outgoing() ? "→ " : "← ") + link.label() + ": " + partner
                     + (link.missing() ? " — " + DevUi.str("links.missing") : "");
             graphics.drawString(font, font.plainSubstrByWidth(line, width), left + 8, linksTop + i * LINK_H + 2, link.missing() ? DevUi.ERROR : DevUi.LABEL, false);
         }
