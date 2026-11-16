@@ -286,6 +286,7 @@
   "storybound.configuration.camera": "Камера в диалогах",
   "storybound.configuration.cameraAllowed": "Диалоги могут двигать камеру игроков",
   "storybound.configuration.cameraEnabled": "Камера в диалогах",
+  "storybound.configuration.cameraFloating": "Плавающая камера в диалогах (мышь её поворачивает)",
   "storybound.configuration.cameraDisableWith": "Отключать при этих модах",
 
   "storybound.observation.done": "Наблюдение завершено",

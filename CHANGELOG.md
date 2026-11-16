@@ -46,6 +46,7 @@ Required on both client and server.
   to say.
 - Dialogue graphs with choices, conditions, one-time options, timers and calls into other dialogues.
 - A cinematic camera (shot / reverse shot, walls respected), speech bubbles for players nearby, a "thinking" pause.
+  While a line plays the mouse turns the camera a little, as in The Witcher 3, and it glides back for the answers.
 - Who an NPC is: one mob by its tag, or every mob of a kind narrowed down by where it is (dimension, biome,
   structure, a village), its age and its own saved data (a villager's profession, a modded mob's variant). The
   choices are read from the world and the mob itself, so modded mobs, biomes and structures work with no setup.

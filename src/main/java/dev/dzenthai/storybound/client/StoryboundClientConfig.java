@@ -23,6 +23,7 @@ public final class StoryboundClientConfig {
     public final ModConfigSpec.DoubleValue waypointMarkerOpacity;
     public final ModConfigSpec.BooleanValue waypointAreaRings;
     public final ModConfigSpec.BooleanValue cameraEnabled;
+    public final ModConfigSpec.BooleanValue cameraFloating;
     public final ModConfigSpec.ConfigValue<List<? extends String>> cameraDisableWith;
 
     static {
@@ -87,6 +88,9 @@ public final class StoryboundClientConfig {
         cameraEnabled = builder.comment("Move the camera in dialogues (over the shoulder of whoever listens), when the server and the dialogue allow it.")
                 .translation("storybound.configuration.cameraEnabled")
                 .define("enabled", true);
+        cameraFloating = builder.comment("While a line plays, the mouse turns the dialogue camera a little (up and down inverted) and the cursor hides; left alone, and while you answer, it glides back.")
+                .translation("storybound.configuration.cameraFloating")
+                .define("floating", true);
         cameraDisableWith = builder.comment("Mod ids: the dialogue camera stays off when any of these is installed, e.g. a camera mod that conflicts with it.")
                 .translation("storybound.configuration.cameraDisableWith")
                 .defineListAllowEmpty("disableWith", List.of(), () -> "", value -> value instanceof String);

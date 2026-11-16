@@ -286,6 +286,7 @@
   "storybound.configuration.camera": "Dialogue camera",
   "storybound.configuration.cameraAllowed": "Dialogues may move players' cameras",
   "storybound.configuration.cameraEnabled": "Camera in dialogues",
+  "storybound.configuration.cameraFloating": "Floating camera in dialogues (the mouse turns it)",
   "storybound.configuration.cameraDisableWith": "Turn off with these mods",
 
   "storybound.observation.done": "Observed",

@@ -12,7 +12,8 @@
     "client.BookFontMixin",
     "client.CameraAccessor",
     "client.GameRendererMixin",
-    "client.LecternRendererMixin"
+    "client.LecternRendererMixin",
+    "client.MouseHandlerAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -1,14 +1,19 @@
 package dev.dzenthai.storybound.client.camera;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.Window;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.client.camera.CameraShots.Framing;
 import dev.dzenthai.storybound.client.camera.CameraShots.Pose;
+import dev.dzenthai.storybound.client.dialogue.DialogueScreen;
 import dev.dzenthai.storybound.mixin.client.CameraAccessor;
+import dev.dzenthai.storybound.mixin.client.MouseHandlerAccessor;
 import dev.dzenthai.storybound.module.dialogue.CameraCue;
 import net.minecraft.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.MouseHandler;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
@@ -22,6 +27,7 @@ import net.neoforged.neoforge.client.event.RenderHandEvent;
 import net.neoforged.neoforge.client.event.RenderHighlightEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * The cinematic camera of the dialogue screen: shot-reverse-shot between the player and the NPC. It only overrides
@@ -44,6 +50,15 @@ public final class DialogueCamera {
     private static @Nullable Shot shot;
     private static @Nullable Pose easeFrom;
     private static long easeStart;
+    /** The mouse turning the frame while a line plays (November 16, 2026). */
+    private static final FloatingCamera FLOATING = new FloatingCamera();
+    /** The answers are shown: the frame returns to the shot's aim and the cursor is back. */
+    private static boolean choosing;
+    /** The cursor is hidden and the mouse moves without bounds, as in the game: a line plays on the dialogue screen. */
+    private static boolean cursorHidden;
+    private static double lastMouseX;
+    private static double lastMouseY;
+    private static long lastFrameNanos;
 
     private DialogueCamera() {}
 
@@ -75,17 +90,24 @@ public final class DialogueCamera {
 
     /** @param speaker the speaking entity's id, or -1 for a speaker without an entity */
     public static void onLine(CameraCue cue, int speaker) {
+        choosing = false;
+        safeCue(cue, speaker);
+    }
+
+    /** A choice shows the player, over the partner's shoulder; the frame glides back to its aim, the cursor comes back. */
+    public static void onChoices(CameraCue cue) {
+        choosing = true;
+        LocalPlayer player = Minecraft.getInstance().player;
+        safeCue(cue, player != null ? player.getId() : -1);
+        updateCursor();
+    }
+
+    private static void safeCue(CameraCue cue, int speaker) {
         try {
             cue(cue, speaker);
         } catch (RuntimeException | LinkageError e) {
             fail(e);
         }
-    }
-
-    /** A choice shows the player, over the partner's shoulder. */
-    public static void onChoices(CameraCue cue) {
-        LocalPlayer player = Minecraft.getInstance().player;
-        onLine(cue, player != null ? player.getId() : -1);
     }
 
     public static void stop() {
@@ -96,6 +118,10 @@ public final class DialogueCamera {
         shot = null;
         easeFrom = null;
         side = 0;
+        choosing = false;
+        FLOATING.reset();
+        lastFrameNanos = 0;
+        showCursor();
     }
 
     /** Called right after the vanilla camera is set up for a frame. */
@@ -109,13 +135,64 @@ public final class DialogueCamera {
             if (pose == null) {
                 return;
             }
+            drift();
             CameraAccessor accessor = (CameraAccessor) camera;
             accessor.storybound$setDetached(true);
-            accessor.storybound$setRotation(pose.yaw(), pose.pitch(), 0f);
+            accessor.storybound$setRotation(pose.yaw() + FLOATING.yaw(), pose.pitch() + FLOATING.pitch(), 0f);
             accessor.storybound$setPosition(pose.pos());
         } catch (RuntimeException | LinkageError e) {
             fail(e);
         }
+    }
+
+    /** Feeds the frame's mouse movement to the floating camera: only while the cursor is hidden for a line. */
+    private static void drift() {
+        long now = System.nanoTime();
+        float dt = lastFrameNanos == 0 ? 0f : (now - lastFrameNanos) / 1_000_000_000f;
+        lastFrameNanos = now;
+        MouseHandler mouse = Minecraft.getInstance().mouseHandler;
+        double dx = cursorHidden ? mouse.xpos() - lastMouseX : 0;
+        double dy = cursorHidden ? mouse.ypos() - lastMouseY : 0;
+        lastMouseX = mouse.xpos();
+        lastMouseY = mouse.ypos();
+        FLOATING.update(dx, dy, dt, cursorHidden);
+    }
+
+    /**
+     * Hides the cursor while a line plays on the dialogue screen with the floating camera on (the mouse then turns the
+     * frame, unbounded by the window's edges, as in the game) and gives it back otherwise: for the answers, another
+     * screen over it (a pause menu), the window losing focus, the dialogue's end. Checked every tick and at once when
+     * the answers come.
+     */
+    private static void updateCursor() {
+        Minecraft minecraft = Minecraft.getInstance();
+        boolean hide = isFraming() && !choosing && !broken && StoryboundClientConfig.INSTANCE.cameraFloating.get()
+                && minecraft.screen instanceof DialogueScreen && minecraft.isWindowActive();
+        if (hide && !cursorHidden) {
+            Window window = minecraft.getWindow();
+            InputConstants.grabOrReleaseMouse(window.getWindow(), GLFW.GLFW_CURSOR_DISABLED, minecraft.mouseHandler.xpos(), minecraft.mouseHandler.ypos());
+            cursorHidden = true;
+            lastMouseX = minecraft.mouseHandler.xpos();
+            lastMouseY = minecraft.mouseHandler.ypos();
+        } else if (!hide) {
+            showCursor();
+        }
+    }
+
+    /** The cursor back in the middle of the window, as Minecraft's own release puts it; nothing when it is not hidden. */
+    private static void showCursor() {
+        if (!cursorHidden) {
+            return;
+        }
+        cursorHidden = false;
+        Minecraft minecraft = Minecraft.getInstance();
+        Window window = minecraft.getWindow();
+        double x = window.getScreenWidth() / 2.0;
+        double y = window.getScreenHeight() / 2.0;
+        MouseHandlerAccessor mouse = (MouseHandlerAccessor) minecraft.mouseHandler;
+        mouse.storybound$setXpos(x);
+        mouse.storybound$setYpos(y);
+        InputConstants.grabOrReleaseMouse(window.getWindow(), GLFW.GLFW_CURSOR_NORMAL, x, y);
     }
 
     /**
@@ -127,6 +204,11 @@ public final class DialogueCamera {
             Storybound.LOGGER.warn("Storybound: the dialogue camera's render hook never ran (another mod may replace GameRenderer.renderLevel); the camera is off");
             broken = true;
             stop();
+        }
+        try {
+            updateCursor();
+        } catch (RuntimeException | LinkageError e) {
+            fail(e);
         }
     }
 
