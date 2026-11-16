@@ -33,8 +33,73 @@ public record ProjectSettings(String sourceLanguage, List<String> languages, Str
     public static final String DEFAULT_NAMESPACE = "storybound";
     public static final String FILE_NAME = "project.json";
 
+    /**
+     * The story's preferences the dev mode's settings window edits (November 16, 2026), beside the languages and the
+     * namespace, which the top bar edits: the players' chapter map, the difficulty scale, tracking a quest when given.
+     */
+    public static final List<String> OPTIONS = List.of("chapter_map", "difficulty", "track_given_quests");
+
     public static ProjectSettings load(Path root) {
         return load(root, problem -> {});
+    }
+
+    /** The file's object, or empty when it is missing or broken (its readers report that themselves). */
+    public static JsonObject raw(Path root) {
+        Path file = root.resolve(FILE_NAME);
+        if (Files.isRegularFile(file)) {
+            try {
+                JsonElement read = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+                if (read.isJsonObject()) {
+                    return read.getAsJsonObject();
+                }
+            } catch (IOException | JsonParseException e) {
+                // Empty: each setting takes its default.
+            }
+        }
+        return new JsonObject();
+    }
+
+    /** A yes/no preference of the file ({@code chapter_map}, {@code track_given_quests}); false when missing or not a boolean. */
+    public static boolean flag(Path root, String key) {
+        JsonElement value = raw(root).get(key);
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && value.getAsBoolean();
+    }
+
+    /** The {@link #OPTIONS} the file writes, as written. */
+    public static JsonObject options(Path root) {
+        JsonObject json = raw(root);
+        JsonObject options = new JsonObject();
+        OPTIONS.forEach(key -> {
+            if (json.has(key)) {
+                options.add(key, json.get(key).deepCopy());
+            }
+        });
+        return options;
+    }
+
+    /**
+     * Writes the {@link #OPTIONS}: those given replace the file's, those left out are taken out of it; the languages,
+     * the namespace and anything else the file has stay. A missing file is made with the languages that load now.
+     */
+    public static void saveOptions(Path root, JsonObject options) throws IOException {
+        Path file = root.resolve(FILE_NAME);
+        JsonObject json = raw(root);
+        if (!json.has("languages")) {
+            ProjectSettings settings = load(root);
+            json.addProperty("source_language", settings.sourceLanguage());
+            JsonArray languages = new JsonArray();
+            settings.languages().forEach(languages::add);
+            json.add("languages", languages);
+            json.addProperty("namespace", settings.namespace());
+        }
+        OPTIONS.forEach(json::remove);
+        OPTIONS.forEach(key -> {
+            if (options.has(key)) {
+                json.add(key, options.get(key));
+            }
+        });
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create().toJson(json) + "\n", StandardCharsets.UTF_8);
     }
 
     /**

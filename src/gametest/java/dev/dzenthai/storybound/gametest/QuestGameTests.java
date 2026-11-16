@@ -715,6 +715,45 @@ public final class QuestGameTests {
         helper.succeed();
     }
 
+    /**
+     * project.json's track_given_quests: off, a quest given is tracked only while none is; on, each quest given is
+     * tracked, the newest the main one, until five are; the sixth leaves the five the player has.
+     */
+    @GameTest(template = "empty")
+    public static void aQuestGivenIsTrackedWhenTheStorySaysSo(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        String json = """
+                { "title": "gametest.quest.instant",
+                  "stages": [ { "id": "do", "objectives": [ { "trigger": { "type": "custom", "id": "gametest:never_given" } } ] } ] }
+                """;
+        Map<ResourceLocation, String> definitions = new LinkedHashMap<>();
+        for (int i = 0; i <= Quests.MAX_PINNED + 1; i++) {
+            definitions.put(key("given_" + i), json);
+        }
+        List<ResourceLocation> ids = List.copyOf(definitions.keySet());
+        with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, definitions, () -> {
+            QuestEvents.rebuild();
+            Quests.start(player, ids.get(0));
+            Quests.start(player, ids.get(1));
+            expect(helper, Quests.pinned(player), List.of(ids.get(0)), "off: only the quest given while none was tracked");
+            Quests.setTrackGiven(true);
+            try {
+                for (int i = 2; i <= Quests.MAX_PINNED; i++) {
+                    Quests.start(player, ids.get(i));
+                }
+                expect(helper, Quests.pinned(player), List.of(ids.get(5), ids.get(4), ids.get(3), ids.get(2), ids.get(0)),
+                        "on: each quest given is tracked, the newest the main one");
+                Quests.start(player, ids.get(6));
+                expect(helper, Quests.pinned(player), List.of(ids.get(5), ids.get(4), ids.get(3), ids.get(2), ids.get(0)),
+                        "five tracked: the player keeps them");
+            } finally {
+                Quests.setTrackGiven(false);
+            }
+        });
+        remove(helper, player);
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 120)
     public static void hintsShowByConditionsAndWhenStuck(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();

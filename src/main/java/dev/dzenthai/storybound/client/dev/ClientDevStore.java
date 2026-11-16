@@ -121,6 +121,17 @@ public final class ClientDevStore {
         return namespace;
     }
 
+    private static volatile String projectOptions = "{}";
+
+    /** The story's preferences of {@code project.json} (chapter map, difficulty, tracking), as written, for the settings window. */
+    public static void setProjectOptions(String json) {
+        projectOptions = json;
+    }
+
+    static JsonObject projectOptions() {
+        return parseObject(projectOptions);
+    }
+
     private static volatile Map<String, List<String>> serverLists = Map.of();
 
     /** Ids only the server knows (advancements, loot tables), sent with the snapshot for the pickers. */

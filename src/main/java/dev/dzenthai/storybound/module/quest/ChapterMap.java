@@ -1,8 +1,6 @@
 package dev.dzenthai.storybound.module.quest;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
@@ -20,9 +18,6 @@ import dev.dzenthai.storybound.core.story.StoryLinks;
 import dev.dzenthai.storybound.core.text.StoryText;
 import dev.dzenthai.storybound.network.ChapterMapPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -132,16 +127,7 @@ public record ChapterMap(List<Chapter> chapters, List<Link> links) {
 
     /** Whether {@code project.json} turns the map on ({@code "chapter_map": true}). */
     public static boolean enabled(Path root) {
-        Path file = root.resolve(ProjectSettings.FILE_NAME);
-        if (!Files.isRegularFile(file)) {
-            return false;
-        }
-        try {
-            JsonElement json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
-            return json.isJsonObject() && json.getAsJsonObject().has("chapter_map") && json.getAsJsonObject().get("chapter_map").getAsBoolean();
-        } catch (IOException | JsonParseException | IllegalStateException | ClassCastException | UnsupportedOperationException e) {
-            return false;
-        }
+        return ProjectSettings.flag(root, "chapter_map");
     }
 
     private static ChapterMap build(MinecraftServer server) {

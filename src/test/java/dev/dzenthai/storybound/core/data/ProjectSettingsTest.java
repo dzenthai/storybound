@@ -27,6 +27,35 @@ class ProjectSettingsTest {
         assertTrue(Files.readString(root.resolve(ProjectSettings.FILE_NAME)).contains("\"chapter_map\": true"), "other settings stay");
     }
 
+    /** The settings window's preferences (November 16, 2026): written beside the languages, taken out when left out. */
+    @Test
+    void theSettingsWindowWritesOnlyItsOwnPreferences() throws IOException {
+        Files.writeString(root.resolve(ProjectSettings.FILE_NAME),
+                "{ \"source_language\": \"ru_ru\", \"languages\": [\"ru_ru\"], \"namespace\": \"my_story\", \"chapter_map\": true }");
+        com.google.gson.JsonObject options = new com.google.gson.JsonObject();
+        options.addProperty("track_given_quests", true);
+        ProjectSettings.saveOptions(root, options);
+
+        assertTrue(ProjectSettings.flag(root, "track_given_quests"), "written");
+        assertTrue(!ProjectSettings.flag(root, "chapter_map"), "left out: taken out of the file");
+        ProjectSettings settings = ProjectSettings.load(root);
+        assertEquals("ru_ru", settings.sourceLanguage(), "the languages stay");
+        assertEquals("my_story", settings.namespace(), "the namespace stays");
+        assertEquals(options, ProjectSettings.options(root), "read back as written");
+    }
+
+    @Test
+    void settingsWithoutAFileKeepTheLanguagesThatLoad() throws IOException {
+        Files.createDirectories(root.resolve("lang"));
+        Files.writeString(root.resolve("lang/de_de.json"), "{}");
+        com.google.gson.JsonObject options = new com.google.gson.JsonObject();
+        options.addProperty("chapter_map", true);
+        ProjectSettings.saveOptions(root, options);
+
+        assertEquals(List.of("de_de"), ProjectSettings.load(root).languages(), "the language found before is written out");
+        assertTrue(ProjectSettings.flag(root, "chapter_map"));
+    }
+
     @Test
     void aNamespaceAStoryMayNotUseIsReportedAndReplaced() throws IOException {
         Files.writeString(root.resolve(ProjectSettings.FILE_NAME), "{ \"source_language\": \"en_us\", \"namespace\": \"scenario\" }");

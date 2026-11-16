@@ -61,7 +61,7 @@
       "properties": {
         "phrases": { "description": "What it says: a phrases node, or { \"text\": ... } of its own. With variants, what it says when none applies.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
         "variants": {
-          "description": "What it says as the story goes on: tried by priority, highest first, for the nearest player; the first whose conditions pass is said instead of phrases.",
+          "description": "As the story goes on: while a variant's conditions hold for the nearest player, the NPC says its phrases instead of the usual ones, never besides them. When several hold, the highest priority wins (equal ones: the higher in the list); when none holds, the usual phrases, and without them it keeps quiet.",
           "type": "array",
           "items": {
             "type": "object",

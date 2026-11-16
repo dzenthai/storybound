@@ -86,6 +86,66 @@ public final class DevModeServer {
         ProjectSettings settings = ProjectSettings.load(ConfigStorySource.root());
         StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages(), settings.namespace(),
                 serverLists(player.server)));
+        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.ProjectOptions(GSON.toJson(ProjectSettings.options(ConfigStorySource.root()))));
+    }
+
+    /**
+     * The settings window's preferences ({@link ProjectSettings#OPTIONS}): checked, written into {@code project.json}
+     * (what is left out is taken out of it) and loaded as a reload would (November 16, 2026).
+     */
+    public static void saveProjectOptions(ServerPlayer player, String json) {
+        if (!player.hasPermissions(2)) {
+            return;
+        }
+        String problem;
+        JsonObject options = null;
+        try {
+            JsonElement parsed = JsonParser.parseString(json);
+            options = parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+            problem = options == null ? "not an object" : optionsProblem(options);
+        } catch (com.google.gson.JsonParseException e) {
+            problem = e.getMessage();
+        }
+        if (problem != null) {
+            player.sendSystemMessage(Component.literal("Story settings not saved: " + problem).withStyle(ChatFormatting.RED));
+            sendSnapshot(player);
+            return;
+        }
+        try {
+            ProjectSettings.saveOptions(ConfigStorySource.root(), options);
+        } catch (IOException e) {
+            player.sendSystemMessage(Component.literal("Could not save project settings: " + e.getMessage()).withStyle(ChatFormatting.RED));
+            return;
+        }
+        rebuildAndSync(player.server);
+        sendSnapshot(player);
+    }
+
+    /** What keeps the settings from being written, or null: an unknown key, a yes/no that is not one, a scale that does not load. */
+    static @Nullable String optionsProblem(JsonObject options) {
+        for (String key : options.keySet()) {
+            if (!ProjectSettings.OPTIONS.contains(key)) {
+                return "unknown setting " + key;
+            }
+        }
+        for (String key : List.of("chapter_map", "track_given_quests")) {
+            JsonElement value = options.get(key);
+            if (value != null && !(value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean())) {
+                return key + " is not yes or no";
+            }
+        }
+        JsonElement difficulty = options.get("difficulty");
+        if (difficulty != null) {
+            if (!difficulty.isJsonObject()) {
+                return "difficulty is not an object";
+            }
+            try {
+                dev.dzenthai.storybound.module.quest.DifficultyScale.parse(difficulty.getAsJsonObject());
+            } catch (RuntimeException e) {
+                return "the difficulty scale does not load (every level needs an id, a colour is #RRGGBB): " + e.getMessage();
+            }
+        }
+        return null;
     }
 
     /**

@@ -111,6 +111,42 @@ public final class DevModePayloads {
         }
     }
 
+    /** The story's preferences of {@code project.json}, as written, sent after each snapshot for the settings window. */
+    public record ProjectOptions(String json) implements CustomPacketPayload {
+        public static final Type<ProjectOptions> TYPE = new Type<>(Storybound.id("dev_project_options"));
+        public static final StreamCodec<ByteBuf, ProjectOptions> STREAM_CODEC = StreamCodec.composite(
+                LONG_STRING, ProjectOptions::json,
+                ProjectOptions::new);
+
+        @Override
+        public Type<ProjectOptions> type() {
+            return TYPE;
+        }
+
+        public static void handleOnClient(ProjectOptions payload, IPayloadContext context) {
+            ClientDevStore.setProjectOptions(payload.json());
+        }
+    }
+
+    /** The settings window's Save: the preferences to write into {@code project.json}. */
+    public record SaveProjectOptions(String json) implements CustomPacketPayload {
+        public static final Type<SaveProjectOptions> TYPE = new Type<>(Storybound.id("dev_save_project_options"));
+        public static final StreamCodec<ByteBuf, SaveProjectOptions> STREAM_CODEC = StreamCodec.composite(
+                LONG_STRING, SaveProjectOptions::json,
+                SaveProjectOptions::new);
+
+        @Override
+        public Type<SaveProjectOptions> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(SaveProjectOptions payload, IPayloadContext context) {
+            if (context.player() instanceof ServerPlayer player) {
+                DevModeServer.saveProjectOptions(player, payload.json());
+            }
+        }
+    }
+
     public record SaveTranslations(String language, Map<String, String> translations) implements CustomPacketPayload {
         public static final Type<SaveTranslations> TYPE = new Type<>(Storybound.id("dev_save_translations"));
         public static final StreamCodec<ByteBuf, SaveTranslations> STREAM_CODEC = StreamCodec.composite(

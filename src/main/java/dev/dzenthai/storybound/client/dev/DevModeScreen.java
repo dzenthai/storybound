@@ -67,6 +67,7 @@ public class DevModeScreen extends Screen {
     private final @Nullable Screen parent;
     private final Catalog catalog = new Catalog();
     private final TextEditor textEditor = new TextEditor();
+    private final SettingsWindow settings = new SettingsWindow();
     private Component statusText = Component.empty();
     private int statusColor = DevUi.OK;
     private List<MenuItem> menu = List.of();
@@ -154,7 +155,8 @@ public class DevModeScreen extends Screen {
     }
 
     private String modalNow() {
-        return catalog.isOpen() ? "catalog" : textEditor.isOpen() ? "text" : languageOpen ? (namespaceWindow ? "namespace" : "language") : "";
+        return catalog.isOpen() ? "catalog" : textEditor.isOpen() ? "text" : settings.isOpen() ? "settings"
+                : languageOpen ? (namespaceWindow ? "namespace" : "language") : "";
     }
 
     /** Builds the widgets again: those of an open modal window, or the top bar's and the view's. */
@@ -170,6 +172,10 @@ public class DevModeScreen extends Screen {
         }
         if (textEditor.isOpen()) {
             textEditor.addWidgets(this);
+            return;
+        }
+        if (settings.isOpen()) {
+            settings.addWidgets(this);
             return;
         }
         if (languageOpen) {
@@ -307,6 +313,13 @@ public class DevModeScreen extends Screen {
             languageError = Component.empty();
             rebuild();
         }).tooltip(Tooltip.create(DevUi.text("namespace.tooltip"))).bounds(x, 3, font.width(story) + 12, 18).build());
+        x += font.width(story) + 14;
+        Component settingsLabel = Component.literal("⚙ ").append(DevUi.text("settings.button"));
+        add(Button.builder(settingsLabel, b -> {
+            view.saveEdits(this);
+            settings.open();
+            rebuild();
+        }).tooltip(Tooltip.create(DevUi.text("settings.tooltip"))).bounds(x, 3, font.width(settingsLabel) + 12, 18).build());
     }
 
     private int topButton(Component label, boolean active, int x, Runnable action) {
@@ -602,7 +615,7 @@ public class DevModeScreen extends Screen {
         }
         renderTopBar(graphics);
 
-        boolean modal = catalog.isOpen() || languageOpen || textEditor.isOpen();
+        boolean modal = catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen();
         if (modal) {
             graphics.pose().pushPose();
             graphics.pose().translate(0, 0, 250);
@@ -610,6 +623,8 @@ public class DevModeScreen extends Screen {
                 catalog.render(this, graphics, mouseX, mouseY);
             } else if (textEditor.isOpen()) {
                 textEditor.render(this, graphics);
+            } else if (settings.isOpen()) {
+                settings.render(this, graphics);
             } else if (namespaceWindow) {
                 renderNamespaceWindow(graphics);
             } else {
@@ -700,6 +715,10 @@ public class DevModeScreen extends Screen {
         if (catalog.isOpen()) {
             return super.mouseClicked(mouseX, mouseY, button) || catalog.mouseClicked(this, mouseX, mouseY);
         }
+        if (settings.isOpen()) {
+            super.mouseClicked(mouseX, mouseY, button);
+            return true;
+        }
         if (languageOpen) {
             if (!super.mouseClicked(mouseX, mouseY, button)
                     && !DevUi.inside(mouseX, mouseY, languageLeft(), languageTop(), LANGUAGE_W, LANGUAGE_H)) {
@@ -731,7 +750,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY) || catalog.isOpen() || languageOpen || textEditor.isOpen()) {
+        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY) || catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen()) {
             return true;
         }
         return view().mouseDragged(this, mouseX, mouseY);
@@ -739,7 +758,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (catalog.isOpen() || languageOpen || textEditor.isOpen()) {
+        if (catalog.isOpen() || languageOpen || textEditor.isOpen() || settings.isOpen()) {
             return super.mouseReleased(mouseX, mouseY, button);
         }
         if (view().mouseReleased(this, mouseX, mouseY)) {
@@ -755,6 +774,11 @@ public class DevModeScreen extends Screen {
         }
         if (catalog.isOpen()) {
             catalog.scroll(scrollY);
+            return true;
+        }
+        if (settings.isOpen()) {
+            settings.scroll(scrollY);
+            rebuild();
             return true;
         }
         GraphView view = view();
@@ -778,6 +802,9 @@ public class DevModeScreen extends Screen {
         }
         if (catalog.isOpen()) {
             return catalog.keyPressed(this, keyCode) || super.keyPressed(keyCode, scanCode, modifiers);
+        }
+        if (settings.isOpen()) {
+            return keyCode == GLFW.GLFW_KEY_ESCAPE ? settings.escape(this) : super.keyPressed(keyCode, scanCode, modifiers);
         }
         if (languageOpen) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {

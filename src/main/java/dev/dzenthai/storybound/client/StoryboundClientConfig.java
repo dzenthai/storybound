@@ -18,6 +18,7 @@ public final class StoryboundClientConfig {
     public final ModConfigSpec.DoubleValue thinkPause;
     public final ModConfigSpec.EnumValue<Untracked> untrackedQuestWaypoints;
     public final ModConfigSpec.BooleanValue waypointMarkers;
+    public final ModConfigSpec.EnumValue<EdgeArrows> waypointEdgeArrows;
     public final ModConfigSpec.DoubleValue waypointMarkerScale;
     public final ModConfigSpec.DoubleValue waypointMarkerOpacity;
     public final ModConfigSpec.BooleanValue waypointAreaRings;
@@ -67,6 +68,10 @@ public final class StoryboundClientConfig {
         waypointMarkers = builder.comment("Draw waypoint markers in the world (icon, distance, name); map mods show waypoints on their own.")
                 .translation("storybound.configuration.waypointMarkers")
                 .define("markers", true);
+        waypointEdgeArrows = builder.comment("Which markers get an arrow at the screen edge while you look away from them: the TRACKED quest's, ALL, or NEVER.",
+                        "A resource pack draws the arrow; this decides whether it shows.")
+                .translation("storybound.configuration.waypointEdgeArrows")
+                .defineEnum("edgeArrows", EdgeArrows.TRACKED);
         waypointMarkerScale = builder.comment("Size of waypoint markers.")
                 .translation("storybound.configuration.waypointMarkerScale")
                 .defineInRange("markerScale", 1.0, 0.5, 2.5);
@@ -92,6 +97,16 @@ public final class StoryboundClientConfig {
         SHOW,
         DIM,
         HIDE
+    }
+
+    /**
+     * Which off-screen markers get an edge arrow (November 16, 2026, a player's setting; before, the resource pack's
+     * waypoint style decided it with {@code edge}, which is no longer read).
+     */
+    public enum EdgeArrows {
+        TRACKED,
+        ALL,
+        NEVER
     }
 
     public enum Corner {

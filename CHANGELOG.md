@@ -36,7 +36,7 @@ Required on both client and server.
   or party would get a copy, and a story event on a party change that repeats a spawn, a sound, a command or a shared
   counter once per member.
 - Repeatable quests with a cooldown, difficulty (stars 1–5 or coloured levels), objective hints that appear when the
-  player is stuck, up to five quests pinned on the HUD.
+  player is stuck, up to five quests pinned on the HUD; optionally every quest given is pinned by itself.
 - Chapter map for players (opt-in): the editor's chapters with arrows from quest to quest, coloured by progress,
   with secret and invisible quests.
 
@@ -70,7 +70,8 @@ Required on both client and server.
   10 colours that look the same in the world and on every map, and a dark colour reads in the world too.
 - Server waypoints shown in Xaero's Minimap, JourneyMap and as in-world markers, pointing at places, structures, an
   NPC or the nearest matching entity (which stays where it was last seen when the player goes far away); a waypoint
-  in another dimension shows in the tracker with the dimension's name.
+  in another dimension shows in the tracker with the dimension's name. Players choose which markers get an arrow at
+  the screen edge while they look away (the tracked quest's, all, none).
 
 ### For authors
 - In-game editor (the "Dev Mode" button of the Adventure Menu, for operators): a quest map like FTB Quests, a
@@ -87,7 +88,8 @@ Required on both client and server.
   follow it (the migration is written for you).
 - Editor: places and entities picked in the world, long texts (documents with a preview, Codex sections, boss lore)
   in a text window, a view inside each quest, a player's progress on the quest map, relationship scales and NPC
-  schedules, field tooltips in the game's language.
+  schedules, field tooltips in the game's language; the story's settings (chapter map, difficulty scale, tracking a
+  quest when given) in one window.
 - `/storybound debug [player]`: a live panel of a player's story — dialogue, quests, and why the last conditions failed.
 - `/storybound_client validate`: missing translations, long texts and document styles in the game's language.
 

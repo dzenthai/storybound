@@ -20,12 +20,7 @@
     "distance": { "description": "Show the distance under the icon.", "type": "boolean", "default": true },
     "fade_start": { "description": "Blocks; farther markers start fading.", "type": "number", "minimum": 0, "default": 96 },
     "max_distance": { "description": "Blocks; farther markers are hidden unless their quest is tracked. 0 for no limit.", "type": "number", "minimum": 0, "default": 768 },
-    "hide_within": { "description": "Blocks; closer markers fade out (arrived).", "type": "number", "minimum": 0, "maximum": 64, "default": 4 },
-    "edge": {
-      "description": "Which off-screen waypoints get an arrow at the screen edge.",
-      "enum": ["tracked", "all", "never"],
-      "default": "tracked"
-    }
+    "hide_within": { "description": "Blocks; closer markers fade out (arrived).", "type": "number", "minimum": 0, "maximum": 64, "default": 4 }
   },
   "definitions": {
     "color": {

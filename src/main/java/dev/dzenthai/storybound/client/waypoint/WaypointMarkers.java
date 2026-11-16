@@ -168,7 +168,8 @@ public final class WaypointMarkers {
             return null;
         }
 
-        boolean edge = style.edge() == WaypointStyle.EdgeMode.ALL || (style.edge() == WaypointStyle.EdgeMode.TRACKED && tracked);
+        StoryboundClientConfig.EdgeArrows arrows = config.waypointEdgeArrows.get();
+        boolean edge = arrows == StoryboundClientConfig.EdgeArrows.ALL || (arrows == StoryboundClientConfig.EdgeArrows.TRACKED && tracked);
         if (!screen.onScreen() && !edge) {
             return null;
         }

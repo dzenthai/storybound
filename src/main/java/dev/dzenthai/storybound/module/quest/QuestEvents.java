@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
+import dev.dzenthai.storybound.core.data.ProjectSettings;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.event.PartyEvent;
@@ -68,6 +69,7 @@ public final class QuestEvents {
     /** Subscribes quest starts and objectives to their triggers; nothing while the module is disabled. */
     public static void rebuild() {
         DifficultyScale.set(DifficultyScale.load(ConfigStorySource.root()));
+        Quests.setTrackGiven(ProjectSettings.flag(ConfigStorySource.root(), "track_given_quests"));
         List<Subscription<?>> subscriptions = new ArrayList<>();
         if (Quests.isEnabled()) {
             QuestRegistries.QUESTS.serverStore().all().forEach((quest, definition) -> {

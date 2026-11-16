@@ -173,6 +173,7 @@
   "Shared definitions for conditions, actions and triggers. Referenced by other Storybound schemas.": "Общие определения условий, действий и триггеров. На них ссылаются другие схемы Storybound.",
   "Sheet size in GUI pixels; the texture is drawn at this size.": "Размер листа в пикселях интерфейса; текстура рисуется этим размером.",
   "Show players a Map tab: the dev mode's chapters with their quests where they were placed, arrows to the quests that follow, each coloured by the player's progress (as in FTB Quests). Quests in no chapter go to a last chapter.": "Показывать игрокам вкладку «Карта»: главы редактора с квестами там, где их поставили, стрелки к следующим квестам, всё раскрашено по прогрессу игрока (как в FTB Quests). Квесты без главы идут в последнюю главу.",
+  "Track every quest when it is given: it goes to the top of the HUD tracker and its waypoints show. A player who tracks five already keeps the five. Off: a quest given is tracked only by a player who tracks none.": "Отслеживать каждый квест, как только его выдали: он встаёт первым в трекер на экране, его метки видны. Игрок, который уже отслеживает пять, оставляет свои пять. Выключено: выданный квест отслеживается, только если игрок не отслеживает ни одного.",
   "Show the distance under the icon.": "Показывать расстояние под значком.",
   "Show the name over its head. Off: only dialogues use it.": "Показывать имя над головой. Выключено: имя используется только в диалогах.",
   "Show toasts when the quest starts, advances and ends.": "Показывать уведомления, когда квест начинается, продвигается и заканчивается.",
@@ -241,7 +242,7 @@
   "The stage ends when every required objective reaches its count. Without required objectives it waits for set_quest_stage or set_quest_state.": "Этап заканчивается, когда каждая обязательная цель дошла до своего count. Без обязательных целей ждёт set_quest_stage или set_quest_state.",
   "The stage's entry in the quest's story, shown from the moment the stage is reached.": "Запись этапа в истории квеста; видна с момента, когда этап достигнут.",
   "The story's languages, edited in the dev mode.": "Языки сюжета, которые редактируются в режиме разработчика.",
-  "The story's namespace: the dev mode makes new nodes in it (their folder in the story folder). Not minecraft or demo.": "Пространство имён истории: в нём режим разработки создаёт новые узлы (их папка в папке истории). Не minecraft и не demo.",
+  "The story's namespace: the dev mode makes new nodes in it (their folder in the story folder). Not minecraft or scenario.": "Пространство имён истории: в нём режим разработки создаёт новые узлы (их папка в папке истории). Не minecraft и не scenario.",
   "These actions run that many seconds later, for the same player and entity; the list goes on at once.": "Эти действия выполнятся через столько секунд, для того же игрока и сущности; список идёт дальше сразу.",
   "Toasts on the first encounter and on victory.": "Уведомления при первой встрече и при победе.",
   "Toasts when the entry appears or a section opens.": "Уведомления, когда появляется запись или открывается раздел.",
@@ -262,7 +263,6 @@
   "When the name shows above the icon. tracked: always for the tracked quest, near the crosshair for the rest.": "Когда над значком видно название. tracked: всегда у отслеживаемого квеста, у прочих — рядом с прицелом.",
   "Where the value lives. A declared flag can only be written in this scope.": "Где хранится значение. Объявленный флаг можно записать только в этой области.",
   "Which entities talk: one selector, or a list of them; the binding is for any entity that matches one.": "Какие существа говорят: одно описание или список; привязка действует на любое существо, подходящее под одно из них.",
-  "Which off-screen waypoints get an arrow at the screen edge.": "Какие метки за экраном получают стрелку у края.",
   "While the NPC talks with one player, others cannot start its dialogues (they get busy_dialogue, or nothing). Off: several players talk with it at once.": "Пока NPC говорит с одним игроком, другие не могут начать его диалоги (получают busy_dialogue или ничего). Выключено: с ним говорят несколько игроков сразу.",
   "Who may speak besides 'player'. Default: { \"npc\": { \"type\": \"bound\" } }.": "Кто может говорить кроме «player». По умолчанию: { \"npc\": { \"type\": \"bound\" } }.",
   "Whose progress this is: one player's, the party's (shared by members) or the whole world's.": "Чей это прогресс: одного игрока, группы (общий для её членов) или всего мира.",
@@ -308,6 +308,6 @@
   "Instead of a dialogue: said in a bubble over the NPC, the next line each click (\"Wolves again...\"); a phrases node, or { \"text\": ... } of its own.": "Вместо диалога: говорится облачком над NPC, на каждый клик следующая строка («Опять волки...»); узел фраз или свой { \"text\": ... }.",
   "Instead of phrases: a dialogue started with the player on such a hit, after the one they are in (a scene: \"What are you doing?!\").": "Вместо фраз: диалог с игроком на такой удар, после текущего (сцена: «Ты что творишь?!»).",
   "What it says: a phrases node, or { \"text\": ... } of its own. With variants, what it says when none applies.": "Что он говорит: узел фраз или свой { \"text\": ... }. С вариантами — то, что звучит, когда ни один не подходит.",
-  "What it says as the story goes on: tried by priority, highest first, for the nearest player; the first whose conditions pass is said instead of phrases.": "Что он говорит по ходу истории: по приоритету, сначала высший, для ближайшего игрока; первый вариант с выполненными условиями звучит вместо phrases.",
+  "As the story goes on: while a variant's conditions hold for the nearest player, the NPC says its phrases instead of the usual ones, never besides them. When several hold, the highest priority wins (equal ones: the higher in the list); when none holds, the usual phrases, and without them it keeps quiet.": "По ходу истории: пока условия варианта выполняются для ближайшего игрока, NPC говорит его фразы вместо обычных, а не вместе с ними. Подходят несколько: берётся вариант с наибольшим приоритетом (при равном тот, что выше в списке); ни один: обычные фразы, а без них NPC молчит.",
   "A phrases node, or { \"text\": ... } of its own.": "Узел фраз или свой { \"text\": ... }."
 }

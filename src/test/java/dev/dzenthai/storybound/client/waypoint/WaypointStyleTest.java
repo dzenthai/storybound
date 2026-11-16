@@ -11,12 +11,19 @@ import org.junit.jupiter.api.Test;
 class WaypointStyleTest {
     @Test
     void missingFieldsTakeTheBuiltInDefaults() {
-        WaypointStyle style = parse("{ \"size\": 8, \"name\": \"near_crosshair\", \"edge\": \"never\" }");
+        WaypointStyle style = parse("{ \"size\": 8, \"name\": \"near_crosshair\" }");
         assertEquals(8, style.size());
         assertEquals(WaypointStyle.NameMode.NEAR_CROSSHAIR, style.name());
-        assertEquals(WaypointStyle.EdgeMode.NEVER, style.edge());
         assertEquals(WaypointStyle.FALLBACK.icon(), style.icon());
         assertEquals(WaypointStyle.FALLBACK.maxDistance(), style.maxDistance());
+    }
+
+    @Test
+    void anOlderPacksEdgeIsIgnored() {
+        // Since November 16, 2026 the edge arrow is the player's setting; a pack that still writes "edge" loads as before.
+        WaypointStyle style = parse("{ \"size\": 9, \"edge\": \"never\" }");
+        assertEquals(9, style.size());
+        assertEquals(WaypointStyle.FALLBACK.arrow(), style.arrow());
     }
 
     @Test

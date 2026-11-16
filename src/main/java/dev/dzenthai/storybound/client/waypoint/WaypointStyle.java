@@ -11,7 +11,8 @@ import net.minecraft.util.StringRepresentable;
  * How waypoint markers are drawn in the world, from {@code assets/<ns>/storybound/waypoint_styles/<path>.json}.
  * One look for every marker ({@code storybound:default}), which resource packs restyle. Sprites are GUI sprites drawn
  * light-on-transparent and tinted with the waypoint's colour (October 29, 2026: the tracked quest's markers too; before,
- * they all took one {@code tracked_color}).
+ * they all took one {@code tracked_color}). Whether off-screen markers get an edge arrow is the player's setting
+ * ({@code StoryboundClientConfig.waypointEdgeArrows}, November 16, 2026); a style's older {@code edge} is ignored.
  *
  * @param size        the icon's size in GUI pixels, before the player's scale setting
  * @param fadeStart   farther than this (blocks), the marker starts fading
@@ -20,10 +21,10 @@ import net.minecraft.util.StringRepresentable;
  */
 public record WaypointStyle(ResourceLocation icon, ResourceLocation areaIcon, ResourceLocation arrow,
                             int size, int textColor, int distanceColor,
-                            NameMode name, boolean distance, float fadeStart, float maxDistance, float hideWithin, EdgeMode edge) {
+                            NameMode name, boolean distance, float fadeStart, float maxDistance, float hideWithin) {
     public static final WaypointStyle FALLBACK = new WaypointStyle(
             Storybound.id("waypoint/marker"), Storybound.id("waypoint/area"), Storybound.id("waypoint/arrow"),
-            11, 0xFFF0E6D2, 0xFFC9B48A, NameMode.TRACKED, true, 96f, 768f, 4f, EdgeMode.TRACKED);
+            11, 0xFFF0E6D2, 0xFFC9B48A, NameMode.TRACKED, true, 96f, 768f, 4f);
 
     public static final Codec<WaypointStyle> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.optionalFieldOf("icon", FALLBACK.icon).forGetter(WaypointStyle::icon),
@@ -36,8 +37,7 @@ public record WaypointStyle(ResourceLocation icon, ResourceLocation areaIcon, Re
             Codec.BOOL.optionalFieldOf("distance", FALLBACK.distance).forGetter(WaypointStyle::distance),
             Codec.floatRange(0f, 100_000f).optionalFieldOf("fade_start", FALLBACK.fadeStart).forGetter(WaypointStyle::fadeStart),
             Codec.floatRange(0f, 100_000f).optionalFieldOf("max_distance", FALLBACK.maxDistance).forGetter(WaypointStyle::maxDistance),
-            Codec.floatRange(0f, 64f).optionalFieldOf("hide_within", FALLBACK.hideWithin).forGetter(WaypointStyle::hideWithin),
-            EdgeMode.CODEC.optionalFieldOf("edge", FALLBACK.edge).forGetter(WaypointStyle::edge)
+            Codec.floatRange(0f, 64f).optionalFieldOf("hide_within", FALLBACK.hideWithin).forGetter(WaypointStyle::hideWithin)
     ).apply(instance, WaypointStyle::new));
 
     /** When the waypoint's name shows under its icon. */
@@ -54,26 +54,6 @@ public record WaypointStyle(ResourceLocation icon, ResourceLocation areaIcon, Re
         private final String name;
 
         NameMode(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String getSerializedName() {
-            return name;
-        }
-    }
-
-    /** Which waypoints get an arrow at the screen edge while they are off screen. */
-    public enum EdgeMode implements StringRepresentable {
-        TRACKED("tracked"),
-        ALL("all"),
-        NEVER("never");
-
-        public static final Codec<EdgeMode> CODEC = StringRepresentable.fromEnum(EdgeMode::values);
-
-        private final String name;
-
-        EdgeMode(String name) {
             this.name = name;
         }
 

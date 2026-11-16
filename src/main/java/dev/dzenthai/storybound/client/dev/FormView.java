@@ -64,6 +64,7 @@ final class FormView {
     /** The radius a waypoint gets when it becomes a search area in the form. */
     private static final int NEW_AREA_RADIUS = 16;
     private static final String WAYPOINT = "waypoint";
+    private static final String CHATTER = "chatter";
 
     /** What the form edits and how its changes are kept. */
     interface Host {
@@ -2887,9 +2888,15 @@ final class FormView {
         JsonObject object = objectAt(path);
         JsonElement value = object != null ? object.get(name) : null;
         Component label = fieldLabel(name, required, owner);
+        if (name.equals("phrases") && CHATTER.equals(context(owner)) && object != null
+                && object.get("variants") instanceof JsonArray variants && !variants.isEmpty()) {
+            // Beside the variants, the chatter's own phrases are what it says when none of them holds.
+            label = DevUi.text("field.chatter.usual");
+        }
         Tooltip tooltip = node.description().isEmpty() && Schemas.resolve(node).description().isEmpty() ? null
                 : Tooltip.create(Component.literal(described(!node.description().isEmpty() ? node.description() : Schemas.resolve(node).description())));
-        if (name.equals("difficulty") && path.isEmpty()) {
+        // A quest's difficulty; in the story's settings "difficulty" is the scale itself, an ordinary page.
+        if (name.equals("difficulty") && path.isEmpty() && !Schemas.properties(owner).containsKey("chapter_map")) {
             difficultyField(name, value, label);
             return;
         }
@@ -3017,7 +3024,7 @@ final class FormView {
                                     ensureObject(path).add(name, form);
                                     host.edited();
                                 }
-                                push(with(path, name), node, fieldLabel(name, false).getString(), !required);
+                                push(with(path, name), node, fieldLabel(name, false, owner).getString(), !required);
                             })
                             .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
                     if (tooltip != null) {
@@ -4388,6 +4395,16 @@ final class FormView {
         }
         if (properties.containsKey("locked") && properties.containsKey("once")) {
             return "option";
+        }
+        if (properties.containsKey("variants") && properties.containsKey("min_interval")) {
+            return CHATTER;
+        }
+        // The story's settings and their difficulty scale: "style" is how quests show it, not a document's look.
+        if (properties.containsKey("chapter_map")) {
+            return "project";
+        }
+        if (properties.containsKey("style") && properties.containsKey("levels")) {
+            return "difficulty";
         }
         // A dialogue node's own words, by its type: "storybound.dev.field.node.call.next".
         Node type = properties.get("type");

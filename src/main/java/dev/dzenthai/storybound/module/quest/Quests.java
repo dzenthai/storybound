@@ -116,11 +116,7 @@ public final class Quests {
         QuestProgress started = known.map(progress -> progress.restarted(first, now(player))).orElseGet(() -> QuestProgress.started(first, now(player)));
         write(player, quest, definition, known, started);
         announce(player, definition, NotifyKind.QUEST_STARTED);
-        for (ServerPlayer member : sharing(player, definition)) {
-            if (tracked(member).isEmpty()) {
-                track(member, quest);
-            }
-        }
+        trackGiven(player, quest, definition);
         run(definition.onStart(), player, "quest " + quest + " on_start");
         definition.firstStage().flatMap(definition::stage)
                 .ifPresent(stage -> run(stage.onEnter(), player, "quest " + quest + " stage " + stage.id() + " on_enter"));
@@ -144,8 +140,28 @@ public final class Quests {
         StoryTrace.note(player, "quest " + quest, "made active again: goes on" + (stuck ? ", the stage's counters anew" : ""));
         write(player, quest, definition, Optional.of(finished), finished.resumed(now(player), stuck));
         announce(player, definition, NotifyKind.QUEST_STARTED);
+        trackGiven(player, quest, definition);
+    }
+
+    /**
+     * Whether {@code project.json} tracks every quest when it is given ({@code track_given_quests}, November 16, 2026),
+     * set on each load of the story.
+     */
+    private static volatile boolean trackGiven;
+
+    public static void setTrackGiven(boolean value) {
+        trackGiven = value;
+    }
+
+    /**
+     * A quest given (started, or made active again) to whoever shares it online: tracked by those who track none, and,
+     * with {@code track_given_quests}, by those who track fewer than {@link #MAX_PINNED} (it becomes the main one); a
+     * player tracking five keeps the five they chose. Members offline are not tracked when they come back.
+     */
+    private static void trackGiven(ServerPlayer player, ResourceLocation quest, QuestDefinition definition) {
         for (ServerPlayer member : sharing(player, definition)) {
-            if (tracked(member).isEmpty()) {
+            List<ResourceLocation> pinned = pinned(member);
+            if (pinned.isEmpty() || trackGiven && !pinned.contains(quest) && pinned.size() < MAX_PINNED) {
                 track(member, quest);
             }
         }
