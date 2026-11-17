@@ -66,7 +66,7 @@ final class StoryView extends GraphView {
     private static final int MAP_COLUMN_W = 190;
     private static final int MAP_ROW_H = 64;
     /** A badge under a node of the map: one of its own nodes. */
-    private static final int BADGE_W = 12;
+    private static final int BADGE_W = 11;
     private static final int BADGE_H = 11;
     /** Badges shown under a node before the rest fold into "+N". */
     private static final int MAX_BADGES = 5;
@@ -191,7 +191,7 @@ final class StoryView extends GraphView {
 
     @Override
     int canvasLeft() {
-        return StoryPanel.STRIP_W;
+        return tab == Tab.STORY ? StoryPanel.STRIP_W : 0;
     }
 
     @Override
@@ -535,34 +535,34 @@ final class StoryView extends GraphView {
 
     static int color(ResourceLocation type, JsonObject json) {
         if (type.equals(ClientDevStore.TYPE_PHRASES)) {
-            return 0xFF9CCC65;
+            return 0xFFA5B574;
         }
         if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
-            return 0xFFEC407A;
+            return 0xFFBE96D0;
         }
         if (type.equals(ClientDevStore.TYPE_QUEST)) {
             return switch (category(json)) {
-                case "main" -> 0xFFD4AF37;
-                case "contract" -> 0xFFC04030;
-                default -> 0xFF4A90E2;
+                case "main" -> 0xFFE1B34D;
+                case "contract" -> 0xFFD9785A;
+                default -> 0xFF92AACC;
             };
         }
         if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
-            return "bubble".equals(presentation(json)) ? 0xFF50C878 : 0xFF26A69A;
+            return "bubble".equals(presentation(json)) ? 0xFFA5B574 : 0xFF708B34;
         }
         if (type.equals(ClientDevStore.TYPE_NPC)) {
-            return 0xFF66BB6A;
+            return 0xFF708B34;
         }
         if (type.equals(ClientDevStore.TYPE_DOCUMENT)) {
-            return 0xFFD49A5A;
+            return 0xFFCDA269;
         }
         if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
-            return 0xFFAB47BC;
+            return 0xFF8E64AE;
         }
         if (type.equals(ClientDevStore.TYPE_BOSS)) {
-            return 0xFFE53935;
+            return 0xFFB33A2F;
         }
-        return type.equals(ClientDevStore.TYPE_CODEX) ? 0xFF5C6BC0 : 0xFFFFA726;
+        return type.equals(ClientDevStore.TYPE_CODEX) ? 0xFF6480AE : 0xFFD9785A;
     }
 
     static ItemStack icon(NodeKey key, JsonObject json) {
@@ -1550,11 +1550,15 @@ final class StoryView extends GraphView {
         x = topButton(screen, x, problemsLabel, problems == 0 ? "top.problems_none.tooltip" : "top.problems.tooltip",
                 () -> screen.openFinder(StoryFinder.Mode.PROBLEMS));
         x = topButton(screen, x, Component.literal("🔍"), "top.search.tooltip", () -> screen.openFinder(StoryFinder.Mode.SEARCH));
-        x = topButton(screen, x, Component.literal(tab == Tab.STORY ? "🕸" : "📜"),
-                tab == Tab.STORY ? "canvas.all_links.tooltip" : "canvas.back_to_chapters.tooltip", () -> {
+        // In the middle of the top bar, in words (November 17, 2026, the author; before, a bare 🕸 among the signs at the
+        // right): what the map shows instead, the chapters or every link.
+        Component toggle = DevUi.text(tab == Tab.STORY ? "canvas.show_all_links" : "canvas.show_chapters");
+        int toggleW = DevButton.oddWidth(screen.font(), toggle) + 8;
+        screen.add(Button.builder(toggle, b -> {
                     saveEdits(screen);
                     openTab(screen, tab == Tab.STORY ? Tab.ALL : Tab.STORY);
-                });
+                }).tooltip(Tooltip.create(DevUi.text(tab == Tab.STORY ? "canvas.all_links.tooltip" : "canvas.back_to_chapters.tooltip")))
+                .bounds((screen.width - toggleW) / 2, 3, toggleW, 19).build());
         if (tab == Tab.STORY) {
             Component who = progressOf == null ? Component.literal("👤") : Component.literal("👤 " + progressOf);
             topButton(screen, x, who, "progress.tooltip", () -> nextProgressPlayer(screen));
@@ -1566,20 +1570,32 @@ final class StoryView extends GraphView {
 
     /** A small button of the top bar's right end, right-aligned at {@code right}; returns where the next one ends. */
     private static int topButton(DevModeScreen screen, int right, Component label, String tooltip, Runnable action) {
-        int w = Math.max(18, screen.font().width(label) + 10);
+        int w = DevButton.oddWidth(screen.font(), label);
         screen.add(Button.builder(label, b -> action.run()).tooltip(Tooltip.create(DevUi.text(tooltip)))
-                .bounds(right - w, 3, w, 18).build());
+                .bounds(right - w, 3, w, 19).build());
         return right - w - 2;
     }
 
     @Override
     void render(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
-        panel.hover(screen, mouseX, mouseY, dragging != null || linkingFrom != null || boxSelecting);
+        if (tab == Tab.STORY) {
+            panel.hover(screen, mouseX, mouseY, dragging != null || linkingFrom != null || boxSelecting);
+        }
         renderCanvas(screen, graphics, mouseX, mouseY);
         if (inspectorVisible(screen)) {
             inspector.render(screen, graphics);
         }
-        panel.render(screen, graphics, mouseX, mouseY);
+        if (tab == Tab.STORY) {
+            panel.render(screen, graphics, mouseX, mouseY);
+        }
+    }
+
+    /**
+     * The chapter strip, only on the map (November 17, 2026, the author: it is for chapters, and in "all links" a click
+     * on it threw the author back to the map unasked): every link is shown on the whole width.
+     */
+    private boolean stripHolds(DevModeScreen screen, double mouseX, double mouseY) {
+        return tab == Tab.STORY && panel.holds(screen, mouseX, mouseY);
     }
 
     /** "On the map" from the search: a quest or a story event goes on the open chapter, in the middle of what is seen. */
@@ -1643,14 +1659,14 @@ final class StoryView extends GraphView {
 
     private void renderCanvas(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
-        beginCanvas(screen, graphics, 0xFF1C2026);
+        beginCanvas(screen, graphics, 0xFF2A1E15);
         Map<NodeKey, Card> byKey = new HashMap<>();
         for (Card card : cards) {
             byKey.put(card.key(), card);
         }
         double worldX = worldX(mouseX);
         double worldY = worldY(mouseY);
-        boolean idle = onCanvas(screen, mouseX, mouseY) && dragging == null && linkingFrom == null && !boxSelecting && !screen.modalOpen() && !panel.holds(screen, mouseX, mouseY);
+        boolean idle = onCanvas(screen, mouseX, mouseY) && dragging == null && linkingFrom == null && !boxSelecting && !screen.modalOpen() && !stripHolds(screen, mouseX, mouseY);
         // Hovering a node lights its links and dims what is not linked with it.
         Card focus = idle ? cardAt(worldX, worldY) : null;
         Set<NodeKey> lit = new java.util.HashSet<>();
@@ -1671,7 +1687,7 @@ final class StoryView extends GraphView {
             if (from != null && to != null) {
                 boolean bright = focus != null ? arrow.from().equals(focus.key()) || arrow.to().equals(focus.key())
                         : selection.contains(arrow.from()) || selection.contains(arrow.to()) || arrow.from().equals(selected) || arrow.to().equals(selected);
-                int color = bright ? DevUi.WARN : focus != null ? 0xFF2E3640 : 0xFF546E7A;
+                int color = bright ? DevUi.WARN : focus != null ? 0xFF3A2A1C : 0xFF865332;
                 DevUi.edge(graphics, font, from.x() + NODE_W, from.y() + NODE_H / 2, to.x(), to.y() + NODE_H / 2,
                         color, bright ? arrow.litLabel() : focus != null ? "" : arrow.label(), index++);
             }
@@ -1685,7 +1701,7 @@ final class StoryView extends GraphView {
             boolean primary = card.key().equals(selected);
             boolean multi = selection.contains(card.key());
             boolean hovered = DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H);
-            int border = card.hasError() ? DevUi.ERROR : primary ? 0xFFFFE082 : multi ? 0xFF4FC3F7 : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
+            int border = card.hasError() ? DevUi.ERROR : primary ? DevUi.ACCENT : multi ? DevUi.WARN : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
             DevUi.card(graphics, font, card.x(), card.y(), NODE_W, NODE_H, border, primary || multi, card.color(), card.badge(),
                     card.missingTranslation(), card.icon(), card.title(), card.subtitle());
             if (tab == Tab.STORY) {
@@ -1693,7 +1709,7 @@ final class StoryView extends GraphView {
                 renderBadges(graphics, font, card, hoveredBadge);
             }
             if (focus != null && !lit.contains(card.key())) {
-                graphics.fill(card.x() - 1, card.y() - 1, card.x() + NODE_W + 1, card.y() + NODE_H + BADGE_H + 4, 0xB0141619);
+                graphics.fill(card.x() - 1, card.y() - 1, card.x() + NODE_W + 1, card.y() + NODE_H + BADGE_H + 4, 0xB01A140F);
             }
         }
         if (boxSelecting) {
@@ -1701,11 +1717,11 @@ final class StoryView extends GraphView {
             int y1 = (int) Math.min(boxStartY, boxEndY);
             int x2 = (int) Math.max(boxStartX, boxEndX);
             int y2 = (int) Math.max(boxStartY, boxEndY);
-            graphics.fill(x1, y1, x2, y2, 0x3364B5F6);
-            DevUi.horizontal(graphics, x1, x2, y1, 0xFF64B5F6);
-            DevUi.horizontal(graphics, x1, x2, y2, 0xFF64B5F6);
-            DevUi.vertical(graphics, x1, y1, y2, 0xFF64B5F6);
-            DevUi.vertical(graphics, x2, y1, y2, 0xFF64B5F6);
+            graphics.fill(x1, y1, x2, y2, 0x33E1B34D);
+            DevUi.horizontal(graphics, x1, x2, y1, 0xFFE1B34D);
+            DevUi.horizontal(graphics, x1, x2, y2, 0xFFE1B34D);
+            DevUi.vertical(graphics, x1, y1, y2, 0xFFE1B34D);
+            DevUi.vertical(graphics, x2, y1, y2, 0xFFE1B34D);
         }
         endCanvas(graphics);
         if (tab == Tab.STORY && cards.isEmpty()) {
@@ -1729,10 +1745,15 @@ final class StoryView extends GraphView {
             boolean lit = hovered != null && hovered.card().equals(card) && hovered.x() == badge.x()
                     || badge.node() != null && (badge.node().equals(selected) || selection.contains(badge.node()));
             graphics.fill(badge.x(), badge.y(), badge.x() + badge.width(), badge.y() + BADGE_H, lit ? DevUi.ROW_SELECTED : DevUi.CARD);
-            DevUi.horizontal(graphics, badge.x(), badge.x() + badge.width() - 1, badge.y() + BADGE_H - 1, lit ? DevUi.WARN : DevUi.CARD_EDGE);
+            graphics.fill(badge.x(), badge.y() + BADGE_H - 1, badge.x() + badge.width(), badge.y() + BADGE_H, lit ? DevUi.WARN : DevUi.CARD_EDGE);
             String sign = badge.node() != null ? glyph(badge.node().type()) : badge.rest().isEmpty() ? "⚡" : "+" + badge.rest().size();
-            graphics.drawString(font, sign, badge.x() + (badge.width() - font.width(sign)) / 2 + 1, badge.y() + 2,
-                    badge.node() == null && badge.rest().isEmpty() ? DevUi.WARN : DevUi.TEXT, false);
+            int signColor = badge.node() == null && badge.rest().isEmpty() ? DevUi.WARN : lit ? DevUi.ACCENT : DevUi.LABEL;
+            String icon = DevIcons.split(sign).icon();
+            if (icon != null) {
+                DevIcons.draw(graphics, icon, badge.x() + (badge.width() - DevIcons.SIZE) / 2, badge.y() + 1, signColor);
+            } else {
+                graphics.drawString(font, sign, badge.x() + (badge.width() - font.width(sign)) / 2 + 1, badge.y() + 2, signColor, false);
+            }
             boolean problem = badge.node() != null ? hasProblem(badge.node()) : badge.rest().stream().anyMatch(StoryView::hasProblem);
             if (problem) {
                 graphics.fill(badge.x() + badge.width() - 3, badge.y(), badge.x() + badge.width(), badge.y() + 3, DevUi.ERROR);
@@ -1774,7 +1795,7 @@ final class StoryView extends GraphView {
 
     @Override
     boolean mouseClicked(DevModeScreen screen, double mouseX, double mouseY, int button) {
-        if (panel.holds(screen, mouseX, mouseY)) {
+        if (stripHolds(screen, mouseX, mouseY)) {
             return clickLeftPanel(screen, mouseX, mouseY, button);
         }
         if (!onCanvas(screen, mouseX, mouseY)) {
@@ -2106,7 +2127,7 @@ final class StoryView extends GraphView {
 
     @Override
     boolean scrollSidePanel(DevModeScreen screen, double mouseX, double mouseY, double amount) {
-        return panel.scroll(screen, mouseX, mouseY, amount);
+        return tab == Tab.STORY && panel.scroll(screen, mouseX, mouseY, amount);
     }
 
     @Override

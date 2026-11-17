@@ -1241,8 +1241,8 @@ final class FormView {
             int top = rowY(CONTROL_H);
             EditBox box = new EditBox(screen.font(), x, top + 1, w - 42, CONTROL_H - 2, Component.literal(field.label()));
             box.setMaxLength(64);
-            box.setHint(DevUi.text("mobdata.other_hint").copy().withStyle(style -> style.withColor(0xFF6B7380)));
-            box.setResponder(text -> box.setTextColor(text.isBlank() || MobFields.typed(text, field.values().values()) != null ? 0xFFE0E0E0 : DevUi.ERROR));
+            box.setHint(DevUi.text("mobdata.other_hint").copy().withStyle(style -> style.withColor(DevUi.HINT)));
+            box.setResponder(text -> box.setTextColor(text.isBlank() || MobFields.typed(text, field.values().values()) != null ? DevUi.TEXT : DevUi.ERROR));
             screen.add(box);
             screen.add(Button.builder(Component.literal("✓"), b -> {
                 net.minecraft.nbt.Tag typed = MobFields.typed(box.getValue(), field.values().values());
@@ -1913,7 +1913,7 @@ final class FormView {
                 } catch (NumberFormatException ignored) {
                     // Red until it is a number.
                 }
-                box.setTextColor(seconds != null ? 0xFFE0E0E0 : DevUi.ERROR);
+                box.setTextColor(seconds != null ? DevUi.TEXT : DevUi.ERROR);
                 if (seconds != null) {
                     JsonArray on = new JsonArray();
                     for (String source : stringsOf(objectAt(path) != null ? objectAt(path).get("on") : null).isEmpty() ? sources
@@ -2107,13 +2107,13 @@ final class FormView {
         JsonElement fallback = Schemas.resolve(node).defaultValue();
         if (fallback != null && fallback.isJsonPrimitive()) {
             box.setHint(DevUi.text("form.percent_default", format(Math.round(fallback.getAsDouble() * 10000) / 100.0))
-                    .copy().withStyle(style -> style.withColor(0xFF6B7380)));
+                    .copy().withStyle(style -> style.withColor(DevUi.HINT)));
         }
         box.setResponder(text -> {
             JsonObject owner = ensureObject(path);
             if (text.isBlank()) {
                 owner.remove(name);
-                box.setTextColor(0xFFE0E0E0);
+                box.setTextColor(DevUi.TEXT);
                 host.edited();
                 return;
             }
@@ -2124,7 +2124,7 @@ final class FormView {
             } catch (NumberFormatException ignored) {
                 // Stays red until it is a number.
             }
-            box.setTextColor(percent != null ? 0xFFE0E0E0 : DevUi.ERROR);
+            box.setTextColor(percent != null ? DevUi.TEXT : DevUi.ERROR);
             if (percent != null) {
                 owner.addProperty(name, percent / 100);
                 host.edited();
@@ -2407,7 +2407,7 @@ final class FormView {
             String text = box.getValue().trim();
             ResourceLocation id = ResourceLocation.tryParse(text);
             boolean known = text.isEmpty() || id != null && Minecraft.getInstance().getSoundManager().getAvailableSounds().contains(id);
-            box.setTextColor(known ? 0xFFE0E0E0 : DevUi.ERROR);
+            box.setTextColor(known ? DevUi.TEXT : DevUi.ERROR);
             dev.dzenthai.storybound.client.sound.StorySoundFiles.Problem problem = id != null
                     ? dev.dzenthai.storybound.client.sound.StoryAssets.last().problemOf(id.toString()) : null;
             Component why = problem != null ? DevUi.text("sound.problem." + problem.kind())
@@ -2844,7 +2844,7 @@ final class FormView {
         java.util.function.Consumer<String> check = text -> {
             Optional<StoryRenames.Problem> problem = problemOf.apply(text);
             boolean bad = problem.isPresent() && problem.get() != StoryRenames.Problem.SAME;
-            box.setTextColor(bad ? DevUi.ERROR : 0xFFE0E0E0);
+            box.setTextColor(bad ? DevUi.ERROR : DevUi.TEXT);
             apply.active = problem.isEmpty();
             labels.set(reason, new Label(bad ? DevUi.text("rename.problem." + problem.get().name().toLowerCase(java.util.Locale.ROOT), "") : Component.empty(),
                     x, reasonY, DevUi.ERROR));
@@ -3193,18 +3193,18 @@ final class FormView {
         EditBox box = new EditBox(screen.font(), x + CONTROL_H + 4, rowTop + 1, w - CONTROL_H - 4, CONTROL_H - 2, DevUi.text("form.waypoint_color"));
         box.setMaxLength(7);
         box.setValue(written != null ? String.format("#%06X", written & 0xFFFFFF) : "");
-        box.setHint(DevUi.text("form.waypoint_color.default").copy().withStyle(style -> style.withColor(0xFF6B7380)));
+        box.setHint(DevUi.text("form.waypoint_color.default").copy().withStyle(style -> style.withColor(DevUi.HINT)));
         box.setResponder(text -> {
             JsonObject owner = ensureObject(path);
             if (text.isBlank()) {
                 owner.remove("color");
                 shown[0] = WaypointDefinition.DEFAULT_COLOR;
-                box.setTextColor(0xFFE0E0E0);
+                box.setTextColor(DevUi.TEXT);
                 host.edited();
                 return;
             }
             Integer parsed = parseColor(text);
-            box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
+            box.setTextColor(parsed != null ? DevUi.TEXT : DevUi.ERROR);
             if (parsed != null) {
                 if (parsed == WaypointDefinition.DEFAULT_COLOR) {
                     owner.remove("color");
@@ -3267,8 +3267,8 @@ final class FormView {
 
         @Override
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, isHovered() ? 0xFFFFFFFF : 0xFF8A8A8A);
-            graphics.fill(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1, 0xFF2A2A2A);
+            graphics.fill(getX(), getY(), getX() + width, getY() + height, isHovered() ? DevUi.ACCENT : DevUi.CARD_EDGE);
+            graphics.fill(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1, DevUi.BACKGROUND);
             graphics.fill(getX() + 3, getY() + 3, getX() + width - 3, getY() + height - 3, 0xFF000000 | color.get());
         }
 
@@ -3318,7 +3318,7 @@ final class FormView {
             return;
         }
         if (needsKubeJs(path, name)) {
-            labels.add(new Label(label, x, rowY(LABEL_H + CONTROL_H), 0xFF78909C));
+            labels.add(new Label(label, x, rowY(LABEL_H + CONTROL_H), DevUi.MUTED));
         } else {
             labelRow(label);
         }
@@ -3368,20 +3368,20 @@ final class FormView {
         JsonElement fallback = node.defaultValue() != null ? node.defaultValue() : Schemas.resolve(node).defaultValue();
         Component byKind = documentDefault(name, path) != null ? documentDefault(name, path) : stageDefault(name, path);
         if (byKind != null) {
-            box.setHint(byKind.copy().withStyle(style -> style.withColor(0xFF6B7380)));
+            box.setHint(byKind.copy().withStyle(style -> style.withColor(DevUi.HINT)));
         } else if (fallback != null) {
-            box.setHint(Component.literal(display(kind, fallback)).withStyle(style -> style.withColor(0xFF6B7380)));
+            box.setHint(Component.literal(display(kind, fallback)).withStyle(style -> style.withColor(DevUi.HINT)));
         }
         box.setResponder(text -> {
             JsonObject target = ensureObject(path);
             if (text.isBlank()) {
                 target.remove(name);
-                box.setTextColor(0xFFE0E0E0);
+                box.setTextColor(DevUi.TEXT);
                 host.edited();
                 return;
             }
             JsonElement parsed = parse(kind, text);
-            box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
+            box.setTextColor(parsed != null ? DevUi.TEXT : DevUi.ERROR);
             if (parsed != null) {
                 target.add(name, parsed);
                 host.edited();
@@ -3579,7 +3579,7 @@ final class FormView {
                 box.setResponder(text -> {
                     JsonArray list = ensureArray(path);
                     JsonElement parsed = parse(itemKind, text);
-                    box.setTextColor(parsed != null ? 0xFFE0E0E0 : DevUi.ERROR);
+                    box.setTextColor(parsed != null ? DevUi.TEXT : DevUi.ERROR);
                     if (index < list.size() && parsed != null) {
                         list.set(index, parsed);
                         host.edited();
@@ -3606,7 +3606,7 @@ final class FormView {
             }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowY, 18, CONTROL_H).build());
         }
         if (array.isEmpty() && row(LABEL_H)) {
-            labels.add(new Label(DevUi.text("form.empty"), x, rowY(LABEL_H), 0xFF78909C));
+            labels.add(new Label(DevUi.text("form.empty"), x, rowY(LABEL_H), DevUi.MUTED));
         }
         if (!row(CONTROL_H)) {
             return;
@@ -3953,7 +3953,7 @@ final class FormView {
                         element.addProperty("type", type);
                         fields.entrySet().forEach(entry -> element.add(entry.getKey(), entry.getValue()));
                         put(ensureParent(path), path, path.size() - 1, element);
-                        box.setTextColor(0xFFE0E0E0);
+                        box.setTextColor(DevUi.TEXT);
                         host.edited();
                     } catch (RuntimeException e) {
                         box.setTextColor(DevUi.ERROR);

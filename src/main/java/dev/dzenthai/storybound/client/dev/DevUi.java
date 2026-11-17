@@ -19,28 +19,28 @@ final class DevUi {
     static final int RIGHT_PANEL_W = 220;
     static final int TOP_BAR_H = 24;
 
-    static final int BACKGROUND = 0xFF141619;
-    static final int BAR = 0xFF1E2229;
-    static final int PANEL = 0xFF1B1E24;
-    static final int PANEL_EDGE = 0xFF343A46;
-    static final int ROW_SELECTED = 0xFF2D3748;
-    static final int ROW_HOVER = 0xFF252A34;
-    static final int CARD = 0xFF21252B;
-    static final int CARD_EDGE = 0xFF37474F;
-    static final int DARK_TEXT = 0xFF111317;
-    static final int ACCENT = 0xFFE8C66A;
-    static final int TEXT = 0xFFE0E6ED;
-    static final int LABEL = 0xFFB0B8C4;
-    static final int MUTED = 0xFF90A4AE;
-    static final int HINT = 0xFF8C96A6;
-    static final int DETAIL = 0xFF80CBC4;
-    static final int OK = 0xFFA8E6A3;
-    static final int GOOD = 0xFF66BB6A;
-    static final int WARN = 0xFFFFD54F;
-    static final int BAD = 0xFFFF8A80;
-    static final int ERROR = 0xFFFF5252;
-    static final int LINK = 0xFF69F0AE;
-    static final int NEUTRAL = 0xFFB0BEC5;
+    static final int BACKGROUND = 0xFF1A140F;
+    static final int BAR = 0xFF2A1E15;
+    static final int PANEL = 0xFF2A1E15;
+    static final int PANEL_EDGE = 0xFF3A2A1C;
+    static final int ROW_SELECTED = 0xFF483020;
+    static final int ROW_HOVER = 0xFF3A2A1C;
+    static final int CARD = 0xFF2A1E15;
+    static final int CARD_EDGE = 0xFF483020;
+    static final int DARK_TEXT = 0xFF1A140F;
+    static final int ACCENT = 0xFFE1B34D;
+    static final int TEXT = 0xFFF5DFB2;
+    static final int LABEL = 0xFFCDA269;
+    static final int MUTED = 0xFFB78957;
+    static final int HINT = 0xFFAF7846;
+    static final int DETAIL = 0xFF92AACC;
+    static final int OK = 0xFFA5B574;
+    static final int GOOD = 0xFFA5B574;
+    static final int WARN = 0xFFFFE08A;
+    static final int BAD = 0xFFD9785A;
+    static final int ERROR = 0xFFD9785A;
+    static final int LINK = 0xFF92AACC;
+    static final int NEUTRAL = 0xFFB2B4B6;
 
     private DevUi() {}
 
@@ -98,7 +98,7 @@ final class DevUi {
         if (background != 0) {
             graphics.fill(4, y, LEFT_PANEL_W - 4, y + 18, background);
         }
-        int color = selected ? WARN : hover ? 0xFFFFFFFF : LABEL;
+        int color = selected ? WARN : hover ? TEXT : LABEL;
         graphics.drawString(font, font.plainSubstrByWidth(label, LEFT_PANEL_W - 16), 8, y + 5, color, false);
     }
 
@@ -130,7 +130,7 @@ final class DevUi {
         graphics.pose().translate(0, 0, -140);
         graphics.renderItem(icon, x + 4, y + 18);
         graphics.pose().popPose();
-        graphics.drawString(font, font.plainSubstrByWidth(title, width - 28), x + 24, y + 17, 0xFFF5F5F5, false);
+        graphics.drawString(font, font.plainSubstrByWidth(title, width - 28), x + 24, y + 17, TEXT, false);
         graphics.drawString(font, font.plainSubstrByWidth(subtitle, width - 28), x + 24, y + 28, MUTED, false);
         int portX = x + width - 3;
         int portY = y + height / 2 - 3;
@@ -157,8 +157,8 @@ final class DevUi {
             int width = font.width(label);
             int labelX = midX - width / 2;
             int labelY = (y1 + y2) / 2 - 4 + ((index % 3) - 1) * 7;
-            graphics.fill(labelX - 2, labelY - 1, labelX + width + 2, labelY + 9, 0xDD141619);
-            graphics.drawString(font, label, labelX, labelY, color == WARN ? 0xFFFFE082 : NEUTRAL, false);
+            graphics.fill(labelX - 2, labelY - 1, labelX + width + 2, labelY + 9, 0xDD1A140F);
+            graphics.drawString(font, label, labelX, labelY, color == WARN ? WARN : NEUTRAL, false);
         }
     }
 
@@ -170,6 +170,18 @@ final class DevUi {
         graphics.fill(x, Math.min(y1, y2), x + 2, Math.max(y1, y2) + 1, color);
     }
 
+    /**
+     * A frame one pixel wide inside the box (November 17, 2026: buttons and chapter slots drew theirs with
+     * {@link #horizontal} and {@link #vertical}, two pixels wide for the canvas's lines, so the right and bottom edges
+     * stood one pixel outside and everything in the box looked pushed to the left).
+     */
+    static void frame(GuiGraphics graphics, int x, int y, int width, int height, int color) {
+        graphics.fill(x, y, x + width, y + 1, color);
+        graphics.fill(x, y + height - 1, x + width, y + height, color);
+        graphics.fill(x, y + 1, x + 1, y + height - 1, color);
+        graphics.fill(x + width - 1, y + 1, x + width, y + height - 1, color);
+    }
+
     /** The round button on the inspector's edge that folds it away. */
     /**
      * The round button that hides the side panel, centred on the panel's edge ({@code cx}). Small enough to stay off
@@ -178,9 +190,9 @@ final class DevUi {
     static void collapseButton(GuiGraphics graphics, int cx, int cy, int mouseX, int mouseY) {
         int r = COLLAPSE_R;
         boolean hover = onCollapseButton(mouseX, mouseY, cx, cy);
-        int border = hover ? ACCENT : 0xFF3A4150;
-        int fill = hover ? ROW_HOVER : 0xFF16191F;
-        int icon = hover ? 0xFFFFFFFF : MUTED;
+        int border = hover ? ACCENT : CARD_EDGE;
+        int fill = hover ? ROW_HOVER : BACKGROUND;
+        int icon = hover ? TEXT : MUTED;
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 150);
         disc(graphics, cx, cy, r, border);

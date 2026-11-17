@@ -287,26 +287,26 @@ final class DialogueView extends GraphView {
                 for (JsonElement option : options) {
                     missing |= translating && option.isJsonObject() && untranslated(option.getAsJsonObject(), language);
                 }
-                yield new Card(id, type, title, DevUi.str("node.choice", options.size()), 0xFFFFB300, new ItemStack(Items.WRITABLE_BOOK), x, y, start, missing);
+                yield new Card(id, type, title, DevUi.str("node.choice", options.size()), 0xFFE1B34D, new ItemStack(Items.WRITABLE_BOOK), x, y, start, missing);
             }
             case "condition" -> new Card(id, type, "→ " + (node.has("then") ? node.get("then").getAsString() : DialogueGraph.END),
-                    DevUi.str("node.condition"), 0xFFAB47BC, new ItemStack(Items.COMPARATOR), x, y, start, false);
-            case "action" -> new Card(id, type, "→ " + DialogueGraph.next(node), DevUi.str("node.action"), 0xFFFF7043, new ItemStack(Items.REDSTONE), x, y, start, false);
-            case "random" -> new Card(id, type, chances(node), DevUi.str("node.random"), 0xFF8E24AA, new ItemStack(Items.DISPENSER), x, y, start, false);
+                    DevUi.str("node.condition"), 0xFF8E64AE, new ItemStack(Items.COMPARATOR), x, y, start, false);
+            case "action" -> new Card(id, type, "→ " + DialogueGraph.next(node), DevUi.str("node.action"), 0xFFD9785A, new ItemStack(Items.REDSTONE), x, y, start, false);
+            case "random" -> new Card(id, type, chances(node), DevUi.str("node.random"), 0xFFBE96D0, new ItemStack(Items.DISPENSER), x, y, start, false);
             // To another dialogue: "→ elder · greet (dialogue screen)", its node and how it shows, as the conversation
             // takes that dialogue's presentation; within this one, the node (its arrow shows it).
             case "jump" -> new Card(id, type, DialogueGraph.jumpsElsewhere(node)
                     ? "→ " + node.get("dialogue").getAsString() + (node.has("node") ? " · " + node.get("node").getAsString() : "") + shownAs(node.get("dialogue").getAsString())
                     : node.has("node") ? node.get("node").getAsString() : DialogueGraph.END,
-                    DevUi.str("node.jump"), 0xFF00ACC1, new ItemStack(Items.ENDER_PEARL), x, y, start, false);
+                    DevUi.str("node.jump"), 0xFF92AACC, new ItemStack(Items.ENDER_PEARL), x, y, start, false);
             case "call" -> new Card(id, type, node.has("dialogue") ? "⤷ " + node.get("dialogue").getAsString() + shownAs(node.get("dialogue").getAsString()) : "?",
-                    DevUi.str("node.call"), 0xFF1E88E5, new ItemStack(Items.BELL), x, y, start, false);
-            case "end" -> new Card(id, type, DialogueGraph.END, DevUi.str("node.end"), 0xFFE53935, new ItemStack(Items.BARRIER), x, y, start, false);
+                    DevUi.str("node.call"), 0xFF6480AE, new ItemStack(Items.BELL), x, y, start, false);
+            case "end" -> new Card(id, type, DialogueGraph.END, DevUi.str("node.end"), 0xFFB33A2F, new ItemStack(Items.BARRIER), x, y, start, false);
             default -> {
                 boolean player = "player".equalsIgnoreCase(node.has("speaker") ? node.get("speaker").getAsString() : "");
                 String text = ClientDevStore.readStoryText(node, "text", "", language);
                 yield new Card(id, type, text.isBlank() ? DevUi.str("node.empty_line") : text, DevUi.str(player ? "node.player_line" : "node.npc_line"),
-                        player ? 0xFF42A5F5 : 0xFF26A69A, new ItemStack(player ? Items.PLAYER_HEAD : Items.FEATHER), x, y, start,
+                        player ? 0xFF92AACC : 0xFF708B34, new ItemStack(player ? Items.PLAYER_HEAD : Items.FEATHER), x, y, start,
                         translating && untranslated(node, language));
             }
         };
@@ -561,7 +561,7 @@ final class DialogueView extends GraphView {
         }).tooltip(Tooltip.create(DevUi.text("rename.node_apply"))).bounds(x + w - 20, y, 20, 16).build();
         Runnable check = () -> {
             Optional<StoryRenames.Problem> problem = StoryRenames.nodeProblem(json, nodeId, renameText != null ? renameText : nodeId);
-            box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? 0xFFE0E0E0 : DevUi.ERROR);
+            box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? DevUi.TEXT : DevUi.ERROR);
             apply.active = problem.isEmpty();
         };
         box.setResponder(text -> {
@@ -651,7 +651,7 @@ final class DialogueView extends GraphView {
     @Override
     void render(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
-        beginCanvas(screen, graphics, 0xFF181C22);
+        beginCanvas(screen, graphics, 0xFF2A1E15);
         Map<String, Card> byId = new HashMap<>();
         for (Card card : cards) {
             byId.put(card.id(), card);
@@ -682,7 +682,7 @@ final class DialogueView extends GraphView {
             boolean isSelected = card.id().equals(selected);
             boolean hovered = DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H);
             boolean startCard = card.id().equals(START);
-            int border = startCard ? DevUi.ACCENT : isSelected ? 0xFF64B5F6 : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
+            int border = startCard ? DevUi.ACCENT : isSelected ? DevUi.WARN : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
             DevUi.card(graphics, font, card.x(), card.y(), NODE_W, NODE_H, border, isSelected || startCard, card.color(),
                     card.badge(), card.missingTranslation(), card.icon(), card.title(), startCard ? "" : card.id());
         }
@@ -706,14 +706,14 @@ final class DialogueView extends GraphView {
 
     private static int edgeColor(DialogueGraph.EdgeKind kind) {
         return switch (kind) {
-            case NEXT -> 0xFF50C878;
-            case ACTION -> 0xFFFFB74D;
+            case NEXT -> 0xFFA5B574;
+            case ACTION -> 0xFFE1B34D;
             case OPTION -> DevUi.WARN;
-            case TIMEOUT, ELSE -> 0xFFE57373;
-            case THEN -> 0xFF81C784;
-            case RANDOM -> 0xFFBA68C8;
-            case RETURN -> 0xFF4FC3F7;
-            case JUMP -> 0xFF4DD0E1;
+            case TIMEOUT, ELSE -> 0xFFD9785A;
+            case THEN -> 0xFF708B34;
+            case RANDOM -> 0xFFBE96D0;
+            case RETURN -> 0xFF92AACC;
+            case JUMP -> 0xFF6480AE;
         };
     }
 

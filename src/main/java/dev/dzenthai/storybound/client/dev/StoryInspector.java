@@ -264,12 +264,12 @@ final class StoryInspector {
         box.setResponder(text -> {
             renameText = text;
             Optional<StoryRenames.Problem> problem = renameProblem(key);
-            box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? 0xFFE0E0E0 : DevUi.ERROR);
+            box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? DevUi.TEXT : DevUi.ERROR);
             apply.active = problem.isEmpty();
         });
         box.setTooltip(Tooltip.create(DevUi.text("rename.tooltip", key.id().getNamespace())));
         Optional<StoryRenames.Problem> problem = renameProblem(key);
-        box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? 0xFFE0E0E0 : DevUi.ERROR);
+        box.setTextColor(problem.isEmpty() || problem.get() == StoryRenames.Problem.SAME ? DevUi.TEXT : DevUi.ERROR);
         apply.active = problem.isEmpty();
         screen.add(box);
         screen.add(apply);

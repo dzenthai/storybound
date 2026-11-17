@@ -132,7 +132,12 @@ public class DevModeScreen extends Screen {
 
     // --- services for the views
 
+    /** Adds a widget; a Minecraft button becomes the editor's own, flat with its icon ({@link DevButton}). */
     <T extends GuiEventListener & Renderable & NarratableEntry> T add(T widget) {
+        if (widget instanceof Button button && !(widget instanceof DevButton)) {
+            addRenderableWidget(new DevButton(button));
+            return widget;
+        }
         return addRenderableWidget(widget);
     }
 
@@ -331,8 +336,9 @@ public class DevModeScreen extends Screen {
     }
 
     private int topButton(Component label, Component tooltip, boolean active, int x, Runnable action) {
-        int w = Math.max(18, font.width(label) + 10);
-        Button button = Button.builder(label, b -> action.run()).tooltip(Tooltip.create(tooltip)).bounds(x, 3, w, 18).build();
+        // Odd sizes, so a 9-pixel icon sits exactly in the middle (November 17, 2026).
+        int w = DevButton.oddWidth(font, label);
+        Button button = Button.builder(label, b -> action.run()).tooltip(Tooltip.create(tooltip)).bounds(x, 3, w, 19).build();
         button.active = active;
         add(button);
         return x + w + 2;
@@ -342,7 +348,7 @@ public class DevModeScreen extends Screen {
     private int topBarTextX() {
         int x = 0;
         for (GuiEventListener child : children()) {
-            if (child instanceof Button button && button.getY() == 3 && button.getX() < width / 2) {
+            if (child instanceof Button button && button.getY() == 3 && button.getX() + button.getWidth() <= width / 2) {
                 x = Math.max(x, button.getX() + button.getWidth());
             }
         }
@@ -368,7 +374,7 @@ public class DevModeScreen extends Screen {
         int right = view.showsIssues() ? issuesX() - 10 : topBarRightButtons() - 8;
         if (view.showsIssues()) {
             List<String> issues = ClientDevStore.issues();
-            graphics.drawString(font, issuesLabel(), issuesX(), 8, issues.isEmpty() ? DevUi.GOOD : 0xFFFF7043, false);
+            graphics.drawString(font, issuesLabel(), issuesX(), 8, issues.isEmpty() ? DevUi.GOOD : DevUi.BAD, false);
         }
         // What was just done shows a few seconds, then the bar is quiet again.
         boolean fresh = !statusText.getString().isEmpty() && Util.getMillis() - statusAt < STATUS_MILLIS;
@@ -381,17 +387,16 @@ public class DevModeScreen extends Screen {
     private static final long STATUS_MILLIS = 6000;
     private long statusAt;
 
-    /** Where the buttons at the top bar's right end begin (the view's own), else the canvas's right edge. */
+    /** Where the next buttons after the left ones begin (a view's button in the middle, or those at the right end), else the canvas's right edge. */
     private int topBarRightButtons() {
-        int x = canvasRight() - 106;
-        boolean any = false;
+        int left = topBarTextX();
+        int x = Integer.MAX_VALUE;
         for (GuiEventListener child : children()) {
-            if (child instanceof Button button && button.getY() == 3 && button.getX() > width / 2) {
-                x = any ? Math.min(x, button.getX()) : button.getX();
-                any = true;
+            if (child instanceof Button button && button.getY() == 3 && button.getX() >= left) {
+                x = Math.min(x, button.getX());
             }
         }
-        return any ? x : canvasRight() - 106;
+        return x == Integer.MAX_VALUE ? canvasRight() - 106 : x;
     }
 
     private Component issuesLabel() {
@@ -584,8 +589,8 @@ public class DevModeScreen extends Screen {
         int left = languageLeft();
         int top = languageTop();
         graphics.fill(0, 0, width, height, 0x88000000);
-        graphics.fill(left - 1, top - 1, left + LANGUAGE_W + 1, top + LANGUAGE_H + 1, 0xFF3A4150);
-        graphics.fill(left, top, left + LANGUAGE_W, top + LANGUAGE_H, 0xFF1C2026);
+        graphics.fill(left - 1, top - 1, left + LANGUAGE_W + 1, top + LANGUAGE_H + 1, DevUi.PANEL_EDGE);
+        graphics.fill(left, top, left + LANGUAGE_W, top + LANGUAGE_H, DevUi.PANEL);
         graphics.fill(left, top, left + LANGUAGE_W, top + 24, DevUi.ROW_HOVER);
         graphics.drawString(font, DevUi.text("namespace.title"), left + 8, top + 8, DevUi.ACCENT, false);
         if (namespaceMoveFrom != null) {
@@ -604,8 +609,8 @@ public class DevModeScreen extends Screen {
         int left = languageLeft();
         int top = languageTop();
         graphics.fill(0, 0, width, height, 0x88000000);
-        graphics.fill(left - 1, top - 1, left + LANGUAGE_W + 1, top + LANGUAGE_H + 1, 0xFF3A4150);
-        graphics.fill(left, top, left + LANGUAGE_W, top + LANGUAGE_H, 0xFF1C2026);
+        graphics.fill(left - 1, top - 1, left + LANGUAGE_W + 1, top + LANGUAGE_H + 1, DevUi.PANEL_EDGE);
+        graphics.fill(left, top, left + LANGUAGE_W, top + LANGUAGE_H, DevUi.PANEL);
         graphics.fill(left, top, left + LANGUAGE_W, top + 24, DevUi.ROW_HOVER);
         graphics.drawString(font, DevUi.text("language.title"), left + 8, top + 8, DevUi.ACCENT, false);
         graphics.drawString(font, DevUi.text("language.code_label"), left + 16, top + 24, DevUi.HINT, false);
@@ -729,7 +734,7 @@ public class DevModeScreen extends Screen {
         int height = menu.size() * MENU_ITEM_H + 6;
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 300);
-        graphics.fill(left - 1, top - 1, left + MENU_W + 1, top + height + 1, DevUi.ACCENT);
+        graphics.fill(left - 1, top - 1, left + MENU_W + 1, top + height + 1, DevUi.CARD_EDGE);
         graphics.fill(left, top, left + MENU_W, top + height, DevUi.BAR);
         for (int i = 0; i < menu.size(); i++) {
             int y = top + 3 + i * MENU_ITEM_H;
@@ -741,11 +746,17 @@ public class DevModeScreen extends Screen {
             int color = item.danger() ? (hover ? DevUi.BAD : DevUi.ERROR) : (hover ? DevUi.WARN : DevUi.TEXT);
             int textX = left + 6;
             if (item.swatch() != 0) {
-                graphics.fill(textX, y + 3, textX + 10, y + 13, 0xFF2A2A2A);
+                graphics.fill(textX, y + 3, textX + 10, y + 13, DevUi.BACKGROUND);
                 graphics.fill(textX + 1, y + 4, textX + 9, y + 12, item.swatch());
                 textX += 14;
             }
-            graphics.drawString(font, font.plainSubstrByWidth(item.label().getString(), left + MENU_W - 4 - textX), textX, y + 4, color, false);
+            // A line's glyph is its icon (November 17, 2026): "🗑 Delete" shows the bin, painted as the line's words.
+            DevIcons.Split split = DevIcons.split(item.label().getString());
+            if (split.icon() != null) {
+                DevIcons.draw(graphics, split.icon(), textX, y + 3, item.danger() ? color : hover ? DevUi.ACCENT : DevUi.LABEL);
+                textX += DevIcons.SIZE + DevIcons.GAP;
+            }
+            graphics.drawString(font, font.plainSubstrByWidth(split.text(), left + MENU_W - 4 - textX), textX, y + 4, color, false);
         }
         graphics.pose().popPose();
     }

@@ -222,16 +222,16 @@ final class Catalog {
         Font font = screen.font();
         int left = left(screen);
         int top = top(screen);
-        graphics.fill(0, 0, screen.width, screen.height, 0xAA0A0C10);
+        graphics.fill(0, 0, screen.width, screen.height, 0xAA0C0C0C);
         graphics.fill(left - 1, top - 1, left + WIDTH + 1, top + HEIGHT + 1, DevUi.ACCENT);
-        graphics.fill(left, top, left + WIDTH, top + HEIGHT, 0xFF181C24);
-        graphics.fill(left, top, left + WIDTH, top + 20, 0xFF222834);
+        graphics.fill(left, top, left + WIDTH, top + HEIGHT, DevUi.PANEL);
+        graphics.fill(left, top, left + WIDTH, top + 20, DevUi.BAR);
         graphics.drawString(font, title, left + 8, top + 6, DevUi.ACCENT, false);
 
         int listTop = listTop(screen);
         List<Entry> shown = filtered();
         scroll = Mth.clamp(scroll, 0, Math.max(0, shown.size() - rows()));
-        graphics.fill(left + 6, listTop - 1, left + WIDTH - 6, top + HEIGHT - 6, 0xFF12151B);
+        graphics.fill(left + 6, listTop - 1, left + WIDTH - 6, top + HEIGHT - 6, DevUi.BACKGROUND);
         if (shown.isEmpty()) {
             graphics.drawString(font, DevUi.text("catalog.empty"), left + 14, listTop + 12, DevUi.MUTED, false);
             return;
@@ -241,7 +241,7 @@ final class Catalog {
             int y = listTop + i * ROW_H;
             if (entry.id().startsWith(SECTION)) {
                 graphics.drawString(font, entry.label(), left + 12, y + 7, DevUi.ACCENT, false);
-                graphics.fill(left + 12, y + ROW_H - 3, left + WIDTH - 12, y + ROW_H - 2, 0xFF37474F);
+                graphics.fill(left + 12, y + ROW_H - 3, left + WIDTH - 12, y + ROW_H - 2, DevUi.CARD_EDGE);
                 continue;
             }
             if (entry.id().startsWith(NOTE)) {
@@ -255,7 +255,7 @@ final class Catalog {
             graphics.renderItem(entry.icon(), left + 10, y + 1);
             graphics.drawString(font, font.plainSubstrByWidth(entry.label(), 155), left + 30, y + 5, hover ? DevUi.WARN : DevUi.TEXT, false);
             String id = font.plainSubstrByWidth(entry.id(), 118);
-            graphics.drawString(font, id, left + WIDTH - 12 - font.width(id), y + 5, 0xFF78909C, false);
+            graphics.drawString(font, id, left + WIDTH - 12 - font.width(id), y + 5, DevUi.MUTED, false);
         }
     }
 

@@ -148,7 +148,7 @@ final class QuestView extends GraphView {
     @Override
     void render(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
-        beginCanvas(screen, graphics, 0xFF181C22);
+        beginCanvas(screen, graphics, 0xFF2A1E15);
         double worldX = worldX(mouseX);
         double worldY = worldY(mouseY);
         graphics.drawString(font, DevUi.text("quest.starts"), 0, 2, DevUi.LABEL, false);

@@ -214,7 +214,13 @@ final class StoryFinder {
                 int color = row.hasError() ? DevUi.ERROR : row.links() == 0 ? DevUi.HINT : DevUi.LABEL;
                 String note = row.links() == 0 ? DevUi.str("search.unused") : DevUi.str("kind." + row.key().type().getPath());
                 int noteW = font.width(note);
-                screen.drawCut(graphics, StoryView.glyph(row.key().type()) + " " + row.title(), left + 8, y + 3, w - 24 - noteW, color);
+                String icon = DevIcons.split(StoryView.glyph(row.key().type())).icon();
+                int textX = left + 8;
+                if (icon != null) {
+                    DevIcons.draw(graphics, icon, textX, y + 2, hover ? DevUi.ACCENT : color);
+                    textX += DevIcons.SIZE + DevIcons.GAP;
+                }
+                screen.drawCut(graphics, row.title(), textX, y + 3, left + w - 16 - noteW - textX, color);
                 graphics.drawString(font, note, left + w - 10 - noteW, y + 3, DevUi.MUTED, false);
             } else {
                 Problem problem = problems.get(i);

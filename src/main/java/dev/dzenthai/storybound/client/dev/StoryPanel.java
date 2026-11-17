@@ -27,8 +27,8 @@ final class StoryPanel {
     static final int STRIP_W = 24;
     /** The strip with the names slid out. */
     private static final int EXPANDED_W = 170;
-    private static final int SLOT = 20;
-    private static final int ROW_STEP = 22;
+    private static final int SLOT = 21;
+    private static final int ROW_STEP = 23;
     private static final int TOP = DevUi.TOP_BAR_H + 4;
 
     /** A chapter to open (the whole story, a chapter, the nodes in none), or "+ Chapter" ({@code chapter} null). */
@@ -111,26 +111,29 @@ final class StoryPanel {
             if (expanded && (open || hover)) {
                 graphics.fill(1, y - 1, width - 2, y + SLOT + 1, open ? DevUi.ROW_SELECTED : DevUi.ROW_HOVER);
             }
-            int slotX = 2;
+            // One pixel on each side within the strip (its edge is its last column).
+            int slotX = 1;
             graphics.fill(slotX, y, slotX + SLOT, y + SLOT, open ? DevUi.ROW_SELECTED : DevUi.CARD);
             int edge = open ? DevUi.ACCENT : hover ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
-            DevUi.horizontal(graphics, slotX, slotX + SLOT - 1, y, edge);
-            DevUi.horizontal(graphics, slotX, slotX + SLOT - 1, y + SLOT - 1, edge);
-            DevUi.vertical(graphics, slotX, y, y + SLOT - 1, edge);
-            DevUi.vertical(graphics, slotX + SLOT - 1, y, y + SLOT - 1, edge);
+            DevUi.frame(graphics, slotX, y, SLOT, SLOT, edge);
             if (!row.icon().isEmpty()) {
                 graphics.renderItem(row.icon(), slotX + 2, y + 2);
             } else {
-                int color = row.chapter() == null ? DevUi.LINK : open ? DevUi.ACCENT : DevUi.LABEL;
-                graphics.drawString(font, row.sign(), slotX + (SLOT - font.width(row.sign())) / 2 + 1, y + 6, color, false);
+                int color = row.chapter() == null ? DevUi.LINK : open ? DevUi.ACCENT : hover ? DevUi.TEXT : DevUi.LABEL;
+                String icon = DevIcons.split(row.sign()).icon();
+                if (icon != null) {
+                    DevIcons.draw(graphics, icon, slotX + (SLOT - DevIcons.SIZE) / 2, y + (SLOT - DevIcons.SIZE) / 2, color);
+                } else {
+                    graphics.drawString(font, row.sign(), slotX + (SLOT - font.width(row.sign())) / 2 + 1, y + 7, color, false);
+                }
             }
             if (expanded) {
                 String count = row.count() >= 0 ? String.valueOf(row.count()) : "";
                 int countW = font.width(count);
                 int nameW = width - SLOT - 14 - countW - 6;
-                graphics.drawString(font, font.plainSubstrByWidth(row.name(), nameW), SLOT + 8, y + 6,
-                        row.chapter() == null ? DevUi.LINK : open ? DevUi.WARN : hover ? 0xFFFFFFFF : DevUi.LABEL, false);
-                graphics.drawString(font, count, width - 8 - countW, y + 6, DevUi.MUTED, false);
+                graphics.drawString(font, font.plainSubstrByWidth(row.name(), nameW), SLOT + 8, y + 7,
+                        row.chapter() == null ? DevUi.LINK : open ? DevUi.WARN : hover ? DevUi.TEXT : DevUi.LABEL, false);
+                graphics.drawString(font, count, width - 8 - countW, y + 7, DevUi.MUTED, false);
             }
         }
         graphics.pose().popPose();
