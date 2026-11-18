@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client.dev;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -108,14 +109,38 @@ abstract class GraphView {
         zoomAt(mouseX, mouseY, amount);
     }
 
-    /** Zooms around the mouse, so the point under it stays put. */
+    /** What the wheel turned and has not yet made a zoom step (a touchpad sends small amounts). */
+    private double wheel;
+
+    /**
+     * Zooms around the mouse, so the point under it stays put, in steps where a canvas pixel is a whole number of the
+     * screen's pixels (November 18, 2026, the author: before, 10% steps made pixel shapes and icons uneven): the zoom is
+     * a multiple of one screen pixel, {@code k / guiScale}, from about 35% to 200%.
+     */
     void zoomAt(double mouseX, double mouseY, double amount) {
+        wheel += amount;
+        int steps = (int) wheel;
+        if (steps == 0) {
+            return;
+        }
+        wheel -= steps;
         float old = zoom;
-        zoom = Mth.clamp(zoom + (float) amount * 0.1f, 0.35f, 2.0f);
+        zoom = zoomStep(zoom, steps, Minecraft.getInstance().getWindow().getGuiScale());
+        if (zoom == old) {
+            return;
+        }
         double relX = mouseX - canvasLeft() - panX;
         double relY = mouseY - DevUi.TOP_BAR_H - panY;
         panX -= relX * (zoom / old - 1.0);
         panY -= relY * (zoom / old - 1.0);
+    }
+
+    /** The zoom {@code steps} whole screen pixels from {@code zoom} (rounded to one first), between 35% and 200%. */
+    static float zoomStep(float zoom, int steps, double guiScale) {
+        int min = Math.max(1, (int) Math.ceil(0.35 * guiScale));
+        int max = Math.max(min, (int) Math.floor(2 * guiScale));
+        int level = Mth.clamp((int) Math.round(zoom * guiScale) + steps, min, max);
+        return (float) (level / guiScale);
     }
 
     /** Moves the canvas so the point is in the middle. */
@@ -128,10 +153,11 @@ abstract class GraphView {
     void beginCanvas(DevModeScreen screen, GuiGraphics graphics, int gridColor) {
         int right = screen.canvasRight();
         graphics.enableScissor(canvasLeft(), DevUi.TOP_BAR_H, right, screen.height);
-        DevUi.grid(graphics, canvasLeft(), DevUi.TOP_BAR_H, right, screen.height, panX, panY, zoom, gridColor);
         graphics.pose().pushPose();
         graphics.pose().translate((float) (canvasLeft() + panX), (float) (DevUi.TOP_BAR_H + panY), 0);
         graphics.pose().scale(zoom, zoom, 1.0f);
+        DevUi.grid(graphics, -panX / zoom, -panY / zoom, (right - canvasLeft() - panX) / zoom,
+                (screen.height - DevUi.TOP_BAR_H - panY) / zoom, zoom, gridColor);
     }
 
     void endCanvas(GuiGraphics graphics) {

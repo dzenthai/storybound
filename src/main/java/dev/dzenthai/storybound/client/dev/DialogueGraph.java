@@ -25,9 +25,10 @@ import org.jetbrains.annotations.Nullable;
 final class DialogueGraph {
     static final String END = "@end";
     static final String EXIT = "@exit";
-    static final int LAYER_GAP = 220;
-    static final int ROW_GAP = 76;
-    static final int MARGIN = 40;
+    /** The automatic layout, on the editor's grid of 24 (November 18, 2026; before, 220, 76 and 40). */
+    static final int LAYER_GAP = 9 * 24;
+    static final int ROW_GAP = 3 * 24;
+    static final int MARGIN = 2 * 24;
 
     /** What an arrow means; the view colours and labels it by this. */
     enum EdgeKind { NEXT, ACTION, OPTION, TIMEOUT, THEN, ELSE, RANDOM, RETURN, JUMP }

@@ -20,9 +20,10 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
@@ -32,10 +33,58 @@ import org.lwjgl.glfw.GLFW;
  * ({@code config/storybound/dialogue_layouts/}), which the game never reads.
  */
 final class DialogueView extends GraphView {
-    static final int NODE_W = 144;
-    static final int NODE_H = 46;
+    /**
+     * A node's box: two cells by two, its shape in the middle, as on the story canvas (November 18, 2026: shapes; that
+     * day first cards of 6 cells by 2, before 144 by 46). The line or what the node does is written under the shape.
+     */
+    static final int NODE_W = 2 * DevUi.GRID;
+    static final int NODE_H = 2 * DevUi.GRID;
+    /** How wide the words under a node are at most. */
+    private static final int TITLE_W = 5 * DevUi.GRID - 4;
 
-    private record Card(String id, String type, String title, String badge, int color, ItemStack icon, int x, int y, boolean start, boolean missingTranslation) {}
+    private record Card(String id, String type, String title, String badge, int color, StoryView.Look look, ItemStack item, int x, int y,
+                        boolean start, boolean missingTranslation) {
+        int cx() {
+            return x + NODE_W / 2;
+        }
+
+        int cy() {
+            return y + NODE_H / 2;
+        }
+
+        boolean holds(double worldX, double worldY) {
+            return NodeShapes.contains(look.shape(), look.radius(), worldX - cx() - 0.5, worldY - cy() - 0.5);
+        }
+
+        int rightX() {
+            return cx() + look.radius() + 1;
+        }
+
+        boolean onPort(double worldX, double worldY) {
+            return Math.abs(worldX - (rightX() - 0.5)) <= 5 && Math.abs(worldY - (cy() + 0.5)) <= 5;
+        }
+
+        /** The point {@code gap} pixels out of its edge towards {@code x, y}. */
+        double[] towards(double x, double y, double gap) {
+            double dx = x - cx() - 0.5;
+            double dy = y - cy() - 0.5;
+            double length = Math.max(1e-6, Math.hypot(dx, dy));
+            double reach = look.radius() + gap;
+            return new double[]{cx() + 0.5 + dx / length * reach, cy() + 0.5 + dy / length * reach};
+        }
+    }
+
+    /**
+     * A dialogue node's shape (November 19, 2026, the author): a line a circle, a choice and a condition a diamond (they
+     * branch), the rest (an action, a random pick, a jump, a call, the end, Start) a square; in it, its kind's item.
+     */
+    private static StoryView.Look look(String type, boolean player) {
+        return switch (type) {
+            case "choice", "condition" -> new StoryView.Look(NodeShapes.Shape.DIAMOND, 15);
+            case "action", "random", "jump", "call", "end", "start" -> new StoryView.Look(NodeShapes.Shape.SQUARE, 11);
+            default -> new StoryView.Look(NodeShapes.Shape.CIRCLE, 13);
+        };
+    }
 
     /** " (dialogue screen)": how another dialogue shows (November 6, 2026); empty when it is not in the story. */
     private static String shownAs(String dialogue) {
@@ -262,11 +311,11 @@ final class DialogueView extends GraphView {
         }
         // Left of the first node until it is moved.
         int[] first = positions.get(start);
-        int[] at = positions.computeIfAbsent(START, key -> first != null ? new int[]{first[0] - NODE_W - 48, first[1]}
+        int[] at = positions.computeIfAbsent(START, key -> first != null ? new int[]{first[0] - NODE_W - 2 * DevUi.GRID, first[1]}
                 : new int[]{DialogueGraph.MARGIN, DialogueGraph.MARGIN});
         boolean known = nodes.has(start);
         cards.add(new Card(START, "start", known ? "→ " + start : DevUi.str("node.start_empty"), DevUi.str("node.start"), DevUi.ACCENT,
-                new ItemStack(Items.LIME_BANNER), at[0], at[1], false, false));
+                look("start", false), new ItemStack(Items.LIME_BANNER), at[0], at[1], false, false));
         List<Edge> all = new ArrayList<>(DialogueGraph.edges(json, ClientDevStore.activeLanguage()));
         if (known) {
             all.add(new Edge(START, start, DialogueGraph.EdgeKind.NEXT, ""));
@@ -287,26 +336,26 @@ final class DialogueView extends GraphView {
                 for (JsonElement option : options) {
                     missing |= translating && option.isJsonObject() && untranslated(option.getAsJsonObject(), language);
                 }
-                yield new Card(id, type, title, DevUi.str("node.choice", options.size()), 0xFFE1B34D, new ItemStack(Items.WRITABLE_BOOK), x, y, start, missing);
+                yield new Card(id, type, title, DevUi.str("node.choice", options.size()), 0xFFE1B34D, look("choice", false), new ItemStack(Items.WRITABLE_BOOK), x, y, start, missing);
             }
             case "condition" -> new Card(id, type, "→ " + (node.has("then") ? node.get("then").getAsString() : DialogueGraph.END),
-                    DevUi.str("node.condition"), 0xFF8E64AE, new ItemStack(Items.COMPARATOR), x, y, start, false);
-            case "action" -> new Card(id, type, "→ " + DialogueGraph.next(node), DevUi.str("node.action"), 0xFFD9785A, new ItemStack(Items.REDSTONE), x, y, start, false);
-            case "random" -> new Card(id, type, chances(node), DevUi.str("node.random"), 0xFFBE96D0, new ItemStack(Items.DISPENSER), x, y, start, false);
+                    DevUi.str("node.condition"), 0xFF8E64AE, look("condition", false), new ItemStack(Items.COMPARATOR), x, y, start, false);
+            case "action" -> new Card(id, type, "→ " + DialogueGraph.next(node), DevUi.str("node.action"), 0xFFD9785A, look("action", false), new ItemStack(Items.REDSTONE), x, y, start, false);
+            case "random" -> new Card(id, type, chances(node), DevUi.str("node.random"), 0xFFBE96D0, look("random", false), new ItemStack(Items.DISPENSER), x, y, start, false);
             // To another dialogue: "→ elder · greet (dialogue screen)", its node and how it shows, as the conversation
             // takes that dialogue's presentation; within this one, the node (its arrow shows it).
             case "jump" -> new Card(id, type, DialogueGraph.jumpsElsewhere(node)
                     ? "→ " + node.get("dialogue").getAsString() + (node.has("node") ? " · " + node.get("node").getAsString() : "") + shownAs(node.get("dialogue").getAsString())
                     : node.has("node") ? node.get("node").getAsString() : DialogueGraph.END,
-                    DevUi.str("node.jump"), 0xFF92AACC, new ItemStack(Items.ENDER_PEARL), x, y, start, false);
+                    DevUi.str("node.jump"), 0xFF92AACC, look("jump", false), new ItemStack(Items.ENDER_PEARL), x, y, start, false);
             case "call" -> new Card(id, type, node.has("dialogue") ? "⤷ " + node.get("dialogue").getAsString() + shownAs(node.get("dialogue").getAsString()) : "?",
-                    DevUi.str("node.call"), 0xFF6480AE, new ItemStack(Items.BELL), x, y, start, false);
-            case "end" -> new Card(id, type, DialogueGraph.END, DevUi.str("node.end"), 0xFFB33A2F, new ItemStack(Items.BARRIER), x, y, start, false);
+                    DevUi.str("node.call"), 0xFF6480AE, look("call", false), new ItemStack(Items.BELL), x, y, start, false);
+            case "end" -> new Card(id, type, DialogueGraph.END, DevUi.str("node.end"), 0xFFB33A2F, look("end", false), new ItemStack(Items.BARRIER), x, y, start, false);
             default -> {
                 boolean player = "player".equalsIgnoreCase(node.has("speaker") ? node.get("speaker").getAsString() : "");
                 String text = ClientDevStore.readStoryText(node, "text", "", language);
                 yield new Card(id, type, text.isBlank() ? DevUi.str("node.empty_line") : text, DevUi.str(player ? "node.player_line" : "node.npc_line"),
-                        player ? 0xFF92AACC : 0xFF708B34, new ItemStack(player ? Items.PLAYER_HEAD : Items.FEATHER), x, y, start,
+                        player ? 0xFF92AACC : 0xFF708B34, look("line", player), new ItemStack(player ? Items.PLAYER_HEAD : Items.FEATHER), x, y, start,
                         translating && untranslated(node, language));
             }
         };
@@ -440,7 +489,9 @@ final class DialogueView extends GraphView {
 
     // --- node edits
 
-    private void createNode(DevModeScreen screen, String type, @Nullable String speaker, int x, int y, @Nullable String linkFrom) {
+    private void createNode(DevModeScreen screen, String type, @Nullable String speaker, int pickedX, int pickedY, @Nullable String linkFrom) {
+        int x = DevUi.snap(pickedX);
+        int y = DevUi.snap(pickedY);
         if (id == null) {
             return;
         }
@@ -462,7 +513,7 @@ final class DialogueView extends GraphView {
 
     private void createLinked(DevModeScreen screen, String from, String type, @Nullable String speaker) {
         int[] pos = positions.getOrDefault(from, new int[]{DialogueGraph.MARGIN, DialogueGraph.MARGIN});
-        createNode(screen, type, speaker, pos[0] + 200, pos[1], from);
+        createNode(screen, type, speaker, pos[0] + DialogueGraph.LAYER_GAP, pos[1], from);
     }
 
     private void connect(DevModeScreen screen, String from, String to) {
@@ -656,6 +707,11 @@ final class DialogueView extends GraphView {
         for (Card card : cards) {
             byId.put(card.id(), card);
         }
+        double worldX = worldX(mouseX);
+        double worldY = worldY(mouseY);
+        boolean idle = onCanvas(screen, mouseX, mouseY) && dragging == null && linkingFrom == null && !screen.modalOpen();
+        Card hovered = idle ? cardAt(worldX, worldY) : null;
+        List<Runnable> words = new ArrayList<>();
         int index = 0;
         for (Edge edge : edges) {
             Card from = byId.get(edge.from());
@@ -663,34 +719,76 @@ final class DialogueView extends GraphView {
                 continue;
             }
             Card to = byId.get(edge.to());
-            int x2 = to != null ? to.x() : from.x() + NODE_W + 48;
-            int y2 = to != null ? to.y() + NODE_H / 2 : from.y() + NODE_H / 2 + ((index % 3) - 1) * 20;
-            boolean lit = edge.from().equals(selected) || edge.to().equals(selected);
+            boolean lit = edge.from().equals(selected) || edge.to().equals(selected)
+                    || hovered != null && (edge.from().equals(hovered.id()) || edge.to().equals(hovered.id()));
             String label = edgeLabel(edge);
             if (to == null && label.isEmpty()) {
                 label = edge.to();
             }
-            DevUi.edge(graphics, font, from.x() + NODE_W, from.y() + NODE_H / 2, x2, y2, lit ? DevUi.WARN : edgeColor(edge.kind()), label, index++);
+            double[] a;
+            double[] b;
+            if (to != null) {
+                a = from.towards(to.cx() + 0.5, to.cy() + 0.5, 4);
+                b = to.towards(from.cx() + 0.5, from.cy() + 0.5, 4);
+            } else {
+                // Nowhere on the canvas (the end, or a node not there): a short line out to the right.
+                double y = from.cy() + 0.5 + ((index % 3) - 1) * 12;
+                a = from.towards(from.cx() + 48, y, 4);
+                b = new double[]{from.cx() + 48, y};
+            }
+            index++;
+            NodeShapes.link(graphics, a[0], a[1], b[0], b[1], lit ? StoryView.GOLD_LIGHT : 0xA0B08031);
+            // A dialogue's links say what they are (an answer, "else", "after a while"): their words always show.
+            if (!label.isEmpty()) {
+                String shown = font.plainSubstrByWidth(label, TITLE_W);
+                int mx = (int) Math.round((a[0] + b[0]) / 2);
+                int my = (int) Math.round((a[1] + b[1]) / 2) + 6;
+                int color = lit ? StoryView.GOLD_LIGHT : DevUi.MUTED;
+                words.add(() -> StoryView.backedText(graphics, font, shown, mx, my, color));
+            }
         }
-        double worldX = worldX(mouseX);
-        double worldY = worldY(mouseY);
         Card source = linkingFrom != null ? byId.get(linkingFrom) : null;
         if (source != null) {
-            DevUi.edge(graphics, font, source.x() + NODE_W, source.y() + NODE_H / 2, (int) worldX, (int) worldY, DevUi.LINK, DevUi.str("edge.link"), 0);
+            double[] a = source.towards(worldX, worldY, 4);
+            NodeShapes.link(graphics, a[0], a[1], worldX, worldY, StoryView.GOLD_LIGHT);
         }
         for (Card card : cards) {
             boolean isSelected = card.id().equals(selected);
-            boolean hovered = DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H);
-            boolean startCard = card.id().equals(START);
-            int border = startCard ? DevUi.ACCENT : isSelected ? DevUi.WARN : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
-            DevUi.card(graphics, font, card.x(), card.y(), NODE_W, NODE_H, border, isSelected || startCard, card.color(),
-                    card.badge(), card.missingTranslation(), card.icon(), card.title(), startCard ? "" : card.id());
+            boolean isHovered = hovered != null && hovered.id().equals(card.id());
+            StoryView.drawNode(graphics, font, card.look(), card.item(), card.cx(), card.cy(), card.title(), TITLE_W, isSelected, false,
+                    isHovered, false, false, card.missingTranslation());
+            if (isHovered || isSelected) {
+                int px = card.rightX();
+                graphics.fill(px - 3, card.cy() - 3, px + 4, card.cy() + 4, DevUi.DARK_TEXT);
+                graphics.fill(px - 2, card.cy() - 2, px + 3, card.cy() + 3, StoryView.GOLD_LIGHT);
+            }
         }
+        words.forEach(Runnable::run);
         endCanvas(graphics);
         renderNodeList(screen, graphics, mouseX, mouseY);
         if (inspectorVisible(screen)) {
             renderInspector(screen, graphics);
         }
+        if (hovered != null) {
+            List<Component> lines = new ArrayList<>();
+            lines.add(Component.literal(hovered.badge()).withColor(DevUi.LABEL));
+            for (FormattedCharSequence line : font.split(Component.literal(hovered.title()), 240)) {
+                lines.add(Component.literal(toString(line)).withColor(DevUi.TEXT));
+            }
+            if (!hovered.id().equals(START)) {
+                lines.add(Component.literal(hovered.id()).withColor(DevUi.HINT));
+            }
+            graphics.renderComponentTooltip(font, lines, mouseX, mouseY);
+        }
+    }
+
+    private static String toString(FormattedCharSequence line) {
+        StringBuilder out = new StringBuilder();
+        line.accept((index, style, codePoint) -> {
+            out.appendCodePoint(codePoint);
+            return true;
+        });
+        return out.toString();
     }
 
     private static String edgeLabel(Edge edge) {
@@ -760,7 +858,7 @@ final class DialogueView extends GraphView {
     private @Nullable Card cardAt(double worldX, double worldY) {
         for (int i = cards.size() - 1; i >= 0; i--) {
             Card card = cards.get(i);
-            if (DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H)) {
+            if (card.holds(worldX, worldY)) {
                 return card;
             }
         }
@@ -811,11 +909,11 @@ final class DialogueView extends GraphView {
         }
         for (int i = cards.size() - 1; i >= 0; i--) {
             Card card = cards.get(i);
-            if (DevUi.onPort(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H)) {
+            if (card.onPort(worldX, worldY)) {
                 linkingFrom = card.id();
                 return true;
             }
-            if (DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H)) {
+            if (card.holds(worldX, worldY)) {
                 // "Start" moves but has nothing to edit.
                 select(screen, card.id().equals(START) ? null : card.id());
                 dragging = card.id();
@@ -877,8 +975,7 @@ final class DialogueView extends GraphView {
     boolean mouseDragged(DevModeScreen screen, double mouseX, double mouseY) {
         if (dragging != null) {
             positions.put(dragging, new int[]{
-                    (int) Math.round((worldX(mouseX) - dragOffsetX) / 8.0) * 8,
-                    (int) Math.round((worldY(mouseY) - dragOffsetY) / 8.0) * 8});
+                    DevUi.snap(worldX(mouseX) - dragOffsetX), DevUi.snap(worldY(mouseY) - dragOffsetY)});
             rebuildCards();
             return true;
         }

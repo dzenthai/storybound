@@ -5,11 +5,13 @@ import dev.dzenthai.storybound.core.story.StoryLinks;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
@@ -20,15 +22,33 @@ import org.lwjgl.glfw.GLFW;
  * else is shown selected on the "All links" canvas.
  */
 final class QuestView extends GraphView {
-    private static final int COLUMN = StoryView.NODE_W + 44;
-    private static final int GAP = 8;
+    /** A stage's width, and a column's: the stage and the gap to the next (November 18, 2026: before, a card's width). */
+    private static final int STAGE_W = 6 * DevUi.GRID;
+    private static final int COLUMN = STAGE_W + 2 * DevUi.GRID;
+    /** From one node to the next under a stage: its box, its title, a little air. */
+    private static final int NODE_STEP = StoryView.NODE_H + 16;
     private static final int LINE = 10;
+    /** How wide a node's title is at most here. */
+    private static final int TITLE_W = STAGE_W - 8;
 
-    /** A card on the canvas: a node, with how it relates. */
-    private record Card(NodeKey key, String relation, int x, int y) {}
+    /**
+     * A node on the canvas, with how it relates: its box's top left (the shape in its middle, as on the story canvas).
+     */
+    private record Card(NodeKey key, String relation, int x, int y) {
+        int cx() {
+            return x + StoryView.NODE_W / 2;
+        }
 
-    /** A stage's box: its place and height. */
-    private record StageBox(QuestOutline.Stage stage, int x, int y, int height) {}
+        int cy() {
+            return y + StoryView.NODE_H / 2;
+        }
+    }
+
+    /** A stage's box: its place and height, and its lines (the log line and the objectives, wrapped to its width). */
+    private record StageBox(QuestOutline.Stage stage, int x, int y, int height, List<Line> lines) {}
+
+    /** A line of a stage's box, in its colour. */
+    private record Line(FormattedCharSequence text, int color) {}
 
     private @Nullable ResourceLocation id;
     private QuestOutline.@Nullable Outline outline;
@@ -111,39 +131,61 @@ final class QuestView extends GraphView {
         if (shown == null) {
             return;
         }
+        // A node sits in the middle of its column.
+        int inColumn = (STAGE_W - StoryView.NODE_W) / 2;
         int y = 16;
         for (NodeKey start : shown.starts()) {
-            cards.add(new Card(start, "start", 0, y));
-            y += StoryView.NODE_H + GAP;
+            cards.add(new Card(start, "start", inColumn, y));
+            y += NODE_STEP;
         }
         if (!shown.during().isEmpty()) {
             y += 16;
             for (QuestOutline.Attached item : shown.during()) {
-                cards.add(new Card(item.key(), "during", 0, y));
-                y += StoryView.NODE_H + GAP;
+                cards.add(new Card(item.key(), "during", inColumn, y));
+                y += NODE_STEP;
             }
         }
         int x = COLUMN;
         for (QuestOutline.Stage stage : shown.stages()) {
-            int height = 28 + Math.max(1, stage.objectives().size()) * LINE;
-            stages.add(new StageBox(stage, x, 16, height));
-            int below = 16 + height + 24;
+            List<Line> lines = stageLines(stage);
+            int height = 18 + lines.size() * LINE;
+            stages.add(new StageBox(stage, x, 16, height, lines));
+            int below = 16 + height + 20;
             for (QuestOutline.Attached item : stage.attached()) {
-                cards.add(new Card(item.key(), item.relation(), x, below));
-                below += StoryView.NODE_H + GAP;
+                cards.add(new Card(item.key(), item.relation(), x + inColumn, below));
+                below += NODE_STEP;
             }
             x += COLUMN;
         }
         afterX = x;
         y = 16;
         for (QuestOutline.Attached item : shown.after()) {
-            cards.add(new Card(item.key(), item.relation(), afterX, y));
-            y += StoryView.NODE_H + GAP;
+            cards.add(new Card(item.key(), item.relation(), afterX + inColumn, y));
+            y += NODE_STEP;
         }
     }
 
     @Override
     void saveEdits(DevModeScreen screen) {}
+
+    /** A node's look, as the story canvas draws it. */
+    private static StoryView.Look look(Card card) {
+        return StoryView.look(card.key().type(), ClientDevStore.parseObject(ClientDevStore.getJson(card.key().type(), card.key().id())));
+    }
+
+    private static boolean holds(Card card, double worldX, double worldY) {
+        StoryView.Look look = look(card);
+        return NodeShapes.contains(look.shape(), look.radius(), worldX - card.cx() - 0.5, worldY - card.cy() - 0.5);
+    }
+
+    /** The point {@code gap} pixels out of a node's edge towards {@code x, y}. */
+    private static double[] towards(Card card, double x, double y, double gap) {
+        double dx = x - card.cx() - 0.5;
+        double dy = y - card.cy() - 0.5;
+        double length = Math.max(1e-6, Math.hypot(dx, dy));
+        double reach = look(card).radius() + gap;
+        return new double[]{card.cx() + 0.5 + dx / length * reach, card.cy() + 0.5 + dy / length * reach};
+    }
 
     @Override
     void render(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
@@ -151,64 +193,126 @@ final class QuestView extends GraphView {
         beginCanvas(screen, graphics, 0xFF2A1E15);
         double worldX = worldX(mouseX);
         double worldY = worldY(mouseY);
-        graphics.drawString(font, DevUi.text("quest.starts"), 0, 2, DevUi.LABEL, false);
-        graphics.drawString(font, DevUi.text("quest.after"), afterX, 2, DevUi.LABEL, false);
+        boolean idle = onCanvas(screen, mouseX, mouseY) && !screen.modalOpen();
+        Card hovered = null;
+        for (Card card : cards) {
+            if (idle && holds(card, worldX, worldY)) {
+                hovered = card;
+            }
+        }
+        StoryView.backedText(graphics, font, DevUi.str("quest.starts"), STAGE_W / 2, 2, DevUi.LABEL);
+        StoryView.backedText(graphics, font, DevUi.str("quest.after"), afterX + STAGE_W / 2, 2, DevUi.LABEL);
+        // An empty column says what could be there, so it does not look like something failed to show.
+        boolean anyStart = cards.stream().anyMatch(card -> card.x() < COLUMN);
+        boolean anyAfter = cards.stream().anyMatch(card -> card.x() >= afterX);
+        if (!anyStart) {
+            hint(graphics, font, "quest.starts_none", 0);
+        }
+        if (!anyAfter) {
+            hint(graphics, font, "quest.after_none", afterX);
+        }
+        int quiet = 0xCCB08031;
         // Starts lead into the first stage, each stage into its next, the last one into what follows.
         StageBox first = stages.isEmpty() ? null : stages.getFirst();
-        int index = 0;
         for (Card card : cards) {
             if (card.relation().equals("start") && first != null) {
-                DevUi.edge(graphics, font, card.x() + StoryView.NODE_W, card.y() + StoryView.NODE_H / 2, first.x(), first.y() + 10, DevUi.LINK, "", index++);
+                double[] a = towards(card, first.x(), first.y() + 10, 4);
+                NodeShapes.link(graphics, a[0], a[1], first.x() - 3, first.y() + 10.5, quiet);
             }
         }
         for (StageBox box : stages) {
             String next = box.stage().next();
             StageBox target = stages.stream().filter(other -> other.stage().id().equals(next)).findFirst().orElse(null);
+            double fromX = box.x() + STAGE_W + 3;
             if (target != null) {
-                DevUi.edge(graphics, font, box.x() + StoryView.NODE_W, box.y() + 10, target.x(), target.y() + 10, DevUi.NEUTRAL, "", index++);
+                NodeShapes.link(graphics, fromX, box.y() + 10.5, target.x() - 3, target.y() + 10.5, quiet);
             } else if (next.equals("@complete")) {
-                DevUi.edge(graphics, font, box.x() + StoryView.NODE_W, box.y() + 10, afterX, 22, DevUi.OK, "✔", index++);
+                NodeShapes.link(graphics, fromX, box.y() + 10.5, afterX - 3, box.y() + 10.5, 0xCCA5B574);
+                StoryView.backedText(graphics, font, "✔ " + DevUi.str("quest.completed"), (int) (fromX + afterX) / 2, box.y() + 16, DevUi.OK);
             } else if (next.equals("@fail")) {
-                graphics.drawString(font, "✘", box.x() + StoryView.NODE_W + 4, box.y() + 6, DevUi.BAD, false);
+                graphics.drawString(font, "✘ " + DevUi.str("quest.failed"), (int) fromX + 4, box.y() + 6, DevUi.BAD, false);
+            }
+            // What the stage touches hangs under it, one under the other.
+            double lastY = box.y() + box.height() + 3;
+            for (Card card : cards) {
+                if (card.x() == box.x() + (STAGE_W - StoryView.NODE_W) / 2) {
+                    double top = card.cy() + 0.5 - look(card).radius() - 4;
+                    NodeShapes.link(graphics, card.cx() + 0.5, lastY, card.cx() + 0.5, top, 0x80775025);
+                    lastY = card.cy() + look(card).radius() + 17;
+                }
             }
             renderStage(graphics, font, box);
         }
         for (Card card : cards) {
-            // What a stage touches hangs under it on a line.
-            stages.stream().filter(box -> box.x() == card.x()).findFirst().ifPresent(box -> {
-                DevUi.vertical(graphics, box.x() - 6, box.y() + box.height(), card.y() + StoryView.NODE_H / 2, DevUi.CARD_EDGE);
-                DevUi.horizontal(graphics, box.x() - 6, card.x(), card.y() + StoryView.NODE_H / 2, DevUi.CARD_EDGE);
-            });
-            JsonObject json = ClientDevStore.parseObject(ClientDevStore.getJson(card.key().type(), card.key().id()));
-            boolean hovered = DevUi.inside(worldX, worldY, card.x(), card.y(), StoryView.NODE_W, StoryView.NODE_H);
             boolean missing = ClientDevStore.getJson(card.key().type(), card.key().id()) == null;
-            DevUi.card(graphics, font, card.x(), card.y(), StoryView.NODE_W, StoryView.NODE_H, missing ? DevUi.BAD : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE,
-                    false, StoryView.color(card.key().type(), json), StoryView.glyph(card.key().type()) + " " + DevUi.str("quest.relation." + card.relation()),
-                    false, StoryView.icon(card.key(), json), StoryView.displayTitle(card.key(), json), card.key().id().toString());
+            JsonObject json = ClientDevStore.parseObject(ClientDevStore.getJson(card.key().type(), card.key().id()));
+            StoryView.drawNode(graphics, font, look(card), StoryView.icon(card.key(), json), card.cx(), card.cy(), title(card), TITLE_W,
+                    false, false, card.equals(hovered), false, missing, false);
         }
         endCanvas(graphics);
         renderStageList(screen, graphics, mouseX, mouseY);
+        if (hovered != null) {
+            graphics.renderComponentTooltip(font, tooltip(hovered), mouseX, mouseY);
+        }
     }
 
-    /** A stage: its id and log line on top, its objectives under it. */
+    /** A quiet line under an empty column's heading, wrapped to the column. */
+    private static void hint(GuiGraphics graphics, Font font, String key, int columnX) {
+        int y = 20;
+        for (FormattedCharSequence line : font.split(DevUi.text(key), STAGE_W - 8)) {
+            graphics.drawString(font, line, columnX + (STAGE_W - font.width(line)) / 2, y, DevUi.HINT, false);
+            y += LINE;
+        }
+    }
+
+    private static String title(Card card) {
+        String raw = ClientDevStore.getJson(card.key().type(), card.key().id());
+        return raw == null ? card.key().id().getPath() : StoryView.displayTitle(card.key(), ClientDevStore.parseObject(raw));
+    }
+
+    /** A hovered node: how it relates to the quest, its title, its id. */
+    private static List<Component> tooltip(Card card) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.literal(title(card)).withColor(DevUi.TEXT));
+        lines.add(Component.literal(StoryView.glyph(card.key().type()) + " " + DevUi.str("quest.relation." + card.relation())).withColor(DevUi.LABEL));
+        lines.add(Component.literal(card.key().id().toString()).withColor(DevUi.HINT));
+        if (ClientDevStore.getJson(card.key().type(), card.key().id()) == null) {
+            lines.add(DevUi.text("quest.missing", card.key().id().toString()).copy().withColor(DevUi.ERROR));
+        }
+        return lines;
+    }
+
+    /**
+     * A stage's lines, wrapped to its box (November 19, 2026; before, cut at its edge: "No objectives: an action m"):
+     * the log line, then each objective, or that there is none.
+     */
+    private static List<Line> stageLines(QuestOutline.Stage stage) {
+        Font font = Minecraft.getInstance().font;
+        List<Line> lines = new ArrayList<>();
+        String log = translated(stage.log());
+        font.split(Component.literal(log.isEmpty() ? "—" : log), STAGE_W - 8).forEach(line -> lines.add(new Line(line, DevUi.MUTED)));
+        if (stage.objectives().isEmpty()) {
+            font.split(DevUi.text("quest.no_objectives"), STAGE_W - 8).forEach(line -> lines.add(new Line(line, DevUi.HINT)));
+        }
+        for (QuestOutline.Objective objective : stage.objectives()) {
+            String text = translated(objective.text());
+            font.split(Component.literal("• " + (text.isEmpty() ? objective.id() : text)), STAGE_W - 8)
+                    .forEach(line -> lines.add(new Line(line, DevUi.TEXT)));
+        }
+        return lines;
+    }
+
+    /** A stage: a quiet frame, its id on top, its log line, its objectives under it. */
     private static void renderStage(GuiGraphics graphics, Font font, StageBox box) {
         int x = box.x();
         int y = box.y();
-        int w = StoryView.NODE_W;
-        graphics.fill(x - 1, y - 1, x + w + 1, y + box.height() + 1, DevUi.ACCENT);
-        graphics.fill(x, y, x + w, y + box.height(), DevUi.CARD);
-        graphics.fill(x, y, x + w, y + 12, DevUi.ACCENT);
-        graphics.drawString(font, font.plainSubstrByWidth("▣ " + box.stage().id(), w - 8), x + 4, y + 2, DevUi.DARK_TEXT, false);
-        String log = translated(box.stage().log());
-        graphics.drawString(font, font.plainSubstrByWidth(log.isEmpty() ? "—" : log, w - 8), x + 4, y + 15, DevUi.MUTED, false);
-        int line = y + 15 + LINE;
-        if (box.stage().objectives().isEmpty()) {
-            graphics.drawString(font, font.plainSubstrByWidth(DevUi.str("quest.no_objectives"), w - 8), x + 4, line, DevUi.HINT, false);
-        }
-        for (QuestOutline.Objective objective : box.stage().objectives()) {
-            String text = translated(objective.text());
-            String label = "• " + (text.isEmpty() ? objective.id() : text);
-            graphics.drawString(font, font.plainSubstrByWidth(label, w - 8), x + 4, line, DevUi.TEXT, false);
+        int w = STAGE_W;
+        graphics.fill(x - 1, y - 1, x + w + 1, y + box.height() + 1, StoryView.OCHRE);
+        graphics.fill(x, y, x + w, y + box.height(), StoryView.NODE_FILL);
+        graphics.drawString(font, font.plainSubstrByWidth("▣ " + box.stage().id(), w - 8), x + 4, y + 3, StoryView.GOLD, false);
+        int line = y + 15;
+        for (Line text : box.lines()) {
+            graphics.drawString(font, text.text(), x + 4, line, text.color(), false);
             line += LINE;
         }
     }
@@ -239,7 +343,7 @@ final class QuestView extends GraphView {
             int row = ((int) mouseY - (DevUi.TOP_BAR_H + 24)) / 20;
             if (row >= 0 && row < stages.size()) {
                 StageBox box = stages.get(row);
-                centerOn(screen, box.x() + StoryView.NODE_W / 2.0, box.y() + box.height() / 2.0);
+                centerOn(screen, box.x() + STAGE_W / 2.0, box.y() + box.height() / 2.0);
                 return true;
             }
             return false;
@@ -251,7 +355,7 @@ final class QuestView extends GraphView {
         double worldY = worldY(mouseY);
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             for (Card card : cards) {
-                if (DevUi.inside(worldX, worldY, card.x(), card.y(), StoryView.NODE_W, StoryView.NODE_H)) {
+                if (holds(card, worldX, worldY)) {
                     go(screen, card.key());
                     return true;
                 }

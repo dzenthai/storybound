@@ -6,6 +6,10 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "icon": {
+      "type": "string",
+      "description": "Dev mode only: the item this node shows on the editor's canvases (an item id, e.g. minecraft:compass). The game does not read it; without it, the kind's own item."
+    },
     "order": {
       "description": "random: one at random, never the same twice in a row. sequence: top to bottom, then the last one again (lines that build up: \"Careful!\", \"Last warning!\"). loop: top to bottom, then from the top again (chatter going round).",
       "enum": ["random", "sequence", "loop"],

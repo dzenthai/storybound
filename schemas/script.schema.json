@@ -6,6 +6,10 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "icon": {
+      "type": "string",
+      "description": "Dev mode only: the item this node shows on the editor's canvases (an item id, e.g. minecraft:compass). The game does not read it; without it, the kind's own item."
+    },
     "title": { "$ref": "logic.schema.json#/definitions/story_text" },
     "description": { "description": "A note for the pack's authors: what the script does.", "type": "string" },
     "file": { "description": "The script, under kubejs/server_scripts/ on the server, e.g. storybound/mypack/burn_village.js.", "type": "string" },

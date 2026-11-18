@@ -7,6 +7,10 @@
   "required": ["entity", "title"],
   "additionalProperties": false,
   "properties": {
+    "icon": {
+      "type": "string",
+      "description": "Dev mode only: the item this node shows on the editor's canvases (an item id, e.g. minecraft:compass). The game does not read it; without it, the kind's own item."
+    },
     "entity": { "$ref": "logic.schema.json#/definitions/entity_selector" },
     "title": { "$ref": "logic.schema.json#/definitions/story_text" },
     "lore": { "description": "Opens on seen by default.", "$ref": "#/definitions/part" },

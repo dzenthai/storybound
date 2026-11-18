@@ -7,6 +7,10 @@
   "required": ["start", "nodes"],
   "additionalProperties": false,
   "properties": {
+    "icon": {
+      "type": "string",
+      "description": "Dev mode only: the item this node shows on the editor's canvases (an item id, e.g. minecraft:compass). The game does not read it; without it, the kind's own item."
+    },
     "presentation": {
       "description": "screen: a blocking dialogue screen. hud: subtitles, the player keeps moving (a choice still opens the screen). bubble: speech bubble above the speaker's head.",
       "enum": ["screen", "hud", "bubble"],

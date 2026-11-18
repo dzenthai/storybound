@@ -32,11 +32,12 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
@@ -52,8 +53,14 @@ import org.lwjgl.glfw.GLFW;
  * writes the link into the first one's JSON ({@link StoryEdits#link}).
  */
 final class StoryView extends GraphView {
-    static final int NODE_W = 136;
-    static final int NODE_H = 42;
+    /**
+     * A node's box: two cells of the grid by two, its shape centred in it (November 18, 2026: shapes as in FTB Quests;
+     * before, cards of 6 cells by 2, and that day first 136 by 42), its title under it, its badges under the title.
+     */
+    static final int NODE_W = 2 * DevUi.GRID;
+    static final int NODE_H = 2 * DevUi.GRID;
+    /** How wide a node's title is at most, under it. */
+    private static final int TITLE_W = 4 * DevUi.GRID - 4;
     private static final long DOUBLE_CLICK_MS = 350;
     /** How often the shown player's progress is asked for again, in ticks. */
     private static final int PROGRESS_REFRESH = 40;
@@ -62,8 +69,8 @@ final class StoryView extends GraphView {
             ClientDevStore.TYPE_SCRIPT, ClientDevStore.TYPE_DOCUMENT, ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_WAYPOINT, ClientDevStore.TYPE_BOSS,
             ClientDevStore.TYPE_CODEX, ClientDevStore.TYPE_EVENT);
     /** The map's grid for quests not placed by hand: a column per step of the story. */
-    private static final int MAP_COLUMN_W = 190;
-    private static final int MAP_ROW_H = 64;
+    private static final int MAP_COLUMN_W = 5 * DevUi.GRID;
+    private static final int MAP_ROW_H = 4 * DevUi.GRID;
     /** A badge under a node of the map: one of its own nodes. */
     private static final int BADGE_W = 11;
     private static final int BADGE_H = 11;
@@ -99,20 +106,134 @@ final class StoryView extends GraphView {
     /**
      * A card on a canvas.
      *
-     * @param subtitle  the second line: the id
+     * @param subtitle  the id, in its tooltip
+     * @param badge     what kind of node it is, in its tooltip
+     * @param look      its shape and size
+     * @param item      its icon: the author's (its {@code icon}) or its kind's
      * @param own       on the map, the nodes that belong to it, drawn as badges under it
      * @param selfStart a quest that starts by its own trigger, not given by anything on the canvas
      */
-    record Card(NodeKey key, String title, String subtitle, String badge, int color, ItemStack icon, int x, int y, boolean hasError,
-                boolean missingTranslation, List<NodeKey> own, boolean selfStart) {
-        Card(NodeKey key, String title, String subtitle, String badge, int color, ItemStack icon, int x, int y, boolean hasError,
-             boolean missingTranslation) {
-            this(key, title, subtitle, badge, color, icon, x, y, hasError, missingTranslation, List.of(), false);
+    record Card(NodeKey key, String title, String subtitle, String badge, int color, Look look, ItemStack item, int x, int y,
+                boolean hasError, boolean missingTranslation, List<NodeKey> own, boolean selfStart) {
+        Card(NodeKey key, String title, String subtitle, String badge, int color, Look look, ItemStack item, int x, int y,
+             boolean hasError, boolean missingTranslation) {
+            this(key, title, subtitle, badge, color, look, item, x, y, hasError, missingTranslation, List.of(), false);
         }
 
         Card withOwn(List<NodeKey> nodes, boolean starts) {
-            return new Card(key, title, subtitle, badge, color, icon, x, y, hasError, missingTranslation, nodes, starts);
+            return new Card(key, title, subtitle, badge, color, look, item, x, y, hasError, missingTranslation, nodes, starts);
         }
+
+        /** The pixel its shape is centred on. */
+        int cx() {
+            return x + NODE_W / 2;
+        }
+
+        int cy() {
+            return y + NODE_H / 2;
+        }
+
+        boolean holds(double worldX, double worldY) {
+            return NodeShapes.contains(look.shape(), look.radius(), worldX - cx() - 0.5, worldY - cy() - 0.5);
+        }
+
+        /** The point {@code gap} pixels out of its edge towards {@code x, y} (canvas units), where a link to there starts. */
+        double[] towards(double x, double y, double gap) {
+            double dx = x - cx() - 0.5;
+            double dy = y - cy() - 0.5;
+            double length = Math.max(1e-6, Math.hypot(dx, dy));
+            double reach = look.radius() + gap;
+            return new double[]{cx() + 0.5 + dx / length * reach, cy() + 0.5 + dy / length * reach};
+        }
+
+        /** Where its links leave (right) or enter (left). */
+        /** Its right edge, where its link port is. */
+        int rightX() {
+            return cx() + look.radius() + 1;
+        }
+
+        /** On its link port, the small square on its right corner that a link is dragged from. */
+        boolean onPort(double worldX, double worldY) {
+            return Math.abs(worldX - (rightX() - 0.5)) <= 5 && Math.abs(worldY - (cy() + 0.5)) <= 5;
+        }
+    }
+
+    /**
+     * A node's look by its kind (November 18, 2026, the author): a quest a diamond, the main ones larger, a contract a
+     * triangle; a boss a triangle; a story event a circle, and in "all links" every other kind a smaller circle. The
+     * rune is the kind's icon (a quest's by its category).
+     */
+    record Look(NodeShapes.Shape shape, int radius) {}
+
+    /**
+     * A node's shape by its kind (November 19, 2026, the author, as in FTB Quests: the shape tells the kind, the item
+     * the node): a quest or a contract a diamond (a main quest larger), a story event or a script a circle, an NPC or a
+     * boss a hexagon, a dialogue, phrases, a document or a Codex entry a square, a waypoint a triangle, apex down.
+     */
+    static Look look(ResourceLocation type, JsonObject json) {
+        if (type.equals(ClientDevStore.TYPE_QUEST)) {
+            return new Look(NodeShapes.Shape.DIAMOND, "main".equals(category(json)) ? 18 : 15);
+        }
+        if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
+            return new Look(NodeShapes.Shape.TRIANGLE, 15);
+        }
+        if (type.equals(ClientDevStore.TYPE_NPC) || type.equals(ClientDevStore.TYPE_BOSS)) {
+            return new Look(NodeShapes.Shape.HEXAGON, 13);
+        }
+        if (type.equals(ClientDevStore.TYPE_DIALOGUE) || type.equals(ClientDevStore.TYPE_PHRASES) || type.equals(ClientDevStore.TYPE_DOCUMENT)
+                || type.equals(ClientDevStore.TYPE_CODEX)) {
+            return new Look(NodeShapes.Shape.SQUARE, 11);
+        }
+        return new Look(NodeShapes.Shape.CIRCLE, 13);
+    }
+
+    /**
+     * A node's icon: the item the author picked for it (its {@code icon}, which only the editor reads; November 19,
+     * 2026), else its kind's.
+     */
+    static ItemStack icon(NodeKey key, JsonObject json) {
+        if (json.get("icon") instanceof com.google.gson.JsonPrimitive picked && picked.isString()) {
+            ResourceLocation id = ResourceLocation.tryParse(picked.getAsString());
+            if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
+                return new ItemStack(BuiltInRegistries.ITEM.get(id));
+            }
+        }
+        return kindIcon(key, json);
+    }
+
+    /** A kind's own icon, where the author picked none. */
+    static ItemStack kindIcon(NodeKey key, JsonObject json) {
+        ResourceLocation type = key.type();
+        if (type.equals(ClientDevStore.TYPE_PHRASES)) {
+            return new ItemStack(Items.NAME_TAG);
+        }
+        if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
+            return new ItemStack(Items.COMMAND_BLOCK);
+        }
+        if (type.equals(ClientDevStore.TYPE_DOCUMENT)) {
+            DocumentDefinition definition = DocumentRegistries.DOCUMENTS.clientStore().getOrNull(key.id());
+            return Documents.createStack(key.id(), definition);
+        }
+        if (type.equals(ClientDevStore.TYPE_QUEST)) {
+            return new ItemStack(switch (category(json)) {
+                case "contract" -> Items.PAPER;
+                case "main" -> Items.ENCHANTED_BOOK;
+                default -> Items.WRITABLE_BOOK;
+            });
+        }
+        if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
+            return new ItemStack("bubble".equals(presentation(json)) ? Items.FEATHER : Items.GOAT_HORN);
+        }
+        if (type.equals(ClientDevStore.TYPE_NPC)) {
+            return new ItemStack(Items.EMERALD);
+        }
+        if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
+            return new ItemStack(Items.COMPASS);
+        }
+        if (type.equals(ClientDevStore.TYPE_BOSS)) {
+            return new ItemStack(Items.IRON_SWORD);
+        }
+        return new ItemStack(type.equals(ClientDevStore.TYPE_CODEX) ? Items.BOOK : Items.REDSTONE);
     }
 
     /** A badge under a card: one of its own nodes, or "+N" for the rest ({@code node} null). */
@@ -333,8 +454,8 @@ final class StoryView extends GraphView {
             int row = 0;
             for (Map.Entry<ResourceLocation, String> entry : definitions.entrySet()) {
                 NodeKey key = new NodeKey(type, entry.getKey());
-                int x = column * 185 + 20;
-                int y = row * 72 + 20;
+                int x = column * 5 * DevUi.GRID + DevUi.GRID;
+                int y = row * 3 * DevUi.GRID + DevUi.GRID;
                 int[] pos = positions.computeIfAbsent(key, k -> new int[]{x, y});
                 cards.add(card(key, ClientDevStore.parseObject(entry.getValue()), key.id().getPath(), pos[0], pos[1]));
                 row++;
@@ -380,10 +501,10 @@ final class StoryView extends GraphView {
         Map<Integer, Integer> rows = new HashMap<>();
         for (NodeKey node : unplaced) {
             int column = columns.getOrDefault(node, 0);
-            int x = column * MAP_COLUMN_W + 20;
+            int x = column * MAP_COLUMN_W + DevUi.GRID;
             int y;
             do {
-                y = rows.merge(column, 1, Integer::sum) * MAP_ROW_H - MAP_ROW_H + 20;
+                y = rows.merge(column, 1, Integer::sum) * MAP_ROW_H - MAP_ROW_H + DevUi.GRID;
             } while (occupied(x, y));
             positions.put(node, new int[]{x, y});
             cards.add(mapCard(node, own, x, y));
@@ -420,7 +541,7 @@ final class StoryView extends GraphView {
     }
 
     private Card card(NodeKey key, JsonObject json, String subtitle, int x, int y) {
-        return new Card(key, displayTitle(key, json), subtitle, badge(key.type(), json), color(key.type(), json), icon(key, json), x, y,
+        return new Card(key, displayTitle(key, json), subtitle, badge(key.type(), json), color(key.type(), json), look(key.type(), json), icon(key, json), x, y,
                 !ClientDevStore.issuesFor(key.type(), key.id()).isEmpty() || scriptBroken(key),
                 !ClientDevStore.isNodeFullyTranslated(key, json, ClientDevStore.activeLanguage()));
     }
@@ -562,40 +683,6 @@ final class StoryView extends GraphView {
             return 0xFFB33A2F;
         }
         return type.equals(ClientDevStore.TYPE_CODEX) ? 0xFF6480AE : 0xFFD9785A;
-    }
-
-    static ItemStack icon(NodeKey key, JsonObject json) {
-        ResourceLocation type = key.type();
-        if (type.equals(ClientDevStore.TYPE_PHRASES)) {
-            return new ItemStack(Items.NAME_TAG);
-        }
-        if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
-            return new ItemStack(Items.COMMAND_BLOCK);
-        }
-        if (type.equals(ClientDevStore.TYPE_DOCUMENT)) {
-            DocumentDefinition definition = DocumentRegistries.DOCUMENTS.clientStore().getOrNull(key.id());
-            return Documents.createStack(key.id(), definition);
-        }
-        if (type.equals(ClientDevStore.TYPE_QUEST)) {
-            return new ItemStack(switch (category(json)) {
-                case "contract" -> Items.PAPER;
-                case "main" -> Items.ENCHANTED_BOOK;
-                default -> Items.WRITABLE_BOOK;
-            });
-        }
-        if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
-            return new ItemStack("bubble".equals(presentation(json)) ? Items.FEATHER : Items.GOAT_HORN);
-        }
-        if (type.equals(ClientDevStore.TYPE_NPC)) {
-            return new ItemStack(Items.EMERALD);
-        }
-        if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
-            return new ItemStack(Items.COMPASS);
-        }
-        if (type.equals(ClientDevStore.TYPE_BOSS)) {
-            return new ItemStack(Items.IRON_SWORD);
-        }
-        return new ItemStack(type.equals(ClientDevStore.TYPE_CODEX) ? Items.BOOK : Items.REDSTONE);
     }
 
     // --- selection and saving
@@ -987,8 +1074,10 @@ final class StoryView extends GraphView {
     }
 
     /** Saves a new definition, puts it on the canvas (and the open chapter, when the canvas shows it) and selects it. */
-    private void place(DevModeScreen screen, NodeTemplates.Created definition, int x, int y) {
+    private void place(DevModeScreen screen, NodeTemplates.Created definition, int pickedX, int pickedY) {
         NodeKey key = definition.key();
+        int x = DevUi.snap(pickedX);
+        int y = DevUi.snap(pickedY);
         String json = DevUi.GSON.toJson(definition.json());
         select(screen, null);
         positions.put(key, new int[]{x, y});
@@ -1022,10 +1111,10 @@ final class StoryView extends GraphView {
     /** Creates a node next to another and links them; with {@code reverse} the new node links to the old one. */
     private void createLinked(DevModeScreen screen, NodeKey source, Template template, boolean reverse) {
         int[] from = positions.getOrDefault(source, new int[]{menuWorldX, menuWorldY});
-        int x = reverse ? from[0] - 180 : from[0] + 180;
+        int x = reverse ? from[0] - 5 * DevUi.GRID : from[0] + 5 * DevUi.GRID;
         int y = from[1];
         for (int attempt = 0; attempt < 12 && occupied(x, y); attempt++) {
-            y += 54;
+            y += 4 * DevUi.GRID;
         }
         menuWorldX = x;
         menuWorldY = y;
@@ -1037,7 +1126,8 @@ final class StoryView extends GraphView {
 
     private boolean occupied(int x, int y) {
         for (Card card : cards) {
-            if (Math.abs(card.x() - x) < NODE_W - 10 && Math.abs(card.y() - y) < NODE_H + 6) {
+            // A node with its title (4 cells wide) and badges: 4 cells by 3.
+            if (Math.abs(card.x() - x) < 4 * DevUi.GRID && Math.abs(card.y() - y) < 3 * DevUi.GRID) {
                 return true;
             }
         }
@@ -1353,7 +1443,7 @@ final class StoryView extends GraphView {
         }
         JsonObject json = ClientDevStore.parseObject(before);
         if (in) {
-            int[] pos = positions.getOrDefault(quest, new int[]{20, 20});
+            int[] pos = positions.getOrDefault(quest, new int[]{DevUi.GRID, DevUi.GRID});
             Chapters.place(chapterId, json, quest, pos[0], pos[1]);
         } else {
             Map<NodeKey, int[]> placed = Chapters.positions(json);
@@ -1451,8 +1541,8 @@ final class StoryView extends GraphView {
             screen.status(DevUi.text("status.drop_not_spine"), DevUi.WARN);
             return;
         }
-        int x = (int) Math.round((worldX(mouseX) - NODE_W / 2.0) / 8.0) * 8;
-        int y = (int) Math.round((worldY(mouseY) - NODE_H / 2.0) / 8.0) * 8;
+        int x = DevUi.snap(worldX(mouseX) - NODE_W / 2.0);
+        int y = DevUi.snap(worldY(mouseY) - NODE_H / 2.0);
         boolean realChapter = !Chapters.hidden(storyChapter) && !UNSORTED.equals(storyChapter);
         if (realChapter && !chapterNodes.contains(key)) {
             positions.put(key, new int[]{x, y});
@@ -1508,7 +1598,14 @@ final class StoryView extends GraphView {
         }
     }
 
-    /** A quest card's mark on the progress layer: dimmed while the player does not know it, else its state and stage. */
+    /** Whether the progress layer shows a quest the player does not know yet: drawn dim. */
+    private boolean unknownToPlayer(Card card) {
+        String player = progressOf;
+        return player != null && card.key().type().equals(ClientDevStore.TYPE_QUEST) && ClientDevStore.hasProgress(player)
+                && ClientDevStore.progress(player, card.key().id()) == null;
+    }
+
+    /** A quest's mark on the progress layer, above its shape: its state and stage. */
     private void renderProgress(GuiGraphics graphics, Font font, Card card) {
         String player = progressOf;
         if (player == null || !card.key().type().equals(ClientDevStore.TYPE_QUEST) || !ClientDevStore.hasProgress(player)) {
@@ -1516,7 +1613,6 @@ final class StoryView extends GraphView {
         }
         QuestProgress progress = ClientDevStore.progress(player, card.key().id());
         if (progress == null) {
-            graphics.fill(card.x(), card.y(), card.x() + NODE_W, card.y() + NODE_H, 0x99000000);
             return;
         }
         String mark = switch (progress.status()) {
@@ -1529,10 +1625,10 @@ final class StoryView extends GraphView {
             case FAILED -> DevUi.ERROR;
             case ACTIVE -> DevUi.ACCENT;
         };
-        String shown = font.plainSubstrByWidth(mark, NODE_W - 8);
+        String shown = font.plainSubstrByWidth(mark, TITLE_W - 6);
         int width = font.width(shown) + 6;
-        int x = card.x() + NODE_W - width;
-        int y = card.y() - 11;
+        int x = card.cx() - width / 2;
+        int y = card.cy() - card.look().radius() - 13;
         graphics.fill(x, y, x + width, y + 10, color);
         graphics.drawString(font, shown, x + 3, y + 1, DevUi.DARK_TEXT, false);
     }
@@ -1608,8 +1704,13 @@ final class StoryView extends GraphView {
     /** The badges under a card of the map: its own nodes, "+N" for the rest; a quest starting by itself gets ⚡ first. */
     private static List<Badge> badges(Card card, Font font) {
         List<Badge> list = new ArrayList<>();
-        int x = card.x();
-        int y = card.y() + NODE_H + 2;
+        int y = card.y() + NODE_H + 12;
+        // Centred under the node: their whole width first.
+        int count = (card.selfStart() ? 1 : 0) + Math.min(card.own().size(), MAX_BADGES);
+        boolean more = card.own().size() > MAX_BADGES;
+        int total = count == 0 ? 0 : (more ? (count - 1) * (BADGE_W + 1) + font.width("+" + (card.own().size() - MAX_BADGES + 1)) + 4
+                : count * (BADGE_W + 1) - 1);
+        int x = card.cx() - total / 2;
         if (card.selfStart()) {
             list.add(new Badge(card, x, y, BADGE_W, null, List.of()));
             x += BADGE_W + 1;
@@ -1679,38 +1780,48 @@ final class StoryView extends GraphView {
                 }
             }
         }
-        int index = 0;
+        List<Runnable> words = new ArrayList<>();
         for (Arrow arrow : arrows) {
             Card from = byKey.get(arrow.from());
             Card to = byKey.get(arrow.to());
             if (from != null && to != null) {
                 boolean bright = focus != null ? arrow.from().equals(focus.key()) || arrow.to().equals(focus.key())
                         : selection.contains(arrow.from()) || selection.contains(arrow.to()) || arrow.from().equals(selected) || arrow.to().equals(selected);
-                int color = bright ? DevUi.WARN : focus != null ? 0xFF3A2A1C : 0xFF865332;
-                DevUi.edge(graphics, font, from.x() + NODE_W, from.y() + NODE_H / 2, to.x(), to.y() + NODE_H / 2,
-                        color, bright ? arrow.litLabel() : focus != null ? "" : arrow.label(), index++);
+                int color = bright ? GOLD_LIGHT : focus != null ? DevUi.blend(OCHRE_DARK, DevUi.BACKGROUND, 0.35f) : 0x8C775025;
+                double[] a = from.towards(to.cx() + 0.5, to.cy() + 0.5, 4);
+                double[] b = to.towards(from.cx() + 0.5, from.cy() + 0.5, 4);
+                // Straight and quiet, always there; their words only while lit (November 18, 2026).
+                NodeShapes.link(graphics, a[0], a[1], b[0], b[1], color);
+                String label = bright ? arrow.litLabel() : "";
+                if (!label.isEmpty()) {
+                    int mx = (int) Math.round((a[0] + b[0]) / 2);
+                    int my = (int) Math.round((a[1] + b[1]) / 2) + 6;
+                    words.add(() -> backedText(graphics, font, label, mx, my, GOLD_LIGHT));
+                }
             }
         }
         Card source = linkingFrom != null ? byKey.get(linkingFrom) : null;
         if (source != null) {
-            DevUi.edge(graphics, font, source.x() + NODE_W, source.y() + NODE_H / 2, (int) worldX, (int) worldY, DevUi.LINK, DevUi.str("edge.link"), 0);
+            double[] a = source.towards(worldX, worldY, 4);
+            NodeShapes.link(graphics, a[0], a[1], worldX, worldY, GOLD_LIGHT);
         }
         Badge hoveredBadge = idle ? badgeAt(worldX, worldY, font) : null;
         for (Card card : cards) {
             boolean primary = card.key().equals(selected);
             boolean multi = selection.contains(card.key());
-            boolean hovered = DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H);
-            int border = card.hasError() ? DevUi.ERROR : primary ? DevUi.ACCENT : multi ? DevUi.WARN : hovered ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
-            DevUi.card(graphics, font, card.x(), card.y(), NODE_W, NODE_H, border, primary || multi, card.color(), card.badge(),
-                    card.missingTranslation(), card.icon(), card.title(), card.subtitle());
-            if (tab == Tab.STORY) {
+            boolean hovered = focus != null && focus.key().equals(card.key());
+            boolean dim = focus != null && !lit.contains(card.key()) || tab == Tab.STORY && unknownToPlayer(card);
+            boolean problem = card.hasError() || card.own().stream().anyMatch(StoryView::hasProblem);
+            renderNode(graphics, font, card, primary, multi, hovered, dim, problem);
+            if (tab == Tab.STORY && !dim) {
                 renderProgress(graphics, font, card);
-                renderBadges(graphics, font, card, hoveredBadge);
             }
-            if (focus != null && !lit.contains(card.key())) {
-                graphics.fill(card.x() - 1, card.y() - 1, card.x() + NODE_W + 1, card.y() + NODE_H + BADGE_H + 4, 0xB01A140F);
+            if (tab == Tab.STORY) {
+                renderBadges(graphics, font, card, hoveredBadge, dim);
             }
         }
+        // The lit links' words over the nodes, so a node never hides them.
+        words.forEach(Runnable::run);
         if (boxSelecting) {
             int x1 = (int) Math.min(boxStartX, boxEndX);
             int y1 = (int) Math.min(boxStartY, boxEndY);
@@ -1734,19 +1845,105 @@ final class StoryView extends GraphView {
         }
         if (hoveredBadge != null) {
             graphics.renderTooltip(font, font.split(badgeTooltip(hoveredBadge), 240), mouseX, mouseY);
+        } else if (focus != null) {
+            graphics.renderComponentTooltip(font, nodeTooltip(focus), mouseX, mouseY);
         }
     }
 
+    static final int GOLD_GLINT = 0xFFFFF4C4;
+    static final int GOLD_LIGHT = 0xFFFFE08A;
+    static final int GOLD = 0xFFE1B34D;
+    static final int OCHRE = 0xFFB08031;
+    static final int OCHRE_DARK = 0xFF775025;
+    /** A selected node's inside: a warm lighter brown, so its item still reads. */
+    static final int SELECTED_FILL = 0xFF483020;
+    /** A node's inside: a little lighter than the ground. */
+    static final int NODE_FILL = 0xFF251B14;
+
+    /**
+     * A node (November 18, 2026, with the author, after the skill trees of their references): a dark shape in a thin
+     * bronze ring (a main quest's gold, red when it or one of its own nodes has a problem), its gold icon, its title
+     * under it on a patch of the ground, so links pass under the words. Hovered: a warm glow, the ring and the icon a
+     * step lighter, its link port. Selected: the shape gold, its icon dark. Dim (another node hovered and this one not
+     * linked with it, or a quest the player does not know yet): ring, icon and title faded.
+     */
+    private void renderNode(GuiGraphics graphics, Font font, Card card, boolean primary, boolean multi, boolean hovered, boolean dim,
+                            boolean problem) {
+        drawNode(graphics, font, card.look(), card.item(), card.cx(), card.cy(), card.title(), TITLE_W, primary, multi, hovered, dim,
+                problem, card.missingTranslation());
+        if (hovered || primary) {
+            int px = card.rightX();
+            graphics.fill(px - 3, card.cy() - 3, px + 4, card.cy() + 4, DevUi.DARK_TEXT);
+            graphics.fill(px - 2, card.cy() - 2, px + 3, card.cy() + 3, GOLD_LIGHT);
+        }
+    }
+
+    /**
+     * A node as every canvas draws it (the story's, a quest's inside, a dialogue's; November 19, 2026, in the manner of
+     * FTB Quests): its shape centred on the pixel {@code cx, cy}, dark, in a thin bronze ring (gold when selected or
+     * hovered, red when it or one of its own nodes has a problem), its item in the middle, its title under it
+     * ({@code titleWidth} at most) on a patch of the ground. Hovered: a warm glow and the shape lit over its item.
+     * Dim: the shape shaded over its item, its title faded.
+     */
+    static void drawNode(GuiGraphics graphics, Font font, Look look, ItemStack item, int cx, int cy, String title, int titleWidth,
+                         boolean primary, boolean multi, boolean hovered, boolean dim, boolean problem, boolean missingTranslation) {
+        int ringColor = problem ? DevUi.ERROR : primary ? GOLD_GLINT : hovered || multi ? GOLD_LIGHT : OCHRE;
+        int glow = hovered ? 0x66E1B34D : 0;
+        NodeShapes.draw(graphics, look.shape(), look.radius(), cx, cy, glow, primary ? SELECTED_FILL : NODE_FILL, ringColor);
+        graphics.pose().pushPose();
+        // The item behind the canvas's own overlays and words (an item is drawn far in front otherwise).
+        graphics.pose().translate(0.5f, 0.5f - NodeShapes.iconLift(look.shape(), look.radius()), -140);
+        graphics.renderItem(item, cx - 8, cy - 8);
+        graphics.pose().popPose();
+        if (hovered) {
+            NodeShapes.overlay(graphics, look.shape(), look.radius(), cx, cy, 0x30FFF4C4);
+        } else if (dim) {
+            NodeShapes.overlay(graphics, look.shape(), look.radius(), cx, cy, 0x99140E0A);
+        }
+        if (missingTranslation) {
+            int dot = cx + look.radius() - 2;
+            graphics.fill(dot, cy - look.radius(), dot + 3, cy - look.radius() + 3, DevUi.WARN);
+        }
+        if (!title.isEmpty()) {
+            String shown = font.plainSubstrByWidth(title, titleWidth);
+            int titleColor = hovered || primary ? DevUi.TEXT : dim ? DevUi.blend(DevUi.LABEL, DevUi.BACKGROUND, 0.5f) : DevUi.LABEL;
+            backedText(graphics, font, shown, cx, cy + look.radius() + 5, titleColor);
+        }
+    }
+
+    /** Words centred on {@code cx}, on a patch of the canvas's ground (lines under them stop at its edge). */
+    static void backedText(GuiGraphics graphics, Font font, String text, int cx, int y, int color) {
+        int w = font.width(text);
+        int x = cx - w / 2 + 1;
+        graphics.fill(x - 2, y - 2, x + w + 1, y + 9, DevUi.BACKGROUND);
+        graphics.drawString(font, text, x, y, color, false);
+    }
+
+    /** What a hovered node is: its whole title, its kind, its id, its first problem. */
+    private static List<Component> nodeTooltip(Card card) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.literal(card.title()).withColor(DevUi.TEXT));
+        lines.add(Component.literal(card.badge()).withColor(card.color()));
+        lines.add(Component.literal(card.key().id().toString()).withColor(DevUi.HINT));
+        List<String> issues = ClientDevStore.issuesFor(card.key().type(), card.key().id());
+        if (!issues.isEmpty()) {
+            lines.add(Component.literal("⚠ " + issues.getFirst()).withColor(DevUi.ERROR));
+        }
+        return lines;
+    }
+
     /** A card's badges: each node's sign, a red dot on one with a problem, the hovered one lit. */
-    private void renderBadges(GuiGraphics graphics, Font font, Card card, @Nullable Badge hovered) {
-        boolean anyProblem = false;
+    private void renderBadges(GuiGraphics graphics, Font font, Card card, @Nullable Badge hovered, boolean dim) {
         for (Badge badge : badges(card, font)) {
             boolean lit = hovered != null && hovered.card().equals(card) && hovered.x() == badge.x()
                     || badge.node() != null && (badge.node().equals(selected) || selection.contains(badge.node()));
+            float k = dim ? 0.35f : 1f;
             graphics.fill(badge.x(), badge.y(), badge.x() + badge.width(), badge.y() + BADGE_H, lit ? DevUi.ROW_SELECTED : DevUi.CARD);
-            graphics.fill(badge.x(), badge.y() + BADGE_H - 1, badge.x() + badge.width(), badge.y() + BADGE_H, lit ? DevUi.WARN : DevUi.CARD_EDGE);
+            graphics.fill(badge.x(), badge.y() + BADGE_H - 1, badge.x() + badge.width(), badge.y() + BADGE_H,
+                    DevUi.blend(lit ? DevUi.WARN : DevUi.CARD_EDGE, DevUi.BACKGROUND, k));
             String sign = badge.node() != null ? glyph(badge.node().type()) : badge.rest().isEmpty() ? "⚡" : "+" + badge.rest().size();
-            int signColor = badge.node() == null && badge.rest().isEmpty() ? DevUi.WARN : lit ? DevUi.ACCENT : DevUi.LABEL;
+            int signColor = DevUi.blend(badge.node() == null && badge.rest().isEmpty() ? DevUi.WARN : lit ? DevUi.ACCENT : DevUi.LABEL,
+                    DevUi.CARD, k);
             String icon = DevIcons.split(sign).icon();
             if (icon != null) {
                 DevIcons.draw(graphics, icon, badge.x() + (badge.width() - DevIcons.SIZE) / 2, badge.y() + 1, signColor);
@@ -1756,12 +1953,7 @@ final class StoryView extends GraphView {
             boolean problem = badge.node() != null ? hasProblem(badge.node()) : badge.rest().stream().anyMatch(StoryView::hasProblem);
             if (problem) {
                 graphics.fill(badge.x() + badge.width() - 3, badge.y(), badge.x() + badge.width(), badge.y() + 3, DevUi.ERROR);
-                anyProblem = true;
             }
-        }
-        if (anyProblem && !card.hasError()) {
-            // Something of its own has a problem: a dot on the node too, so it is seen from afar.
-            graphics.fill(card.x() + NODE_W - 5, card.y() + 1, card.x() + NODE_W - 1, card.y() + 5, DevUi.ERROR);
         }
     }
 
@@ -1785,7 +1977,7 @@ final class StoryView extends GraphView {
     private @Nullable Card cardAt(double worldX, double worldY) {
         for (int i = cards.size() - 1; i >= 0; i--) {
             Card card = cards.get(i);
-            if (DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H)) {
+            if (card.holds(worldX, worldY)) {
                 return card;
             }
         }
@@ -1822,11 +2014,11 @@ final class StoryView extends GraphView {
         }
         for (int i = cards.size() - 1; i >= 0; i--) {
             Card card = cards.get(i);
-            if (DevUi.onPort(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H)) {
+            if (card.onPort(worldX, worldY)) {
                 linkingFrom = card.key();
                 return true;
             }
-            if (DevUi.inside(worldX, worldY, card.x(), card.y(), NODE_W, NODE_H)) {
+            if (card.holds(worldX, worldY)) {
                 clickCard(screen, card, worldX, worldY);
                 return true;
             }
@@ -2056,10 +2248,11 @@ final class StoryView extends GraphView {
         if (dragging != null) {
             int[] anchor = dragStart.get(dragging);
             if (anchor != null) {
-                // Snapped to an 8-pixel grid; every selected card moves by the same amount.
-                int dx = (int) Math.round((worldX(mouseX) - dragOffsetX) / 8.0) * 8 - anchor[0];
-                int dy = (int) Math.round((worldY(mouseY) - dragOffsetY) / 8.0) * 8 - anchor[1];
-                dragStart.forEach((key, start) -> positions.put(key, new int[]{start[0] + dx, start[1] + dy}));
+                // The grabbed card snaps to the grid and the others move with it, each onto the grid too (one placed
+                // off it before November 18, 2026 lands on it at the first move).
+                int dx = DevUi.snap(worldX(mouseX) - dragOffsetX) - anchor[0];
+                int dy = DevUi.snap(worldY(mouseY) - dragOffsetY) - anchor[1];
+                dragStart.forEach((key, start) -> positions.put(key, new int[]{DevUi.snap(start[0] + dx), DevUi.snap(start[1] + dy)}));
             }
             rebuildCards();
             return true;

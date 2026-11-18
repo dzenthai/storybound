@@ -8,7 +8,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /** Layout, colours, texts and drawing shared by the dev mode screen and its views. */
@@ -102,63 +101,46 @@ final class DevUi {
         graphics.drawString(font, font.plainSubstrByWidth(label, LEFT_PANEL_W - 16), 8, y + 5, color, false);
     }
 
-    /** The canvas grid, moving with the pan and scaled with the zoom. */
-    static void grid(GuiGraphics graphics, int left, int top, int right, int bottom, double panX, double panY, float zoom, int color) {
-        int step = Math.max(12, Math.round(24 * zoom));
-        int offsetX = ((int) Math.round(panX) % step + step) % step;
-        int offsetY = ((int) Math.round(panY) % step + step) % step;
-        for (int x = left + offsetX; x < right; x += step) {
-            graphics.fill(x, top, x + 1, bottom, color);
-        }
-        for (int y = top + offsetY; y < bottom; y += step) {
-            graphics.fill(left, y, right, y + 1, color);
-        }
+    /** {@code color} laid over {@code under} at {@code amount} (0 to 1), opaque: for dimmed and glowing shapes. */
+    static int blend(int color, int under, float amount) {
+        int r = Math.round(((under >> 16) & 255) + (((color >> 16) & 255) - ((under >> 16) & 255)) * amount);
+        int g = Math.round(((under >> 8) & 255) + (((color >> 8) & 255) - ((under >> 8) & 255)) * amount);
+        int b = Math.round((under & 255) + ((color & 255) - (under & 255)) * amount);
+        return 0xFF000000 | r << 16 | g << 8 | b;
     }
 
-    /** A node on a canvas: a coloured header with the badge, an icon, the title and the id, and the link port on the right. */
-    static void card(GuiGraphics graphics, Font font, int x, int y, int width, int height, int border, boolean thick, int color,
-                     String badge, boolean missingTranslation, ItemStack icon, String title, String subtitle) {
-        int pad = thick ? 2 : 1;
-        graphics.fill(x - pad, y - pad, x + width + pad, y + height + pad, border);
-        graphics.fill(x, y, x + width, y + height, CARD);
-        graphics.fill(x, y, x + width, y + 12, color);
-        graphics.drawString(font, font.plainSubstrByWidth(badge, width - 20), x + 4, y + 2, DARK_TEXT, false);
-        if (missingTranslation) {
-            graphics.fill(x + width - 14, y + 2, x + width - 6, y + 10, WARN);
+    /** A cell of the canvas grid, in canvas units. */
+    static final int GRID = 24;
+    /** Where nodes snap to: a line of the grid or the middle of a cell (November 18, 2026; before, 8 against lines every 24). */
+    static final int SNAP = GRID / 2;
+
+    /** A canvas position on the snap grid. */
+    static int snap(double value) {
+        return (int) Math.round(value / SNAP) * SNAP;
+    }
+
+    /**
+     * The canvas grid over the canvas area {@code minX..maxX}, {@code minY..maxY}, in canvas units, drawn in the
+     * canvas's own coordinates (November 18, 2026): a line at {@code x} is filled just as a card's left edge at
+     * {@code x} is, so at any zoom and pan a snapped card's frame lies on the lines. Before, the lines were placed in
+     * screen pixels with a rounded step and pan, and drifted off the cards away from the middle. Every second line goes
+     * while the cells would be under 10 pixels; at the farthest zooms a line is two units wide so it does not vanish.
+     */
+    static void grid(GuiGraphics graphics, double minX, double minY, double maxX, double maxY, float zoom, int color) {
+        int step = GRID;
+        while (step * zoom < 10) {
+            step *= 2;
         }
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, -140);
-        graphics.renderItem(icon, x + 4, y + 18);
-        graphics.pose().popPose();
-        graphics.drawString(font, font.plainSubstrByWidth(title, width - 28), x + 24, y + 17, TEXT, false);
-        graphics.drawString(font, font.plainSubstrByWidth(subtitle, width - 28), x + 24, y + 28, MUTED, false);
-        int portX = x + width - 3;
-        int portY = y + height / 2 - 3;
-        graphics.fill(portX - 1, portY - 1, portX + 7, portY + 7, DARK_TEXT);
-        graphics.fill(portX, portY, portX + 6, portY + 6, WARN);
-    }
-
-    /** Whether a canvas point is on a card's link port. */
-    static boolean onPort(double x, double y, int cardX, int cardY, int width, int height) {
-        int portX = cardX + width - 6;
-        int portY = cardY + height / 2 - 6;
-        return x >= portX && x <= portX + 12 && y >= portY && y <= portY + 12;
-    }
-
-    /** An arrow in three straight segments; parallel arrows get their own lane so they stay apart. */
-    static void edge(GuiGraphics graphics, Font font, int x1, int y1, int x2, int y2, int color, String label, int index) {
-        int lane = ((index % 5) - 2) * 5;
-        int midX = x2 >= x1 ? Math.min(x1 + 24 + lane, (x1 + x2) / 2 + lane) : (x1 + x2) / 2 + lane;
-        horizontal(graphics, x1, midX, y1, color);
-        vertical(graphics, midX, y1, y2, color);
-        horizontal(graphics, midX, x2, y2, color);
-        graphics.fill(x2 - 5, y2 - 3, x2, y2 + 3, color);
-        if (!label.isEmpty()) {
-            int width = font.width(label);
-            int labelX = midX - width / 2;
-            int labelY = (y1 + y2) / 2 - 4 + ((index % 3) - 1) * 7;
-            graphics.fill(labelX - 2, labelY - 1, labelX + width + 2, labelY + 9, 0xDD1A140F);
-            graphics.drawString(font, label, labelX, labelY, color == WARN ? WARN : NEUTRAL, false);
+        int width = zoom < 0.5f ? 2 : 1;
+        int left = (int) Math.floor(minX);
+        int top = (int) Math.floor(minY);
+        int right = (int) Math.ceil(maxX);
+        int bottom = (int) Math.ceil(maxY);
+        for (int x = Math.floorDiv(left, step) * step; x <= right; x += step) {
+            graphics.fill(x, top, x + width, bottom, color);
+        }
+        for (int y = Math.floorDiv(top, step) * step; y <= bottom; y += step) {
+            graphics.fill(left, y, right, y + width, color);
         }
     }
 

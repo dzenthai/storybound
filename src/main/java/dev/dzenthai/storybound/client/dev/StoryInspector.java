@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client.dev;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -170,10 +171,11 @@ final class StoryInspector {
 
     /** Fields edited elsewhere (the canvas, a dialogue's graph) or kept out of the form. */
     private static Set<String> hidden(ResourceLocation type) {
+        // A node's icon is picked by the button left of its name, not in the form (November 19, 2026).
         if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
-            return Set.of("nodes", "start");
+            return Set.of("nodes", "start", "icon");
         }
-        return type.equals(ClientDevStore.TYPE_CHAPTER) ? Set.of("nodes") : Set.of();
+        return type.equals(ClientDevStore.TYPE_CHAPTER) ? Set.of("nodes") : Set.of("icon");
     }
 
     void addWidgets(DevModeScreen screen) {
@@ -252,7 +254,8 @@ final class StoryInspector {
             renameFor = key;
             renameText = key.id().getPath();
         }
-        EditBox box = new EditBox(screen.font(), x, y + 1, w - 22, 14, DevUi.text("rename.label"));
+        iconButton(screen, key, x, y);
+        EditBox box = new EditBox(screen.font(), x + 20, y + 1, w - 42, 14, DevUi.text("rename.label"));
         box.setMaxLength(256);
         box.setValue(renameText != null ? renameText : key.id().getPath());
         Button apply = Button.builder(Component.literal("✓"), b -> {
@@ -273,6 +276,79 @@ final class StoryInspector {
         apply.active = problem.isEmpty();
         screen.add(box);
         screen.add(apply);
+    }
+
+    /**
+     * The node's icon, left of its name (November 19, 2026, the author, as in FTB Quests): the item its shape shows on
+     * the canvases. A click lists every item, its kind's own first; the pick is the node's {@code icon}, which only the
+     * editor reads, saved at once.
+     */
+    private void iconButton(DevModeScreen screen, NodeKey key, int x, int y) {
+        JsonObject json = view.editing;
+        if (json == null) {
+            return;
+        }
+        ItemStack shown = StoryView.icon(key, json);
+        IconButton button = new IconButton(x, y, shown, () -> pickIcon(screen, key));
+        button.setTooltip(Tooltip.create(DevUi.text("node_icon.tooltip", shown.getHoverName().getString())));
+        screen.add(button);
+    }
+
+    private void pickIcon(DevModeScreen screen, NodeKey key) {
+        JsonObject json = view.editing;
+        if (json == null) {
+            return;
+        }
+        List<Catalog.Entry> entries = new ArrayList<>();
+        ItemStack own = StoryView.kindIcon(key, json);
+        entries.add(new Catalog.Entry("", DevUi.str("node_icon.default", own.getHoverName().getString()), own));
+        BuiltInRegistries.ITEM.entrySet().stream()
+                .filter(entry -> entry.getValue() != Items.AIR)
+                .sorted(java.util.Comparator.comparing(entry -> entry.getKey().location().toString()))
+                .forEach(entry -> entries.add(new Catalog.Entry(entry.getKey().location().toString(),
+                        entry.getValue().getDescription().getString(), new ItemStack(entry.getValue()))));
+        screen.catalog().openList(DevUi.text("node_icon.pick"), entries, (kind, entry) -> {
+            if (!key.equals(view.selected) || view.editing == null) {
+                return;
+            }
+            if (entry.id().isEmpty()) {
+                view.editing.remove("icon");
+            } else {
+                view.editing.addProperty("icon", entry.id());
+            }
+            view.save(screen);
+            screen.rebuild();
+        });
+    }
+
+    /** A square button showing an item, in the editor's flat look. */
+    private static final class IconButton extends net.minecraft.client.gui.components.AbstractButton {
+        private final ItemStack item;
+        private final Runnable action;
+
+        IconButton(int x, int y, ItemStack item, Runnable action) {
+            super(x, y, 18, 16, Component.empty());
+            this.item = item;
+            this.action = action;
+        }
+
+        @Override
+        public void onPress() {
+            action.run();
+        }
+
+        @Override
+        protected void renderWidget(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+            boolean hover = isHoveredOrFocused();
+            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? DevUi.ROW_HOVER : DevUi.CARD);
+            DevUi.frame(graphics, getX(), getY(), width, height, hover ? DevUi.ACCENT : DevUi.CARD_EDGE);
+            graphics.renderItem(item, getX() + 1, getY());
+        }
+
+        @Override
+        protected void updateWidgetNarration(net.minecraft.client.gui.narration.NarrationElementOutput output) {
+            defaultButtonNarrationText(output);
+        }
     }
 
     private Optional<StoryRenames.Problem> renameProblem(NodeKey key) {
