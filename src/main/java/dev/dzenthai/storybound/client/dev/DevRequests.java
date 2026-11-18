@@ -15,6 +15,8 @@ final class DevRequests {
     private DevRequests() {}
 
     static void send(CustomPacketPayload payload) {
+        // Counted: the snapshots say how many arrived, so the editor knows which of its writes they answer.
+        ClientDevStore.sending();
         PacketDistributor.sendToServer(new DevProjectPayloads.Edit(ClientDevStore.projectId(), payload));
     }
 
@@ -56,9 +58,12 @@ final class DevRequests {
     static void delete(ResourceLocation type, ResourceLocation id) {
         boolean draftOnly = ClientDevStore.isDraft(type, id) && !ClientDevStore.onServer(type, id);
         ClientDevStore.dropDraft(type, id);
+        // Gone here at once, and kept gone over the snapshots answering earlier requests (November 19, 2026: deleting
+        // several nodes quickly, the ones not yet deleted on the server came back without their places, which the
+        // chapter no longer had, lined up in the automatic layout, then vanished one snapshot later).
+        ClientDevStore.removeLocal(type, id);
         if (draftOnly) {
             // The server never had it.
-            ClientDevStore.removeLocal(type, id);
             return;
         }
         DevRequests.send(new DevModePayloads.DeleteDefinition(type, id));

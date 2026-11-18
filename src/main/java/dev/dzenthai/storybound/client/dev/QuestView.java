@@ -64,7 +64,7 @@ final class QuestView extends GraphView {
         id = quest;
         panX = 40;
         panY = 30;
-        zoom = 1.0f;
+        setZoom(1.0f);
         reload();
     }
 
@@ -190,7 +190,7 @@ final class QuestView extends GraphView {
     @Override
     void render(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
-        beginCanvas(screen, graphics, 0xFF2A1E15);
+        beginCanvas(screen, graphics, DevUi.GRID_LINE);
         double worldX = worldX(mouseX);
         double worldY = worldY(mouseY);
         boolean idle = onCanvas(screen, mouseX, mouseY) && !screen.modalOpen();

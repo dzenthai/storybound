@@ -63,6 +63,8 @@ public final class Storybound {
         StoryboundDataEvents.register(NeoForge.EVENT_BUS);
         HeadlessValidation.register(NeoForge.EVENT_BUS);
         StoryDebug.register(NeoForge.EVENT_BUS);
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) ->
+                dev.dzenthai.storybound.core.dev.DevModeServer.forget(event.getEntity().getUUID()));
         StateEvents.register(NeoForge.EVENT_BUS);
         LogicEvents.register(NeoForge.EVENT_BUS);
         DocumentEvents.register(NeoForge.EVENT_BUS);

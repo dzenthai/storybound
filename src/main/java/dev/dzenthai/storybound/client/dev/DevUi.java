@@ -15,23 +15,40 @@ final class DevUi {
     static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     static final int LEFT_PANEL_W = 148;
-    static final int RIGHT_PANEL_W = 220;
+    /**
+     * The inspector's width, by the screen's (November 19, 2026, the author: wider; the left panel stays as it was):
+     * about a third of it, never narrower than before (220) nor wider than 320. Set by {@link #fitPanels} whenever the
+     * dev mode screen is laid out.
+     */
+    static int RIGHT_PANEL_W = 220;
+
+    static void fitPanels(int screenWidth) {
+        RIGHT_PANEL_W = Math.max(220, Math.min(320, Math.round(screenWidth * 0.31f)));
+    }
+
     static final int TOP_BAR_H = 24;
 
+    // The editor's colours, the palette's (UiPalette) gold side (November 19, 2026, the author: the browns and tans of
+    // before, SHADOW, INK, TAN, read reddish): panels and canvas one warm dark (CHARCOAL), parted by bronze lines
+    // (OCHRE_DARK), labels light gold (PAPER_SHADE), quieter words ochre; red only for problems.
     static final int BACKGROUND = 0xFF1A140F;
-    static final int BAR = 0xFF2A1E15;
-    static final int PANEL = 0xFF2A1E15;
-    static final int PANEL_EDGE = 0xFF3A2A1C;
-    static final int ROW_SELECTED = 0xFF483020;
-    static final int ROW_HOVER = 0xFF3A2A1C;
-    static final int CARD = 0xFF2A1E15;
-    static final int CARD_EDGE = 0xFF483020;
+    static final int BAR = 0xFF1A140F;
+    static final int PANEL = 0xFF1A140F;
+    static final int PANEL_EDGE = 0xFF775025;
+    static final int ROW_SELECTED = 0xFF775025;
+    /** Between the bronze and the dark: four tenths of the way. */
+    static final int ROW_HOVER = 0xFF3F2C18;
+    static final int CARD = 0xFF1A140F;
+    static final int CARD_EDGE = 0xFF775025;
+    /** The canvas grid: the bronze, three tenths over the dark. */
+    static final int GRID_LINE = 0xFF362616;
     static final int DARK_TEXT = 0xFF1A140F;
     static final int ACCENT = 0xFFE1B34D;
     static final int TEXT = 0xFFF5DFB2;
-    static final int LABEL = 0xFFCDA269;
-    static final int MUTED = 0xFFB78957;
-    static final int HINT = 0xFFAF7846;
+    static final int LABEL = 0xFFE6C68C;
+    static final int MUTED = 0xFFB08031;
+    /** Half way between the ochre and the dark ochre. */
+    static final int HINT = 0xFF8C6A35;
     static final int DETAIL = 0xFF92AACC;
     static final int OK = 0xFFA5B574;
     static final int GOOD = 0xFFA5B574;

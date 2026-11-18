@@ -1481,7 +1481,7 @@ final class StoryView extends GraphView {
         double[] view = views.getOrDefault(next, new double[]{40, 30, 1});
         panX = view[0];
         panY = view[1];
-        zoom = (float) view[2];
+        setZoom((float) view[2]);
         tab = next;
         loadChapter();
         rebuildCards();
@@ -1759,7 +1759,7 @@ final class StoryView extends GraphView {
 
     private void renderCanvas(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
-        beginCanvas(screen, graphics, 0xFF2A1E15);
+        beginCanvas(screen, graphics, DevUi.GRID_LINE);
         Map<NodeKey, Card> byKey = new HashMap<>();
         for (Card card : cards) {
             byKey.put(card.key(), card);
@@ -1856,7 +1856,7 @@ final class StoryView extends GraphView {
     static final int OCHRE = 0xFFB08031;
     static final int OCHRE_DARK = 0xFF775025;
     /** A selected node's inside: a warm lighter brown, so its item still reads. */
-    static final int SELECTED_FILL = 0xFF483020;
+    static final int SELECTED_FILL = 0xFF3F2C18;
     /** A node's inside: a little lighter than the ground. */
     static final int NODE_FILL = 0xFF251B14;
 

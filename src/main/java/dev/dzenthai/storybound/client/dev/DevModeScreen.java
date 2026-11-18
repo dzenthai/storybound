@@ -128,6 +128,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     protected void init() {
+        DevUi.fitPanels(width);
         selectWorkspace();
         ClientDevStore.setListener(() -> minecraft.execute(this::onSnapshot));
         DevRequests.requestSnapshot();

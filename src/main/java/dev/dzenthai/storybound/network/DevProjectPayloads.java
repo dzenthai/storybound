@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.network;
 
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.dev.ClientDevStore;
+import dev.dzenthai.storybound.core.dev.DevModeServer;
 import dev.dzenthai.storybound.core.dev.DevProjects;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
 import io.netty.buffer.ByteBuf;
@@ -96,8 +97,16 @@ public final class DevProjectPayloads {
         public Type<Edit> type() { return TYPE; }
 
         public static void handleOnServer(Edit payload, IPayloadContext context) {
-            if (context.player() instanceof ServerPlayer player && DevProjects.accepts(player, payload.project())) {
+            if (!(context.player() instanceof ServerPlayer player)) {
+                return;
+            }
+            // Counted whether it is taken or not: the snapshots say how many arrived (DevModeServer.received).
+            DevModeServer.received(player);
+            if (DevProjects.accepts(player, payload.project())) {
                 find(payload.request().type().id()).handle(payload.request(), context);
+            } else if (player.hasPermissions(2)) {
+                // Refused (another story is open, or a reload runs): what the server has, so the editor drops the write.
+                DevModeServer.sendSnapshot(player);
             }
         }
     }

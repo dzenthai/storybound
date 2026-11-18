@@ -78,6 +78,25 @@ public final class DevModeServer {
         return id.isEmpty() ? StoryProjects.primaryRoot() : StoryProjects.get(ConfigStorySource.root(), id).root();
     }
 
+    /**
+     * How many editor requests each operator has sent, taken or refused (November 19, 2026): every snapshot says it, so
+     * the editor knows which of its own writes the snapshot already answers (see {@code ClientDevStore}); before, a
+     * snapshot answering an earlier request undid a write still on its way, and nodes jumped, lined up or blinked.
+     * By the player's id, not the player object (dying and respawning makes a new one, and the count must go on as the
+     * editor's does); forgotten when the player leaves, as the editor starts counting again on its next connection.
+     */
+    private static final java.util.Map<java.util.UUID, Integer> RECEIVED = new java.util.HashMap<>();
+
+    /** One more editor request from the operator, counted as it arrives, before it is handled. */
+    public static void received(ServerPlayer player) {
+        RECEIVED.merge(player.getUUID(), 1, Integer::sum);
+    }
+
+    /** The player left: their editor counts from nought on its next connection. */
+    public static void forget(java.util.UUID player) {
+        RECEIVED.remove(player);
+    }
+
     public static void sendSnapshot(ServerPlayer player) {
         if (!player.hasPermissions(2)) {
             return;
@@ -94,7 +113,7 @@ public final class DevModeServer {
         ProjectSettings settings = ProjectSettings.load(root(player));
         StoryboundNetwork.sendToPlayer(player, new DevModePayloads.ProjectOptions(GSON.toJson(ProjectSettings.options(root(player)))));
         StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages(), settings.namespace(),
-                serverLists(player.server)));
+                serverLists(player.server), RECEIVED.getOrDefault(player.getUUID(), 0)));
     }
 
     /**

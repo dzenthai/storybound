@@ -12,7 +12,14 @@ import net.minecraft.util.Mth;
 abstract class GraphView {
     double panX = 40;
     double panY = 30;
+    /** The zoom drawn now: on its way to {@link #targetZoom}, see {@link #animateZoom}. */
     float zoom = 1.0f;
+    /** Where the wheel set the zoom: a whole number of screen pixels a canvas pixel. */
+    private float targetZoom = 1.0f;
+    /** The screen point that stays put while the zoom glides: where the mouse was at the last wheel turn. */
+    private double anchorX;
+    private double anchorY;
+    private long lastFrame;
     private boolean panning;
     private double panStartX;
     private double panStartY;
@@ -113,9 +120,10 @@ abstract class GraphView {
     private double wheel;
 
     /**
-     * Zooms around the mouse, so the point under it stays put, in steps where a canvas pixel is a whole number of the
+     * Zooms around the mouse, so the point under it stays put, to steps where a canvas pixel is a whole number of the
      * screen's pixels (November 18, 2026, the author: before, 10% steps made pixel shapes and icons uneven): the zoom is
-     * a multiple of one screen pixel, {@code k / guiScale}, from about 35% to 200%.
+     * a multiple of one screen pixel, {@code k / guiScale}, from about 35% to 200%. The wheel sets where it goes; the
+     * drawn zoom glides there ({@link #animateZoom}; November 19, 2026, the author: it jumped).
      */
     void zoomAt(double mouseX, double mouseY, double amount) {
         wheel += amount;
@@ -124,15 +132,38 @@ abstract class GraphView {
             return;
         }
         wheel -= steps;
-        float old = zoom;
-        zoom = zoomStep(zoom, steps, Minecraft.getInstance().getWindow().getGuiScale());
-        if (zoom == old) {
+        targetZoom = zoomStep(targetZoom, steps, Minecraft.getInstance().getWindow().getGuiScale());
+        anchorX = mouseX;
+        anchorY = mouseY;
+    }
+
+    /** Sets the zoom at once, with no glide: opening a view, back to where a canvas was looked at. */
+    void setZoom(float value) {
+        zoom = value;
+        targetZoom = value;
+    }
+
+    /**
+     * One frame of the zoom's glide to where the wheel set it, about a fifth of a second, frame-rate independent; the
+     * anchor stays under the mouse all the way, and the glide ends exactly on the step.
+     */
+    private void animateZoom() {
+        long now = System.nanoTime();
+        double seconds = lastFrame == 0 ? 0 : Math.min(0.1, (now - lastFrame) / 1e9);
+        lastFrame = now;
+        if (zoom == targetZoom) {
             return;
         }
-        double relX = mouseX - canvasLeft() - panX;
-        double relY = mouseY - DevUi.TOP_BAR_H - panY;
-        panX -= relX * (zoom / old - 1.0);
-        panY -= relY * (zoom / old - 1.0);
+        float old = zoom;
+        float next = (float) (zoom + (targetZoom - zoom) * (1 - Math.exp(-seconds * 16)));
+        if (Math.abs(targetZoom - next) < 0.002f) {
+            next = targetZoom;
+        }
+        double relX = anchorX - canvasLeft() - panX;
+        double relY = anchorY - DevUi.TOP_BAR_H - panY;
+        panX -= relX * (next / old - 1.0);
+        panY -= relY * (next / old - 1.0);
+        zoom = next;
     }
 
     /** The zoom {@code steps} whole screen pixels from {@code zoom} (rounded to one first), between 35% and 200%. */
@@ -151,6 +182,7 @@ abstract class GraphView {
 
     /** Starts drawing in canvas coordinates, clipped to the canvas. */
     void beginCanvas(DevModeScreen screen, GuiGraphics graphics, int gridColor) {
+        animateZoom();
         int right = screen.canvasRight();
         graphics.enableScissor(canvasLeft(), DevUi.TOP_BAR_H, right, screen.height);
         graphics.pose().pushPose();

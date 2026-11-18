@@ -97,6 +97,9 @@ public final class ClientDevStore {
             onServer = Map.of();
             projectOptions = "{}";
             projectId = id;
+            synchronized (PENDING) {
+                PENDING.clear();
+            }
         }
         List<Project> next = new ArrayList<>();
         for (JsonElement element : JsonParser.parseString(json).getAsJsonArray()) {
@@ -130,6 +133,11 @@ public final class ClientDevStore {
         DRAFTS.clear();
         pendingTranslations.clear();
         PROJECT_DRAFTS.clear();
+        synchronized (PENDING) {
+            PENDING.clear();
+            sent = 0;
+            received = 0;
+        }
         definitions = Map.of();
         onServer = Map.of();
         projectOptions = "{}";
@@ -178,6 +186,13 @@ public final class ClientDevStore {
     }
 
     public static void setSnapshot(Map<ResourceLocation, Map<ResourceLocation, String>> newDefinitions, List<String> newIssues, String srcLang, List<String> langs) {
+        setSnapshot(newDefinitions, newIssues, srcLang, langs, received);
+    }
+
+    /** @param received how many of this editor's requests the server had when it took the snapshot (see {@link #PENDING}) */
+    public static void setSnapshot(Map<ResourceLocation, Map<ResourceLocation, String>> newDefinitions, List<String> newIssues, String srcLang, List<String> langs,
+                                   int received) {
+        ClientDevStore.received = received;
         Map<ResourceLocation, java.util.Set<ResourceLocation>> known = new LinkedHashMap<>();
         newDefinitions.forEach((type, map) -> known.put(type, java.util.Set.copyOf(map.keySet())));
         onServer = known;
@@ -188,7 +203,7 @@ public final class ClientDevStore {
             copy.put(type, Collections.unmodifiableMap(withDrafts));
         });
         DRAFTS.forEach((type, drafts) -> copy.putIfAbsent(type, Collections.unmodifiableMap(new LinkedHashMap<>(drafts))));
-        definitions = Collections.unmodifiableMap(copy);
+        definitions = Collections.unmodifiableMap(withPending(copy, received));
         refreshDerivedScripts();
         issues = List.copyOf(newIssues);
         sourceLanguage = srcLang;
@@ -286,8 +301,67 @@ public final class ClientDevStore {
         return byType(type).get(id);
     }
 
+    /**
+     * Writes made here and sent, which the server has not answered yet (November 19, 2026). The server takes the
+     * editor's requests one after another and answers each with a whole snapshot; while several are on their way, the
+     * snapshots in between show the server before the later ones, and laid straight over the editor they undid its own
+     * writes for a moment: a new node stood far away in the automatic layout (its chapter came back old), nodes deleted
+     * quickly lined up before vanishing, an undone or redone delete blinked. Telling them apart by content cannot work
+     * (an undo writes back what an older snapshot already had), so they are counted: the editor numbers every request
+     * it sends ({@link #sending}), the server says in each snapshot how many it had ({@code received}), and a write
+     * here stays over the snapshots until the server has had the request sent after it. Then the server's copy is the
+     * truth again, the write taken, or refused. {@link #PENDING_MS} is only a safety net, for a request never sent.
+     */
+    private record Pending(@Nullable String json, int request, long since) {}
+
+    private static final Map<ResourceLocation, Map<ResourceLocation, Pending>> PENDING = new LinkedHashMap<>();
+    private static final long PENDING_MS = 15000;
+    /** The editor's requests sent, and how many of them the server had at its last snapshot. */
+    private static int sent;
+    private static volatile int received;
+
+    /** One more request on its way to the server ({@code DevRequests.send}). */
+    static void sending() {
+        synchronized (PENDING) {
+            sent++;
+        }
+    }
+
+    /** A write here, answered by the request sent next (the callers write first, then send). */
+    private static void pending(ResourceLocation type, ResourceLocation id, @Nullable String json) {
+        synchronized (PENDING) {
+            PENDING.computeIfAbsent(type, key -> new LinkedHashMap<>()).put(id, new Pending(json, sent + 1, System.currentTimeMillis()));
+        }
+    }
+
+    /** The snapshot's definitions with the writes the server has not answered yet laid over them; the answered ones go. */
+    private static Map<ResourceLocation, Map<ResourceLocation, String>> withPending(Map<ResourceLocation, Map<ResourceLocation, String>> copy,
+                                                                                    int received) {
+        long now = System.currentTimeMillis();
+        Map<ResourceLocation, Map<ResourceLocation, String>> result = new LinkedHashMap<>(copy);
+        synchronized (PENDING) {
+            PENDING.forEach((type, writes) -> writes.entrySet().removeIf(entry -> {
+                Pending write = entry.getValue();
+                if (received >= write.request() || now - write.since() > PENDING_MS) {
+                    return true;
+                }
+                Map<ResourceLocation, String> map = new LinkedHashMap<>(result.getOrDefault(type, Map.of()));
+                if (write.json() == null) {
+                    map.remove(entry.getKey());
+                } else {
+                    map.put(entry.getKey(), write.json());
+                }
+                result.put(type, Collections.unmodifiableMap(map));
+                return false;
+            }));
+            PENDING.values().removeIf(Map::isEmpty);
+        }
+        return result;
+    }
+
     /** Forgets a definition here at once (its deletion is on the way to the server). */
     public static void removeLocal(ResourceLocation type, ResourceLocation id) {
+        pending(type, id, null);
         Map<ResourceLocation, Map<ResourceLocation, String>> immutable = new LinkedHashMap<>();
         definitions.forEach((t, map) -> {
             Map<ResourceLocation, String> copy = new LinkedHashMap<>(map);
@@ -301,6 +375,7 @@ public final class ClientDevStore {
     }
 
     public static void putLocal(ResourceLocation type, ResourceLocation id, String json) {
+        pending(type, id, json);
         Map<ResourceLocation, Map<ResourceLocation, String>> copy = new LinkedHashMap<>();
         definitions.forEach((t, map) -> copy.put(t, new LinkedHashMap<>(map)));
         copy.computeIfAbsent(type, k -> new LinkedHashMap<>()).put(id, json);

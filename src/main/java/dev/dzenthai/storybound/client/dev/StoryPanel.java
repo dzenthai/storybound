@@ -25,8 +25,12 @@ import org.lwjgl.glfw.GLFW;
 final class StoryPanel {
     /** The strip's width: where the map's canvas begins. */
     static final int STRIP_W = 24;
+
+    /** The strip opened over the canvas: as wide as the other views' left panels, and its rows. */
+    private static int expandedWidth() {
+        return DevUi.LEFT_PANEL_W + 22;
+    }
     /** The strip with the names slid out. */
-    private static final int EXPANDED_W = 170;
     private static final int SLOT = 21;
     private static final int ROW_STEP = 23;
     private static final int TOP = DevUi.TOP_BAR_H + 4;
@@ -76,7 +80,7 @@ final class StoryPanel {
 
     /** The strip, or the panel slid out, holds the point. */
     boolean holds(DevModeScreen screen, double mouseX, double mouseY) {
-        int width = expanded ? EXPANDED_W : STRIP_W;
+        int width = expanded ? expandedWidth() : STRIP_W;
         return mouseX >= 0 && mouseX < width && mouseY >= DevUi.TOP_BAR_H && mouseY < screen.height;
     }
 
@@ -96,7 +100,7 @@ final class StoryPanel {
         List<ChapterRow> list = rows();
         int visible = visibleRows(screen);
         scroll = Mth.clamp(scroll, 0, Math.max(0, list.size() - visible));
-        int width = expanded ? EXPANDED_W : STRIP_W;
+        int width = expanded ? expandedWidth() : STRIP_W;
         graphics.pose().pushPose();
         if (expanded) {
             // Over the canvas and its cards.

@@ -205,7 +205,7 @@ final class DialogueView extends GraphView {
         formShown = null;
         panX = 40;
         panY = 40;
-        zoom = 1.0f;
+        setZoom(1.0f);
         reload();
         selected = DialogueGraph.start(json).isEmpty() ? null : DialogueGraph.start(json);
     }
@@ -702,7 +702,7 @@ final class DialogueView extends GraphView {
     @Override
     void render(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
-        beginCanvas(screen, graphics, 0xFF2A1E15);
+        beginCanvas(screen, graphics, DevUi.GRID_LINE);
         Map<String, Card> byId = new HashMap<>();
         for (Card card : cards) {
             byId.put(card.id(), card);

@@ -43,18 +43,37 @@ public final class DevModePayloads {
         }
     }
 
-    /** @param lists ids only the server knows, for the editor's pickers: {@code advancement}, {@code loot_table} */
+    /**
+     * @param lists    ids only the server knows, for the editor's pickers: {@code advancement}, {@code loot_table}
+     * @param received how many editor requests the server had from this operator when it took the snapshot
+     */
     public record Snapshot(Map<ResourceLocation, Map<ResourceLocation, String>> definitions, List<String> issues, String sourceLanguage, List<String> languages,
-                           String namespace, Map<String, List<String>> lists) implements CustomPacketPayload {
+                           String namespace, Map<String, List<String>> lists, int received) implements CustomPacketPayload {
         public static final Type<Snapshot> TYPE = new Type<>(Storybound.id("dev_snapshot"));
-        public static final StreamCodec<ByteBuf, Snapshot> STREAM_CODEC = StreamCodec.composite(
-                ByteBufCodecs.map(HashMap::new, ResourceLocation.STREAM_CODEC, DEFINITION_MAP), Snapshot::definitions,
-                ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), Snapshot::issues,
-                ByteBufCodecs.STRING_UTF8, Snapshot::sourceLanguage,
-                ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), Snapshot::languages,
-                ByteBufCodecs.STRING_UTF8, Snapshot::namespace,
-                ByteBufCodecs.map(HashMap::new, ByteBufCodecs.STRING_UTF8, ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8)), Snapshot::lists,
-                Snapshot::new);
+        private static final StreamCodec<ByteBuf, Map<ResourceLocation, Map<ResourceLocation, String>>> DEFINITIONS =
+                ByteBufCodecs.map(HashMap::new, ResourceLocation.STREAM_CODEC, DEFINITION_MAP);
+        private static final StreamCodec<ByteBuf, List<String>> STRINGS = ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8);
+        private static final StreamCodec<ByteBuf, Map<String, List<String>>> LISTS =
+                ByteBufCodecs.map(HashMap::new, ByteBufCodecs.STRING_UTF8, ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8));
+        // Seven fields: one more than StreamCodec.composite takes.
+        public static final StreamCodec<ByteBuf, Snapshot> STREAM_CODEC = new StreamCodec<>() {
+            @Override
+            public Snapshot decode(ByteBuf buffer) {
+                return new Snapshot(DEFINITIONS.decode(buffer), STRINGS.decode(buffer), ByteBufCodecs.STRING_UTF8.decode(buffer),
+                        STRINGS.decode(buffer), ByteBufCodecs.STRING_UTF8.decode(buffer), LISTS.decode(buffer), ByteBufCodecs.VAR_INT.decode(buffer));
+            }
+
+            @Override
+            public void encode(ByteBuf buffer, Snapshot value) {
+                DEFINITIONS.encode(buffer, value.definitions());
+                STRINGS.encode(buffer, value.issues());
+                ByteBufCodecs.STRING_UTF8.encode(buffer, value.sourceLanguage());
+                STRINGS.encode(buffer, value.languages());
+                ByteBufCodecs.STRING_UTF8.encode(buffer, value.namespace());
+                LISTS.encode(buffer, value.lists());
+                ByteBufCodecs.VAR_INT.encode(buffer, value.received());
+            }
+        };
 
         @Override
         public Type<Snapshot> type() {
@@ -64,7 +83,7 @@ public final class DevModePayloads {
         public static void handleOnClient(Snapshot payload, IPayloadContext context) {
             ClientDevStore.setNamespace(payload.namespace());
             ClientDevStore.setServerLists(payload.lists());
-            ClientDevStore.setSnapshot(payload.definitions(), payload.issues(), payload.sourceLanguage(), payload.languages());
+            ClientDevStore.setSnapshot(payload.definitions(), payload.issues(), payload.sourceLanguage(), payload.languages(), payload.received());
         }
     }
 
