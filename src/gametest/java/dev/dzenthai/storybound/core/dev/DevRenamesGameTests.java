@@ -53,12 +53,12 @@ public final class DevRenamesGameTests {
     public static void aDeletedNodeTakesItsRenamesAlong(GameTestHelper helper) {
         try {
             Path root = Files.createTempDirectory("storybound-delete-node");
-            write(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString(), """
+            write(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString(), """
                     { "quests": { "mypack:quest_1": "mypack:hunt", "mypack:quest_2": "mypack:hunt", "mypack:quest_3": "mypack:feast" },
                       "objectives": { "mypack:hunt": { "objective_1": "wolves" } },
                       "codex": { "mypack:codex_1": "mypack:hunt" } }""");
             helper.assertTrue(DevRenames.forgetDeletedIn(root, StoryLinks.QUEST, id("mypack:hunt")), "something was taken out");
-            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString());
+            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString());
             helper.assertTrue(migrations.getAsJsonObject("quests").keySet().equals(java.util.Set.of("mypack:quest_3")), "both renames to the quest go: " + migrations);
             helper.assertFalse(migrations.has("objectives"), "and its objectives' renames (the emptied field too): " + migrations);
             helper.assertTrue(migrations.getAsJsonObject("codex").has("mypack:codex_1"), "a Codex entry of the same id is another node: " + migrations);
@@ -87,7 +87,7 @@ public final class DevRenamesGameTests {
             helper.assertTrue(read(root, StoryLinks.DIALOGUE, "demo:talk").getAsJsonObject("nodes").has("offer"), "renamed");
             helper.assertTrue(read(root, CoreDefinitions.DIALOGUE_LAYOUTS.id(), "demo:talk").toString().contains("\"offer\":{\"x\":200,\"y\":40}"), "in its place");
             helper.assertTrue(read(root, StoryLinks.QUEST, "demo:chat").toString().contains("\"node\":\"offer\""), "the quest's objective still counts");
-            JsonObject flags = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString()).getAsJsonObject("flags");
+            JsonObject flags = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString()).getAsJsonObject("flags");
             helper.assertTrue(flags.size() == 2 && flags.get("storybound:dialogue_once/demo/talk/ask/0").getAsString().equals("storybound:dialogue_once/demo/talk/offer/0")
                     && flags.has("storybound:dialogue_once/demo/talk/ask/bye"), "the options chosen once stay chosen: " + flags);
         } catch (IOException e) {
@@ -154,14 +154,14 @@ public final class DevRenamesGameTests {
 
             DevRenames.applyInQuest(root, id("demo:hunt"), read(root, StoryLinks.QUEST, "demo:hunt"), "tracks", "0", "prints");
             helper.assertTrue(read(root, StoryLinks.QUEST, "demo:hunt").toString().contains("\"id\":\"prints\""), "the objective got a name of its own");
-            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString());
+            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString());
             helper.assertTrue(migrations.getAsJsonObject("stages").getAsJsonObject("demo:hunt").get("find_tracks").getAsString().equals("tracks")
                     && migrations.getAsJsonObject("objectives").getAsJsonObject("demo:hunt").get("0").getAsString().equals("prints"), "saves follow: " + migrations);
 
             // The quest itself renamed afterwards: its stages' renames are named by its new id.
             write(root, StoryLinks.QUEST, "demo:hunt", read(root, StoryLinks.QUEST, "demo:hunt").toString());
             DevRenames.apply(root, List.of(new Rename(StoryLinks.QUEST, id("demo:hunt"), id("demo:wolf_hunt"))));
-            JsonObject moved = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString());
+            JsonObject moved = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString());
             helper.assertTrue(moved.getAsJsonObject("stages").has("demo:wolf_hunt") && !moved.getAsJsonObject("stages").has("demo:hunt"), "moved: " + moved);
             helper.assertTrue(read(root, StoryLinks.WAYPOINT, "demo:den").get("quest").getAsString().equals("demo:wolf_hunt"), "the waypoint names the new quest");
         } catch (IOException e) {
@@ -213,14 +213,14 @@ public final class DevRenamesGameTests {
             // A section naming its own text keeps it where it is.
             DevRenames.applyCodexSection(root, id("demo:zombie"), read(root, StoryLinks.CODEX, "demo:zombie"), "notes", "diary_notes");
             helper.assertTrue(Files.isRegularFile(ConfigStorySource.sbtFileFor(root, "en_us", id("demo:diary"))), "its own text stays");
-            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString());
+            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString());
             JsonObject sections = migrations.getAsJsonObject("codex_sections").getAsJsonObject("demo:zombie");
             helper.assertTrue(sections.get("habits").getAsString().equals("povadki") && sections.get("notes").getAsString().equals("diary_notes"),
                     "saves follow: " + migrations);
 
             // The entry renamed afterwards: its sections' renames are named by its new id.
             DevRenames.apply(root, List.of(new Rename(StoryLinks.CODEX, id("demo:zombie"), id("demo:undead"))));
-            JsonObject moved = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString()).getAsJsonObject("codex_sections");
+            JsonObject moved = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString()).getAsJsonObject("codex_sections");
             helper.assertTrue(moved.has("demo:undead") && !moved.has("demo:zombie"), "moved: " + moved);
             helper.assertTrue(Files.isRegularFile(ConfigStorySource.sbtFileFor(root, "ru_ru", id("demo:codex/undead/povadki"))), "the renamed section's text moved with the entry");
         } catch (IOException e) {
@@ -267,7 +267,7 @@ public final class DevRenamesGameTests {
             helper.assertTrue(read(root, StoryRenames.CHAPTER, "demo:act1").toString().contains("\"id\":\"mystory:old_man\""), "the card keeps its place");
             helper.assertTrue(Files.readString(root.resolve("lang/en_us.json")).contains("{var:mystory:rep/old_man}"), "the text shows the new scale");
             helper.assertTrue(references == 3, "three references: the +10, the card, the text; got " + references);
-            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString());
+            JsonObject migrations = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString());
             helper.assertTrue(migrations.getAsJsonObject("npc_bindings").get("demo:elder").getAsString().equals("mystory:old_man")
                     && migrations.getAsJsonObject("flags").get("demo:rep/elder").getAsString().equals("mystory:rep/old_man"), "saves follow: " + migrations);
 
@@ -286,7 +286,7 @@ public final class DevRenamesGameTests {
 
             // Renamed back: the old name is a name again, and the migrations do not loop.
             DevRenames.apply(root, List.of(new Rename(StoryLinks.DIALOGUE, id("demo:greeting"), id("demo:talk"))));
-            JsonObject dialogues = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.MIGRATIONS.toString()).getAsJsonObject("dialogues");
+            JsonObject dialogues = read(root, CoreDefinitions.MIGRATIONS.id(), DevRenames.migrationsId(root).toString()).getAsJsonObject("dialogues");
             helper.assertTrue(!dialogues.has("demo:talk") && dialogues.get("demo:greeting").getAsString().equals("demo:talk"), "back again: " + dialogues);
         } catch (IOException e) {
             throw new RuntimeException(e);

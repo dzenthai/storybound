@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.network.DevModePayloads;
 import java.util.Set;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -19,7 +20,7 @@ final class SettingsWindow {
     private static final int MAX_WIDTH = 420;
     private static final int MAX_HEIGHT = 360;
     /** Edited by the top bar, never here. */
-    private static final Set<String> HIDDEN = Set.of("source_language", "languages", "namespace");
+    private static final Set<String> HIDDEN = Set.of("source_language", "languages", "namespace", "title", "enabled");
 
     private boolean open;
     private JsonObject editing = new JsonObject();
@@ -90,10 +91,14 @@ final class SettingsWindow {
         int w = width(screen);
         int h = height(screen);
         int buttonY = top + h - 22;
-        form.addWidgets(screen, left + 8, top + 22, w - 16, buttonY - 8);
+        form.addWidgets(screen, left + 8, top + 58, w - 16, buttonY - 8);
+        // The namespace under its grey label, its value on the button (the forms' rule).
+        screen.add(Button.builder(Component.literal(ClientDevStore.namespace() + " ▸"), b -> screen.openNamespace())
+                .tooltip(Tooltip.create(DevUi.text("projects.namespace.tooltip")))
+                .bounds(left + 8, top + 34, w - 16, 18).build());
         int buttonW = 90;
         screen.add(Button.builder(Component.literal("💾 ").append(DevUi.text("settings.save")), b -> {
-            PacketDistributor.sendToServer(new DevModePayloads.SaveProjectOptions(editing.toString()));
+            DevRequests.send(new DevModePayloads.SaveProjectOptions(editing.toString()));
             close();
             screen.status(DevUi.text("status.settings_saved"), DevUi.OK);
             screen.rebuild();
@@ -111,6 +116,7 @@ final class SettingsWindow {
         graphics.fill(left - 1, top - 1, left + w + 1, top + h + 1, DevUi.ACCENT);
         graphics.fill(left, top, left + w, top + h, DevUi.PANEL);
         graphics.drawString(screen.font(), DevUi.text("settings.title"), left + 8, top + 8, DevUi.ACCENT, false);
+        graphics.drawString(screen.font(), DevUi.text("projects.namespace"), left + 8, top + 23, DevUi.LABEL, false);
         form.render(graphics, screen.font());
     }
 

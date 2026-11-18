@@ -20,7 +20,8 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * first), the difficulty scale, the rewards waiting to be claimed and what each quest gave last.
  */
 public record QuestSyncPayload(Map<ResourceLocation, QuestProgress> quests, List<ResourceLocation> pinned, DifficultyScale difficulty,
-                               List<QuestRewardData.Pending> rewards, List<QuestRewardData.Received> received) implements CustomPacketPayload {
+                               List<QuestRewardData.Pending> rewards, List<QuestRewardData.Received> received,
+                               Map<ResourceLocation, DifficultyScale> questScales) implements CustomPacketPayload {
     public static final Type<QuestSyncPayload> TYPE = new Type<>(Storybound.id("sync_quests"));
     public static final StreamCodec<RegistryFriendlyByteBuf, QuestSyncPayload> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.<RegistryFriendlyByteBuf, ResourceLocation, QuestProgress, Map<ResourceLocation, QuestProgress>>map(
@@ -29,6 +30,8 @@ public record QuestSyncPayload(Map<ResourceLocation, QuestProgress> quests, List
             DifficultyScale.STREAM_CODEC, QuestSyncPayload::difficulty,
             QuestRewardData.LIST_STREAM_CODEC, QuestSyncPayload::rewards,
             QuestRewardData.RECEIVED_STREAM_CODEC, QuestSyncPayload::received,
+            ByteBufCodecs.<RegistryFriendlyByteBuf, ResourceLocation, DifficultyScale, Map<ResourceLocation, DifficultyScale>>map(
+                    LinkedHashMap::new, ResourceLocation.STREAM_CODEC, DifficultyScale.STREAM_CODEC), QuestSyncPayload::questScales,
             QuestSyncPayload::new);
 
     @Override
@@ -38,6 +41,7 @@ public record QuestSyncPayload(Map<ResourceLocation, QuestProgress> quests, List
 
     public static void handleOnClient(QuestSyncPayload payload, IPayloadContext context) {
         DifficultyScale.set(payload.difficulty());
+        DifficultyScale.setQuestScales(payload.questScales());
         ClientQuests.apply(payload.quests(), payload.pinned(), payload.rewards(), payload.received());
     }
 }

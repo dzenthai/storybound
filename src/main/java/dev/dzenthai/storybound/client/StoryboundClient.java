@@ -204,6 +204,8 @@ public final class StoryboundClient {
 
     // Data from one server must not leak into the next session.
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        dev.dzenthai.storybound.client.dev.ClientDevStore.clearProjects();
+        dev.dzenthai.storybound.client.dev.DevModeScreen.clearProjects();
         for (DefinitionType<?> type : DefinitionTypes.all()) {
             type.clientStore().clear();
         }

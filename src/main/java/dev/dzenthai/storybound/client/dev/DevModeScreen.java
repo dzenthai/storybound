@@ -1,14 +1,17 @@
 package dev.dzenthai.storybound.client.dev;
 
+import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.client.document.DocumentScreen;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import dev.dzenthai.storybound.core.story.StoryRenames;
-import dev.dzenthai.storybound.module.document.DocumentRegistries;
+import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -39,11 +42,38 @@ public class DevModeScreen extends Screen {
     private static final int LANGUAGE_H = 110;
 
     // Kept between openings, like the canvas position in FTB Quests.
-    private static final StoryView STORY = new StoryView();
-    private static final DialogueView DIALOGUE = new DialogueView();
-    private static final QuestView QUEST = new QuestView();
-    private static final DevHistory HISTORY = new DevHistory();
+    private static StoryView STORY = new StoryView();
+    private static DialogueView DIALOGUE = new DialogueView();
+    private static QuestView QUEST = new QuestView();
+    private static DevHistory HISTORY = new DevHistory();
     private static boolean inspectorCollapsed;
+    private record Workspace(StoryView story, DialogueView dialogue, QuestView quest, DevHistory history) {}
+    private static final Map<String, Workspace> WORKSPACES = new HashMap<>();
+    private static String workspace = "";
+
+    private void selectWorkspace() {
+        if (!workspace.equals(ClientDevStore.projectId())) {
+            WORKSPACES.put(workspace, new Workspace(STORY, DIALOGUE, QUEST, HISTORY));
+            workspace = ClientDevStore.projectId();
+            Workspace next = WORKSPACES.computeIfAbsent(workspace,
+                    key -> new Workspace(new StoryView(), new DialogueView(), new QuestView(), new DevHistory()));
+            STORY = next.story();
+            DIALOGUE = next.dialogue();
+            QUEST = next.quest();
+            HISTORY = next.history();
+            finder = new StoryFinder(STORY);
+        }
+    }
+
+    public static void clearProjects() {
+        WORKSPACES.clear();
+        workspace = "";
+        STORY = new StoryView();
+        DIALOGUE = new DialogueView();
+        QUEST = new QuestView();
+        HISTORY = new DevHistory();
+    }
+
 
     /** A context menu line; {@code danger} lines (deleting) are red; {@code swatch} a colour shown before it (0: none). */
     record MenuItem(Component label, boolean danger, Runnable action, int swatch) {
@@ -69,7 +99,7 @@ public class DevModeScreen extends Screen {
     private final Catalog catalog = new Catalog();
     private final TextEditor textEditor = new TextEditor();
     private final SettingsWindow settings = new SettingsWindow();
-    private final StoryFinder finder = new StoryFinder(STORY);
+    private StoryFinder finder = new StoryFinder(STORY);
     private Component statusText = Component.empty();
     private int statusColor = DevUi.OK;
     private List<MenuItem> menu = List.of();
@@ -98,6 +128,7 @@ public class DevModeScreen extends Screen {
 
     @Override
     protected void init() {
+        selectWorkspace();
         ClientDevStore.setListener(() -> minecraft.execute(this::onSnapshot));
         DevRequests.requestSnapshot();
         DevRequests.requestScripts();
@@ -114,6 +145,7 @@ public class DevModeScreen extends Screen {
 
     /** A new snapshot from the server; ignored while the author types, so the text box keeps what is being typed. */
     private void onSnapshot() {
+        selectWorkspace();
         if (textFocused()) {
             return;
         }
@@ -249,11 +281,14 @@ public class DevModeScreen extends Screen {
 
     /** Shows a document with a text not saved yet on its real reading screen; closing it comes back here, the text window still open. */
     void preview(ResourceLocation document, String text) {
-        if (DocumentRegistries.DOCUMENTS.clientStore().getOrNull(document) == null) {
+        var definition = DocumentDefinition.CODEC
+                .parse(JsonOps.INSTANCE, ClientDevStore.parseObject(
+                        ClientDevStore.byType(ClientDevStore.TYPE_DOCUMENT).getOrDefault(document, "{}"))).result().orElse(null);
+        if (definition == null) {
             status(DevUi.text("status.preview_unsaved"), DevUi.WARN);
             return;
         }
-        minecraft.setScreen(new DocumentScreen(document, this, text));
+        minecraft.setScreen(new DocumentScreen(document, this, text).previewDefinition(definition));
     }
 
     /** Opens "inside the quest": its stages and what each one touches. */
@@ -326,13 +361,30 @@ public class DevModeScreen extends Screen {
                     languageError = Component.empty();
                     rebuild();
                 }),
-                MenuItem.of(Component.literal("📁 ").append(DevUi.text("top.menu.namespace", ClientDevStore.namespace())), () -> {
-                    languageOpen = true;
-                    namespaceWindow = true;
-                    namespaceMoveFrom = null;
-                    languageError = Component.empty();
-                    rebuild();
-                }))));
+                MenuItem.of(DevUi.text("projects.title"), this::openProjects))));
+        int projectX = settingsX + 26;
+        int centerWidth = Math.max(DevButton.oddWidth(font, DevUi.text("canvas.show_all_links")),
+                DevButton.oddWidth(font, DevUi.text("canvas.show_chapters"))) + 8;
+        int room = (width - centerWidth) / 2 - projectX - 4;
+        if (room >= 19) {
+            String title = font.plainSubstrByWidth(ClientDevStore.projectTitle(), Math.max(0, Math.min(85, room - 26)));
+            topButton(Component.literal("📁" + (title.isEmpty() ? "" : " " + title)),
+                    DevUi.text("projects.title").copy().append(": " + ClientDevStore.projectTitle()), true, projectX, this::openProjects);
+        }
+    }
+
+    private void openProjects() {
+        view().saveEdits(this);
+        minecraft.setScreen(new ProjectsScreen(this));
+    }
+
+    void openNamespace() {
+        settings.close();
+        languageOpen = true;
+        namespaceWindow = true;
+        namespaceMoveFrom = null;
+        languageError = Component.empty();
+        rebuild();
     }
 
     private int topButton(Component label, Component tooltip, boolean active, int x, Runnable action) {

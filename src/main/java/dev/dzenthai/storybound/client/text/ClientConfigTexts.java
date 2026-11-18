@@ -94,6 +94,10 @@ public final class ClientConfigTexts {
                 }
             }
         }
+        String ownSource = texts.sourceTranslations().get(key);
+        if (ownSource != null) {
+            return ownSource;
+        }
         String source = texts.sourceLanguage();
         if (source != null && !source.equalsIgnoreCase(selectedLanguage)) {
             Map<String, String> srcMap = texts.translations().get(source);

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.dev.DevModeServer;
 import dev.dzenthai.storybound.core.dev.DevScripts;
@@ -51,7 +52,7 @@ public final class DevModeGameTests {
         ResourceLocation type = QuestRegistries.QUESTS.id();
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("gametest", "dev_saved");
         ResourceLocation escape = ResourceLocation.fromNamespaceAndPath("gametest", "../../dev_escape");
-        Path root = ConfigStorySource.root();
+        Path root = StoryProjects.primaryRoot();
         Path file = ConfigStorySource.fileFor(root, QuestRegistries.QUESTS, id);
         try {
             helper.assertTrue(author.hasPermissions(2) && !guest.hasPermissions(2), "only the author may edit");
@@ -96,7 +97,7 @@ public final class DevModeGameTests {
         DefinitionStore<QuestDefinition> store = QuestRegistries.QUESTS.serverStore();
         ResourceLocation type = QuestRegistries.QUESTS.id();
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("gametest", "dev_as_written");
-        Path file = ConfigStorySource.fileFor(ConfigStorySource.root(), QuestRegistries.QUESTS, id);
+        Path file = ConfigStorySource.fileFor(StoryProjects.primaryRoot(), QuestRegistries.QUESTS, id);
         try {
             // Written by hand: four spaces, Windows line ends, the category first, a default written out, a note the game does not know.
             String byHand = "{\r\n    \"category\": \"side\",\r\n    \"title\": \"gametest.as_written\",\r\n    \"announce\": true,\r\n"
@@ -132,7 +133,7 @@ public final class DevModeGameTests {
         PlayerList players = helper.getLevel().getServer().getPlayerList();
         players.getOps().add(new ServerOpListEntry(author.getGameProfile(), 4, false));
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("gametest", "dev_dialogue");
-        Path root = ConfigStorySource.root();
+        Path root = StoryProjects.primaryRoot();
         Path dialogueFile = ConfigStorySource.fileFor(root, DialogueRegistries.DIALOGUES, id);
         Path layoutFile = ConfigStorySource.fileFor(root, CoreDefinitions.DIALOGUE_LAYOUTS, id);
         try {
@@ -159,7 +160,7 @@ public final class DevModeGameTests {
         ServerPlayer author = helper.makeMockServerPlayerInLevel();
         PlayerList players = helper.getLevel().getServer().getPlayerList();
         ResourceLocation section = ResourceLocation.fromNamespaceAndPath("gametest", "codex/dev_text/base");
-        Path root = ConfigStorySource.root();
+        Path root = StoryProjects.primaryRoot();
         Path file = ConfigStorySource.sbtFileFor(root, "en_us", section);
         try {
             DevModeServer.saveText(author, section, "en_us", "Seen at **night**.");

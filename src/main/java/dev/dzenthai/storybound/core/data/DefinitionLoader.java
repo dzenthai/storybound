@@ -49,7 +49,7 @@ public final class DefinitionLoader<T> extends SimplePreparableReloadListener<De
             }
         }
         // The story folder last: its files replace datapack entries with the same id.
-        ConfigStorySource.scan(ConfigStorySource.root(), type, files, issues);
+        StoryProjects.scan(ConfigStorySource.root(), type, files, issues);
         return new Scan(files, issues);
     }
 

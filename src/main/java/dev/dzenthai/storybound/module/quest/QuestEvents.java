@@ -5,6 +5,7 @@ import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.event.PartyEvent;
@@ -21,9 +22,12 @@ import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.network.ModulesPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -68,8 +72,20 @@ public final class QuestEvents {
 
     /** Subscribes quest starts and objectives to their triggers; nothing while the module is disabled. */
     public static void rebuild() {
-        DifficultyScale.set(DifficultyScale.load(ConfigStorySource.root()));
-        Quests.setTrackGiven(ProjectSettings.flag(ConfigStorySource.root(), "track_given_quests"));
+        // The game's own default: the primary story's (a folder per story since November 18, 2026); each story's quests use their own below.
+        DifficultyScale.set(DifficultyScale.load(StoryProjects.primaryRoot()));
+        Quests.setTrackGiven(ProjectSettings.flag(StoryProjects.primaryRoot(), "track_given_quests"));
+        Map<Path, DifficultyScale> scales = new HashMap<>();
+        Map<ResourceLocation, DifficultyScale> questScales = new HashMap<>();
+        Map<Path, Boolean> tracking = new HashMap<>();
+        Map<ResourceLocation, Boolean> questTracking = new HashMap<>();
+        QuestRegistries.QUESTS.serverStore().all().keySet().forEach(id -> {
+            var root = StoryProjects.owner(QuestRegistries.QUESTS, id);
+            questScales.put(id, scales.computeIfAbsent(root, DifficultyScale::load));
+            questTracking.put(id, tracking.computeIfAbsent(root, path -> ProjectSettings.flag(path, "track_given_quests")));
+        });
+        DifficultyScale.setQuestScales(questScales);
+        Quests.setProjectTracking(questTracking);
         List<Subscription<?>> subscriptions = new ArrayList<>();
         if (Quests.isEnabled()) {
             QuestRegistries.QUESTS.serverStore().all().forEach((quest, definition) -> {
@@ -157,8 +173,9 @@ public final class QuestEvents {
      */
     private static void validate(Consumer<ValidationIssue> sink) {
         DefinitionType<QuestDefinition> type = QuestRegistries.QUESTS;
-        DifficultyScale scale = DifficultyScale.load(ConfigStorySource.root());
+        Map<Path, DifficultyScale> scales = new HashMap<>();
         type.serverStore().all().forEach((id, quest) -> {
+            DifficultyScale scale = scales.computeIfAbsent(StoryProjects.owner(type, id), DifficultyScale::load);
             quest.difficulty().ifPresent(difficulty -> {
                 if (difficulty.level().isPresent() && scale.level(difficulty).isEmpty()) {
                     sink.accept(ValidationIssue.warning(type.id(), id, "Difficulty '" + difficulty.level().get() + "' is not a level of the scale in project.json"));

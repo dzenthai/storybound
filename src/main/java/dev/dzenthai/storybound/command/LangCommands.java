@@ -7,6 +7,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.dev.LangExtract;
 import java.io.IOException;
 import net.minecraft.commands.CommandSourceStack;
@@ -34,7 +35,7 @@ final class LangCommands {
     }
 
     private static int extract(CommandContext<CommandSourceStack> context, String language, boolean write) throws CommandSyntaxException {
-        String target = language != null ? language : ProjectSettings.load(ConfigStorySource.root()).sourceLanguage();
+        String target = language != null ? language : ProjectSettings.load(StoryProjects.primaryRoot()).sourceLanguage();
         LangExtract.Result result;
         try {
             result = LangExtract.run(target, write);

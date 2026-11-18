@@ -32,33 +32,124 @@ public final class StoryFolder {
 
     private StoryFolder() {}
 
+    /** The story a new story folder starts with (November 18, 2026: one folder, one story; before, the folder itself). */
+    public static final String FIRST_STORY = "my_story";
+
     /**
-     * Creates the story folder with a folder per definition type, a README and four blank documents, unless it exists:
-     * deleting it brings the starter files back, changing them never does. There is no demo story any more (November
-     * 5, 2026: it started for every player who joined, a live server's too); see the debug scenarios.
+     * Readies the story folder at start: an old layout (a story's files right in it, others in {@code stories/}) is
+     * moved to one folder per story ({@link StoryProjects#migrate}, each move in the log); a missing folder is created
+     * with a README and the story {@value #FIRST_STORY} (a folder per definition type and four blank documents):
+     * deleting the folder brings them back, changing them never does. A folder given by {@code -Dstorybound.folder} (a
+     * pack's repository checked by CI) is never changed: an old layout there is a validation error instead. There is no
+     * demo story any more (November 5, 2026: it started for every player who joined, a live server's too); see the
+     * debug scenarios.
      */
     public static void createIfMissing() {
         Path root = ConfigStorySource.root();
-        if (Files.exists(root) || ConfigStorySource.isElsewhere()) {
+        if (ConfigStorySource.isElsewhere()) {
+            return;
+        }
+        if (Files.exists(root)) {
+            if (StoryProjects.oldLayout(root)) {
+                try {
+                    List<String> moved = StoryProjects.migrate(root);
+                    Storybound.LOGGER.info("Storybound: the story folder {} now has a folder per story ({} moves)", root, moved.size());
+                    moved.forEach(line -> Storybound.LOGGER.info("Storybound:   {}", line));
+                    // Debug scenarios were installed among the story's own files; they have their own story now.
+                    for (StoryProjects.Project story : StoryProjects.list(root)) {
+                        if (!story.id().equals(StoryProjects.SCENARIOS)) {
+                            int cleared = clearScenarios(story.root());
+                            if (cleared > 0) {
+                                Storybound.LOGGER.info("Storybound:   {} debug scenario files taken out of {}", cleared, story.id());
+                            }
+                        }
+                    }
+                } catch (IOException e) {
+                    Storybound.LOGGER.error("Storybound: could not move the story folder {} to a folder per story; move its files into a story folder by hand", root, e);
+                }
+            }
             return;
         }
         try {
+            Path story = root.resolve(FIRST_STORY);
             for (DefinitionType<?> type : DefinitionTypes.all()) {
-                Files.createDirectories(root.resolve(ConfigStorySource.folder(type)));
+                Files.createDirectories(story.resolve(ConfigStorySource.folder(type)));
             }
-            Files.createDirectories(root.resolve("lang"));
+            Files.createDirectories(story.resolve("lang"));
             Optional<Path> starter = bundled("storybound_starter");
             if (starter.isPresent()) {
                 for (Path file : files(starter.get())) {
-                    Path target = root.resolve(relative(starter.get(), file));
+                    String relative = relative(starter.get(), file);
+                    // The README explains the whole folder; the rest is the first story's.
+                    Path target = relative.equals("README.txt") ? root.resolve(relative) : story.resolve(relative);
                     Files.createDirectories(target.getParent());
                     Files.copy(file, target);
                 }
             }
-            Storybound.LOGGER.info("Storybound: created the story folder {}", root);
+            // Its id is its namespace, as for a story made in the editor: new nodes get my_story:..., not storybound:...
+            Path settings = story.resolve(ProjectSettings.FILE_NAME);
+            JsonObject json = Files.isRegularFile(settings)
+                    ? JsonParser.parseString(Files.readString(settings, StandardCharsets.UTF_8)).getAsJsonObject() : new JsonObject();
+            if (!json.has("title")) {
+                json.addProperty("title", "My story");
+            }
+            if (!json.has("namespace")) {
+                json.addProperty("namespace", FIRST_STORY);
+            }
+            Files.writeString(settings, GSON.toJson(json) + "\n", StandardCharsets.UTF_8);
+            Storybound.LOGGER.info("Storybound: created the story folder {} with the story {}", root, FIRST_STORY);
         } catch (IOException e) {
             Storybound.LOGGER.error("Storybound: could not create the story folder {}", root, e);
         }
+    }
+
+    /**
+     * A story folder the mod does not move by itself ({@code -Dstorybound.folder}, a pack's repository checked by CI)
+     * still in the old layout is an error: none of its files would load, and a check would pass on nothing.
+     */
+    public static void validate(java.util.function.Consumer<ValidationIssue> sink) {
+        Path root = ConfigStorySource.root();
+        if (Files.isDirectory(root) && StoryProjects.oldLayout(root)) {
+            sink.accept(ValidationIssue.error(Storybound.id("project"), null, "The story folder " + root
+                    + " has the layout of before: move its files into a folder per story (" + FIRST_STORY
+                    + "/quests/..., with its project.json), as the game does by itself in config/storybound"));
+        }
+    }
+
+    /**
+     * The debug scenarios' story, {@code <story folder>/scenarios/}, made when missing: in the game, its namespace
+     * {@value #SCENARIO}, so an author's own story is never touched by installing or clearing them.
+     */
+    public static Path scenariosStory(Path workspace) throws IOException {
+        Path story = StoryProjects.resolve(workspace, StoryProjects.SCENARIOS);
+        Path settings = story.resolve(ProjectSettings.FILE_NAME);
+        if (!Files.isRegularFile(settings)) {
+            Files.createDirectories(story);
+            JsonObject json = new JsonObject();
+            json.addProperty("title", "Debug scenarios");
+            json.addProperty("enabled", true);
+            json.addProperty("namespace", SCENARIO);
+            Files.writeString(settings, GSON.toJson(json) + "\n", StandardCharsets.UTF_8);
+        }
+        return story;
+    }
+
+    /** Takes the debug scenarios' story away, folder and all; returns how many files went. */
+    public static int removeScenariosStory(Path workspace) throws IOException {
+        Path story = StoryProjects.resolve(workspace, StoryProjects.SCENARIOS);
+        if (!Files.isDirectory(story)) {
+            return 0;
+        }
+        int deleted = 0;
+        try (Stream<Path> walk = Files.walk(story)) {
+            for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                if (Files.isRegularFile(path) && !path.getFileName().toString().equals(ProjectSettings.FILE_NAME)) {
+                    deleted++;
+                }
+                Files.delete(path);
+            }
+        }
+        return deleted;
     }
 
     /** The debug scenarios bundled in the mod, by name. */

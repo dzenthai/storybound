@@ -23,6 +23,7 @@ public final class DocumentTexts {
     public static Optional<String> load(ResourceLocation content) {
         String language = Minecraft.getInstance().getLanguageManager().getSelected();
         Optional<String> text = ClientConfigTexts.document(content, language).or(() -> read(content, language));
+        text = text.or(() -> Optional.ofNullable(ClientConfigTexts.texts().sourceDocuments().get(content)));
         if (text.isPresent() || language.equals(FALLBACK_LANGUAGE)) {
             return text;
         }

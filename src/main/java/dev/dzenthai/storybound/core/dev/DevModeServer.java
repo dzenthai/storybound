@@ -15,6 +15,7 @@ import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationReport;
 import dev.dzenthai.storybound.core.data.ValidationService;
@@ -71,22 +72,29 @@ public final class DevModeServer {
 
     private DevModeServer() {}
 
+    public static Path root(ServerPlayer player) {
+        String id = DevProjects.selected(player);
+        // No story at all yet: the story folder itself, whose files the next start moves into one.
+        return id.isEmpty() ? StoryProjects.primaryRoot() : StoryProjects.get(ConfigStorySource.root(), id).root();
+    }
+
     public static void sendSnapshot(ServerPlayer player) {
         if (!player.hasPermissions(2)) {
             return;
         }
+        DevProjects.sendState(player);
         RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, player.server.registryAccess());
         Map<ResourceLocation, Map<ResourceLocation, String>> definitions = new LinkedHashMap<>();
         for (DefinitionType<?> type : DefinitionTypes.all()) {
-            definitions.put(type.id(), encodeStore(type, ops));
+            definitions.put(type.id(), encodeProject(root(player), type, ops));
         }
         // The report as of the last data load or save (both validate); opening the editor does not re-run the checks.
         ValidationReport report = ValidationService.current();
         List<String> issues = report.issues().stream().map(ValidationIssue::describe).toList();
-        ProjectSettings settings = ProjectSettings.load(ConfigStorySource.root());
+        ProjectSettings settings = ProjectSettings.load(root(player));
+        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.ProjectOptions(GSON.toJson(ProjectSettings.options(root(player)))));
         StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages(), settings.namespace(),
                 serverLists(player.server)));
-        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.ProjectOptions(GSON.toJson(ProjectSettings.options(ConfigStorySource.root()))));
     }
 
     /**
@@ -112,9 +120,10 @@ public final class DevModeServer {
             return;
         }
         try {
-            ProjectSettings.saveOptions(ConfigStorySource.root(), options);
-        } catch (IOException e) {
+            ProjectSettings.saveOptions(root(player), options);
+        } catch (IOException | IllegalArgumentException e) {
             player.sendSystemMessage(Component.literal("Could not save project settings: " + e.getMessage()).withStyle(ChatFormatting.RED));
+            sendSnapshot(player);
             return;
         }
         rebuildAndSync(player.server);
@@ -169,6 +178,22 @@ public final class DevModeServer {
      * Every definition as the editor edits it: the story folder's file as the author wrote it (field order, defaults
      * written out, fields the game does not know), else, for a datapack's definition, as the codec writes it.
      */
+    private static <T> Map<ResourceLocation, String> encodeProject(Path root, DefinitionType<T> type, RegistryOps<JsonElement> ops) {
+        Map<ResourceLocation, String> result = new LinkedHashMap<>();
+        // The primary story also shows what no story holds (a datapack's): saved, it goes into that story.
+        if (root.equals(StoryProjects.primaryRoot())) {
+            encodeStore(type, ops).forEach((id, json) -> {
+                if (StoryProjects.owner(type, id).toAbsolutePath().normalize().equals(root)) {
+                    result.put(id, json);
+                }
+            });
+        }
+        Map<ResourceLocation, JsonElement> files = new LinkedHashMap<>();
+        ConfigStorySource.scan(root, type, files, new java.util.ArrayList<>());
+        files.forEach((id, json) -> result.put(id, GSON.toJson(json)));
+        return result;
+    }
+
     private static <T> Map<ResourceLocation, String> encodeStore(DefinitionType<T> type, RegistryOps<JsonElement> ops) {
         Map<ResourceLocation, String> encoded = new LinkedHashMap<>();
         type.serverStore().all().forEach((id, value) -> {
@@ -185,7 +210,7 @@ public final class DevModeServer {
     /** The definition's file in the story folder, when there is one that loads; null otherwise (a datapack's, a broken one). */
     private static <T> @Nullable JsonElement storyFile(DefinitionType<T> type, ResourceLocation id, RegistryOps<JsonElement> ops) {
         try {
-            Path file = ConfigStorySource.fileFor(ConfigStorySource.root(), type, id);
+            Path file = ConfigStorySource.fileFor(StoryProjects.owner(type, id), type, id);
             if (!Files.isRegularFile(file)) {
                 return null;
             }
@@ -210,7 +235,8 @@ public final class DevModeServer {
             return;
         }
         try {
-            parseAndStore(type, id, json, player.server.registryAccess());
+            StoryProjects.checkWritable(root(player), type, id);
+            parseAndStore(root(player), type, id, json, player.server.registryAccess());
         } catch (Exception e) {
             player.sendSystemMessage(Component.literal("Save failed for " + id + ": " + e.getMessage()).withStyle(ChatFormatting.RED));
             return;
@@ -218,12 +244,12 @@ public final class DevModeServer {
         if (sbtText.isPresent()) {
             ResourceLocation textId = id;
             if (type == DocumentRegistries.DOCUMENTS) {
-                DocumentDefinition doc = DocumentRegistries.DOCUMENTS.serverStore().getOrNull(id);
+                DocumentDefinition doc = DocumentDefinition.CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, player.server.registryAccess()), JsonParser.parseString(json)).result().orElse(null);
                 if (doc != null) {
                     textId = doc.contentId(id);
                 }
             }
-            writeSbt(textId, language, sbtText.get());
+            writeSbt(root(player), textId, language, sbtText.get());
         }
         if (!translations.isEmpty() && !writeTranslations(player, language, translations)) {
             return;
@@ -247,9 +273,11 @@ public final class DevModeServer {
             return;
         }
         try {
-            ProjectSettings.save(ConfigStorySource.root(), new ProjectSettings(sourceLanguage, languages, namespace));
-        } catch (IOException e) {
+            StoryProjects.checkNamespace(ConfigStorySource.root(), root(player), namespace);
+            ProjectSettings.save(root(player), new ProjectSettings(sourceLanguage, languages, namespace));
+        } catch (IOException | IllegalArgumentException e) {
             player.sendSystemMessage(Component.literal("Could not save project settings: " + e.getMessage()).withStyle(ChatFormatting.RED));
+            sendSnapshot(player);
             return;
         }
         ConfigTexts.reload();
@@ -276,12 +304,13 @@ public final class DevModeServer {
             return;
         }
         try {
-            ConfigStorySource.sbtFileFor(ConfigStorySource.root(), language, textId);
+            ConfigStorySource.sbtFileFor(root(player), language, textId);
         } catch (IllegalArgumentException e) {
             player.sendSystemMessage(Component.literal(e.getMessage()).withStyle(ChatFormatting.RED));
             return;
         }
-        writeSbt(textId, language, content);
+        writeSbt(root(player), textId, language, content);
+        DevProjects.sendState(player);
         ConfigTexts.reload();
         for (ServerPlayer online : player.server.getPlayerList().getPlayers()) {
             StoryboundNetwork.sendToPlayer(online, new ConfigTextsPayload(ConfigTexts.current()));
@@ -311,7 +340,7 @@ public final class DevModeServer {
      * @param language already checked with {@link ConfigStorySource#isLanguageCode}
      */
     private static boolean writeTranslations(ServerPlayer player, String language, Map<String, String> newTranslations) {
-        Path file = langFile(language);
+        Path file = root(player).resolve("lang").resolve(language + ".json");
         Map<String, String> map;
         try {
             map = readLang(file);
@@ -331,8 +360,9 @@ public final class DevModeServer {
         }
     }
 
-    static Path langFile(String language) {
-        return ConfigStorySource.root().resolve("lang").resolve(language + ".json");
+    /** A story's lang file. */
+    static Path langFile(Path root, String language) {
+        return root.resolve("lang").resolve(language + ".json");
     }
 
     /** A lang file's keys and texts, sorted; empty when there is none. Throws when it is there but does not parse. */
@@ -361,7 +391,7 @@ public final class DevModeServer {
         Files.writeString(file, GSON.toJson(output) + "\n", StandardCharsets.UTF_8);
     }
 
-    private static <T> void parseAndStore(DefinitionType<T> type, ResourceLocation id, String rawJson, HolderLookup.Provider registries) throws IOException {
+    private static <T> void parseAndStore(Path root, DefinitionType<T> type, ResourceLocation id, String rawJson, HolderLookup.Provider registries) throws IOException {
         JsonElement element;
         try {
             element = JsonParser.parseString(rawJson);
@@ -373,11 +403,14 @@ public final class DevModeServer {
         T value = parsed.getOrThrow(IOException::new);
         // The codec only checks it: the file keeps what was sent, so the author's field order, written-out defaults
         // and fields the game does not know survive a save from the editor.
-        Path target = ConfigStorySource.fileFor(ConfigStorySource.root(), type, id);
+        Path target = ConfigStorySource.fileFor(root, type, id);
         Files.createDirectories(target.getParent());
         writeJson(target, element);
         Map<ResourceLocation, T> updated = new LinkedHashMap<>(type.serverStore().all());
-        updated.put(id, value);
+        if (StoryProjects.enabled(root)) {
+            updated.put(id, value);
+            StoryProjects.recordOwner(type, id, root);
+        }
         type.serverStore().replace(updated);
     }
 
@@ -411,8 +444,7 @@ public final class DevModeServer {
         Files.writeString(file, out.toString().replace("\n", newline) + newline, StandardCharsets.UTF_8);
     }
 
-    private static void writeSbt(ResourceLocation textId, String language, String content) {
-        Path root = ConfigStorySource.root();
+    private static void writeSbt(Path root, ResourceLocation textId, String language, String content) {
         try {
             Path file = ConfigStorySource.sbtFileFor(root, language, textId);
             Files.createDirectories(file.getParent());
@@ -466,28 +498,31 @@ public final class DevModeServer {
             return;
         }
         try {
-            removeAndDelete(type, id);
+            StoryProjects.checkWritable(root(player), type, id);
+            removeAndDelete(root(player), type, id);
             if (type == DialogueRegistries.DIALOGUES) {
-                removeAndDelete(CoreDefinitions.DIALOGUE_LAYOUTS, id);
+                removeAndDelete(root(player), CoreDefinitions.DIALOGUE_LAYOUTS, id);
             }
         } catch (IllegalArgumentException e) {
             player.sendSystemMessage(Component.literal(e.getMessage()).withStyle(ChatFormatting.RED));
             return;
         }
-        DevRenames.forgetDeleted(player.server, typeId, id);
+        DevRenames.forgetDeleted(root(player), player.server, typeId, id);
         rebuildAndSync(player.server);
         sendSnapshot(player);
     }
 
-    private static <T> void removeAndDelete(DefinitionType<T> type, ResourceLocation id) {
-        Path target = ConfigStorySource.fileFor(ConfigStorySource.root(), type, id);
+    private static <T> void removeAndDelete(Path root, DefinitionType<T> type, ResourceLocation id) {
+        Path target = ConfigStorySource.fileFor(root, type, id);
         try {
             Files.deleteIfExists(target);
         } catch (IOException e) {
             Storybound.LOGGER.warn("Storybound: could not delete {}: {}", target, e.getMessage());
         }
         Map<ResourceLocation, T> updated = new LinkedHashMap<>(type.serverStore().all());
-        updated.remove(id);
+        if (StoryProjects.enabled(root)) {
+            updated.remove(id);
+        }
         type.serverStore().replace(updated);
     }
 
@@ -570,6 +605,7 @@ public final class DevModeServer {
         ValidationService.publish(ValidationService.validate());
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
             DefinitionSync.sendTo(online);
+            Quests.sync(online);
             StoryboundNetwork.sendToPlayer(online, new ConfigTextsPayload(ConfigTexts.current()));
             Waypoints.syncFull(online);
         }

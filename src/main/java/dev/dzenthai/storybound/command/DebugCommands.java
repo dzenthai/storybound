@@ -66,7 +66,8 @@ final class DebugCommands {
         }
         int written;
         try {
-            written = StoryFolder.installScenario(ConfigStorySource.root(), name);
+            // Into the scenarios' own story (November 18, 2026; before, into the story folder itself, beside the author's files).
+            written = StoryFolder.installScenario(StoryFolder.scenariosStory(ConfigStorySource.root()), name);
         } catch (IOException e) {
             Storybound.LOGGER.error("Storybound: could not install scenario {}", name, e);
             source.sendFailure(Component.translatable("commands.storybound.debug.scenario.failed", name, e.getMessage()));
@@ -89,7 +90,7 @@ final class DebugCommands {
         CommandSourceStack source = context.getSource();
         int deleted;
         try {
-            deleted = StoryFolder.clearScenarios(ConfigStorySource.root());
+            deleted = StoryFolder.removeScenariosStory(ConfigStorySource.root());
         } catch (IOException e) {
             Storybound.LOGGER.error("Storybound: could not remove the scenarios", e);
             source.sendFailure(Component.translatable("commands.storybound.debug.scenario.failed", "clear", e.getMessage()));

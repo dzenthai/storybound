@@ -8,6 +8,7 @@ import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.HeadlessValidation;
 import dev.dzenthai.storybound.core.data.StoryFolder;
 import dev.dzenthai.storybound.core.data.StoryboundDataEvents;
+import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.dev.StoryDebug;
 import dev.dzenthai.storybound.core.logic.LogicEvents;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
@@ -56,6 +57,7 @@ public final class Storybound {
         Cutscenes.register(modBus);
         // After every definition type is known: the story folder gets a folder for each.
         StoryFolder.createIfMissing();
+        ValidationService.registerValidator(StoryFolder::validate);
 
         modBus.addListener(StoryboundNetwork::register);
         StoryboundDataEvents.register(NeoForge.EVENT_BUS);

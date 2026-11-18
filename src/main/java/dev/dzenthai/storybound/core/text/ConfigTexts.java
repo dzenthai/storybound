@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import io.netty.buffer.ByteBuf;
@@ -43,7 +44,11 @@ public final class ConfigTexts {
      * @param translations language → key → text
      * @param documents    language → text id → {@code .sbt} source
      */
-    public record Texts(String sourceLanguage, Map<String, Map<String, String>> translations, Map<String, Map<ResourceLocation, String>> documents) {
+    public record Texts(String sourceLanguage, Map<String, Map<String, String>> translations, Map<String, Map<ResourceLocation, String>> documents,
+                        Map<String, String> sourceTranslations, Map<ResourceLocation, String> sourceDocuments) {
+        public Texts(String sourceLanguage, Map<String, Map<String, String>> translations, Map<String, Map<ResourceLocation, String>> documents) {
+            this(sourceLanguage, translations, documents, translations.getOrDefault(sourceLanguage, Map.of()), documents.getOrDefault(sourceLanguage, Map.of()));
+        }
         public static final Texts EMPTY = new Texts(ProjectSettings.DEFAULT_SOURCE, Map.of(), Map.of());
         private static final StreamCodec<ByteBuf, String> LONG_STRING = ByteBufCodecs.stringUtf8(MAX_TEXT);
         private static final StreamCodec<ByteBuf, Map<String, String>> TRANSLATIONS = ByteBufCodecs.map(HashMap::new, LONG_STRING, LONG_STRING);
@@ -52,6 +57,8 @@ public final class ConfigTexts {
                 ByteBufCodecs.STRING_UTF8, Texts::sourceLanguage,
                 ByteBufCodecs.map(HashMap::new, ByteBufCodecs.STRING_UTF8, TRANSLATIONS), Texts::translations,
                 ByteBufCodecs.map(HashMap::new, ByteBufCodecs.STRING_UTF8, DOCUMENTS), Texts::documents,
+                TRANSLATIONS, Texts::sourceTranslations,
+                DOCUMENTS, Texts::sourceDocuments,
                 Texts::new);
     }
 
@@ -61,8 +68,41 @@ public final class ConfigTexts {
 
     public static void reload() {
         List<ValidationIssue> issues = new ArrayList<>();
-        current = load(ConfigStorySource.root(), issues);
+        current = loadProjects(ConfigStorySource.root(), issues);
         ValidationService.recordLoad(SOURCE, issues);
+    }
+
+    public static Texts loadProjects(Path workspace, List<ValidationIssue> issues) {
+        Map<String, Map<String, String>> translations = new TreeMap<>();
+        Map<String, Map<ResourceLocation, String>> documents = new TreeMap<>();
+        Map<String, String> sources = new TreeMap<>();
+        Map<ResourceLocation, String> sourceDocuments = new TreeMap<>();
+        for (var project : StoryProjects.list(workspace)) {
+            if (!project.enabled()) {
+                continue;
+            }
+            Texts texts = load(project.root(), issues);
+            texts.sourceTranslations().forEach(sources::putIfAbsent);
+            texts.sourceDocuments().forEach(sourceDocuments::putIfAbsent);
+            texts.translations().forEach((language, values) -> {
+                Map<String, String> merged = translations.computeIfAbsent(language, key -> new TreeMap<>());
+                values.forEach((key, value) -> {
+                    String old = merged.putIfAbsent(key, value);
+                    if (old != null && !old.equals(value)) {
+                        issues.add(ValidationIssue.error(SOURCE, null, "Conflicting translation " + key + " in story " + project.id()));
+                    }
+                });
+            });
+            texts.documents().forEach((language, values) -> {
+                Map<ResourceLocation, String> merged = documents.computeIfAbsent(language, key -> new TreeMap<>());
+                values.forEach((key, value) -> {
+                    if (merged.putIfAbsent(key, value) != null) {
+                        issues.add(ValidationIssue.error(SOURCE, key, "Duplicate text in story " + project.id()));
+                    }
+                });
+            });
+        }
+        return new Texts(ProjectSettings.load(workspace).sourceLanguage(), translations, documents, sources, sourceDocuments);
     }
 
     public static Texts load(Path root, List<ValidationIssue> issues) {

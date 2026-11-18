@@ -1,10 +1,13 @@
 package dev.dzenthai.storybound.client.sound;
 
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -44,12 +47,22 @@ public final class StoryAssets {
         modBus.addListener(StoryAssets::onAddPackFinders);
     }
 
+    /** The sounds folder of the story the editor shows (each story has its own; the game serves every one's). */
     public static Path folder() {
-        return ConfigStorySource.root().resolve(SOUNDS);
+        return editedStory().resolve(SOUNDS);
     }
 
     public static Path iconFolder() {
-        return ConfigStorySource.root().resolve(ICONS);
+        return editedStory().resolve(ICONS);
+    }
+
+    /** The story the editor works on, else the primary one (November 18, 2026: a folder per story). */
+    private static Path editedStory() {
+        try {
+            return StoryProjects.resolve(ConfigStorySource.root(), dev.dzenthai.storybound.client.dev.ClientDevStore.projectId());
+        } catch (IllegalArgumentException e) {
+            return StoryProjects.primaryRoot();
+        }
     }
 
     /** The sounds folder as the resources last loaded it: the sounds, and what is wrong with files. */
@@ -94,8 +107,20 @@ public final class StoryAssets {
 
         FolderPack(PackLocationInfo location) {
             super(location);
-            StorySoundFiles.Scan sounds = StorySoundFiles.scan(folder());
-            StoryIconFiles.Scan icons = StoryIconFiles.scan(iconFolder());
+            Map<String, StorySoundFiles.Sound> soundFiles = new LinkedHashMap<>();
+            Map<String, StoryIconFiles.Icon> iconFiles = new LinkedHashMap<>();
+            List<StorySoundFiles.Problem> soundProblems = new ArrayList<>();
+            List<StoryIconFiles.Problem> iconProblems = new ArrayList<>();
+            for (var project : StoryProjects.list(ConfigStorySource.root())) {
+                var projectSounds = StorySoundFiles.scan(project.root().resolve(SOUNDS));
+                var projectIcons = StoryIconFiles.scan(project.root().resolve(ICONS));
+                projectSounds.sounds().forEach(sound -> soundFiles.putIfAbsent(sound.id(), sound));
+                projectIcons.icons().forEach(icon -> iconFiles.putIfAbsent(icon.id(), icon));
+                soundProblems.addAll(projectSounds.problems());
+                iconProblems.addAll(projectIcons.problems());
+            }
+            StorySoundFiles.Scan sounds = new StorySoundFiles.Scan(List.copyOf(soundFiles.values()), soundProblems);
+            StoryIconFiles.Scan icons = new StoryIconFiles.Scan(List.copyOf(iconFiles.values()), iconProblems);
             last = sounds;
             lastIcons = icons;
             for (StorySoundFiles.Sound sound : sounds.sounds()) {

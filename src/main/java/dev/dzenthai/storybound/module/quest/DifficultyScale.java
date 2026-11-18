@@ -14,12 +14,14 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
 /**
@@ -63,8 +65,23 @@ public record DifficultyScale(Style style, List<Level> levels) {
         return current;
     }
 
+    private static volatile Map<ResourceLocation, DifficultyScale> questScales = Map.of();
+
+    public static DifficultyScale forQuest(ResourceLocation quest) {
+        return questScales.getOrDefault(quest, current);
+    }
+
+    public static Map<ResourceLocation, DifficultyScale> questScales() {
+        return questScales;
+    }
+
+    public static void setQuestScales(Map<ResourceLocation, DifficultyScale> scales) {
+        questScales = Map.copyOf(scales);
+    }
+
     public static void set(DifficultyScale scale) {
         current = scale;
+        questScales = Map.of();
     }
 
     /** Reads {@code difficulty} from {@code project.json}; anything wrong in it is logged and the default used. */

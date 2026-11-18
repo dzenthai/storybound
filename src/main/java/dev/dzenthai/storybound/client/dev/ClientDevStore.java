@@ -7,11 +7,12 @@ import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
 import dev.dzenthai.storybound.core.state.QuestProgress;
-import dev.dzenthai.storybound.core.story.StoryLinks;
 import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import dev.dzenthai.storybound.core.story.StoryLinks.ScriptFile;
 import dev.dzenthai.storybound.core.story.StoryLinks.ScriptListener;
+import dev.dzenthai.storybound.core.story.StoryLinks;
+import dev.dzenthai.storybound.core.text.ConfigTexts;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import net.minecraft.locale.Language;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
@@ -54,6 +56,98 @@ public final class ClientDevStore {
     private static @Nullable Runnable listener;
 
     private ClientDevStore() {}
+
+    public record Project(String id, String title, boolean enabled) {}
+    private static String projectId = "";
+    private static List<Project> projects = List.of();
+    private static ConfigTexts.Texts editorTexts;
+    private static Consumer<Boolean> projectActionListener;
+    private record Drafts(Map<ResourceLocation, Map<ResourceLocation, String>> definitions,
+                          Map<String, Map<String, String>> translations, String language) {}
+    private static final Map<String, Drafts> PROJECT_DRAFTS = new LinkedHashMap<>();
+
+    public static String projectId() { return projectId; }
+    public static void setProjectActionListener(Consumer<Boolean> listener) {
+        projectActionListener = listener;
+    }
+
+    public static void projectActionFinished(boolean success) {
+        if (projectActionListener != null) {
+            projectActionListener.accept(success);
+        }
+    }
+
+    public static List<Project> projects() { return projects; }
+    public static String projectTitle() {
+        return projects.stream().filter(project -> project.id().equals(projectId)).findFirst().map(Project::title).orElse(namespace);
+    }
+
+    public static void setProject(String id, String json, ConfigTexts.Texts texts) {
+        if (!projectId.equals(id)) {
+            PROJECT_DRAFTS.put(projectId, new Drafts(new LinkedHashMap<>(DRAFTS), new LinkedHashMap<>(pendingTranslations), activeLanguage));
+            DRAFTS.clear();
+            pendingTranslations.clear();
+            Drafts saved = PROJECT_DRAFTS.get(id);
+            if (saved != null) {
+                DRAFTS.putAll(saved.definitions());
+                pendingTranslations.putAll(saved.translations());
+                activeLanguage = saved.language();
+            }
+            definitions = Map.of();
+            onServer = Map.of();
+            projectOptions = "{}";
+            projectId = id;
+        }
+        List<Project> next = new ArrayList<>();
+        for (JsonElement element : JsonParser.parseString(json).getAsJsonArray()) {
+            JsonObject project = element.getAsJsonObject();
+            next.add(new Project(project.get("id").getAsString(), project.get("title").getAsString(), project.get("enabled").getAsBoolean()));
+        }
+        projects = List.copyOf(next);
+        editorTexts = texts;
+    }
+
+    static ConfigTexts.Texts editorTexts() {
+        return editorTexts == null ? ClientConfigTexts.texts() : editorTexts;
+    }
+
+    public static Optional<String> document(ResourceLocation id, String language) {
+        return Optional.ofNullable(editorTexts().documents().getOrDefault(language, Map.of()).get(id));
+    }
+
+    static String translation(String key, String language) {
+        String value = editorTexts().translations().getOrDefault(language, Map.of()).get(key);
+        if (value == null) {
+            value = editorTexts().translations().getOrDefault(sourceLanguage, Map.of()).get(key);
+        }
+        return value;
+    }
+
+    public static void clearProjects() {
+        projectId = "";
+        projects = List.of();
+        editorTexts = null;
+        DRAFTS.clear();
+        pendingTranslations.clear();
+        PROJECT_DRAFTS.clear();
+        definitions = Map.of();
+        onServer = Map.of();
+        projectOptions = "{}";
+        listener = null;
+        projectActionListener = null;
+        namespace = Storybound.MOD_ID;
+        sourceLanguage = "en_us";
+        languages = List.of("en_us", "ru_ru");
+        activeLanguage = "en_us";
+        issues = List.of();
+        serverLists = Map.of();
+        progressPlayer = "";
+        progress = Map.of();
+        scripts = Scripts.UNKNOWN;
+        scriptBlocks = Map.of();
+        derivedScripts = Set.of();
+    }
+
 
     /**
      * Definitions being filled in, which the server would refuse (a new NPC before it is told who it is): kept here over
@@ -289,7 +383,7 @@ public final class ClientDevStore {
         if (pending != null && pending.containsKey(raw)) {
             return pending.get(raw);
         }
-        String translated = ClientConfigTexts.translation(raw, language);
+        String translated = translation(raw, language);
         if (translated != null) {
             return translated;
         }
@@ -363,7 +457,7 @@ public final class ClientDevStore {
         if (pending != null && pending.containsKey(key)) {
             return !pending.get(key).isBlank();
         }
-        String raw = ClientConfigTexts.rawTranslation(language, key);
+        String raw = editorTexts().translations().getOrDefault(language, Map.of()).get(key);
         return raw != null && !raw.isBlank();
     }
 
@@ -371,7 +465,7 @@ public final class ClientDevStore {
         if (language.equalsIgnoreCase(sourceLanguage)) {
             return 0;
         }
-        Map<String, String> srcMap = ClientConfigTexts.texts().translations().get(sourceLanguage);
+        Map<String, String> srcMap = editorTexts().translations().get(sourceLanguage);
         if (srcMap == null || srcMap.isEmpty()) {
             return 0;
         }
@@ -413,7 +507,7 @@ public final class ClientDevStore {
             }
         }
         if (key.type().equals(TYPE_DOCUMENT)) {
-            if (ClientConfigTexts.document(key.id(), language).isEmpty()) {
+            if (document(key.id(), language).isEmpty()) {
                 return false;
             }
         }

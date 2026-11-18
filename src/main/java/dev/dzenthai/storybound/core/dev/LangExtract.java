@@ -7,6 +7,7 @@ import com.google.gson.JsonPrimitive;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -39,8 +40,23 @@ public final class LangExtract {
         if (!ConfigStorySource.isLanguageCode(language)) {
             throw new IOException("Not a language code: " + language);
         }
-        Path root = ConfigStorySource.root();
-        Path langFile = DevModeServer.langFile(language);
+        // Every story, each into its own lang file (November 18, 2026: a folder per story); paths relative to the story folder.
+        Path workspace = ConfigStorySource.root().toAbsolutePath().normalize();
+        List<String> files = new ArrayList<>();
+        int moved = 0;
+        int fallbacks = 0;
+        for (StoryProjects.Project story : StoryProjects.list(workspace)) {
+            Result one = run(story.root(), workspace, language, write);
+            moved += one.moved();
+            fallbacks += one.fallbacks();
+            files.addAll(one.files());
+        }
+        return new Result(language, moved, fallbacks, List.copyOf(files));
+    }
+
+    /** One story's texts into its own lang file; files named relative to {@code workspace}. */
+    private static Result run(Path root, Path workspace, String language, boolean write) throws IOException {
+        Path langFile = DevModeServer.langFile(root, language);
         Map<String, String> lang = DevModeServer.readLang(langFile);
         Map<String, String> added = new TreeMap<>();
         List<String> files = new ArrayList<>();
@@ -58,7 +74,7 @@ public final class LangExtract {
                 }
                 moved += counts.moved();
                 Path file = ConfigStorySource.fileFor(root, type, entry.getKey());
-                files.add(root.relativize(file).toString().replace('\\', '/'));
+                files.add(workspace.relativize(file).toString().replace('\\', '/'));
                 if (write) {
                     DevModeServer.writeJson(file, json);
                 }

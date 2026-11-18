@@ -1,16 +1,22 @@
 package dev.dzenthai.storybound.client.dev;
 
 import dev.dzenthai.storybound.network.DevModePayloads;
+import dev.dzenthai.storybound.network.DevProjectPayloads;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /** What the dev mode asks the server to do; the server checks permissions and answers with a new snapshot. */
 final class DevRequests {
     private DevRequests() {}
+
+    static void send(CustomPacketPayload payload) {
+        PacketDistributor.sendToServer(new DevProjectPayloads.Edit(ClientDevStore.projectId(), payload));
+    }
 
     /**
      * Saves a definition together with the texts edited in the active language since the last save. One the game would
@@ -25,7 +31,7 @@ final class DevRequests {
         ClientDevStore.dropDraft(type, id);
         String language = ClientDevStore.activeLanguage();
         Map<String, String> translations = new HashMap<>(ClientDevStore.pendingTranslationsFor(language));
-        PacketDistributor.sendToServer(new DevModePayloads.SaveDefinition(type, id, json, text, language, translations));
+        DevRequests.send(new DevModePayloads.SaveDefinition(type, id, json, text, language, translations));
         ClientDevStore.clearPendingTranslations(language);
     }
 
@@ -39,12 +45,12 @@ final class DevRequests {
         // Here at once, as a save does: the inspector reloads right after an undo, before the server's snapshot comes
         // (November 7, 2026; before, it showed the undone edit still, and undo seemed not to work on a node's settings).
         ClientDevStore.putLocal(type, id, json);
-        PacketDistributor.sendToServer(new DevModePayloads.SaveDefinition(type, id, json, text, ClientDevStore.activeLanguage(), Map.of()));
+        DevRequests.send(new DevModePayloads.SaveDefinition(type, id, json, text, ClientDevStore.activeLanguage(), Map.of()));
     }
 
     /** A long text on its own, in the active language (a Codex section, a boss's lore); documents go with their definition. */
     static void saveText(ResourceLocation textId, String text) {
-        PacketDistributor.sendToServer(new DevModePayloads.SaveText(textId, ClientDevStore.activeLanguage(), text));
+        DevRequests.send(new DevModePayloads.SaveText(textId, ClientDevStore.activeLanguage(), text));
     }
 
     static void delete(ResourceLocation type, ResourceLocation id) {
@@ -55,27 +61,27 @@ final class DevRequests {
             ClientDevStore.removeLocal(type, id);
             return;
         }
-        PacketDistributor.sendToServer(new DevModePayloads.DeleteDefinition(type, id));
+        DevRequests.send(new DevModePayloads.DeleteDefinition(type, id));
     }
 
     static void rename(ResourceLocation type, ResourceLocation from, ResourceLocation to) {
-        PacketDistributor.sendToServer(new DevModePayloads.RenameDefinition(type, from, to));
+        DevRequests.send(new DevModePayloads.RenameDefinition(type, from, to));
     }
 
     static void renameInQuest(ResourceLocation quest, String stage, String objective, String to) {
-        PacketDistributor.sendToServer(new DevModePayloads.RenameInQuest(quest, stage, objective, to));
+        DevRequests.send(new DevModePayloads.RenameInQuest(quest, stage, objective, to));
     }
 
     static void renameCodexSection(ResourceLocation entry, String from, String to) {
-        PacketDistributor.sendToServer(new DevModePayloads.RenameCodexSection(entry, from, to));
+        DevRequests.send(new DevModePayloads.RenameCodexSection(entry, from, to));
     }
 
     static void renameInDialogue(ResourceLocation dialogue, String from, String to) {
-        PacketDistributor.sendToServer(new DevModePayloads.RenameInDialogue(dialogue, from, to));
+        DevRequests.send(new DevModePayloads.RenameInDialogue(dialogue, from, to));
     }
 
     static void quickAction(String action, ResourceLocation target) {
-        PacketDistributor.sendToServer(new DevModePayloads.QuickAction(action, target));
+        DevRequests.send(new DevModePayloads.QuickAction(action, target));
     }
 
     static void requestSnapshot() {
@@ -84,27 +90,27 @@ final class DevRequests {
 
     /** The server's KubeJS scripts, for script blocks; the answer goes to {@link ClientDevStore#setScripts}. */
     static void requestScripts() {
-        PacketDistributor.sendToServer(new DevModePayloads.RequestScripts());
+        DevRequests.send(new DevModePayloads.RequestScripts());
     }
 
     static void requestProgress(String player) {
-        PacketDistributor.sendToServer(new DevModePayloads.RequestProgress(player));
+        DevRequests.send(new DevModePayloads.RequestProgress(player));
     }
 
     /** A new script file registering the handler; the server reloads and sends the scripts again. */
     static void createScript(ResourceLocation hook, boolean condition) {
-        PacketDistributor.sendToServer(new DevModePayloads.CreateScript(hook, condition));
+        DevRequests.send(new DevModePayloads.CreateScript(hook, condition));
     }
 
     static void saveLanguages(String source, List<String> languages) {
-        PacketDistributor.sendToServer(new DevModePayloads.SaveProjectSettings(source, languages, ClientDevStore.namespace()));
+        DevRequests.send(new DevModePayloads.SaveProjectSettings(source, languages, ClientDevStore.namespace()));
     }
 
     static void saveNamespace(String namespace) {
-        PacketDistributor.sendToServer(new DevModePayloads.SaveProjectSettings(ClientDevStore.sourceLanguage(), ClientDevStore.languages(), namespace));
+        DevRequests.send(new DevModePayloads.SaveProjectSettings(ClientDevStore.sourceLanguage(), ClientDevStore.languages(), namespace));
     }
 
     static void moveNamespace(String from, String to) {
-        PacketDistributor.sendToServer(new DevModePayloads.MoveNamespace(from, to));
+        DevRequests.send(new DevModePayloads.MoveNamespace(from, to));
     }
 }

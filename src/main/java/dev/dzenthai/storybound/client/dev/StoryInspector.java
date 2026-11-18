@@ -404,7 +404,7 @@ final class StoryInspector {
 
     /** A text as the story folder has it, else a resource pack, in exactly that language. */
     private static Optional<String> text(ResourceLocation textId, String language) {
-        return DocumentTexts.load(textId, language);
+        return ClientDevStore.document(textId, language).or(() -> DocumentTexts.load(textId, language));
     }
 
     private static Optional<ResourceLocation> ownText(JsonObject object) {

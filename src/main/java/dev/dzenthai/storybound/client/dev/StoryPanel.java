@@ -45,7 +45,7 @@ final class StoryPanel {
 
     private List<ChapterRow> rows() {
         List<ChapterRow> list = new ArrayList<>();
-        list.add(new ChapterRow(Chapters.QUESTS, DevUi.str("chapter.all_story"), "★", ItemStack.EMPTY, view.spineCount()));
+        list.add(new ChapterRow(Chapters.quests(), DevUi.str("chapter.all_story"), "★", ItemStack.EMPTY, view.spineCount()));
         for (Map.Entry<ResourceLocation, JsonObject> entry : Chapters.sorted()) {
             String name = ClientDevStore.readStoryText(entry.getValue(), "title", entry.getKey().getPath());
             list.add(new ChapterRow(entry.getKey(), name, name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase(java.util.Locale.ROOT),

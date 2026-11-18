@@ -3,7 +3,6 @@ package dev.dzenthai.storybound.client.dev;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -13,13 +12,19 @@ import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Chapters of the story map ({@code config/storybound/chapters/}): their order and where each quest sits. Two hidden
- * chapters keep the places of the views that show everything: the map's "All quests" ({@code storybound:__quests__})
- * and the "All links" canvas ({@code storybound:__overview__}).
+ * Chapters of the story map ({@code <story>/chapters/}): their order and where each quest sits. Two hidden
+ * chapters, in the story's namespace, keep the places of the views that show everything: the map's "All quests" ({@code __quests__})
+ * and the "All links" canvas ({@code __overview__}).
  */
 final class Chapters {
-    static final ResourceLocation OVERVIEW = Storybound.id("__overview__");
-    static final ResourceLocation QUESTS = Storybound.id("__quests__");
+    static ResourceLocation overview() { return hiddenId("__overview__"); }
+    static ResourceLocation quests() { return hiddenId("__quests__"); }
+
+    private static ResourceLocation hiddenId(String path) {
+        return ClientDevStore.byType(ClientDevStore.TYPE_CHAPTER).keySet().stream()
+                .filter(id -> id.getPath().equals(path)).findFirst().orElseGet(() ->
+                        ResourceLocation.fromNamespaceAndPath(ClientDevStore.namespace(), path));
+    }
 
     private Chapters() {}
 
@@ -38,7 +43,7 @@ final class Chapters {
 
     /** A view's own places, never listed as a chapter. */
     static boolean hidden(ResourceLocation id) {
-        return OVERVIEW.equals(id) || QUESTS.equals(id);
+        return id.getPath().equals("__overview__") || id.getPath().equals("__quests__");
     }
 
     static int order(JsonObject chapter) {

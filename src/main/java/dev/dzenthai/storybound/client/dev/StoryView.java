@@ -2,16 +2,15 @@ package dev.dzenthai.storybound.client.dev;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
+import dev.dzenthai.storybound.client.dev.DevModeScreen.MenuItem;
+import dev.dzenthai.storybound.client.dev.NodeTemplates.Template;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.story.StoryFlow;
 import dev.dzenthai.storybound.core.story.StoryLinks.Edge;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import dev.dzenthai.storybound.core.story.StoryRenames;
-import dev.dzenthai.storybound.client.dev.DevModeScreen.MenuItem;
-import dev.dzenthai.storybound.client.dev.NodeTemplates.Template;
-import dev.dzenthai.storybound.client.text.ClientConfigTexts;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.document.Documents;
@@ -128,7 +127,7 @@ final class StoryView extends GraphView {
 
     Tab tab = Tab.STORY;
     /** The map's open chapter; {@link Chapters#QUESTS} is "All quests". */
-    private ResourceLocation storyChapter = Chapters.QUESTS;
+    private ResourceLocation storyChapter = Chapters.quests();
     private final Map<NodeKey, int[]> positions = new LinkedHashMap<>();
     /** The quests on the map's open chapter. */
     private final Set<NodeKey> chapterNodes = new LinkedHashSet<>();
@@ -205,9 +204,9 @@ final class StoryView extends GraphView {
      */
     private ResourceLocation chapter() {
         if (tab == Tab.ALL) {
-            return Chapters.OVERVIEW;
+            return Chapters.overview();
         }
-        return UNSORTED.equals(storyChapter) ? Chapters.QUESTS : storyChapter;
+        return UNSORTED.equals(storyChapter) ? Chapters.quests() : storyChapter;
     }
 
     /** The story's spine, the map's nodes: quests and story events; the rest are their badges. */
@@ -265,7 +264,7 @@ final class StoryView extends GraphView {
     void reload() {
         if (!Chapters.hidden(storyChapter) && !UNSORTED.equals(storyChapter)
                 && ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, storyChapter) == null) {
-            storyChapter = Chapters.QUESTS;
+            storyChapter = Chapters.quests();
         }
         if (movedNamespace != null) {
             // The story's nodes moved to another namespace: the selected ones stay selected under their new ids.
@@ -361,7 +360,7 @@ final class StoryView extends GraphView {
         for (ResourceLocation type : List.of(ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_EVENT)) {
             for (ResourceLocation id : ClientDevStore.byType(type).keySet()) {
                 NodeKey key = new NodeKey(type, id);
-                if (Chapters.QUESTS.equals(storyChapter) || chapterNodes.contains(key)) {
+                if (Chapters.quests().equals(storyChapter) || chapterNodes.contains(key)) {
                     nodes.add(key);
                 }
             }
@@ -861,9 +860,9 @@ final class StoryView extends GraphView {
 
     /** The document's text in the active language, else the source language, else English. */
     static Optional<String> documentText(ResourceLocation document) {
-        return ClientConfigTexts.document(document, ClientDevStore.activeLanguage())
-                .or(() -> ClientConfigTexts.document(document, ClientDevStore.sourceLanguage()))
-                .or(() -> ClientConfigTexts.document(document, "en_us"));
+        return ClientDevStore.document(document, ClientDevStore.activeLanguage())
+                .or(() -> ClientDevStore.document(document, ClientDevStore.sourceLanguage()))
+                .or(() -> ClientDevStore.document(document, "en_us"));
     }
 
     // --- creating, linking and deleting
@@ -1322,7 +1321,7 @@ final class StoryView extends GraphView {
             return;
         }
         if (id.equals(storyChapter)) {
-            openChapter(Chapters.QUESTS);
+            openChapter(Chapters.quests());
         }
         DevRequests.delete(ClientDevStore.TYPE_CHAPTER, id);
         screen.remember(DevUi.str("history.delete_chapter", id.getPath()),
@@ -1332,7 +1331,7 @@ final class StoryView extends GraphView {
                 },
                 () -> {
                     if (id.equals(storyChapter)) {
-                        storyChapter = Chapters.QUESTS;
+                        storyChapter = Chapters.quests();
                     }
                     DevRequests.delete(ClientDevStore.TYPE_CHAPTER, id);
                 });
@@ -1402,7 +1401,7 @@ final class StoryView extends GraphView {
     /** Opens the tab with the node in the middle of its canvas, selected; on the map, in "All quests". */
     void reveal(DevModeScreen screen, Tab target, NodeKey key) {
         if (target == Tab.STORY && !chapterNodes.contains(key)) {
-            storyChapter = Chapters.QUESTS;
+            storyChapter = Chapters.quests();
         }
         openTab(screen, target);
         select(screen, key);
@@ -1423,8 +1422,8 @@ final class StoryView extends GraphView {
             reveal(screen, Tab.ALL, key);
             return;
         }
-        if (spine(key) && !chapterNodes.contains(key) && !Chapters.QUESTS.equals(storyChapter)) {
-            ResourceLocation home = unsorted().contains(key) ? UNSORTED : Chapters.QUESTS;
+        if (spine(key) && !chapterNodes.contains(key) && !Chapters.quests().equals(storyChapter)) {
+            ResourceLocation home = unsorted().contains(key) ? UNSORTED : Chapters.quests();
             for (Map.Entry<ResourceLocation, JsonObject> entry : Chapters.sorted()) {
                 if (Chapters.positions(entry.getValue()).containsKey(key)) {
                     home = entry.getKey();
@@ -1727,7 +1726,7 @@ final class StoryView extends GraphView {
         if (tab == Tab.STORY && cards.isEmpty()) {
             int left = canvasLeft() + 16;
             int y = DevUi.TOP_BAR_H + 26;
-            for (FormattedCharSequence line : font.split(DevUi.text(Chapters.QUESTS.equals(storyChapter) ? "map.empty" : "map.empty_chapter"),
+            for (FormattedCharSequence line : font.split(DevUi.text(Chapters.quests().equals(storyChapter) ? "map.empty" : "map.empty_chapter"),
                     screen.canvasRight() - left - 16)) {
                 graphics.drawString(font, line, left, y, DevUi.HINT, false);
                 y += 11;

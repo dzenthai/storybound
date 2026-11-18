@@ -149,8 +149,15 @@ public final class Quests {
      */
     private static volatile boolean trackGiven;
 
+    private static Map<ResourceLocation, Boolean> projectTracking = Map.of();
+
+    public static void setProjectTracking(Map<ResourceLocation, Boolean> values) {
+        projectTracking = Map.copyOf(values);
+    }
+
     public static void setTrackGiven(boolean value) {
         trackGiven = value;
+        projectTracking = Map.of();
     }
 
     /**
@@ -161,7 +168,7 @@ public final class Quests {
     private static void trackGiven(ServerPlayer player, ResourceLocation quest, QuestDefinition definition) {
         for (ServerPlayer member : sharing(player, definition)) {
             List<ResourceLocation> pinned = pinned(member);
-            if (pinned.isEmpty() || trackGiven && !pinned.contains(quest) && pinned.size() < MAX_PINNED) {
+            if (pinned.isEmpty() || projectTracking.getOrDefault(quest, trackGiven) && !pinned.contains(quest) && pinned.size() < MAX_PINNED) {
                 track(member, quest);
             }
         }
@@ -633,7 +640,7 @@ public final class Quests {
     /** Every known quest of the player, each from its own scope, plus the tracked one. */
     public static void sync(ServerPlayer player) {
         StoryboundNetwork.sendToPlayer(player, new QuestSyncPayload(known(player), pinned(player), DifficultyScale.current(), QuestRewardData.of(player).pending(),
-                QuestRewardData.of(player).received()));
+                QuestRewardData.of(player).received(), DifficultyScale.questScales()));
     }
 
     /** Every quest the player knows, each read from its own scope. */

@@ -4,7 +4,12 @@ Storybound story folder
 Everything here is story data for Storybound: no datapack or resource pack needed. It is read when a world
 starts and on every /reload, on the server (in singleplayer, your own game), and sent to every player.
 
-Folders (one per kind of definition; the JSON is the same as in a datapack, see the mod's schemas):
+One folder, one story: my_story/ is the first one. Each folder here with a project.json is a story, with all
+its files inside (my_story/quests/..., my_story/lang/...). project.json gives its title and whether it is in
+the game ("enabled": false keeps it out); the dev mode's Stories screen makes, renames and turns them on and off.
+The game's own settings (chapter map, difficulty) are those of the first enabled story by name.
+
+Folders of a story (one per kind of definition; the JSON is the same as in a datapack, see the mod's schemas):
 
   quests/  dialogues/  npc_bindings/  documents/  waypoints/  codex/  bosses/  events/  flags/
 
@@ -16,9 +21,10 @@ the editor and are never read by the game:
 scripts/ are the blocks that show where KubeJS code (kubejs/server_scripts/) enters the story; the code itself
 stays in KubeJS.
 
-Ids come from file paths. Inside a folder, the first subfolder is the namespace:
-  quests/mypack/wolf_hunt.json   ->  mypack:wolf_hunt
-  quests/wolf_hunt.json          ->  storybound:wolf_hunt   (a file right in the folder)
+Ids come from file paths. Inside a type's folder, the first subfolder is the namespace:
+  my_story/quests/mypack/wolf_hunt.json   ->  mypack:wolf_hunt
+  my_story/quests/wolf_hunt.json          ->  storybound:wolf_hunt   (a file right in the folder)
+An id belongs to one story: the same id in two enabled stories is an error.
 Use lowercase letters, digits, _ - . and / in names. A file here replaces a datapack entry with the same id.
 
 Texts:
@@ -28,14 +34,15 @@ The player's language is used first, then en_us.
 
 The four blank documents (book, scroll, note, letter) are here to show how it works; change or delete them.
 
-To see a mechanic at work, an operator can install a small scenario next to them; its files land here under
-"scenario" (e.g. dialogues/scenario/...), to be read and copied, and are removed again by clear:
+To see a mechanic at work, an operator can install a small scenario; it goes into a story of its own,
+scenarios/ (e.g. scenarios/dialogues/scenario/...), to be read and copied, and clear removes that folder:
   /storybound debug scenario <name>    /storybound debug scenario clear
-project.json turns on the players' chapter map and sets the difficulty to stars; change it as you like.
+my_story/project.json turns on the players' chapter map and sets the difficulty to stars; change it as you like.
 
 Writing a story from files (without watching the game), these commands write for you to read:
   /storybound debug trace on [players]    what the story logic does, line by line: logs/storybound-trace.log
   /storybound debug dump <player>         the player's story state: logs/storybound-dump-<player>.json
   /storybound debug export                every type, id, stage, node and flag a story can name: logs/storybound-export.json
 
-This folder is created once, when it does not exist. Delete it to get the starter files back.
+This folder is created once, when it does not exist. Delete it to get the starter files back. A folder of the
+layout of before (a story's files right here, other stories in stories/) is moved to a folder per story at start.

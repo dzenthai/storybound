@@ -8,6 +8,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.ClientValidation;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationReport;
 import dev.dzenthai.storybound.core.data.ValidationService;
@@ -128,15 +129,15 @@ public final class AuthorToolsGameTests {
 
     @GameTest(template = "empty")
     public static void langPreviewFindsTextsWrittenInTheJson(GameTestHelper helper) {
-        Path file = ConfigStorySource.root().resolve("quests").resolve("gametest").resolve("lang_preview.json");
+        Path file = StoryProjects.primaryRoot().resolve("quests").resolve("gametest").resolve("lang_preview.json");
         String json = "{ \"title\": { \"literal\": \"Written in the JSON\" }, \"stages\": [ { \"id\": \"a\" } ] }\n";
         try {
             io(() -> Files.createDirectories(file.getParent()));
             io(() -> Files.writeString(file, json, StandardCharsets.UTF_8));
             LangExtract.Result result = io(() -> LangExtract.run("zz_zz", false));
-            helper.assertTrue(result.moved() >= 1 && result.files().contains("quests/gametest/lang_preview.json"), "the file with a literal: " + result);
+            helper.assertTrue(result.moved() >= 1 && result.files().contains("gametest/quests/gametest/lang_preview.json"), "the file with a literal: " + result);
             helper.assertTrue(io(() -> Files.readString(file, StandardCharsets.UTF_8)).equals(json), "a preview writes nothing");
-            helper.assertFalse(Files.exists(ConfigStorySource.root().resolve("lang").resolve("zz_zz.json")), "nor a lang file");
+            helper.assertFalse(Files.exists(StoryProjects.primaryRoot().resolve("lang").resolve("zz_zz.json")), "nor a lang file");
         } finally {
             io(() -> Files.deleteIfExists(file));
         }

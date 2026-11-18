@@ -180,15 +180,22 @@ neoForge {
     addModdingDependenciesTo(sourceSets.gametest)
 }
 
-// The starter files plus the story the GameTests play (src/gametest/story: the former demo, never shipped; its lang files
-// hold the starter's keys too), and every debug scenario as if installed (their texts are in the mod's own lang files).
+// A story folder of one story, gametest/ (one folder per story since November 18, 2026): the starter files plus the
+// story the GameTests play (src/gametest/story: the former demo, never shipped; its lang files hold the starter's keys
+// too), and every debug scenario as if installed (their texts are in the mod's own lang files).
 def prepareGameTestStory = tasks.register('prepareGameTestStory', Sync) {
-    from('src/main/resources/storybound_starter') { exclude 'lang/**' }
-    from 'src/gametest/story'
+    from('src/main/resources/storybound_starter') {
+        include 'README.txt'
+    }
+    from('src/main/resources/storybound_starter') {
+        exclude 'lang/**', 'README.txt'
+        into 'gametest'
+    }
+    from('src/gametest/story') { into 'gametest' }
     from('src/main/resources/storybound_scenarios') {
         // The village's NPCs are every villager: they would be every other test's too; ScenarioGameTests loads them alone.
         exclude 'village/**'
-        eachFile { relativePath = new RelativePath(true, *relativePath.segments.drop(1)) }
+        eachFile { relativePath = new RelativePath(true, 'gametest', *relativePath.segments.drop(1)) }
     }
     includeEmptyDirs = false
     into 'build/gametest-story'

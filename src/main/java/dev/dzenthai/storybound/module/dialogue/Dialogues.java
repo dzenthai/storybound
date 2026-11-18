@@ -3,8 +3,8 @@ package dev.dzenthai.storybound.module.dialogue;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.StoryException;
-import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
+import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.logic.Actions;
 import dev.dzenthai.storybound.core.logic.Conditions;
 import dev.dzenthai.storybound.core.logic.OnFail;
@@ -422,7 +422,7 @@ public final class Dialogues {
             }
             Entity bound = session.bound;
             boolean partner = bound != null && bound != session.player;
-            if (!isEnabled()) {
+            if (!isEnabled() || !DialogueRegistries.DIALOGUES.serverStore().contains(session.dialogueId)) {
                 abort(session, EndReason.STOPPED);
             } else if (partner && !bound.isAlive()) {
                 abort(session, EndReason.SPEAKER_GONE);
@@ -503,7 +503,7 @@ public final class Dialogues {
             if (session.closed) {
                 continue;
             }
-            if (!isEnabled()) {
+            if (!isEnabled() || !DialogueRegistries.DIALOGUES.serverStore().contains(session.dialogueId)) {
                 abort(session, EndReason.STOPPED);
                 continue;
             }

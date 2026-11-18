@@ -12,8 +12,8 @@ import dev.dzenthai.storybound.client.dev.Catalog.Entry;
 import dev.dzenthai.storybound.client.dev.Schemas.Kind;
 import dev.dzenthai.storybound.client.dev.Schemas.Logic;
 import dev.dzenthai.storybound.client.dev.Schemas.Node;
-import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.client.document.DocumentTexts;
+import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.core.story.StoryLinks;
 import dev.dzenthai.storybound.core.story.StoryRenames;
 import dev.dzenthai.storybound.module.quest.DifficultyScale;
@@ -1708,7 +1708,7 @@ final class FormView {
         }
         labelRow(label);
         int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
-        String current = DocumentTexts.load(textId, ClientDevStore.activeLanguage()).orElse("");
+        String current = ClientDevStore.document(textId, ClientDevStore.activeLanguage()).or(() -> DocumentTexts.load(textId, ClientDevStore.activeLanguage())).orElse("");
         String first = current.lines().filter(line -> !line.isBlank()).findFirst().orElse("");
         String shown = screen.font().plainSubstrByWidth("✎ " + (first.isEmpty() ? DevUi.str("text.empty") : first), w - 8);
         StoryLinks.NodeKey key = host.node();
@@ -3145,7 +3145,9 @@ final class FormView {
             return;
         }
         labelRow(label);
-        DifficultyScale scale = DifficultyScale.current();
+        JsonObject options = ClientDevStore.projectOptions();
+        DifficultyScale scale = options.get("difficulty") instanceof JsonObject difficulty
+                ? DifficultyScale.parse(difficulty) : DifficultyScale.DEFAULT;
         List<QuestDefinition.Difficulty> choices = scale.choices();
         QuestDefinition.Difficulty current = value == null ? null
                 : QuestDefinition.Difficulty.CODEC.parse(JsonOps.INSTANCE, value).result().orElse(null);

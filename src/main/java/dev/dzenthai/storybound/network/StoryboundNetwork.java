@@ -8,12 +8,13 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class StoryboundNetwork {
     /** Bumped on any incompatible packet change; a client with another version cannot connect. */
-    public static final String PROTOCOL_VERSION = "22";
+    public static final String PROTOCOL_VERSION = "23";
 
     private StoryboundNetwork() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(PROTOCOL_VERSION);
+        DevProjectPayloads.register(registrar);
         registrar.playToClient(SyncDefinitionsPayload.TYPE, SyncDefinitionsPayload.STREAM_CODEC, SyncDefinitionsPayload::handleOnClient);
         registrar.playToClient(SyncStoryValuesPayload.TYPE, SyncStoryValuesPayload.STREAM_CODEC, SyncStoryValuesPayload::handleOnClient);
         registrar.playToClient(JournalSyncPayload.TYPE, JournalSyncPayload.STREAM_CODEC, JournalSyncPayload::handleOnClient);
@@ -41,26 +42,10 @@ public final class StoryboundNetwork {
         registrar.playToServer(TalkQueryPayload.TYPE, TalkQueryPayload.STREAM_CODEC, TalkQueryPayload::handleOnServer);
         registrar.playToClient(TalkHintPayload.TYPE, TalkHintPayload.STREAM_CODEC, TalkHintPayload::handleOnClient);
         registrar.playToClient(ConfigTextsPayload.TYPE, ConfigTextsPayload.STREAM_CODEC, ConfigTextsPayload::handleOnClient);
-        registrar.playToServer(DevModePayloads.RequestSnapshot.TYPE, DevModePayloads.RequestSnapshot.STREAM_CODEC, DevModePayloads.RequestSnapshot::handleOnServer);
         registrar.playToClient(DevModePayloads.Snapshot.TYPE, DevModePayloads.Snapshot.STREAM_CODEC, DevModePayloads.Snapshot::handleOnClient);
-        registrar.playToServer(DevModePayloads.SaveDefinition.TYPE, DevModePayloads.SaveDefinition.STREAM_CODEC, DevModePayloads.SaveDefinition::handleOnServer);
-        registrar.playToServer(DevModePayloads.SaveProjectSettings.TYPE, DevModePayloads.SaveProjectSettings.STREAM_CODEC, DevModePayloads.SaveProjectSettings::handleOnServer);
         registrar.playToClient(DevModePayloads.ProjectOptions.TYPE, DevModePayloads.ProjectOptions.STREAM_CODEC, DevModePayloads.ProjectOptions::handleOnClient);
-        registrar.playToServer(DevModePayloads.SaveProjectOptions.TYPE, DevModePayloads.SaveProjectOptions.STREAM_CODEC, DevModePayloads.SaveProjectOptions::handleOnServer);
-        registrar.playToServer(DevModePayloads.SaveTranslations.TYPE, DevModePayloads.SaveTranslations.STREAM_CODEC, DevModePayloads.SaveTranslations::handleOnServer);
-        registrar.playToServer(DevModePayloads.SaveText.TYPE, DevModePayloads.SaveText.STREAM_CODEC, DevModePayloads.SaveText::handleOnServer);
-        registrar.playToServer(DevModePayloads.RequestProgress.TYPE, DevModePayloads.RequestProgress.STREAM_CODEC, DevModePayloads.RequestProgress::handleOnServer);
         registrar.playToClient(DevModePayloads.Progress.TYPE, DevModePayloads.Progress.STREAM_CODEC, DevModePayloads.Progress::handleOnClient);
-        registrar.playToServer(DevModePayloads.DeleteDefinition.TYPE, DevModePayloads.DeleteDefinition.STREAM_CODEC, DevModePayloads.DeleteDefinition::handleOnServer);
-        registrar.playToServer(DevModePayloads.RenameDefinition.TYPE, DevModePayloads.RenameDefinition.STREAM_CODEC, DevModePayloads.RenameDefinition::handleOnServer);
-        registrar.playToServer(DevModePayloads.RenameInQuest.TYPE, DevModePayloads.RenameInQuest.STREAM_CODEC, DevModePayloads.RenameInQuest::handleOnServer);
-        registrar.playToServer(DevModePayloads.RenameCodexSection.TYPE, DevModePayloads.RenameCodexSection.STREAM_CODEC, DevModePayloads.RenameCodexSection::handleOnServer);
-        registrar.playToServer(DevModePayloads.MoveNamespace.TYPE, DevModePayloads.MoveNamespace.STREAM_CODEC, DevModePayloads.MoveNamespace::handleOnServer);
-        registrar.playToServer(DevModePayloads.RenameInDialogue.TYPE, DevModePayloads.RenameInDialogue.STREAM_CODEC, DevModePayloads.RenameInDialogue::handleOnServer);
-        registrar.playToServer(DevModePayloads.QuickAction.TYPE, DevModePayloads.QuickAction.STREAM_CODEC, DevModePayloads.QuickAction::handleOnServer);
-        registrar.playToServer(DevModePayloads.RequestScripts.TYPE, DevModePayloads.RequestScripts.STREAM_CODEC, DevModePayloads.RequestScripts::handleOnServer);
         registrar.playToClient(DevModePayloads.Scripts.TYPE, DevModePayloads.Scripts.STREAM_CODEC, DevModePayloads.Scripts::handleOnClient);
-        registrar.playToServer(DevModePayloads.CreateScript.TYPE, DevModePayloads.CreateScript.STREAM_CODEC, DevModePayloads.CreateScript::handleOnServer);
     }
 
     /**

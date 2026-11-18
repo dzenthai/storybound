@@ -4,11 +4,11 @@ import dev.dzenthai.storybound.client.ClientQuests;
 import dev.dzenthai.storybound.client.SeenMarks;
 import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.client.menu.AdventureMenu;
-import dev.dzenthai.storybound.client.menu.BookButton;
 import dev.dzenthai.storybound.client.menu.AdventureMenuScreen;
+import dev.dzenthai.storybound.client.menu.BookButton;
+import dev.dzenthai.storybound.client.menu.JournalSkin;
 import dev.dzenthai.storybound.client.menu.ListDetailView;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
-import dev.dzenthai.storybound.client.menu.JournalSkin;
 import dev.dzenthai.storybound.core.logic.condition.WorldConditions;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
@@ -251,7 +251,7 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         detail.text(Component.translatable("storybound.quests.status." + progress.status().name().toLowerCase(Locale.ROOT))
                 .append(" · ").append(categoryName(definition.category())), statusColor(theme, progress.status()));
         definition.difficulty().ifPresent(difficulty ->
-                detail.text(Component.translatable("storybound.quests.difficulty", difficultyLabel(difficulty)), theme.ink()));
+                detail.text(Component.translatable("storybound.quests.difficulty", difficultyLabel(entry.id(), difficulty)), theme.ink()));
         secondsLeft(definition, progress).ifPresent(left -> detail.text(Component.translatable("storybound.quests.time_left", clock(left)),
                 left < 60 ? 0xFFD9534F : theme.ink()));
         // Where its markers are, when not here: "📍 The Nether", as the tracker says it (November 9, 2026).
@@ -481,9 +481,9 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
         return detailWidth() < 180 ? 44 : super.buttonRowHeight();
     }
 
-    private Component difficultyLabel(QuestDefinition.Difficulty difficulty) {
-        Component label = DifficultyScale.current().render(difficulty);
-        int rank = DifficultyScale.current().stars(difficulty);
+    private Component difficultyLabel(ResourceLocation quest, QuestDefinition.Difficulty difficulty) {
+        Component label = DifficultyScale.forQuest(quest).render(difficulty);
+        int rank = DifficultyScale.forQuest(quest).stars(difficulty);
         int ink = rank <= 1 ? UiPalette.GREEN_DARK : rank == 2 ? UiPalette.OCHRE_DARK : UiPalette.RED_SHADOW;
         return Component.literal(label.getString()).withColor(ink);
     }

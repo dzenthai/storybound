@@ -17,18 +17,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.Util;
-import net.minecraft.util.Mth;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.locale.Language;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.util.Mth;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
@@ -74,6 +74,7 @@ public class DocumentScreen extends Screen {
     /** The text to show instead of the document's own: the editor's preview of a text not saved yet. */
     private final @Nullable String source;
     private @Nullable DocumentDefinition definition;
+    private @Nullable DocumentDefinition previewDefinition;
     private DocumentStyle style = DocumentStyle.FALLBACK;
     private List<SbtLayout.Page> pages = List.of();
     private boolean book;
@@ -119,6 +120,11 @@ public class DocumentScreen extends Screen {
         this.source = source;
     }
 
+    public DocumentScreen previewDefinition(DocumentDefinition value) {
+        previewDefinition = value;
+        return this;
+    }
+
     /** Read from a lectern: under the book, "Take Book" besides "Done" (November 4, 2026). */
     public DocumentScreen fromLectern(@Nullable BlockPos pos) {
         lectern = pos;
@@ -127,7 +133,7 @@ public class DocumentScreen extends Screen {
 
     @Override
     protected void init() {
-        definition = DocumentRegistries.DOCUMENTS.clientStore().getOrNull(documentId);
+        definition = previewDefinition != null ? previewDefinition : DocumentRegistries.DOCUMENTS.clientStore().getOrNull(documentId);
         if (definition == null) {
             pages = List.of();
             return;

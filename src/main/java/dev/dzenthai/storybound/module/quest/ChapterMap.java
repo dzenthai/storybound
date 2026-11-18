@@ -8,10 +8,10 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.ChapterDefinition;
-import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.dev.DevScripts;
 import dev.dzenthai.storybound.core.story.StoryFlow;
 import dev.dzenthai.storybound.core.story.StoryLinks;
@@ -131,7 +131,23 @@ public record ChapterMap(List<Chapter> chapters, List<Link> links) {
     }
 
     private static ChapterMap build(MinecraftServer server) {
-        return Quests.isEnabled() && enabled(ConfigStorySource.root()) ? assemble(server) : EMPTY;
+        if (!Quests.isEnabled()) {
+            return EMPTY;
+        }
+        Map<Path, Boolean> enabled = new HashMap<>();
+        Set<ResourceLocation> visible = new LinkedHashSet<>();
+        ChapterMap map = assemble(server);
+        List<Chapter> chapters = new ArrayList<>();
+        for (Chapter chapter : map.chapters()) {
+            List<Node> nodes = chapter.nodes().stream().filter(node -> enabled.computeIfAbsent(
+                    StoryProjects.owner(QuestRegistries.QUESTS, node.quest()), ChapterMap::enabled)).toList();
+            if (!nodes.isEmpty()) {
+                chapters.add(new Chapter(chapter.id(), chapter.title(), chapter.icon(), nodes));
+                nodes.forEach(node -> visible.add(node.quest()));
+            }
+        }
+        return new ChapterMap(List.copyOf(chapters), map.links().stream()
+                .filter(link -> visible.contains(link.from()) && visible.contains(link.to())).toList());
     }
 
     /** The map of the loaded story, whether the pack turned it on or not. Public for tests. */

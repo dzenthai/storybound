@@ -171,7 +171,7 @@ public class ChapterMapView extends MenuView {
         QuestDefinition definition = QuestRegistries.QUESTS.clientStore().getOrNull(quest);
         if (definition != null && !ClientChapterMap.secret(quest, state)) {
             definition.difficulty().ifPresent(difficulty ->
-                    lines.add(Component.translatable("storybound.quests.difficulty", DifficultyScale.current().render(difficulty)).getVisualOrderText()));
+                    lines.add(Component.translatable("storybound.quests.difficulty", DifficultyScale.forQuest(quest).render(difficulty)).getVisualOrderText()));
             definition.description().ifPresent(description -> lines.addAll(font.split(description.asComponent().copy().withStyle(ChatFormatting.GRAY), 200)));
         }
         if (opens(state)) {

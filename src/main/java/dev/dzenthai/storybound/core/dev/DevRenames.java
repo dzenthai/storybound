@@ -12,11 +12,12 @@ import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
+import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.state.StoryMigrations;
 import dev.dzenthai.storybound.core.story.StoryLinks;
-import dev.dzenthai.storybound.core.story.StoryRenames;
 import dev.dzenthai.storybound.core.story.StoryRenames.Rename;
+import dev.dzenthai.storybound.core.story.StoryRenames;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
 import dev.dzenthai.storybound.module.boss.BossDefinition;
 import java.io.IOException;
@@ -69,7 +70,7 @@ final class DevRenames {
             });
             return;
         }
-        Path root = ConfigStorySource.root();
+        Path root = DevModeServer.root(player);
         List<Rename> renames = new ArrayList<>();
         for (Rename rename : StoryRenames.cascade(new Rename(typeId, from, to), DevRenames::exists)) {
             if (Files.isRegularFile(ConfigStorySource.fileFor(root, DevModeServer.findType(rename.type()), rename.from()))) {
@@ -85,7 +86,7 @@ final class DevRenames {
         try {
             int references = apply(root, renames);
             List<String> scripts = scriptsNaming(server, renames);
-            reload(server, renames);
+            reload(root, server, renames);
             player.sendSystemMessage(Component.literal("Renamed " + from + " to " + to + (references > 0 ? "; " + references + " references updated" : ""))
                     .withStyle(ChatFormatting.GREEN));
             if (!scripts.isEmpty()) {
@@ -108,7 +109,7 @@ final class DevRenames {
             refuse(player, "Cannot move the nodes of " + from + " to " + to);
             return;
         }
-        Path root = ConfigStorySource.root();
+        Path root = DevModeServer.root(player);
         List<String> taken = new ArrayList<>();
         List<Rename> renames = namespaceRenames(root, from, to, DevRenames::exists, taken);
         if (!taken.isEmpty()) {
@@ -124,7 +125,7 @@ final class DevRenames {
         try {
             int references = apply(root, renames);
             List<String> scripts = scriptsNaming(player.server, renames);
-            reload(player.server, renames);
+            reload(root, player.server, renames);
             player.sendSystemMessage(Component.literal("Moved " + renames.size() + " nodes from " + from + " to " + to
                     + (references > 0 ? "; " + references + " references updated" : "")).withStyle(ChatFormatting.GREEN));
             if (!scripts.isEmpty()) {
@@ -170,7 +171,7 @@ final class DevRenames {
      * its options chosen once (their key carries the node's name).
      */
     static void renameInDialogue(ServerPlayer player, ResourceLocation dialogue, String from, String to) {
-        Path root = ConfigStorySource.root();
+        Path root = DevModeServer.root(player);
         Path file = ConfigStorySource.fileFor(root, DevModeServer.findType(StoryLinks.DIALOGUE), dialogue);
         if (!Files.isRegularFile(file)) {
             refuse(player, "Cannot rename the node " + from + ": " + dialogue + " is not in the story folder");
@@ -184,7 +185,7 @@ final class DevRenames {
                 return;
             }
             int references = applyInDialogue(root, dialogue, json, from, to.trim());
-            reload(player.server, List.of());
+            reload(root, player.server, List.of());
             player.sendSystemMessage(Component.literal("Renamed the node " + from + " of " + dialogue + " to " + to.trim()
                     + (references > 0 ? "; " + references + " references updated" : "")).withStyle(ChatFormatting.GREEN));
         } catch (IOException | RuntimeException e) {
@@ -232,7 +233,7 @@ final class DevRenames {
         if (!marks.isEmpty()) {
             JsonObject migrations = readMigrations(root);
             marks.forEach(mark -> StoryRenames.addMigration(migrations, "flags", mark.from(), mark.to()));
-            write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS), migrations);
+            write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, migrationsId(root)), migrations);
         }
         return references;
     }
@@ -242,7 +243,7 @@ final class DevRenames {
      * stage elsewhere, and the migrations ({@code stages} / {@code objectives}) that move players' place and counters.
      */
     static void renameInQuest(ServerPlayer player, ResourceLocation quest, String stage, String objective, String to) {
-        Path root = ConfigStorySource.root();
+        Path root = DevModeServer.root(player);
         DefinitionType<?> quests = DevModeServer.findType(StoryLinks.QUEST);
         Path file = ConfigStorySource.fileFor(root, quests, quest);
         String what = objective.isEmpty() ? "stage " + stage : "objective " + objective + " of stage " + stage;
@@ -259,7 +260,7 @@ final class DevRenames {
                 return;
             }
             int references = applyInQuest(root, quest, json, stage, objective, to.trim());
-            reload(player.server, List.of());
+            reload(root, player.server, List.of());
             player.sendSystemMessage(Component.literal("Renamed the " + what + " of " + quest + " to " + to.trim()
                     + (references > 0 ? "; " + references + " references updated" : "")).withStyle(ChatFormatting.GREEN));
         } catch (IOException | RuntimeException e) {
@@ -296,7 +297,7 @@ final class DevRenames {
         }
         JsonObject migrations = readMigrations(root);
         StoryRenames.addInsideMigration(migrations, objective.isEmpty() ? "stages" : "objectives", quest, objective.isEmpty() ? stage : objective, to);
-        write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS), migrations);
+        write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, migrationsId(root)), migrations);
         return references;
     }
 
@@ -309,7 +310,7 @@ final class DevRenames {
      * sections.
      */
     static void renameCodexSection(ServerPlayer player, ResourceLocation entry, String from, String to) {
-        Path root = ConfigStorySource.root();
+        Path root = DevModeServer.root(player);
         Path file = ConfigStorySource.fileFor(root, DevModeServer.findType(StoryLinks.CODEX), entry);
         if (!Files.isRegularFile(file)) {
             refuse(player, "Cannot rename the section " + from + ": " + entry + " is not in the story folder");
@@ -323,7 +324,7 @@ final class DevRenames {
                 return;
             }
             int references = applyCodexSection(root, entry, json, from, to.trim());
-            reload(player.server, List.of());
+            reload(root, player.server, List.of());
             player.sendSystemMessage(Component.literal("Renamed the section " + from + " of " + entry + " to " + to.trim()
                     + (references > 0 ? "; " + references + " references updated" : "")).withStyle(ChatFormatting.GREEN));
         } catch (IOException | RuntimeException e) {
@@ -357,7 +358,7 @@ final class DevRenames {
         }
         JsonObject migrations = readMigrations(root);
         StoryRenames.addInsideMigration(migrations, CODEX_SECTIONS, entry, from, to);
-        write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS), migrations);
+        write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, migrationsId(root)), migrations);
         return references;
     }
 
@@ -366,8 +367,7 @@ final class DevRenames {
      * Codex entry's sections), are taken out of the editor's migrations file, as they lead nowhere now and the validator
      * warned about each (November 5, 2026). Its long texts stay: undoing the delete brings back the node, not files.
      */
-    static void forgetDeleted(MinecraftServer server, ResourceLocation typeId, ResourceLocation id) {
-        Path root = ConfigStorySource.root();
+    static void forgetDeleted(Path root, MinecraftServer server, ResourceLocation typeId, ResourceLocation id) {
         try {
             if (forgetDeletedIn(root, typeId, id)) {
                 reloadType(root, CoreDefinitions.MIGRATIONS, RegistryOps.create(JsonOps.INSTANCE, server.registryAccess()), List.of());
@@ -381,7 +381,7 @@ final class DevRenames {
     /** {@link #forgetDeleted} on the files of the story folder {@code root}; whether anything was taken out. For tests. */
     static boolean forgetDeletedIn(Path root, ResourceLocation typeId, ResourceLocation id) throws IOException {
         String field = StoryRenames.migrationField(typeId);
-        Path file = ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS);
+        Path file = ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, migrationsId(root));
         if (field == null || !Files.isRegularFile(file)) {
             return false;
         }
@@ -422,7 +422,9 @@ final class DevRenames {
 
     private static boolean exists(ResourceLocation type, ResourceLocation id) {
         DefinitionType<?> definitions = DevModeServer.findType(type);
-        return definitions != null && definitions.serverStore().getOrNull(id) != null;
+        return definitions != null && (definitions.serverStore().getOrNull(id) != null
+                || StoryProjects.list(ConfigStorySource.root()).stream().anyMatch(project ->
+                        Files.isRegularFile(ConfigStorySource.fileFor(project.root(), definitions, id))));
     }
 
     /**
@@ -567,12 +569,25 @@ final class DevRenames {
             }
         }
         if (any) {
-            write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS), migrations);
+            write(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, migrationsId(root)), migrations);
         }
     }
 
+    /**
+     * The story's own renames file (ids are unique across stories): {@code <story>:dev_renames}, or
+     * {@code storybound:dev_renames} in a story that already keeps that one (moved from the old layout, where the story
+     * folder itself was the story).
+     */
+    static ResourceLocation migrationsId(Path root) {
+        if (Files.isRegularFile(ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS))) {
+            return MIGRATIONS;
+        }
+        String story = root.toAbsolutePath().normalize().getFileName().toString();
+        return ResourceLocation.tryParse(story + ":dev_renames") != null ? ResourceLocation.fromNamespaceAndPath(story, "dev_renames") : MIGRATIONS;
+    }
+
     private static JsonObject readMigrations(Path root) throws IOException {
-        Path file = ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, MIGRATIONS);
+        Path file = ConfigStorySource.fileFor(root, CoreDefinitions.MIGRATIONS, migrationsId(root));
         if (!Files.isRegularFile(file)) {
             return new JsonObject();
         }
@@ -608,8 +623,7 @@ final class DevRenames {
      * Loads what changed: every story type from the folder again (the renamed files, the files that named them), the
      * texts and the migrations; then moves saved progress and tells every client.
      */
-    private static void reload(MinecraftServer server, List<Rename> renames) {
-        Path root = ConfigStorySource.root();
+    private static void reload(Path root, MinecraftServer server, List<Rename> renames) {
         RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
         for (DefinitionType<?> type : DefinitionTypes.all()) {
             boolean renamed = renames.stream().anyMatch(rename -> rename.type().equals(type.id()));
@@ -627,6 +641,9 @@ final class DevRenames {
 
     /** The type's story-folder files over what it has: the old ids of renamed ones dropped, datapack ones kept. */
     private static <T> void reloadType(Path root, DefinitionType<T> type, RegistryOps<JsonElement> ops, List<Rename> renames) {
+        if (!StoryProjects.enabled(root)) {
+            return;
+        }
         Map<ResourceLocation, T> updated = new LinkedHashMap<>(type.serverStore().all());
         for (Rename rename : renames) {
             if (rename.type().equals(type.id()) || type == CoreDefinitions.DIALOGUE_LAYOUTS && rename.type().equals(StoryLinks.DIALOGUE)) {
@@ -636,7 +653,10 @@ final class DevRenames {
         Map<ResourceLocation, JsonElement> files = new LinkedHashMap<>();
         ConfigStorySource.scan(root, type, files, new ArrayList<>());
         files.forEach((id, json) -> type.codec().parse(ops, json).resultOrPartial(error ->
-                Storybound.LOGGER.warn("Storybound: {} {} does not load after a rename: {}", type.id(), id, error)).ifPresent(value -> updated.put(id, value)));
+                Storybound.LOGGER.warn("Storybound: {} {} does not load after a rename: {}", type.id(), id, error)).ifPresent(value -> {
+                    updated.put(id, value);
+                    StoryProjects.recordOwner(type, id, root);
+                }));
         type.serverStore().replace(updated);
     }
 }
