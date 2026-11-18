@@ -4,7 +4,7 @@
   "height": 384,
   "texture_width": 288,
   "texture_height": 384,
-  "padding": { "left": 68, "top": 98, "right": 66, "bottom": 114 },
+  "padding": { "left": 68, "top": 104, "right": 66, "bottom": 119 },
   "font": "minecraft:default",
   "color": "#483020",
   "line_height": 13,

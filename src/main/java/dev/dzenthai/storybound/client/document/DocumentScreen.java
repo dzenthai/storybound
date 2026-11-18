@@ -45,10 +45,10 @@ public class DocumentScreen extends Screen {
     private static final ResourceLocation READING_CONTRACT = Storybound.id("textures/gui/document/contract.png");
     private static final int BOOK_WIDTH = 384;
     private static final int BOOK_HEIGHT = 256;
-    private static final int SCROLL_WIDTH = 256;
+    private static final int SCROLL_WIDTH = 304;
     private static final int SCROLL_HEIGHT = 384;
     private static final int LETTER_WIDTH = 320;
-    private static final int LETTER_HEIGHT = 384;
+    private static final int LETTER_HEIGHT = 305;
     private static final int NOTE_WIDTH = 256;
     private static final int NOTE_HEIGHT = 320;
     private static final int CONTRACT_WIDTH = 288;

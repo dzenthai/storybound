@@ -1,10 +1,10 @@
 {
   "texture": "storybound:textures/gui/document/scroll.png",
-  "width": 256,
+  "width": 304,
   "height": 384,
-  "texture_width": 256,
+  "texture_width": 304,
   "texture_height": 384,
-  "padding": { "left": 68, "top": 104, "right": 66, "bottom": 120 },
+  "padding": { "left": 68, "top": 112, "right": 66, "bottom": 129 },
   "font": "minecraft:default",
   "color": "#483020",
   "line_height": 13,
