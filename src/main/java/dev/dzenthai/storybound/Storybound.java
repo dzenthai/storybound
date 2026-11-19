@@ -66,6 +66,7 @@ public final class Storybound {
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) ->
                 dev.dzenthai.storybound.core.dev.DevModeServer.forget(event.getEntity().getUUID()));
         StateEvents.register(NeoForge.EVENT_BUS);
+        dev.dzenthai.storybound.core.state.PartySync.register(NeoForge.EVENT_BUS);
         LogicEvents.register(NeoForge.EVENT_BUS);
         DocumentEvents.register(NeoForge.EVENT_BUS);
         QuestEvents.register(NeoForge.EVENT_BUS);

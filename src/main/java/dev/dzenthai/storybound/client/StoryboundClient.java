@@ -126,6 +126,10 @@ public final class StoryboundClient {
                     () -> ClientModules.isEnabled("codex"), CodexView::hasUnseen, CodexView::new));
             AdventureMenu.registerTab(new MenuTab(AdventureMenu.BOSSES, Component.translatable("storybound.bosses.title"), 400,
                     () -> ClientModules.isEnabled("bosses"), BossesView::hasUnseen, BossesView::new));
+            // Only where others can join: a server, or a world opened to LAN (November 19, 2026, the author).
+            AdventureMenu.registerTab(new MenuTab(AdventureMenu.PARTY, Component.translatable("storybound.party.title"), 500,
+                    ClientParty::openToOthers, dev.dzenthai.storybound.client.party.PartyView::hasUnseen,
+                    dev.dzenthai.storybound.client.party.PartyView::new));
             MapIntegrations.register();
             CameraIntegrations.register();
         });
@@ -216,6 +220,7 @@ public final class StoryboundClient {
         DebugOverlay.clear();
         ClientCodex.clear();
         ClientBosses.clear();
+        ClientParty.clear();
         ClientWaypoints.clear();
         ClientModules.clear();
         ClientDialogue.clear();

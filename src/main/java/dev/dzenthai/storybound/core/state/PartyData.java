@@ -148,6 +148,22 @@ public final class PartyData extends SavedData {
         return invite != null && invite.expiresAtMillis() > nowMillis ? Optional.of(invite.partyId()) : Optional.empty();
     }
 
+    /** The player's invite while it has not run out, left in place (for the party tab); one per player, the last sent. */
+    public Optional<PendingInvite> pendingInvite(UUID target, long nowMillis) {
+        Invite invite = invites.get(target);
+        return invite != null && invite.expiresAtMillis() > nowMillis && parties.containsKey(invite.partyId())
+                ? Optional.of(new PendingInvite(invite.partyId(), invite.expiresAtMillis()))
+                : Optional.empty();
+    }
+
+    /** Declining: the invite goes, whether or not it had run out; the party that sent it, if it was still valid. */
+    Optional<UUID> dropInvite(UUID target, long nowMillis) {
+        Invite invite = invites.remove(target);
+        return invite != null && invite.expiresAtMillis() > nowMillis ? Optional.of(invite.partyId()) : Optional.empty();
+    }
+
+    public record PendingInvite(UUID partyId, long expiresAtMillis) {}
+
     private void remove(Party party) {
         parties.remove(party.id());
         containers.remove(party.id());

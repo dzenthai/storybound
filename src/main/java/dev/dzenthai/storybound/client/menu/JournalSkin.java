@@ -243,8 +243,7 @@ public final class JournalSkin {
             float emphasis = motion.sample(selected || isHoveredOrFocused() ? 1 : 0, now);
             renderedJoin = joinMotion.sample(selected ? 1 : 0, now);
             float reveal = 3 * emphasis;
-            int index = tab.id().equals(AdventureMenu.QUESTS) ? 0 : tab.id().equals(AdventureMenu.CODEX) ? 2
-                    : tab.id().equals(AdventureMenu.BOSSES) ? 3 : tab.id().equals(AdventureMenu.MAP) ? 4 : 1;
+            int index = clothIndex();
             // Slide the unchanged ribbon from behind the paper without stretching the emblem.
             RenderSystem.enableBlend();
             graphics.pose().pushPose();
@@ -255,10 +254,16 @@ public final class JournalSkin {
             graphics.pose().popPose();
         }
 
+        /** The tab's cloth and emblem: its own for Storybound's tabs, the journal's for any other mod's. */
+        private int clothIndex() {
+            ResourceLocation id = tab.id();
+            return id.equals(AdventureMenu.QUESTS) ? 0 : id.equals(AdventureMenu.CODEX) ? 2 : id.equals(AdventureMenu.BOSSES) ? 3
+                    : id.equals(AdventureMenu.MAP) ? 4 : id.equals(AdventureMenu.PARTY) ? 5 : 1;
+        }
+
         public void renderPageJoin(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
             if (renderedJoin < 0.001f) return;
-            int index = tab.id().equals(AdventureMenu.QUESTS) ? 0 : tab.id().equals(AdventureMenu.CODEX) ? 2
-                    : tab.id().equals(AdventureMenu.BOSSES) ? 3 : tab.id().equals(AdventureMenu.MAP) ? 4 : 1;
+            int index = clothIndex();
             // Only the two dark fore-edge texels open; the light page and its ornament stay exposed.
             float joinLeft = getX() + (7 - 9 * renderedJoin) * pixelScale;
             float joinRight = getX() + 7 * pixelScale;

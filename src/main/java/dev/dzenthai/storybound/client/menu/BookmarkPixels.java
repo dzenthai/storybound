@@ -7,7 +7,9 @@ import net.minecraft.client.gui.GuiGraphics;
 final class BookmarkPixels {
     /**
      * The emblems, 13 by 13 on the cloth's pixels: quests' star, the journal's quill, the Codex's crossed swords, the
-     * bosses' skull, the map's compass; h light, b body, s shadow (October 31, 2026; before, 16 by 16, a size larger).
+     * bosses' skull, the map's compass, the party's campfire (November 19, 2026, the author's choice of three; the same
+     * day two figures, which did not read as an RPG's); h light, b body, s shadow
+     * (October 31, 2026; before, 16 by 16, a size larger).
      */
     private static final int ICON = 13;
     private static final String[][] ICONS = {
@@ -85,6 +87,21 @@ final class BookmarkPixels {
                     ".....hbh.....", 
                     ".....hbh.....",
                     "......h......"
+            },
+            {
+                    "......h......",
+                    ".....hh......",
+                    ".....hbh.....",
+                    "....hbbh.....",
+                    "...hhb.bh....",
+                    "...hb..bb....",
+                    "..hbb.hbbs...",
+                    "..hbbhbbbs...",
+                    "...hbbbbs....",
+                    ".hh.sbbs..ss.",
+                    "..hhh...sss..",
+                    "...hhhssss...",
+                    ".hh..sss..ss."
             }
     };
     /**
@@ -98,18 +115,24 @@ final class BookmarkPixels {
             {0xFFC6DFDC, 0xFFA6CAD0, 0xFF82AAB8},
             {0xFFE0E5B1, 0xFFC7D391, 0xFFA5B574},
             {0xFFE7CFE1, 0xFFCEAECC, 0xFFB28EAF},
-            {UiPalette.opaque(UiPalette.GOLD_GLINT), UiPalette.opaque(UiPalette.GOLD_LIGHT), UiPalette.opaque(UiPalette.GOLD)}
+            {UiPalette.opaque(UiPalette.GOLD_GLINT), UiPalette.opaque(UiPalette.GOLD_LIGHT), UiPalette.opaque(UiPalette.GOLD)},
+            // The party's campfire on gold cloth: pale as the other emblems, lighter than the cloth throughout, so it never
+            // meets the ochre of the cloth's shade and dither (November 19, 2026; for an hour dark ink, which stood out, then
+            // an ochre shade, whose logs sank into the hem's dither).
+            {UiPalette.opaque(UiPalette.GOLD_GLINT), UiPalette.opaque(UiPalette.GOLD_LIGHT), UiPalette.opaque(UiPalette.GOLD_LIGHT)}
     };
     /**
      * Outline, cloth shadow, cloth, seam, from the palette's ramps: quests red, the journal blue, the Codex green, the
-     * bosses purple, the map ochre (October 31, 2026; before, colours of their own, the map a second blue).
+     * bosses purple, the map ochre (October 31, 2026; before, colours of their own, the map a second blue), the party
+     * gold, the one sheet no ribbon had (November 19, 2026; for a day it fell back on the journal's blue and quill).
      */
     private static final int[][] COLORS = {
             cloth(UiPalette.RED_DARK, UiPalette.RED_SHADOW, UiPalette.RED, UiPalette.RED_LIGHT),
             cloth(UiPalette.BLUE_DARK, UiPalette.BLUE_SHADOW, UiPalette.BLUE, UiPalette.BLUE_LIGHT),
             cloth(UiPalette.GREEN_DARK, UiPalette.GREEN_SHADOW, UiPalette.GREEN, UiPalette.GREEN_LIGHT),
             cloth(UiPalette.PURPLE_DARK, UiPalette.PURPLE_SHADOW, UiPalette.PURPLE, UiPalette.PURPLE_LIGHT),
-            cloth(UiPalette.INK, UiPalette.OCHRE_DARK, UiPalette.OCHRE, UiPalette.GOLD)
+            cloth(UiPalette.INK, UiPalette.OCHRE_DARK, UiPalette.OCHRE, UiPalette.GOLD),
+            cloth(UiPalette.OCHRE_DARK, UiPalette.OCHRE, UiPalette.GOLD, UiPalette.GOLD_LIGHT)
     };
 
     private static int[] cloth(int outline, int shadow, int cloth, int seam) {

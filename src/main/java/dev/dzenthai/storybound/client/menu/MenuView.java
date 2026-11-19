@@ -54,6 +54,11 @@ public abstract class MenuView {
         return false;
     }
 
+    /** A key the view handles itself before the screen (Enter in a field); false lets the screen have it. */
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        return false;
+    }
+
     protected MenuTheme theme() {
         return MenuThemes.INSTANCE.theme();
     }

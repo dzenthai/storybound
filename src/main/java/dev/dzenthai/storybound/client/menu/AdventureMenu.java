@@ -20,6 +20,7 @@ public final class AdventureMenu {
     public static final ResourceLocation JOURNAL = Storybound.id("journal");
     public static final ResourceLocation CODEX = Storybound.id("codex");
     public static final ResourceLocation BOSSES = Storybound.id("bosses");
+    public static final ResourceLocation PARTY = Storybound.id("party");
 
     private static final Map<ResourceLocation, MenuTab> TABS = new LinkedHashMap<>();
     private static @Nullable ResourceLocation lastTab;

@@ -35,6 +35,8 @@ final class PartyCommands {
                         .executes(context -> run(() -> PartyManager.invite(context.getSource().getPlayerOrException(), EntityArgument.getPlayer(context, "player"))))))
                 .then(Commands.literal("accept")
                         .executes(context -> run(() -> PartyManager.accept(context.getSource().getPlayerOrException()))))
+                .then(Commands.literal("decline")
+                        .executes(context -> run(() -> PartyManager.decline(context.getSource().getPlayerOrException()))))
                 .then(Commands.literal("leave")
                         .executes(context -> run(() -> PartyManager.leave(context.getSource().getPlayerOrException()))))
                 .then(Commands.literal("kick").then(Commands.argument("player", GameProfileArgument.gameProfile())

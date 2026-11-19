@@ -213,8 +213,13 @@ public class AdventureMenuScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (StoryboundClient.OPEN_MENU.matches(keyCode, scanCode)) {
+        // Not while typing in a field of a view (the party's name): its letter is a letter then.
+        boolean typing = getFocused() instanceof net.minecraft.client.gui.components.EditBox box && box.canConsumeInput();
+        if (!typing && StoryboundClient.OPEN_MENU.matches(keyCode, scanCode)) {
             onClose();
+            return true;
+        }
+        if (current != null && view(current).keyPressed(keyCode, scanCode, modifiers)) {
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
