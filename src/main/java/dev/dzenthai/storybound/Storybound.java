@@ -69,6 +69,7 @@ public final class Storybound {
         dev.dzenthai.storybound.core.state.PartySync.register(NeoForge.EVENT_BUS);
         LogicEvents.register(NeoForge.EVENT_BUS);
         DocumentEvents.register(NeoForge.EVENT_BUS);
+        dev.dzenthai.storybound.module.journal.JournalBooks.register(NeoForge.EVENT_BUS);
         QuestEvents.register(NeoForge.EVENT_BUS);
         DialogueEvents.register(NeoForge.EVENT_BUS);
         CodexEvents.register(NeoForge.EVENT_BUS);

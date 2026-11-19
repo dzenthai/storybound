@@ -67,7 +67,7 @@ public final class JournalPreview {
         }
         if (ticks == 200) capture(minecraft, "journal-tab-switch.png");
         if (ticks == 210) {
-            ClientJournal.apply(true, List.of(), List.of());
+            ClientJournal.apply(true, List.of(), List.of(), List.of());
             minecraft.setScreen(new AdventureMenuScreen(AdventureMenu.JOURNAL));
         }
         if (ticks == 240) capture(minecraft, "journal-empty.png");
@@ -211,7 +211,7 @@ public final class JournalPreview {
         var definition = dev.dzenthai.storybound.module.document.DocumentDefinition.CODEC
                 .parse(com.mojang.serialization.JsonOps.INSTANCE, json).getOrThrow();
         dev.dzenthai.storybound.module.document.DocumentRegistries.DOCUMENTS.clientStore().replace(java.util.Map.of(id, definition));
-        ClientJournal.apply(true, List.of(id), List.of());
+        ClientJournal.apply(true, List.of(id), List.of(), List.of());
         minecraft.setScreen(new AdventureMenuScreen(AdventureMenu.JOURNAL));
     }
 
@@ -227,7 +227,7 @@ public final class JournalPreview {
         if (longEntry) {
             for (int i = 0; i < 40; i++) notes.add(note("extra_" + i, "notes", previewText("note.extra") + i, body));
         }
-        ClientJournal.apply(true, List.of(), notes);
+        ClientJournal.apply(true, List.of(), notes, List.of());
         minecraft.setScreen(new AdventureMenuScreen(AdventureMenu.JOURNAL));
     }
 

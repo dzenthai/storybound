@@ -82,6 +82,7 @@ public final class Journal {
 
     public static void sync(ServerPlayer player) {
         JournalData data = of(player);
-        StoryboundNetwork.sendToPlayer(player, new JournalSyncPayload(isEnabled(), List.copyOf(data.documents()), List.copyOf(data.notes())));
+        StoryboundNetwork.sendToPlayer(player, new JournalSyncPayload(isEnabled(), List.copyOf(data.documents()), List.copyOf(data.notes()),
+                data.books().stream().map(JournalBook::info).toList()));
     }
 }
