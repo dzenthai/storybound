@@ -1510,7 +1510,7 @@ final class FormView {
             Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
             Map.entry("flag", List.of("description", "type", "default", "scope", "sync")),
             // The trigger "observed": what is looked at, how long and from how far, what the bar says.
-            Map.entry("observed", List.of("entity", "block", "pos", "dimension", "time", "distance", "text")));
+            Map.entry("observed", List.of("entity", "block", "pos", "item", "dimension", "time", "distance", "text")));
 
     /** The forms known by the node they edit rather than by their fields. */
     private static final Map<ResourceLocation, String> ROOT_FORMS = Map.of(
@@ -1573,12 +1573,14 @@ final class FormView {
             return object != null && (object.get("locked") instanceof JsonPrimitive locked && locked.getAsString().equals("show") || object.has("locked_text"));
         }
         if (form.equals("observed")) {
-            // An entity, or a block: the other kind shows only while this one is empty (or both are written).
+            // An entity, a block or an item: the other kinds show only while this one is empty (or more are written).
             boolean entity = object != null && object.has("entity");
             boolean block = object != null && (object.has("block") || object.has("pos"));
+            boolean item = object != null && object.has("item");
             return switch (name) {
-                case "entity" -> !block || entity;
-                case "block", "pos" -> !entity || block;
+                case "entity" -> !block && !item || entity;
+                case "block", "pos" -> !entity && !item || block;
+                case "item" -> !entity && !block || item;
                 case "dimension" -> object != null && (object.has("pos") || object.has("dimension"));
                 default -> true;
             };

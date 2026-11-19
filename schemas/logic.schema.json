@@ -694,6 +694,7 @@
             "entity": { "description": "The entity to observe (as an NPC binding's: a type, a tag, a name, one entity).", "$ref": "#/definitions/entity_selector" },
             "block": { "description": "A kind of block: an id, a #tag or a list.", "$ref": "#/definitions/id_list" },
             "pos": { "description": "One block, by its position; with block, only while it is still such a block.", "type": "array", "items": { "type": "integer" }, "minItems": 3, "maxItems": 3 },
+            "item": { "description": "An item: an id, a #tag or a list. Observed wherever it shows: lying on the ground, in an item frame, held or worn by whom the player looks at (an NPC, an armor stand, another player; never the player's own hand), or, an item that is a block, placed as that block.", "$ref": "#/definitions/id_list" },
             "dimension": { "$ref": "#/definitions/id" },
             "time": { "description": "Seconds of looking at it. Looking away pauses the bar; 2 seconds later it is lost.", "type": "number", "minimum": 0.25, "maximum": 600, "default": 3 },
             "distance": { "description": "From at most this many blocks.", "type": "number", "minimum": 1, "maximum": 64, "default": 16 }

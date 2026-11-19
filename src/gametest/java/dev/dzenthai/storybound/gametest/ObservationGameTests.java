@@ -301,6 +301,84 @@ public final class ObservationGameTests {
         }
     }
 
+    /**
+     * Observing an item (November 20, 2026), wherever it shows: an emerald lying on the ground (Minecraft's crosshair does
+     * not pick it), one in an item frame, a golden helmet worn by an armor stand, a chest placed as a block; an item the
+     * subscription does not name, and the player's own hand, count for nothing.
+     */
+    @GameTest(template = "open", timeoutTicks = 200)
+    public static void anItemIsObservedWhereverItShows(GameTestHelper helper) {
+        AtomicInteger emeralds = new AtomicInteger();
+        AtomicInteger helmets = new AtomicInteger();
+        AtomicInteger chests = new AtomicInteger();
+        AtomicInteger diamonds = new AtomicInteger();
+        List<Subscription<?>> watches = List.of(
+                observeItem(net.minecraft.world.item.Items.EMERALD, emeralds),
+                observeItem(net.minecraft.world.item.Items.GOLDEN_HELMET, helmets),
+                observeItem(net.minecraft.world.item.Items.CHEST, chests),
+                observeItem(net.minecraft.world.item.Items.DIAMOND, diamonds));
+        with(watches, () -> {
+            // On the ground.
+            net.minecraft.world.entity.item.ItemEntity lying = new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(),
+                    helper.absoluteVec(new Vec3(2.5, 1, 2.5)).x, helper.absoluteVec(new Vec3(2.5, 1, 2.5)).y, helper.absoluteVec(new Vec3(2.5, 1, 2.5)).z,
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EMERALD));
+            lying.setNoGravity(true);
+            lying.setDeltaMovement(Vec3.ZERO);
+            lying.setNeverPickUp();
+            helper.getLevel().addFreshEntity(lying);
+            ServerPlayer player = looking(helper, lying.getBoundingBox().getCenter(), 2.5, 1, 6);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND));
+            watch(player, 0, 6);
+            expect(helper, emeralds.get(), 1, "an emerald on the ground");
+            expect(helper, diamonds.get(), 0, "the diamond in the player's own hand counts for nothing");
+            lying.discard();
+
+            // Worn by an armor stand.
+            net.minecraft.world.entity.decoration.ArmorStand stand = helper.spawn(EntityType.ARMOR_STAND, 2, 1, 2);
+            stand.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLDEN_HELMET));
+            player.lookAt(EntityAnchorArgument.Anchor.EYES, stand.getBoundingBox().getCenter());
+            watch(player, 100, 6);
+            expect(helper, helmets.get(), 1, "a golden helmet worn by an armor stand");
+            stand.discard();
+
+            // Placed as a block.
+            BlockPos chest = new BlockPos(2, 1, 2);
+            helper.setBlock(chest, Blocks.CHEST);
+            player.lookAt(EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(helper.absolutePos(chest)));
+            watch(player, 200, 6);
+            expect(helper, chests.get(), 1, "a chest placed is the chest item seen");
+            expect(helper, emeralds.get(), 1, "the chest is no emerald");
+            helper.getLevel().getServer().getPlayerList().remove(player);
+        });
+        helper.succeed();
+    }
+
+    /** In an item frame: the frame is an entity the crosshair picks; the item in it is what is observed. */
+    @GameTest(template = "open", timeoutTicks = 100)
+    public static void anItemInAFrameIsObserved(GameTestHelper helper) {
+        AtomicInteger emeralds = new AtomicInteger();
+        BlockPos wall = new BlockPos(2, 1, 1);
+        helper.setBlock(wall, Blocks.STONE);
+        net.minecraft.world.entity.decoration.ItemFrame frame = new net.minecraft.world.entity.decoration.ItemFrame(helper.getLevel(),
+                helper.absolutePos(wall.south()), net.minecraft.core.Direction.SOUTH);
+        frame.setItem(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EMERALD), false);
+        helper.getLevel().addFreshEntity(frame);
+        with(List.of(observeItem(net.minecraft.world.item.Items.EMERALD, emeralds)), () -> {
+            ServerPlayer player = looking(helper, frame.getBoundingBox().getCenter(), 2.5, 1.5, 5);
+            watch(player, 0, 6);
+            expect(helper, emeralds.get(), 1, "an emerald in an item frame");
+            helper.getLevel().getServer().getPlayerList().remove(player);
+        });
+        frame.discard();
+        helper.succeed();
+    }
+
+    private static Subscription<CoreTriggers.Observation> observeItem(net.minecraft.world.item.Item item, AtomicInteger fired) {
+        return new Subscription<>("gametest observe " + item, new CoreTriggers.Observed(Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), 0.25f, 16, Optional.empty(), Optional.of(net.minecraft.core.HolderSet.direct(item.builtInRegistryHolder()))),
+                context -> fired.incrementAndGet(), context -> true);
+    }
+
     /** Checks as the server does, every {@link ObservationTracker#INTERVAL} ticks, for {@code ticks} ticks; returns the tick it got to. */
     private static int watch(ServerPlayer player, int from, int ticks) {
         int now = from;

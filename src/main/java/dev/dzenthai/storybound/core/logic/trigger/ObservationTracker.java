@@ -239,7 +239,9 @@ public final class ObservationTracker {
         Entity best = null;
         double bestDistance = Double.MAX_VALUE;
         boolean bestExact = false;
-        for (Entity candidate : player.level().getEntities(player, box, entity -> !entity.isSpectator() && entity.isPickable() && entity.isAlive())) {
+        // An item lying on the ground too: Minecraft's crosshair does not pick it, but it can be observed (November 20, 2026).
+        for (Entity candidate : player.level().getEntities(player, box, entity -> !entity.isSpectator()
+                && (entity.isPickable() || entity instanceof net.minecraft.world.entity.item.ItemEntity) && entity.isAlive())) {
             Optional<Vec3> exact = candidate.getBoundingBox().clip(eye, blockEnd);
             Optional<Vec3> near = exact.isPresent() ? exact : candidate.getBoundingBox().inflate(AIM_MARGIN).clip(eye, blockEnd);
             if (near.isEmpty() || exact.isEmpty() && !player.hasLineOfSight(candidate)) {
@@ -309,7 +311,9 @@ public final class ObservationTracker {
         if (trigger.text().isPresent()) {
             return trigger.text().get().resolve(player);
         }
-        Component name = target.entity() != null ? target.entity().getDisplayName()
+        // An item: its own name, not the frame's or the one holding it.
+        net.minecraft.world.item.ItemStack seen = trigger.itemSeen(target);
+        Component name = !seen.isEmpty() ? seen.getHoverName() : target.entity() != null ? target.entity().getDisplayName()
                 : target.state() != null ? target.state().getBlock().getName() : Component.empty();
         return new ResolvedText("storybound.observation.default", false, List.of(name), Optional.empty(), Optional.empty());
     }

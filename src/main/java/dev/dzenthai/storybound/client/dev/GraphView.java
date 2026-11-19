@@ -244,7 +244,12 @@ abstract class GraphView {
         drawnBottom = screen.height;
         graphics.enableScissor(canvasLeft(), DevUi.TOP_BAR_H, right, screen.height);
         // The sky behind, at half the canvas's pace, still while zooming (November 19, 2026).
-        if (!Double.isNaN(skyPanX) && zoom == skyZoom) {
+        if (Double.isNaN(skyPanX)) {
+            // At first sight its middle and the grid's origin agree as they would with the origin in the screen's middle,
+            // so the sky's mirrored seams lie far from the origin (November 20, 2026, the author saw one in plain view).
+            skyX = (canvasLeft() + panX - screen.width / 2.0) * DevBackground.PARALLAX;
+            skyY = (DevUi.TOP_BAR_H + panY - screen.height / 2.0) * DevBackground.PARALLAX;
+        } else if (zoom == skyZoom) {
             skyX += (panX - skyPanX) * DevBackground.PARALLAX;
             skyY += (panY - skyPanY) * DevBackground.PARALLAX;
         }

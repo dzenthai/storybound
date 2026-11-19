@@ -31,6 +31,8 @@ final class DevBackground {
     static final double PARALLAX = 0.5;
     /** The light kept: 45% (November 19, 2026, the author; the same day 60%, too bright under the cards). */
     private static final float DARKEN = 0.45f;
+    /** How many screens one copy of the sky covers, the narrower way. */
+    private static final float SIZE = 2f;
     /** The blur's sigma in the doubled image's pixels: one pixel of the drawing. */
     private static final double SIGMA = 2.0;
     private static final List<String> SKIES = List.of("golden_nebula", "worlds_in_gold", "silent_eclipse", "star_rift", "comet_tide");
@@ -61,8 +63,9 @@ final class DevBackground {
             return;
         }
         Sky sky = made.get();
-        // One copy of the sky on the screen: as large as covers the whole screen, its own pixels doubled.
-        float scale = Math.max(screenWidth / (float) sky.width(), screenHeight / (float) sky.height());
+        // One copy of the sky: twice as large as covers the screen (November 20, 2026; before, just covering it), so its
+        // mirrored seam shows only once the grid's origin is half a screen and more off it.
+        float scale = SIZE * Math.max(screenWidth / (float) sky.width(), screenHeight / (float) sky.height());
         int tileWidth = Math.max(1, Math.round(sky.width() * scale));
         int tileHeight = Math.max(1, Math.round(sky.height() * scale));
         // Placed by the screen, not the canvas (November 19, 2026: centred on the canvas, it jumped when the inspector
