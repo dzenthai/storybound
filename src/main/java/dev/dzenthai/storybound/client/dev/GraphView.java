@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client.dev;
 
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -74,6 +75,15 @@ abstract class GraphView {
 
     /** Every client tick while the view is shown. */
     void tick(DevModeScreen screen) {}
+
+    /** The view's own buttons in the top bar, after the stories' button (left) and before the settings (right). */
+    List<DevModeScreen.TopButton> topLeft(DevModeScreen screen) {
+        return List.of();
+    }
+
+    List<DevModeScreen.TopButton> topRight(DevModeScreen screen) {
+        return List.of();
+    }
 
     /** One frame of the inspector's scroll glide; whether its rows moved, so the screen lays them out again. */
     boolean animateInspector() {

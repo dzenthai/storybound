@@ -352,31 +352,77 @@ public class DevModeScreen extends Screen {
         x = topButton(Component.literal("↶"), DevUi.text("undo"), HISTORY.canUndo(), x, this::undo);
         x = topButton(Component.literal("↷"), DevUi.text("redo"), HISTORY.canRedo(), x, this::redo);
         x += 4;
-        String language = ClientDevStore.activeLanguage().split("_")[0].toUpperCase(Locale.ROOT);
-        x = topButton(Component.literal("🌐 " + language), DevUi.text("top.language.tooltip", ClientDevStore.activeLanguage()), true, x, this::cycleLanguage);
-        int settingsX = x;
-        // The story's settings, its languages and its namespace, in one menu.
-        topButton(Component.literal("⚙"), DevUi.text("top.settings.tooltip"), true, x, () -> openMenu(settingsX, DevUi.TOP_BAR_H, List.of(
-                MenuItem.of(Component.literal("⚙ ").append(DevUi.text("top.menu.settings")), () -> {
-                    view.saveEdits(this);
-                    settings.open();
-                    rebuild();
-                }),
-                MenuItem.of(Component.literal("🌐 ").append(DevUi.text("top.menu.language")), () -> {
-                    languageOpen = true;
-                    languageError = Component.empty();
-                    rebuild();
-                }),
-                MenuItem.of(DevUi.text("projects.title"), this::openProjects))));
-        int projectX = settingsX + 26;
+        // The order the author set (November 19, 2026): at the left ← ↶ ↷, the stories, then the view's own (the story's
+        // search and whose progress); in the middle what the map shows; at the right the language, the view's own (the
+        // problems), the story's settings at the very end.
+        List<TopButton> viewLeft = view.topLeft(this);
+        int viewLeftW = viewLeft.stream().mapToInt(button -> DevButton.oddWidth(font, button.label()) + 2).sum();
         int centerWidth = Math.max(DevButton.oddWidth(font, DevUi.text("canvas.show_all_links")),
                 DevButton.oddWidth(font, DevUi.text("canvas.show_chapters"))) + 8;
-        int room = (width - centerWidth) / 2 - projectX - 4;
+        // The stories' button with the edited one's title, as long as there is room before the middle.
+        int room = (width - centerWidth) / 2 - 4 - x - viewLeftW - 4;
         if (room >= 19) {
             String title = font.plainSubstrByWidth(ClientDevStore.projectTitle(), Math.max(0, Math.min(85, room - 26)));
-            topButton(Component.literal("📁" + (title.isEmpty() ? "" : " " + title)),
-                    DevUi.text("projects.title").copy().append(": " + ClientDevStore.projectTitle()), true, projectX, this::openProjects);
+            x = topButton(Component.literal("📁" + (title.isEmpty() ? "" : " " + title)),
+                    DevUi.text("projects.title").copy().append(": " + ClientDevStore.projectTitle()), true, x, this::openProjects) + 4;
         }
+        for (TopButton button : viewLeft) {
+            x = topButton(button.label(), button.tooltip(), true, x, button.action());
+        }
+
+        // The story's settings at the bar's right end, straight to their window (November 19, 2026, the author: next to
+        // the language nobody would look for them, and their menu's "Stories" was the 📁 button again).
+        int right = width - 4 - DevButton.oddWidth(font, Component.literal("⛭"));
+        topButton(Component.literal("⛭"), DevUi.text("top.settings.tooltip"), true, right, () -> {
+            view.saveEdits(this);
+            settings.open();
+            rebuild();
+        });
+        List<TopButton> viewRight = view.topRight(this);
+        for (int i = viewRight.size() - 1; i >= 0; i--) {
+            TopButton button = viewRight.get(i);
+            right -= DevButton.oddWidth(font, button.label()) + 2;
+            topButton(button.label(), button.tooltip(), true, right, button.action());
+        }
+        // The story's languages to pick from and adding one, under the button (November 19, 2026, the author; before, a
+        // click went to the next language and adding one was in the settings' menu).
+        Component language = Component.literal("🌐 " + ClientDevStore.activeLanguage().split("_")[0].toUpperCase(Locale.ROOT));
+        int languageX = right - DevButton.oddWidth(font, language) - 2;
+        topButton(language, DevUi.text("top.language.tooltip", ClientDevStore.activeLanguage()), true, languageX,
+                () -> openMenu(languageX, DevUi.TOP_BAR_H, languageMenu()));
+    }
+
+    /** A button a view puts in the top bar: its sign (and words), what it says on hover, what it does. */
+    record TopButton(Component label, Component tooltip, Runnable action) {}
+
+
+    /** The language button's menu: every language of the story, ✔ the one written in, then adding one. */
+    private List<MenuItem> languageMenu() {
+        List<String> languages = new ArrayList<>(ClientDevStore.languages());
+        if (!languages.contains(ClientDevStore.sourceLanguage())) {
+            languages.addFirst(ClientDevStore.sourceLanguage());
+        }
+        List<MenuItem> items = new ArrayList<>();
+        for (String code : languages) {
+            var info = minecraft.getLanguageManager().getLanguage(code);
+            String name = info == null ? code : info.name() + " (" + code + ")";
+            Component label = Component.literal(code.equalsIgnoreCase(ClientDevStore.activeLanguage()) ? "✔ " : "").append(name);
+            if (code.equalsIgnoreCase(ClientDevStore.sourceLanguage())) {
+                label = label.copy().append(" · ").append(DevUi.text("top.language.source"));
+            }
+            items.add(MenuItem.of(label, () -> {
+                if (!code.equalsIgnoreCase(ClientDevStore.activeLanguage())) {
+                    view().saveEdits(this);
+                    setLanguage(code);
+                }
+            }));
+        }
+        items.add(MenuItem.of(Component.literal("+ ").append(DevUi.text("top.menu.language")), () -> {
+            languageOpen = true;
+            languageError = Component.empty();
+            rebuild();
+        }));
+        return items;
     }
 
     private void openProjects() {
@@ -500,16 +546,6 @@ public class DevModeScreen extends Screen {
     }
 
     // --- languages
-
-    private void cycleLanguage() {
-        List<String> languages = ClientDevStore.languages();
-        if (languages.isEmpty()) {
-            return;
-        }
-        view().saveEdits(this);
-        String next = languages.get((languages.indexOf(ClientDevStore.activeLanguage()) + 1) % languages.size());
-        setLanguage(next);
-    }
 
     private void setLanguage(String language) {
         ClientDevStore.setActiveLanguage(language);
@@ -797,6 +833,8 @@ public class DevModeScreen extends Screen {
         graphics.pose().translate(0, 0, 300);
         graphics.fill(left - 1, top - 1, left + MENU_W + 1, top + height + 1, DevUi.CARD_EDGE);
         graphics.fill(left, top, left + MENU_W, top + height, DevUi.BAR);
+        // Words in one column: a line without an icon is indented as if it had one, when others do.
+        boolean icons = menu.stream().anyMatch(item -> DevIcons.split(item.label().getString()).icon() != null);
         for (int i = 0; i < menu.size(); i++) {
             int y = top + 3 + i * MENU_ITEM_H;
             boolean hover = DevUi.inside(mouseX, mouseY, left, y, MENU_W, MENU_ITEM_H);
@@ -814,7 +852,9 @@ public class DevModeScreen extends Screen {
             // A line's glyph is its icon (November 17, 2026): "🗑 Delete" shows the bin, painted as the line's words.
             DevIcons.Split split = DevIcons.split(item.label().getString());
             if (split.icon() != null) {
-                DevIcons.draw(graphics, split.icon(), textX, y + 3, item.danger() ? color : hover ? DevUi.ACCENT : DevUi.LABEL);
+                DevIcons.draw(graphics, split.icon(), textX, y + (MENU_ITEM_H - DevIcons.SIZE) / 2, item.danger() ? color : hover ? DevUi.ACCENT : DevUi.LABEL);
+                textX += DevIcons.SIZE + DevIcons.GAP;
+            } else if (icons && item.swatch() == 0) {
                 textX += DevIcons.SIZE + DevIcons.GAP;
             }
             graphics.drawString(font, font.plainSubstrByWidth(split.text(), left + MENU_W - 4 - textX), textX, y + 4, color, false);

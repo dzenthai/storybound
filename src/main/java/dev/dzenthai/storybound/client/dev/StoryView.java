@@ -72,8 +72,9 @@ final class StoryView extends GraphView {
     private static final int MAP_COLUMN_W = 5 * DevUi.GRID;
     private static final int MAP_ROW_H = 4 * DevUi.GRID;
     /** A badge under a node of the map: one of its own nodes. */
-    private static final int BADGE_W = 11;
-    private static final int BADGE_H = 11;
+    /** A badge: an icon with a pixel round it and its line under it. */
+    private static final int BADGE_W = DevIcons.SIZE + 2;
+    private static final int BADGE_H = DevIcons.SIZE + 2;
     /** Badges shown under a node before the rest fold into "+N". */
     private static final int MAX_BADGES = 5;
     /**
@@ -1667,17 +1668,7 @@ final class StoryView extends GraphView {
 
     @Override
     void addWidgets(DevModeScreen screen) {
-        // The top bar's right end, small signs with their words on hover, from the right: the problems, the search,
-        // every link or back to the chapters, whose progress the map shows.
-        int x = screen.width - 4;
-        int problems = ClientDevStore.issues().size();
-        boolean errors = ClientDevStore.issues().stream().anyMatch(line -> line.startsWith("[ERROR]"));
-        Component problemsLabel = problems == 0 ? Component.literal("✔") : Component.literal("⚠ " + problems)
-                .withColor(errors ? DevUi.ERROR : DevUi.WARN);
-        x = topButton(screen, x, problemsLabel, problems == 0 ? "top.problems_none.tooltip" : "top.problems.tooltip",
-                () -> screen.openFinder(StoryFinder.Mode.PROBLEMS));
-        x = topButton(screen, x, Component.literal("🔍"), "top.search.tooltip", () -> screen.openFinder(StoryFinder.Mode.SEARCH));
-        // In the middle of the top bar, in words (November 17, 2026, the author; before, a bare 🕸 among the signs at the
+        // The search, the progress and the problems are the top bar's (topLeft, topRight). In the middle of the top bar, in words (November 17, 2026, the author; before, a bare 🕸 among the signs at the
         // right): what the map shows instead, the chapters or every link.
         Component toggle = DevUi.text(tab == Tab.STORY ? "canvas.show_all_links" : "canvas.show_chapters");
         int toggleW = DevButton.oddWidth(screen.font(), toggle) + 8;
@@ -1686,21 +1677,33 @@ final class StoryView extends GraphView {
                     openTab(screen, tab == Tab.STORY ? Tab.ALL : Tab.STORY);
                 }).tooltip(Tooltip.create(DevUi.text(tab == Tab.STORY ? "canvas.all_links.tooltip" : "canvas.back_to_chapters.tooltip")))
                 .bounds((screen.width - toggleW) / 2, 3, toggleW, 19).build());
-        if (tab == Tab.STORY) {
-            Component who = progressOf == null ? Component.literal("👤") : Component.literal("👤 " + progressOf);
-            topButton(screen, x, who, "progress.tooltip", () -> nextProgressPlayer(screen));
-        }
         if (inspectorVisible(screen)) {
             inspector.addWidgets(screen);
         }
     }
 
-    /** A small button of the top bar's right end, right-aligned at {@code right}; returns where the next one ends. */
-    private static int topButton(DevModeScreen screen, int right, Component label, String tooltip, Runnable action) {
-        int w = DevButton.oddWidth(screen.font(), label);
-        screen.add(Button.builder(label, b -> action.run()).tooltip(Tooltip.create(DevUi.text(tooltip)))
-                .bounds(right - w, 3, w, 19).build());
-        return right - w - 2;
+    /** After the stories' button: the search, and on the map whose progress it shows. */
+    @Override
+    List<DevModeScreen.TopButton> topLeft(DevModeScreen screen) {
+        List<DevModeScreen.TopButton> buttons = new ArrayList<>();
+        buttons.add(new DevModeScreen.TopButton(Component.literal("🔍"), DevUi.text("top.search.tooltip"),
+                () -> screen.openFinder(StoryFinder.Mode.SEARCH)));
+        if (tab == Tab.STORY) {
+            Component who = progressOf == null ? Component.literal("👤") : Component.literal("👤 " + progressOf);
+            buttons.add(new DevModeScreen.TopButton(who, DevUi.text("progress.tooltip"), () -> nextProgressPlayer(screen)));
+        }
+        return buttons;
+    }
+
+    /** Between the language and the settings: the story's problems, their count in their colour, or ✔ none. */
+    @Override
+    List<DevModeScreen.TopButton> topRight(DevModeScreen screen) {
+        int problems = ClientDevStore.issues().size();
+        boolean errors = ClientDevStore.issues().stream().anyMatch(line -> line.startsWith("[ERROR]"));
+        Component label = problems == 0 ? Component.literal("✔") : Component.literal("⚠ " + problems)
+                .withColor(errors ? DevUi.ERROR : DevUi.WARN);
+        return List.of(new DevModeScreen.TopButton(label, DevUi.text(problems == 0 ? "top.problems_none.tooltip" : "top.problems.tooltip"),
+                () -> screen.openFinder(StoryFinder.Mode.PROBLEMS)));
     }
 
     @Override
@@ -1980,7 +1983,7 @@ final class StoryView extends GraphView {
             if (icon != null) {
                 DevIcons.draw(graphics, icon, badge.x() + (badge.width() - DevIcons.SIZE) / 2, badge.y() + 1, signColor);
             } else {
-                graphics.drawString(font, sign, badge.x() + (badge.width() - font.width(sign)) / 2 + 1, badge.y() + 2, signColor, false);
+                graphics.drawString(font, sign, badge.x() + (badge.width() - font.width(sign)) / 2 + 1, badge.y() + (BADGE_H - 8) / 2, signColor, false);
             }
             boolean problem = badge.node() != null ? hasProblem(badge.node()) : badge.rest().stream().anyMatch(StoryView::hasProblem);
             if (problem) {

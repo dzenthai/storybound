@@ -64,7 +64,7 @@ final class DevButton extends Button {
         int left = x + (w - contentW) / 2;
         // The icon in the middle of the height; the letters (7 high above their line) centred on it.
         int iconY = y + (h - DevIcons.SIZE) / 2;
-        int textY = split.icon() != null ? iconY + 1 : y + (h - 7) / 2;
+        int textY = split.icon() != null ? iconY + (DevIcons.SIZE - 7) / 2 : y + (h - 7) / 2;
         if (split.icon() != null) {
             DevIcons.draw(graphics, split.icon(), left, iconY, iconColor);
         }
@@ -72,7 +72,7 @@ final class DevButton extends Button {
     }
 
     /**
-     * A width for a button of the label that keeps a 9-pixel icon exactly in the middle: odd, at least 19, the label
+     * A width for a button of the label that keeps an icon exactly in the middle: odd, at least 19, the label
      * with room around it.
      */
     static int oddWidth(Font font, Component label) {

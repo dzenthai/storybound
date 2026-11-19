@@ -548,15 +548,23 @@ final class DialogueView extends GraphView {
 
     // --- widgets
 
+    /** The test of this dialogue, in the top bar between the language and the settings. */
+    @Override
+    List<DevModeScreen.TopButton> topRight(DevModeScreen screen) {
+        if (id == null) {
+            return List.of();
+        }
+        ResourceLocation dialogue = id;
+        return List.of(new DevModeScreen.TopButton(Component.literal("▶ ").append(DevUi.text("dialogue.test")), DevUi.text("dialogue.test"),
+                () -> screen.playtest("dialogue_start", dialogue)));
+    }
+
     @Override
     void addWidgets(DevModeScreen screen) {
         this.screen = screen;
         if (id == null) {
             return;
         }
-        ResourceLocation dialogue = id;
-        screen.add(Button.builder(Component.literal("▶ ").append(DevUi.text("dialogue.test")), b -> screen.playtest("dialogue_start", dialogue))
-                .bounds(screen.canvasRight() - 100, 3, 96, 18).build());
         int w = DevUi.LEFT_PANEL_W - 12;
         String npc = speakers().getFirst();
         screen.add(Button.builder(DevUi.text("dialogue.add_npc_line"), b -> createNode(screen, "line", npc, 60, 60, null))
@@ -588,8 +596,33 @@ final class DialogueView extends GraphView {
             Schemas.Node schema = Schemas.definition("dialogue.schema.json", "node");
             form.reset(schema != null ? Schemas.typed(schema, DialogueGraph.type(node)) : null, nodeId, Set.of("type"));
         }
-        // Deleting is Delete or the node's menu, as for every other card (before, a button here as well).
-        form.addWidgets(screen, x, y, w, screen.height - 8);
+        form.addWidgets(screen, x, y, w, screen.height - 34);
+        // At the bottom as on the story's inspector (November 19, 2026, the author: a dialogue node had no Save; its
+        // words were sent only on leaving it): saving it now, and deleting it (Delete and its menu still do).
+        screen.add(Button.builder(Component.literal("💾 ").append(DevUi.text("inspector.save")), b -> saveNode(screen, nodeId))
+                .bounds(x, screen.height - 26, w - 54, 20).build());
+        screen.add(Button.builder(Component.literal("🗑"), b -> deleteNode(screen, nodeId))
+                .tooltip(Tooltip.create(DevUi.text("inspector.delete"))).bounds(x + w - 50, screen.height - 26, 50, 20).build());
+    }
+
+    /** The inspector's Save: the dialogue as edited, sent now as one undoable step; unfinished, why it waits. */
+    private void saveNode(DevModeScreen screen, String nodeId) {
+        if (id == null) {
+            return;
+        }
+        State before = saved != null ? saved : state();
+        rebuildCards();
+        saveDialogue();
+        if (dirty) {
+            // Not complete yet: saveDialogue said what is missing.
+            return;
+        }
+        State after = state();
+        if (!after.equals(before)) {
+            remember(screen, DevUi.str("history.dialogue_edit", nodeId), before, after);
+        }
+        screen.status(DevUi.text("status.saved", nodeId), DevUi.OK);
+        screen.rebuild();
     }
 
     /**

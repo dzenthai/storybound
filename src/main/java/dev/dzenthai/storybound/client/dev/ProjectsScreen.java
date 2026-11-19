@@ -109,7 +109,7 @@ final class ProjectsScreen extends Screen {
                     request("select", project.id(), "", false, AfterRequest.EDITOR));
             // Its settings at once, for any story, without opening it in the editor (November 18, 2026: before, another
             // story was opened first and its whole snapshot awaited, a wait and a jump).
-            Button manage = button(Component.literal("⚙"), left + contentWidth - 29, y + 10, 23, () -> {
+            Button manage = button(Component.literal("⛭"), left + contentWidth - 29, y + 10, 23, () -> {
                 showManagement(project);
                 rebuildWidgets();
             });

@@ -30,7 +30,7 @@ import org.lwjgl.glfw.GLFW;
 final class StoryFinder {
     private static final int MAX_WIDTH = 380;
     private static final int MAX_HEIGHT = 300;
-    private static final int ROW_H = 14;
+    private static final int ROW_H = 15;
     private static final int HEAD_H = 46;
 
     enum Mode { SEARCH, PROBLEMS }
@@ -220,14 +220,14 @@ final class StoryFinder {
                     DevIcons.draw(graphics, icon, textX, y + 2, hover ? DevUi.ACCENT : color);
                     textX += DevIcons.SIZE + DevIcons.GAP;
                 }
-                screen.drawCut(graphics, row.title(), textX, y + 3, left + w - 16 - noteW - textX, color);
-                graphics.drawString(font, note, left + w - 10 - noteW, y + 3, DevUi.MUTED, false);
+                screen.drawCut(graphics, row.title(), textX, y + 4, left + w - 16 - noteW - textX, color);
+                graphics.drawString(font, note, left + w - 10 - noteW, y + 4, DevUi.MUTED, false);
             } else {
                 Problem problem = problems.get(i);
                 if (hover && problem.key() != null) {
                     graphics.fill(left + 4, y, left + w - 4, y + ROW_H, DevUi.ROW_HOVER);
                 }
-                screen.drawCut(graphics, "⚠ " + shortProblem(problem), left + 8, y + 3, w - 16, problem.error() ? DevUi.ERROR : DevUi.WARN);
+                screen.drawCut(graphics, "⚠ " + shortProblem(problem), left + 8, y + 4, w - 16, problem.error() ? DevUi.ERROR : DevUi.WARN);
             }
         }
     }
