@@ -1470,6 +1470,35 @@ final class StoryView extends GraphView {
     }
 
     /** Selects the chapter itself, so the inspector edits its title. */
+    /**
+     * The chapter's icon from the strip's menu (November 19, 2026): every item, "the title's first letter" first (no icon);
+     * the pick goes into the chapter's {@code icon} at once, and can be undone.
+     */
+    void pickChapterIcon(DevModeScreen screen, ResourceLocation id) {
+        String before = ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, id);
+        if (before == null) {
+            return;
+        }
+        screen.catalog().openList(DevUi.text("chapter.icon"), StoryInspector.iconEntries(DevUi.str("chapter.icon_letter"), ItemStack.EMPTY),
+                (kind, entry) -> {
+                    String now = ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, id);
+                    if (now == null) {
+                        return;
+                    }
+                    JsonObject json = ClientDevStore.parseObject(now);
+                    if (entry.id().isEmpty()) {
+                        json.remove("icon");
+                    } else {
+                        json.addProperty("icon", entry.id());
+                    }
+                    String after = DevUi.GSON.toJson(json);
+                    NodeKey key = new NodeKey(ClientDevStore.TYPE_CHAPTER, id);
+                    restore(key, after);
+                    screen.remember(DevUi.str("history.chapter_icon"), () -> restore(key, now), () -> restore(key, after));
+                    screen.rebuild();
+                });
+    }
+
     void renameChapter(DevModeScreen screen, ResourceLocation id) {
         openChapter(id);
         select(screen, new NodeKey(ClientDevStore.TYPE_CHAPTER, id));
@@ -2328,6 +2357,11 @@ final class StoryView extends GraphView {
     @Override
     void scrollInspector(double amount) {
         inspector.scroll(amount);
+    }
+
+    @Override
+    boolean animateInspector() {
+        return inspector.animateScroll();
     }
 
     @Override

@@ -697,6 +697,11 @@ final class DialogueView extends GraphView {
         form.scroll(amount);
     }
 
+    @Override
+    boolean animateInspector() {
+        return form.animateScroll();
+    }
+
     // --- drawing
 
     @Override

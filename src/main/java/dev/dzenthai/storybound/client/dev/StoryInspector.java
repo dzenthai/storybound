@@ -164,6 +164,10 @@ final class StoryInspector {
         form.scroll(amount);
     }
 
+    boolean animateScroll() {
+        return form.animateScroll();
+    }
+
     void ask(NodeKey key, NodeTemplates.Ask question) {
         askFor = key;
         ask = question;
@@ -175,7 +179,8 @@ final class StoryInspector {
         if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
             return Set.of("nodes", "start", "icon");
         }
-        return type.equals(ClientDevStore.TYPE_CHAPTER) ? Set.of("nodes") : Set.of("icon");
+        // A chapter's icon too: its button is left of its title (November 19, 2026).
+        return type.equals(ClientDevStore.TYPE_CHAPTER) ? Set.of("nodes", "icon") : Set.of("icon");
     }
 
     void addWidgets(DevModeScreen screen) {
@@ -209,6 +214,10 @@ final class StoryInspector {
         int y = DevUi.TOP_BAR_H + 30;
         if (renameable(key)) {
             nameRow(screen, key, x, DevUi.TOP_BAR_H + 16, w);
+            y = DevUi.TOP_BAR_H + 46;
+        } else if (key.type().equals(ClientDevStore.TYPE_CHAPTER)) {
+            // A chapter: its icon, its title beside it (written in the form below).
+            iconButton(screen, key, x, DevUi.TOP_BAR_H + 16);
             y = DevUi.TOP_BAR_H + 46;
         }
         y = quickTests(screen, key, x, y, w);
@@ -288,9 +297,12 @@ final class StoryInspector {
         if (json == null) {
             return;
         }
-        ItemStack shown = StoryView.icon(key, json);
-        IconButton button = new IconButton(x, y, shown, () -> pickIcon(screen, key));
-        button.setTooltip(Tooltip.create(DevUi.text("node_icon.tooltip", shown.getHoverName().getString())));
+        boolean chapter = key.type().equals(ClientDevStore.TYPE_CHAPTER);
+        ItemStack shown = chapter ? StoryPanel.icon(json) : StoryView.icon(key, json);
+        String title = chapter ? ClientDevStore.readStoryText(json, "title", key.id().getPath()) : "";
+        String letter = title.isEmpty() ? "?" : title.substring(0, 1).toUpperCase(Locale.ROOT);
+        IconButton button = new IconButton(x, y, shown, letter, () -> pickIcon(screen, key));
+        button.setTooltip(Tooltip.create(DevUi.text("node_icon.tooltip", shown.isEmpty() ? DevUi.str("chapter.icon_letter") : shown.getHoverName().getString())));
         screen.add(button);
     }
 
@@ -299,14 +311,13 @@ final class StoryInspector {
         if (json == null) {
             return;
         }
-        List<Catalog.Entry> entries = new ArrayList<>();
-        ItemStack own = StoryView.kindIcon(key, json);
-        entries.add(new Catalog.Entry("", DevUi.str("node_icon.default", own.getHoverName().getString()), own));
-        BuiltInRegistries.ITEM.entrySet().stream()
-                .filter(entry -> entry.getValue() != Items.AIR)
-                .sorted(java.util.Comparator.comparing(entry -> entry.getKey().location().toString()))
-                .forEach(entry -> entries.add(new Catalog.Entry(entry.getKey().location().toString(),
-                        entry.getValue().getDescription().getString(), new ItemStack(entry.getValue()))));
+        List<Catalog.Entry> entries;
+        if (key.type().equals(ClientDevStore.TYPE_CHAPTER)) {
+            entries = iconEntries(DevUi.str("chapter.icon_letter"), ItemStack.EMPTY);
+        } else {
+            ItemStack own = StoryView.kindIcon(key, json);
+            entries = iconEntries(DevUi.str("node_icon.default", own.getHoverName().getString()), own);
+        }
         screen.catalog().openList(DevUi.text("node_icon.pick"), entries, (kind, entry) -> {
             if (!key.equals(view.selected) || view.editing == null) {
                 return;
@@ -321,14 +332,28 @@ final class StoryInspector {
         });
     }
 
-    /** A square button showing an item, in the editor's flat look. */
+    /** Every item to pick an icon from, the default first ({@code id} empty: no icon of its own). */
+    static List<Catalog.Entry> iconEntries(String defaultLabel, ItemStack defaultIcon) {
+        List<Catalog.Entry> entries = new ArrayList<>();
+        entries.add(new Catalog.Entry("", defaultLabel, defaultIcon));
+        BuiltInRegistries.ITEM.entrySet().stream()
+                .filter(entry -> entry.getValue() != Items.AIR)
+                .sorted(java.util.Comparator.comparing(entry -> entry.getKey().location().toString()))
+                .forEach(entry -> entries.add(new Catalog.Entry(entry.getKey().location().toString(),
+                        entry.getValue().getDescription().getString(), new ItemStack(entry.getValue()))));
+        return entries;
+    }
+
+    /** A square button showing an item (or, without one, a letter), in the editor's flat look. */
     private static final class IconButton extends net.minecraft.client.gui.components.AbstractButton {
         private final ItemStack item;
+        private final String letter;
         private final Runnable action;
 
-        IconButton(int x, int y, ItemStack item, Runnable action) {
+        IconButton(int x, int y, ItemStack item, String letter, Runnable action) {
             super(x, y, 18, 16, Component.empty());
             this.item = item;
+            this.letter = letter;
             this.action = action;
         }
 
@@ -342,7 +367,12 @@ final class StoryInspector {
             boolean hover = isHoveredOrFocused();
             graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? DevUi.ROW_HOVER : DevUi.CARD);
             DevUi.frame(graphics, getX(), getY(), width, height, hover ? DevUi.ACCENT : DevUi.CARD_EDGE);
-            graphics.renderItem(item, getX() + 1, getY());
+            if (item.isEmpty()) {
+                var font = net.minecraft.client.Minecraft.getInstance().font;
+                graphics.drawString(font, letter, getX() + (width - font.width(letter)) / 2 + 1, getY() + 4, hover ? DevUi.WARN : DevUi.LABEL, false);
+            } else {
+                graphics.renderItem(item, getX() + 1, getY());
+            }
         }
 
         @Override
@@ -677,7 +707,7 @@ final class StoryInspector {
             Link link = links.get(i);
             if (link.removable()) {
                 screen.add(Button.builder(Component.literal("✕"), b -> view.unlinkSelected(screen, link.partner()))
-                        .tooltip(Tooltip.create(DevUi.text("links.remove"))).bounds(x + w - 12, linksTop + i * LINK_H, 12, 11).build());
+                        .tooltip(Tooltip.create(DevUi.text("links.remove"))).bounds(x + w - 13, linksTop + i * LINK_H, 13, 11).build());
             }
         }
     }
@@ -714,8 +744,15 @@ final class StoryInspector {
             return;
         }
         // The label of the name below; before, the panel's own title "Inspector", which said nothing.
-        Component header = view.selection.size() > 1 ? DevUi.text("inspector.header_many", view.selection.size()) : DevUi.text("rename.label");
+        boolean chapter = key.type().equals(ClientDevStore.TYPE_CHAPTER);
+        Component header = view.selection.size() > 1 ? DevUi.text("inspector.header_many", view.selection.size())
+                : DevUi.text(chapter ? "chapter.header" : "rename.label");
         graphics.drawString(font, header, left + 8, DevUi.TOP_BAR_H + 6, DevUi.ACCENT, false);
+        if (chapter) {
+            // Its title beside its icon button.
+            String title = ClientDevStore.readStoryText(view.editing, "title", key.id().getPath());
+            screen.drawCut(graphics, title, left + 30, DevUi.TOP_BAR_H + 20, DevUi.RIGHT_PANEL_W - 38, DevUi.TEXT);
+        }
         List<String> issues = ClientDevStore.issuesFor(key.type(), key.id());
         if (renameable(key)) {
             // Under the name: why the typed one cannot be, else the validator's first word on the node.
@@ -725,6 +762,10 @@ final class StoryInspector {
                     StoryRenames.parse(renameText != null ? renameText : "", key.id()).map(StoryRenames::relationshipScale).map(Object::toString).orElse(""))
                     : issues.isEmpty() ? "" : "⚠ " + issues.getFirst();
             screen.drawCut(graphics, line, left + 8, DevUi.TOP_BAR_H + 34, DevUi.RIGHT_PANEL_W - 16, DevUi.BAD);
+        } else if (chapter) {
+            // Under the icon and the title: its id, or its first issue.
+            String second = issues.isEmpty() ? key.id().toString() : "⚠ " + issues.getFirst();
+            screen.drawCut(graphics, second, left + 8, DevUi.TOP_BAR_H + 34, DevUi.RIGHT_PANEL_W - 16, issues.isEmpty() ? DevUi.MUTED : DevUi.BAD);
         } else {
             // The id line turns into the first issue, in red, when the validator has something to say about this node.
             String second = issues.isEmpty() ? key.id().toString() : "⚠ " + issues.getFirst();

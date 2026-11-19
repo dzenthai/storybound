@@ -19,8 +19,10 @@ import org.lwjgl.glfw.GLFW;
  * The story editor's chapters, as FTB Quests shows them (November 16, 2026; the same day, a panel of three sections,
  * Chapters, Search and Problems, which the author found heavy): a narrow strip of icons on the left, the chapter's
  * item (its {@code icon}) or its first letter, ★ for the whole story, ◌ for the nodes in no chapter, + for a new one.
- * Hovering it slides the names out over the canvas; moving away folds them back. Search and the problems are buttons
- * of the top bar ({@link StoryFinder}).
+ * Hovering it slides the names out over the canvas; moving away folds them back. A chapter's row, hovered or open,
+ * has a "⋯" at its end for what can be done with it, editing it, its icon, deleting it, the same as a right click
+ * (November 19, 2026, the author: the right click was the only way, and not one anybody would guess). Search and the
+ * problems are buttons of the top bar ({@link StoryFinder}).
  */
 final class StoryPanel {
     /** The strip's width: where the map's canvas begins. */
@@ -42,6 +44,8 @@ final class StoryPanel {
     private int scroll;
     /** The names are slid out: the mouse came onto the strip and has not left the slid-out panel since. */
     private boolean expanded;
+    /** The chapter whose menu was opened from the strip, while it may still be open. */
+    private @Nullable ResourceLocation menuFor;
 
     StoryPanel(StoryView view) {
         this.view = view;
@@ -64,7 +68,7 @@ final class StoryPanel {
     }
 
     /** The chapter's item, when it names one that exists. */
-    private static ItemStack icon(JsonObject chapter) {
+    static ItemStack icon(JsonObject chapter) {
         if (chapter.get("icon") instanceof com.google.gson.JsonPrimitive primitive) {
             ResourceLocation id = ResourceLocation.tryParse(primitive.getAsString());
             if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
@@ -86,6 +90,12 @@ final class StoryPanel {
 
     /** Slides the names out while the mouse is on the strip or the slid-out panel; never while something is dragged. */
     void hover(DevModeScreen screen, double mouseX, double mouseY, boolean busy) {
+        if (menuFor != null && screen.menuOpen()) {
+            // A chapter's menu is open: the panel stays out under it, with its row lit (November 19, 2026, the author:
+            // it folded away as the mouse went over to the menu).
+            return;
+        }
+        menuFor = null;
         if (busy || screen.modalOpen()) {
             expanded = false;
         } else if (mouseX >= 0 && mouseX < STRIP_W && mouseY >= DevUi.TOP_BAR_H) {
@@ -111,7 +121,8 @@ final class StoryPanel {
             ChapterRow row = list.get(i);
             int y = TOP + (i - scroll) * ROW_STEP;
             boolean open = row.chapter() != null && view.isOpenChapter(row.chapter());
-            boolean hover = DevUi.inside(mouseX, mouseY, 0, y - 1, width, ROW_STEP);
+            boolean menuHere = menuFor != null && menuFor.equals(row.chapter()) && screen.menuOpen();
+            boolean hover = menuHere || (menuFor == null && DevUi.inside(mouseX, mouseY, 0, y - 1, width, ROW_STEP));
             if (expanded && (open || hover)) {
                 graphics.fill(1, y - 1, width - 2, y + SLOT + 1, open ? DevUi.ROW_SELECTED : DevUi.ROW_HOVER);
             }
@@ -134,10 +145,22 @@ final class StoryPanel {
             if (expanded) {
                 String count = row.count() >= 0 ? String.valueOf(row.count()) : "";
                 int countW = font.width(count);
-                int nameW = width - SLOT - 14 - countW - 6;
+                int countRight = width - 8;
+                if (editable(row) && (hover || open)) {
+                    // "⋯": three dots at the row's end, no frame, in the count's colour, gold under the mouse or while
+                    // its menu is open (November 19, 2026, the author: a framed button stood out of the panel).
+                    int mx = moreX(width);
+                    boolean onMore = menuHere || (menuFor == null && DevUi.inside(mouseX, mouseY, mx, y + 4, MORE, MORE));
+                    int dots = onMore ? DevUi.WARN : DevUi.MUTED;
+                    for (int d = 0; d < 3; d++) {
+                        graphics.fill(mx + 2 + d * 4, y + 10, mx + 4 + d * 4, y + 12, dots);
+                    }
+                    countRight = mx - 4;
+                }
+                int nameW = countRight - countW - 6 - (SLOT + 8);
                 graphics.drawString(font, font.plainSubstrByWidth(row.name(), nameW), SLOT + 8, y + 7,
                         row.chapter() == null ? DevUi.LINK : open ? DevUi.WARN : hover ? DevUi.TEXT : DevUi.LABEL, false);
-                graphics.drawString(font, count, width - 8 - countW, y + 7, DevUi.MUTED, false);
+                graphics.drawString(font, count, countRight - countW, y + 7, DevUi.MUTED, false);
             }
         }
         graphics.pose().popPose();
@@ -155,15 +178,34 @@ final class StoryPanel {
             screen.rebuild();
             return true;
         }
-        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !Chapters.hidden(row.chapter()) && !StoryView.UNSORTED.equals(row.chapter())) {
+        int y = TOP + (index - scroll) * ROW_STEP;
+        boolean onMore = expanded && button == GLFW.GLFW_MOUSE_BUTTON_LEFT && DevUi.inside(mouseX, mouseY, moreX(expandedWidth()), y + 4, MORE, MORE);
+        if (editable(row) && (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT || onMore)) {
             ResourceLocation id = row.chapter();
-            screen.openMenu((int) mouseX, (int) mouseY, List.of(
-                    MenuItem.of(Component.literal("✏ ").append(DevUi.text("chapter.rename")), () -> view.renameChapter(screen, id)),
+            // Under the "⋯" when it was clicked, else where the right click was.
+            int menuX = onMore ? moreX(expandedWidth()) : (int) mouseX;
+            int menuY = onMore ? y + 4 + MORE : (int) mouseY;
+            menuFor = id;
+            screen.openMenu(menuX, menuY, List.of(
+                    MenuItem.of(Component.literal("✏ ").append(DevUi.text("chapter.edit")), () -> view.renameChapter(screen, id)),
+                    MenuItem.of(Component.literal("🎒 ").append(DevUi.text("chapter.icon")), () -> view.pickChapterIcon(screen, id)),
                     MenuItem.danger(Component.literal("🗑 ").append(DevUi.text("chapter.delete", row.name())), () -> view.deleteChapter(screen, id))));
             return true;
         }
         view.showChapter(screen, row.chapter());
         return true;
+    }
+
+    /** The "⋯" button: its size, and where it starts in a panel this wide. */
+    private static final int MORE = 13;
+
+    private static int moreX(int width) {
+        return width - 8 - MORE;
+    }
+
+    /** A chapter of the author's (not the whole story, the nodes in none, or "+ Chapter"): it can be edited. */
+    private static boolean editable(ChapterRow row) {
+        return row.chapter() != null && !Chapters.hidden(row.chapter()) && !StoryView.UNSORTED.equals(row.chapter());
     }
 
     /** The wheel over the strip scrolls a long list of chapters. */

@@ -194,6 +194,11 @@ public class DevModeScreen extends Screen {
         return !modalNow().isEmpty();
     }
 
+    /** Whether a right-click menu is open. */
+    boolean menuOpen() {
+        return !menu.isEmpty();
+    }
+
     private String modalNow() {
         return catalog.isOpen() ? "catalog" : textEditor.isOpen() ? "text" : settings.isOpen() ? "settings" : finder.isOpen() ? "finder"
                 : languageOpen ? (namespaceWindow ? "namespace" : "language") : "";
@@ -684,6 +689,9 @@ public class DevModeScreen extends Screen {
         // input, and the inspector's buttons under it stayed live: its Save rebuilt the screen, only then the window worked.
         if (!modalNow().equals(builtFor)) {
             rebuild();
+        } else if (view().inspectorVisible(this) && view().animateInspector()) {
+            // The inspector's rows glided a pixel: laid out again where they are now.
+            rebuild();
         }
         graphics.fill(0, 0, width, height, DevUi.BACKGROUND);
         GraphView view = view();
@@ -895,8 +903,8 @@ public class DevModeScreen extends Screen {
             return true;
         }
         if (!languageOpen && view.inspectorVisible(this) && mouseX >= width - DevUi.RIGHT_PANEL_W && mouseY >= DevUi.TOP_BAR_H) {
+            // Where the form goes; it glides there frame by frame (see render).
             view.scrollInspector(scrollY);
-            rebuild();
             return true;
         }
         if (!languageOpen && view.onCanvas(this, mouseX, mouseY)) {

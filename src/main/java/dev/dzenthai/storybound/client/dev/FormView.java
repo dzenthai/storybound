@@ -135,8 +135,17 @@ final class FormView {
     private String rootLabel = "";
     private final Deque<Frame> frames = new ArrayDeque<>();
     private final List<Label> labels = new ArrayList<>();
+    /** The rows' shift as laid out now: the glide's position, rounded (see {@link #animateScroll}). */
     private int scroll;
     private int contentHeight;
+    /** Where the wheel sends the form, and where its glide there is. */
+    private double scrollTarget;
+    private double scrollShown;
+    private long scrollFrame;
+    /** The scroll bar, when the rows do not fit: the area it runs along (set when laid out). */
+    private int barX = -1;
+    private int barTop;
+    private int barBottom;
 
     // While building: where the next row goes and what is visible.
     private DevModeScreen screen;
@@ -156,15 +165,49 @@ final class FormView {
         rootLabel = label;
         hidden = hiddenFields;
         frames.clear();
-        scroll = 0;
+        resetScroll();
         // A switch's way chosen for a field not written yet belongs to this node, not to the next one shown at the same
         // path (November 7, 2026; before, another jump or NPC opened on the way picked here).
         entityModes.clear();
         switchedAway.clear();
     }
 
+    /**
+     * The wheel moves where the form goes; the rows glide there (November 19, 2026, the author: they jumped 24 pixels a
+     * notch): see {@link #animateScroll}.
+     */
     void scroll(double amount) {
-        scroll = Math.max(0, scroll - (int) Math.round(amount * 24));
+        scrollTarget = Math.max(0, scrollTarget - amount * 28);
+    }
+
+    /** Back to the top at once: another node, another page. */
+    private void resetScroll() {
+        scroll = 0;
+        scrollTarget = 0;
+        scrollShown = 0;
+    }
+
+    /**
+     * One frame of the glide to where the wheel sent the form, about a seventh of a second, frame-rate independent;
+     * whether the rows moved by a pixel, so the form must be laid out again.
+     */
+    boolean animateScroll() {
+        long now = System.nanoTime();
+        double seconds = scrollFrame == 0 ? 0 : Math.min(0.1, (now - scrollFrame) / 1e9);
+        scrollFrame = now;
+        if (scrollShown == scrollTarget) {
+            return false;
+        }
+        scrollShown += (scrollTarget - scrollShown) * (1 - Math.exp(-seconds * 20));
+        if (Math.abs(scrollTarget - scrollShown) < 0.5) {
+            scrollShown = scrollTarget;
+        }
+        int next = (int) Math.round(scrollShown);
+        if (next == scroll) {
+            return false;
+        }
+        scroll = next;
+        return true;
     }
 
     // --- JSON access by path, so pages survive the object being replaced by a fresh copy after saving
@@ -326,7 +369,7 @@ final class FormView {
             Frame frame = frames.peek();
             screen.add(Button.builder(Component.literal("◂"), b -> {
                 frames.pop();
-                scroll = 0;
+                resetScroll();
                 screen.rebuild();
             }).tooltip(Tooltip.create(DevUi.text("form.back"))).bounds(x, y0, 16, 14).build());
             if (frame.removable()) {
@@ -341,7 +384,10 @@ final class FormView {
         }
         this.top = y0;
         this.bottom = bottom;
-        scroll = Math.max(0, Math.min(scroll, contentHeight - (bottom - y0)));
+        int most = Math.max(0, contentHeight - (bottom - y0));
+        scroll = Math.max(0, Math.min(scroll, most));
+        scrollTarget = Math.min(scrollTarget, most);
+        scrollShown = Math.min(scrollShown, most);
         this.y = y0 - scroll;
         if (frames.isEmpty()) {
             objectPage(List.of(), rootSchema, hidden, null);
@@ -350,10 +396,10 @@ final class FormView {
             page(frame.path(), frame.schema());
         }
         contentHeight = y + scroll - y0;
-        if (contentHeight > bottom - y0) {
-            labels.add(new Label(Component.literal(scroll > 0 ? "▲" : " ").append(contentHeight - scroll > bottom - y0 ? " ▼" : ""),
-                    x + width - 18, bottom - 9, DevUi.MUTED));
-        }
+        // A thin bar along the form's right edge when its rows do not fit (November 19, 2026; before, ▲ ▼ in a corner).
+        barX = contentHeight > bottom - y0 ? x + width + 3 : -1;
+        barTop = y0;
+        barBottom = bottom;
     }
 
     /** The way to the page from the node: the node and the pages above this one (its own name is its heading). */
@@ -380,7 +426,7 @@ final class FormView {
         Node items = entityListItems(node);
         frames.clear();
         frames.push(new Frame(List.of(name), items != null ? items : node, label, false));
-        scroll = 0;
+        resetScroll();
     }
 
     /** Lists the triggers at once for the node's trigger: a new story event's first question. */
@@ -396,7 +442,7 @@ final class FormView {
 
     private void push(List<Object> path, Node schema, String label, boolean removable) {
         frames.push(new Frame(path, schema, label, removable));
-        scroll = 0;
+        resetScroll();
         screen.rebuild();
     }
 
@@ -407,7 +453,7 @@ final class FormView {
             parent.getAsJsonObject().remove(key);
         }
         frames.pop();
-        scroll = 0;
+        resetScroll();
         host.changed();
     }
 
@@ -779,6 +825,24 @@ final class FormView {
             @Override
             protected void applyValue() {
                 // Written once let go: see onRelease.
+            }
+
+            /**
+             * In the editor's look (November 19, 2026, the author: Minecraft's stone slider stood out): the dark field in
+             * its bronze frame, the share up to the handle a little lighter, the handle a gold bar, the value in words.
+             */
+            @Override
+            public void renderWidget(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+                boolean lit = isHoveredOrFocused();
+                int left = getX();
+                int top = getY();
+                graphics.fill(left, top, left + width, top + height, DevUi.CARD);
+                int handle = left + 1 + (int) Math.round(value * (width - 6));
+                graphics.fill(left + 1, top + 1, handle, top + height - 1, DevUi.ROW_HOVER);
+                DevUi.frame(graphics, left, top, width, height, lit ? DevUi.ACCENT : DevUi.CARD_EDGE);
+                graphics.fill(handle, top + 1, handle + 4, top + height - 1, lit ? DevUi.WARN : DevUi.ACCENT);
+                Font font = net.minecraft.client.Minecraft.getInstance().font;
+                graphics.drawCenteredString(font, getMessage(), left + width / 2, top + (height - 8) / 2, DevUi.TEXT);
             }
 
             @Override
@@ -3634,14 +3698,14 @@ final class FormView {
                 JsonArray list = ensureArray(path);
                 list.add(new JsonObject());
                 frames.push(new Frame(with(path, list.size() - 1), items, DevUi.str("entity.new"), false));
-                scroll = 0;
+                resetScroll();
                 host.changed();
             } else if (logic != null) {
                 pickType(logic, element -> {
                     String type = element.get("type").getAsString();
                     ensureArray(path).add(element);
                     frames.push(new Frame(with(path, ensureArray(path).size() - 1), items, typeName(logic, type), false));
-                    scroll = 0;
+                    resetScroll();
                     host.changed();
                 });
             } else if (picker != null) {
@@ -3669,7 +3733,7 @@ final class FormView {
                 }
                 list.add(element);
                 frames.push(new Frame(with(path, list.size() - 1), items, itemSummary(element, items, list.size() - 1), false));
-                scroll = 0;
+                resetScroll();
                 host.changed();
             }
         }).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build());
@@ -3917,7 +3981,7 @@ final class FormView {
             if (!key.isEmpty() && (map == null || !map.has(key))) {
                 ensureObject(path).add(key, Schemas.kind(values) == Kind.OBJECT ? Schemas.skeleton(values) : new JsonObject());
                 frames.push(new Frame(with(path, key), values, key, false));
-                scroll = 0;
+                resetScroll();
                 host.changed();
             }
         }).tooltip(Tooltip.create(DevUi.text("form.add"))).bounds(x + w - 18, rowY, 18, CONTROL_H).build());
@@ -4902,6 +4966,15 @@ final class FormView {
     // --- drawing
 
     void render(GuiGraphics graphics, Font font) {
+        if (barX >= 0 && contentHeight > 0) {
+            // The track in the panel's edge colour, the thumb bronze, as long as the part shown is of the whole.
+            int track = barBottom - barTop;
+            int thumb = Math.max(12, track * track / contentHeight);
+            int most = Math.max(1, contentHeight - track);
+            int thumbTop = barTop + (int) Math.round((track - thumb) * Math.min(1.0, scrollShown / most));
+            graphics.fill(barX, barTop, barX + 2, barBottom, DevUi.ROW_HOVER);
+            graphics.fill(barX, thumbTop, barX + 2, thumbTop + thumb, DevUi.PANEL_EDGE);
+        }
         for (Label label : labels) {
             if (label.line() != null) {
                 graphics.drawString(font, label.line(), label.x(), label.y(), label.color(), false);

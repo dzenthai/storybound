@@ -75,6 +75,11 @@ abstract class GraphView {
     /** Every client tick while the view is shown. */
     void tick(DevModeScreen screen) {}
 
+    /** One frame of the inspector's scroll glide; whether its rows moved, so the screen lays them out again. */
+    boolean animateInspector() {
+        return false;
+    }
+
     /** Where the canvas begins: after the view's left panel (the story's is a narrow strip of chapters). */
     int canvasLeft() {
         return DevUi.LEFT_PANEL_W;
