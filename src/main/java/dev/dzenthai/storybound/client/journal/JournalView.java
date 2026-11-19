@@ -27,38 +27,26 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
             "storybound", "textures/gui/journal/traveler_corner.png");
     private Button readButton;
 
+    /** The corner drawing's size in the book's pixels, and where its bottom-right corner sits on the right page. */
+    private static final int VIGNETTE_SIZE = 128;
+    private static final int VIGNETTE_RIGHT = 340;
+    private static final int VIGNETTE_BOTTOM = 200;
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // The author's drawing (November 19, 2026; before, AI art of 1254 x 1254 squeezed to 170 GUI pixels, its fake
+        // pixels 1.5 of the book's each, with three stars drawn by the code), on the book's pixels: one pixel of it is
+        // one of the book's, at the page's bottom right.
         var layout = screen.bookLayout();
-        int size = 170;
-        int right = layout.content().right() - 5;
-        int bottom = layout.content().bottom() - 4;
-        // The intact print occupies a fixed envelope outside the reading area.
+        double px = layout.bookPixel();
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        graphics.blit(VIGNETTE, right - size, bottom - size,
-                size, size, 0, 0, 1254, 1254, 1254, 1254);
-        // Three accents sit in transparent space, clear of the text and border.
-        star(graphics, right - 158, bottom - 37, 4);
-        star(graphics, right - 108, bottom - 39, 3);
-        star(graphics, right - 29, bottom - 128, 3);
+        graphics.pose().pushPose();
+        graphics.pose().translate(layout.x(), layout.y(), 0);
+        graphics.pose().scale((float) px, (float) px, 1);
+        graphics.blit(VIGNETTE, VIGNETTE_RIGHT - VIGNETTE_SIZE, VIGNETTE_BOTTOM - VIGNETTE_SIZE, 0, 0,
+                VIGNETTE_SIZE, VIGNETTE_SIZE, VIGNETTE_SIZE, VIGNETTE_SIZE);
+        graphics.pose().popPose();
         super.render(graphics, mouseX, mouseY, partialTick);
-    }
-
-    /** Original stepped star silhouettes use the corner illustration's sepia ink. */
-    private static void star(GuiGraphics graphics, int x, int y, int radius) {
-        for (int dy = -radius; dy <= radius; dy++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                int ax = Math.abs(dx);
-                int ay = Math.abs(dy);
-                boolean point = dx == 0 || dy == 0;
-                boolean diamond = ax + ay <= radius - 1;
-                boolean diagonal = ax == ay && ax <= radius / 2;
-                if (!point && !diamond && !diagonal) continue;
-                int color = ax + ay < radius - 1 ? 0xFFC9A578 : 0xFFB28B61;
-                graphics.fill(x + dx, y + dy, x + dx + 1, y + dy + 1, color);
-            }
-        }
-        graphics.fill(x, y, x + 1, y + 1, 0xFFE1C49A);
     }
 
     @Override
