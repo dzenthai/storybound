@@ -373,6 +373,33 @@ public final class ObservationGameTests {
         helper.succeed();
     }
 
+    /** While nothing observes an item, one lying in front of an observed block hides nothing (as before items could be observed). */
+    @GameTest(template = "open", timeoutTicks = 100)
+    public static void anItemLyingInFrontHidesNothingWhileNoItemIsObserved(GameTestHelper helper) {
+        BlockPos lectern = new BlockPos(2, 1, 2);
+        helper.setBlock(lectern, Blocks.LECTERN);
+        BlockPos absolute = helper.absolutePos(lectern);
+        ServerPlayer player = looking(helper, Vec3.atCenterOf(absolute), 2.5, 1, 6);
+        Vec3 between = player.getEyePosition().add(Vec3.atCenterOf(absolute).subtract(player.getEyePosition()).scale(0.5));
+        net.minecraft.world.entity.item.ItemEntity lying = new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(), between.x, between.y, between.z,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EMERALD));
+        lying.setNoGravity(true);
+        lying.setDeltaMovement(Vec3.ZERO);
+        lying.setNeverPickUp();
+        helper.getLevel().addFreshEntity(lying);
+        AtomicInteger fired = new AtomicInteger();
+        // A kind of block, not a position: a position has its own look past entities, a kind only the one in front.
+        with(List.of(new Subscription<CoreTriggers.Observation>("gametest lectern behind", new CoreTriggers.Observed(Optional.empty(),
+                Optional.of(net.minecraft.core.HolderSet.direct(Blocks.LECTERN.builtInRegistryHolder())), Optional.empty(), Optional.empty(),
+                0.25f, 16, Optional.empty()), context -> fired.incrementAndGet())), () -> {
+            watch(player, 0, 6);
+            expect(helper, fired.get(), 1, "the lectern behind the emerald is still observed");
+        });
+        lying.discard();
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
     private static Subscription<CoreTriggers.Observation> observeItem(net.minecraft.world.item.Item item, AtomicInteger fired) {
         return new Subscription<>("gametest observe " + item, new CoreTriggers.Observed(Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), 0.25f, 16, Optional.empty(), Optional.of(net.minecraft.core.HolderSet.direct(item.builtInRegistryHolder()))),

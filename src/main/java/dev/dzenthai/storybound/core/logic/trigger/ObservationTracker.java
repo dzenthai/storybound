@@ -133,13 +133,15 @@ public final class ObservationTracker {
         progress.keySet().retainAll(identities(subscriptions));
         counted.keySet().retainAll(identities(subscriptions));
         double reach = 0;
+        boolean items = false;
         for (Subscription<?> subscription : subscriptions) {
             reach = Math.max(reach, ((CoreTriggers.Observed) subscription.trigger()).distance());
+            items |= ((CoreTriggers.Observed) subscription.trigger()).item().isPresent();
         }
         ResourceLocation dimension = player.level().dimension().location();
         Vec3 eye = player.getEyePosition();
         boolean blind = blind(player);
-        List<Looked> looked = blind ? List.of() : look(player, reach);
+        List<Looked> looked = blind ? List.of() : look(player, reach, items);
         Progress shown = null;
         boolean shownActive = false;
         // What ended now: the bar shows it full before it goes (before, it went at about 90%, still easing up).
@@ -222,7 +224,7 @@ public final class ObservationTracker {
      * What the player looks at, nearest first: the entity under the crosshair (or, with none right under it, the nearest
      * one the crosshair passes within {@link #AIM_MARGIN} of, in sight), then the block the look meets.
      */
-    private static List<Looked> look(ServerPlayer player, double reach) {
+    private static List<Looked> look(ServerPlayer player, double reach, boolean items) {
         List<Looked> looked = new ArrayList<>();
         if (reach <= 0) {
             return looked;
@@ -239,9 +241,10 @@ public final class ObservationTracker {
         Entity best = null;
         double bestDistance = Double.MAX_VALUE;
         boolean bestExact = false;
-        // An item lying on the ground too: Minecraft's crosshair does not pick it, but it can be observed (November 20, 2026).
+        // An item lying on the ground too, while something observes an item: Minecraft's crosshair does not pick it
+        // (November 20, 2026); only then, so an item dropped in front of a block or a creature observed hides nothing.
         for (Entity candidate : player.level().getEntities(player, box, entity -> !entity.isSpectator()
-                && (entity.isPickable() || entity instanceof net.minecraft.world.entity.item.ItemEntity) && entity.isAlive())) {
+                && (entity.isPickable() || items && entity instanceof net.minecraft.world.entity.item.ItemEntity) && entity.isAlive())) {
             Optional<Vec3> exact = candidate.getBoundingBox().clip(eye, blockEnd);
             Optional<Vec3> near = exact.isPresent() ? exact : candidate.getBoundingBox().inflate(AIM_MARGIN).clip(eye, blockEnd);
             if (near.isEmpty() || exact.isEmpty() && !player.hasLineOfSight(candidate)) {

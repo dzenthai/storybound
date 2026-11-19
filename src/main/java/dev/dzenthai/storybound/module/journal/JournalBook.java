@@ -21,9 +21,12 @@ public record JournalBook(String title, String author, List<Component> pages) {
             ComponentSerialization.CODEC.listOf().optionalFieldOf("pages", List.of()).forGetter(JournalBook::pages)
     ).apply(instance, JournalBook::new));
 
-    /** The same book: one entry per author and title. */
+    /**
+     * The same book: one entry per author and title, apart by the unit separator, which a book's title or a name cannot
+     * hold (not a line break: the client keeps its "seen" marks a line each).
+     */
     public String key() {
-        return author + "\n" + title;
+        return author + "\u001F" + title;
     }
 
     /** What the client is told of a kept book, its pages asked for when it is opened (a Journal may hold many). */

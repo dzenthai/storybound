@@ -45,6 +45,10 @@ public final class ClientJournal {
     public static void openBook(List<Component> pages) {
         Minecraft minecraft = Minecraft.getInstance();
         Screen back = minecraft.screen;
+        if (!(back instanceof dev.dzenthai.storybound.client.menu.AdventureMenuScreen)) {
+            // The menu was closed while the pages came: no book in the middle of the game.
+            return;
+        }
         minecraft.setScreen(new BookViewScreen(new BookViewScreen.BookAccess(pages)) {
             @Override
             public void onClose() {
