@@ -15,11 +15,12 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * The editor's stories (November 18, 2026; before, the top bar's "Story: storybound" only renamed the namespace): opened
  * by the top bar's 📁 with the edited story's title, or "Stories" in the ⚙ menu. A row per story with its title and
  * state ("in the editor", in the game or off), "Open" to edit it and ⚙ for its settings (its title, whether it is in the
- * game); "New story" asks a title and its namespace (made from the title until the author types one) and opens it.
+ * game, and deleting it: its folder moves to {@code .deleted}, after a page that asks; November 19, 2026); "New story"
+ * asks a title and its namespace (made from the title until the author types one) and opens it.
  * Every change goes to the server ({@code DevProjects}) and the screen waits for its answer.
  */
 final class ProjectsScreen extends Screen {
-    private enum Page { LIST, CREATE, MANAGE }
+    private enum Page { LIST, CREATE, MANAGE, DELETE }
     private enum AfterRequest { EDITOR, LIST }
 
     private final DevModeScreen parent;
@@ -73,9 +74,28 @@ final class ProjectsScreen extends Screen {
         left = (width - contentWidth) / 2;
         if (view == Page.LIST) {
             buildList();
+        } else if (view == Page.DELETE) {
+            buildDelete();
         } else {
             buildForm();
         }
+    }
+
+    /** Whether the story may be asked to be deleted: not the last one, which the editor and the game need. */
+    private static boolean deletable() {
+        return ClientDevStore.projects().size() > 1;
+    }
+
+    /** "Delete «title»?": what happens to its files, and the two answers. */
+    private void buildDelete() {
+        int half = (contentWidth - 8) / 2;
+        button(DevUi.text("text.cancel"), left, height - 30, half, () -> {
+            view = Page.MANAGE;
+            failed = false;
+            rebuildWidgets();
+        });
+        button(Component.literal("🗑 ").append(DevUi.text("projects.delete")).copy().withColor(DevUi.ERROR), left + half + 8, height - 30,
+                contentWidth - half - 8, () -> request("delete", editingProject, "", false, AfterRequest.LIST)).active = !waiting && deletable();
     }
 
     private void buildList() {
@@ -150,9 +170,13 @@ final class ProjectsScreen extends Screen {
             idBox.setTextColor(StoryProjects.validId(draftId) ? DevUi.TEXT : DevUi.ERROR);
             addRenderableWidget(idBox);
         }
-        int half = (contentWidth - 8) / 2;
+        // The bottom row: Cancel, then for a story's settings Delete in the middle, then Save (November 19, 2026: Delete in
+        // a row of its own above them ran into the hint under the form on a short window).
+        boolean manage = view == Page.MANAGE;
+        int cell = manage ? (contentWidth - 16) / 3 : (contentWidth - 8) / 2;
+        int saveX = left + (manage ? 2 * (cell + 8) : cell + 8);
         Button save = button(DevUi.text(view == Page.CREATE ? "projects.create_open" : "projects.save").copy().withColor(DevUi.ACCENT),
-                left + half + 8, height - 30, contentWidth - half - 8, () -> {
+                saveX, height - 30, left + contentWidth - saveX, () -> {
                     if (view == Page.CREATE) {
                         request("create", draftId, draftTitle.trim(), false, AfterRequest.EDITOR);
                     } else {
@@ -182,7 +206,17 @@ final class ProjectsScreen extends Screen {
                 save.active = canSave();
             });
         }
-        button(DevUi.text("text.cancel"), left, height - 30, half, this::onClose);
+        button(DevUi.text("text.cancel"), left, height - 30, cell, this::onClose);
+        if (manage) {
+            Button delete = button(Component.literal("🗑 ").append(DevUi.text("projects.delete")).copy().withColor(DevUi.ERROR),
+                    left + cell + 8, height - 30, cell, () -> {
+                        view = Page.DELETE;
+                        failed = false;
+                        rebuildWidgets();
+                    });
+            delete.active = !waiting && deletable();
+            delete.setTooltip(Tooltip.create(DevUi.text(deletable() ? "projects.delete.tooltip" : "projects.delete_last")));
+        }
         if (view == Page.CREATE && !waiting) {
             setInitialFocus(titleBox);
         }
@@ -227,6 +261,7 @@ final class ProjectsScreen extends Screen {
             case LIST -> "projects.title";
             case CREATE -> "projects.new";
             case MANAGE -> "projects.manage";
+            case DELETE -> "projects.delete_heading";
         };
         graphics.drawCenteredString(font, DevUi.text(heading), width / 2, 15, DevUi.TEXT);
         if (view == Page.LIST) {
@@ -246,6 +281,17 @@ final class ProjectsScreen extends Screen {
             int pages = (ClientDevStore.projects().size() + rows - 1) / rows;
             if (pages > 1) {
                 graphics.drawCenteredString(font, Component.literal((page + 1) + " / " + pages), width / 2, 66 + rows * 44, DevUi.MUTED);
+            }
+        } else if (view == Page.DELETE) {
+            int y = Math.max(54, height / 2 - 40);
+            for (var line : font.split(DevUi.text("projects.delete_question", draftTitle), contentWidth)) {
+                graphics.drawCenteredString(font, line, width / 2, y, DevUi.TEXT);
+                y += 12;
+            }
+            y += 8;
+            for (var line : font.split(DevUi.text("projects.delete_hint", editingProject), contentWidth)) {
+                graphics.drawCenteredString(font, line, width / 2, y, DevUi.MUTED);
+                y += 11;
             }
         } else {
             graphics.drawString(font, DevUi.text("projects.name"), left, formTop, DevUi.LABEL, false);
@@ -279,7 +325,11 @@ final class ProjectsScreen extends Screen {
     @Override
     public void onClose() {
         if (!waiting) {
-            if (view != Page.LIST) {
+            if (view == Page.DELETE) {
+                view = Page.MANAGE;
+                failed = false;
+                rebuildWidgets();
+            } else if (view != Page.LIST) {
                 view = Page.LIST;
                 failed = false;
                 rebuildWidgets();

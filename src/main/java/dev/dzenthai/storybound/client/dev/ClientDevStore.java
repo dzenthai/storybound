@@ -738,12 +738,27 @@ public final class ClientDevStore {
             }
         });
         Set<ResourceLocation> derived = new LinkedHashSet<>();
+        Set<String> referenced = null;
         for (ScriptFile file : scripts.files().values()) {
             List<String> handlers = new ArrayList<>(file.actions());
             handlers.addAll(file.conditions());
             for (String handler : handlers) {
                 ResourceLocation id = ResourceLocation.tryParse(handler);
-                if (id != null && covered.add(handler) && !merged.containsKey(id)) {
+                if (id == null || covered.contains(handler) || merged.containsKey(id)) {
+                    continue;
+                }
+                // Only this story's handlers, and those it uses (November 19, 2026: the server's scripts are one for
+                // every story, and each story showed a block for every handler of every file, other stories' and old
+                // tests' too; such a block could be hidden in one story only, a block's id being one story's).
+                if (!id.getNamespace().equals(namespace)) {
+                    if (referenced == null) {
+                        referenced = referencedHandlers();
+                    }
+                    if (!referenced.contains(handler)) {
+                        continue;
+                    }
+                }
+                if (covered.add(handler)) {
                     JsonObject json = new JsonObject();
                     json.addProperty("file", file.path());
                     merged.put(id, json.toString());
@@ -753,6 +768,34 @@ public final class ClientDevStore {
         }
         scriptBlocks = Collections.unmodifiableMap(merged);
         derivedScripts = Set.copyOf(derived);
+    }
+
+    /** The handlers the story's definitions run or check: the {@code id} of each action or condition "Script" ({@code kubejs}). */
+    private static Set<String> referencedHandlers() {
+        Set<String> handlers = new java.util.HashSet<>();
+        definitions.forEach((type, map) -> {
+            if (!type.equals(TYPE_SCRIPT)) {
+                map.values().forEach(raw -> {
+                    if (raw.contains("kubejs")) {
+                        collectHandlers(parseObject(raw), handlers);
+                    }
+                });
+            }
+        });
+        return handlers;
+    }
+
+    private static void collectHandlers(JsonElement element, Set<String> handlers) {
+        if (element instanceof JsonObject object) {
+            if (object.get("type") instanceof com.google.gson.JsonPrimitive type
+                    && (type.getAsString().equals("kubejs") || type.getAsString().equals("storybound:kubejs"))
+                    && object.get("id") instanceof com.google.gson.JsonPrimitive id) {
+                handlers.add(id.getAsString());
+            }
+            object.entrySet().forEach(entry -> collectHandlers(entry.getValue(), handlers));
+        } else if (element instanceof com.google.gson.JsonArray array) {
+            array.forEach(item -> collectHandlers(item, handlers));
+        }
     }
 
     /** The handler a script block stands for: its {@code hook}, or the block's own id. */

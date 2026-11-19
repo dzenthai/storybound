@@ -1196,12 +1196,15 @@ final class StoryView extends GraphView {
     }
 
     /**
-     * Deletes a node's definition. A script block whose handler the scripts still register would come straight back
-     * from the code, so it is hidden instead ({@code "hidden": true} in its file; the code stays in KubeJS); returns
-     * whether it was.
+     * Deletes a node's definition. A script block that comes from the code would come straight back from it, so it is
+     * hidden instead ({@code "hidden": true} in its file; the code stays in KubeJS); returns whether it was. That is a
+     * block whose handler the scripts register, or one the editor makes from a KubeJS file itself (November 19, 2026:
+     * those were only seen as registered by a running KubeJS; without it, deleting tried to delete a file there never
+     * was, and the block came back from the script file at once).
      */
     private static boolean removeNode(NodeKey key, @Nullable String json) {
-        if (json != null && key.type().equals(ClientDevStore.TYPE_SCRIPT) && ClientDevStore.scriptRegistered(key.id())) {
+        if (json != null && key.type().equals(ClientDevStore.TYPE_SCRIPT)
+                && (ClientDevStore.scriptRegistered(key.id()) || ClientDevStore.isDerivedScript(key.id()))) {
             JsonObject hidden = JsonParser.parseString(json).getAsJsonObject();
             hidden.addProperty("hidden", true);
             DevRequests.restore(key.type(), key.id(), hidden.toString(), Optional.empty());

@@ -323,6 +323,8 @@ class DevEditsTest {
     @Test
     void handlersWithoutABlockShowAsBlocksFromTheScript() {
         ResourceLocation block = Storybound.id("burn_block");
+        // The story whose handlers these are: a story shows blocks for its own handlers (November 19, 2026).
+        ClientDevStore.setNamespace("mypack");
         ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_SCRIPT, Map.of(block, "{ \"hook\": \"mypack:burn_village\" }"),
                 ClientDevStore.TYPE_QUEST, Map.of(QUEST, "{}")), List.of(), "en_us", List.of("en_us"));
         ClientDevStore.setScripts("""
@@ -340,11 +342,14 @@ class DevEditsTest {
                 "a leads_to comment in the file draws an arrow");
         ClientDevStore.setScripts("{}");
         ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
+        ClientDevStore.setNamespace(Storybound.MOD_ID);
     }
 
     @Test
     void aDeletedBlockWhoseHandlerLivesOnStaysHidden() {
         ResourceLocation block = Storybound.id("burn_block");
+        // The story whose handlers these are: a story shows blocks for its own handlers (November 19, 2026).
+        ClientDevStore.setNamespace("mypack");
         ResourceLocation bell = ResourceLocation.parse("mypack:ring_bell");
         ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_SCRIPT, Map.of(
                 block, "{ \"hook\": \"mypack:burn_village\", \"hidden\": true }",
@@ -360,6 +365,7 @@ class DevEditsTest {
         assertTrue(ClientDevStore.scriptRegistered(bell), "a block from the script stands for a live handler: deleting it hides it");
         assertTrue(ClientDevStore.isDerivedScript(bell), "without its file the block comes back from the script");
         ClientDevStore.setScripts("{}");
+        ClientDevStore.setNamespace(Storybound.MOD_ID);
     }
 
     @Test

@@ -41,14 +41,29 @@ public final class DevProjects {
 
     private DevProjects() {}
 
-    /** The story the operator edits: the one they opened while it is there, else the primary one; empty when there is no story. */
+    /**
+     * The story the operator edits: the one they opened while it is there (this session's, else the one kept with the
+     * world from before, {@link DevSelections}; November 19, 2026: after a restart the editor opened the first story),
+     * else the primary one; empty when there is no story.
+     */
     public static String selected(ServerPlayer player) {
         String id = SELECTED.get(player);
-        if (id != null && StoryProjects.list(ConfigStorySource.root()).stream().anyMatch(project -> project.id().equals(id))) {
-            return id;
+        if (id == null) {
+            id = DevSelections.get(player.server).of(player.getUUID()).orElse(null);
+        }
+        String chosen = id;
+        if (chosen != null && StoryProjects.list(ConfigStorySource.root()).stream().anyMatch(project -> project.id().equals(chosen))) {
+            SELECTED.put(player, chosen);
+            return chosen;
         }
         SELECTED.remove(player);
         return StoryProjects.primary(ConfigStorySource.root()).map(StoryProjects.Project::id).orElse("");
+    }
+
+    /** The operator now edits {@code id}: for this session, and kept with the world for the next. */
+    private static void choose(ServerPlayer player, String id) {
+        SELECTED.put(player, id);
+        DevSelections.get(player.server).set(player.getUUID(), id);
     }
 
     public static boolean accepts(ServerPlayer player, String project) {
@@ -83,12 +98,28 @@ public final class DevProjects {
             switch (action) {
                 case "select" -> {
                     StoryProjects.get(ConfigStorySource.root(), id);
-                    SELECTED.put(player, id);
+                    choose(player, id);
                 }
                 case "create" -> {
                     String language = ProjectSettings.load(DevModeServer.root(player)).sourceLanguage();
                     StoryProjects.create(ConfigStorySource.root(), id, title, language);
-                    SELECTED.put(player, id);
+                    choose(player, id);
+                }
+                case "delete" -> {
+                    // Its folder goes to .deleted, nothing erased (StoryProjects.delete); one in the game leaves it, so the
+                    // server's data reloads; an operator who edited it is moved to the primary story (selected).
+                    var before = StoryProjects.get(ConfigStorySource.root(), id);
+                    java.nio.file.Path moved = StoryProjects.delete(ConfigStorySource.root(), id);
+                    player.sendSystemMessage(Component.translatable("storybound.dev.projects.deleted", before.title(),
+                            ConfigStorySource.root().toAbsolutePath().normalize().relativize(moved).toString().replace('\\', '/'))
+                            .withStyle(ChatFormatting.GOLD));
+                    if (before.enabled()) {
+                        reload(player, () -> Storybound.LOGGER.error("Storybound: the data did not reload after deleting the story {}; "
+                                + "its folder is at {}", id, moved));
+                        return;
+                    }
+                    player.server.getPlayerList().getPlayers().stream().filter(other -> other != player && other.hasPermissions(2))
+                            .forEach(DevModeServer::sendSnapshot);
                 }
                 case "update" -> {
                     // Any story's title and whether it is in the game, not only the one being edited (November 18,
@@ -99,7 +130,13 @@ public final class DevProjects {
                     }
                     StoryProjects.update(ConfigStorySource.root(), id, title, enabled);
                     if (before.enabled() != enabled) {
-                        reload(player, before);
+                        reload(player, () -> {
+                            try {
+                                StoryProjects.update(ConfigStorySource.root(), before.id(), before.title(), before.enabled());
+                            } catch (Exception restoreError) {
+                                Storybound.LOGGER.error("Storybound: could not restore story settings after a failed reload", restoreError);
+                            }
+                        });
                         return;
                     }
                 }
@@ -130,16 +167,13 @@ public final class DevProjects {
         });
     }
 
-    private static void reload(ServerPlayer author, StoryProjects.Project before) {
+    /** Reloads the server's data after a story went in or out of the game; {@code restore} undoes the change if it fails. */
+    private static void reload(ServerPlayer author, Runnable restore) {
         MinecraftServer server = author.server;
         RELOADING.add(server);
         server.reloadResources(server.getPackRepository().getSelectedIds()).whenComplete((result, error) -> server.execute(() -> {
             if (error != null) {
-                try {
-                    StoryProjects.update(ConfigStorySource.root(), before.id(), before.title(), before.enabled());
-                } catch (Exception restoreError) {
-                    Storybound.LOGGER.error("Could not restore story settings after failed reload", restoreError);
-                }
+                restore.run();
                 server.getPlayerList().getPlayers().stream().filter(player -> player.hasPermissions(2)).forEach(player ->
                         player.sendSystemMessage(Component.translatable("storybound.dev.projects.error", error.getMessage()).withStyle(ChatFormatting.RED)));
             }

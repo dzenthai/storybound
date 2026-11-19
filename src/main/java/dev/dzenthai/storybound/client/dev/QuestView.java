@@ -12,6 +12,7 @@ import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
@@ -34,7 +35,18 @@ final class QuestView extends GraphView {
     /**
      * A node on the canvas, with how it relates: its box's top left (the shape in its middle, as on the story canvas).
      */
-    private record Card(NodeKey key, String relation, int x, int y) {
+    private record Card(NodeKey key, String relation, int x, int y, StoryView.Look look, ItemStack item, String title, boolean missing) {
+        /**
+         * A node and how it relates, read once when laid out (November 19, 2026: before, its definition was parsed
+         * several times a frame, for its shape, its hit test, its links and its title).
+         */
+        static Card of(NodeKey key, String relation, int x, int y) {
+            String raw = ClientDevStore.getJson(key.type(), key.id());
+            JsonObject json = ClientDevStore.parseObject(raw);
+            String title = raw == null ? key.id().getPath() : StoryView.displayTitle(key, json);
+            return new Card(key, relation, x, y, StoryView.look(key.type(), json), StoryView.icon(key, json), title, raw == null);
+        }
+
         int cx() {
             return x + StoryView.NODE_W / 2;
         }
@@ -135,13 +147,13 @@ final class QuestView extends GraphView {
         int inColumn = (STAGE_W - StoryView.NODE_W) / 2;
         int y = 16;
         for (NodeKey start : shown.starts()) {
-            cards.add(new Card(start, "start", inColumn, y));
+            cards.add(Card.of(start, "start", inColumn, y));
             y += NODE_STEP;
         }
         if (!shown.during().isEmpty()) {
             y += 16;
             for (QuestOutline.Attached item : shown.during()) {
-                cards.add(new Card(item.key(), "during", inColumn, y));
+                cards.add(Card.of(item.key(), "during", inColumn, y));
                 y += NODE_STEP;
             }
         }
@@ -152,7 +164,7 @@ final class QuestView extends GraphView {
             stages.add(new StageBox(stage, x, 16, height, lines));
             int below = 16 + height + 20;
             for (QuestOutline.Attached item : stage.attached()) {
-                cards.add(new Card(item.key(), item.relation(), x + inColumn, below));
+                cards.add(Card.of(item.key(), item.relation(), x + inColumn, below));
                 below += NODE_STEP;
             }
             x += COLUMN;
@@ -160,7 +172,7 @@ final class QuestView extends GraphView {
         afterX = x;
         y = 16;
         for (QuestOutline.Attached item : shown.after()) {
-            cards.add(new Card(item.key(), item.relation(), afterX + inColumn, y));
+            cards.add(Card.of(item.key(), item.relation(), afterX + inColumn, y));
             y += NODE_STEP;
         }
     }
@@ -168,13 +180,8 @@ final class QuestView extends GraphView {
     @Override
     void saveEdits(DevModeScreen screen) {}
 
-    /** A node's look, as the story canvas draws it. */
-    private static StoryView.Look look(Card card) {
-        return StoryView.look(card.key().type(), ClientDevStore.parseObject(ClientDevStore.getJson(card.key().type(), card.key().id())));
-    }
-
     private static boolean holds(Card card, double worldX, double worldY) {
-        StoryView.Look look = look(card);
+        StoryView.Look look = card.look();
         return NodeShapes.contains(look.shape(), look.radius(), worldX - card.cx() - 0.5, worldY - card.cy() - 0.5);
     }
 
@@ -183,7 +190,7 @@ final class QuestView extends GraphView {
         double dx = x - card.cx() - 0.5;
         double dy = y - card.cy() - 0.5;
         double length = Math.max(1e-6, Math.hypot(dx, dy));
-        double reach = look(card).radius() + gap;
+        double reach = card.look().radius() + gap;
         return new double[]{card.cx() + 0.5 + dx / length * reach, card.cy() + 0.5 + dy / length * reach};
     }
 
@@ -236,18 +243,16 @@ final class QuestView extends GraphView {
             double lastY = box.y() + box.height() + 3;
             for (Card card : cards) {
                 if (card.x() == box.x() + (STAGE_W - StoryView.NODE_W) / 2) {
-                    double top = card.cy() + 0.5 - look(card).radius() - 4;
+                    double top = card.cy() + 0.5 - card.look().radius() - 4;
                     NodeShapes.link(graphics, card.cx() + 0.5, lastY, card.cx() + 0.5, top, 0x80775025);
-                    lastY = card.cy() + look(card).radius() + 17;
+                    lastY = card.cy() + card.look().radius() + 17;
                 }
             }
             renderStage(graphics, font, box);
         }
         for (Card card : cards) {
-            boolean missing = ClientDevStore.getJson(card.key().type(), card.key().id()) == null;
-            JsonObject json = ClientDevStore.parseObject(ClientDevStore.getJson(card.key().type(), card.key().id()));
-            StoryView.drawNode(graphics, font, look(card), StoryView.icon(card.key(), json), card.cx(), card.cy(), title(card), TITLE_W,
-                    false, false, card.equals(hovered), false, missing, false);
+            StoryView.drawNode(graphics, font, card.look(), card.item(), card.cx(), card.cy(), card.title(), TITLE_W,
+                    false, false, card == hovered, false, card.missing(), false);
         }
         endCanvas(graphics);
         renderStageList(screen, graphics, mouseX, mouseY);
@@ -265,18 +270,13 @@ final class QuestView extends GraphView {
         }
     }
 
-    private static String title(Card card) {
-        String raw = ClientDevStore.getJson(card.key().type(), card.key().id());
-        return raw == null ? card.key().id().getPath() : StoryView.displayTitle(card.key(), ClientDevStore.parseObject(raw));
-    }
-
     /** A hovered node: how it relates to the quest, its title, its id. */
     private static List<Component> tooltip(Card card) {
         List<Component> lines = new ArrayList<>();
-        lines.add(Component.literal(title(card)).withColor(DevUi.TEXT));
+        lines.add(Component.literal(card.title()).withColor(DevUi.TEXT));
         lines.add(Component.literal(StoryView.glyph(card.key().type()) + " " + DevUi.str("quest.relation." + card.relation())).withColor(DevUi.LABEL));
         lines.add(Component.literal(card.key().id().toString()).withColor(DevUi.HINT));
-        if (ClientDevStore.getJson(card.key().type(), card.key().id()) == null) {
+        if (card.missing()) {
             lines.add(DevUi.text("quest.missing", card.key().id().toString()).copy().withColor(DevUi.ERROR));
         }
         return lines;

@@ -274,6 +274,30 @@ public final class StoryProjects {
         return get(workspace, id);
     }
 
+    /** Where deleted stories go, in the story folder: not a story's name (it starts with a dot), so never listed. */
+    public static final String DELETED = ".deleted";
+
+    /**
+     * Deletes a story (November 19, 2026, the author: there was no way but by hand): its folder is moved into
+     * {@value #DELETED}{@code /<id>-<date and time>/}, nothing erased, so moving it back brings it back. The last story is
+     * not deleted: the editor and the game's own settings need one. Returns where the folder went.
+     */
+    public static Path delete(Path workspace, String id) throws IOException {
+        Project project = get(workspace, id);
+        if (list(workspace).size() <= 1) {
+            throw new IllegalArgumentException("The last story cannot be deleted: make another first");
+        }
+        Path trash = workspace.toAbsolutePath().normalize().resolve(DELETED);
+        Files.createDirectories(trash);
+        String stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path target = trash.resolve(id + "-" + stamp);
+        for (int n = 2; Files.exists(target); n++) {
+            target = trash.resolve(id + "-" + stamp + "-" + n);
+        }
+        Files.move(project.root(), target);
+        return target;
+    }
+
     public static void update(Path workspace, String id, String title, boolean enabled) throws IOException {
         Project project = get(workspace, id);
         checkTitle(title);

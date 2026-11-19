@@ -149,6 +149,24 @@ class StoryProjectsTest {
         Files.writeString(file, value);
     }
 
+    /** Deleting a story moves its folder aside, nothing erased; the last one stays (November 19, 2026). */
+    @Test
+    void deletingMovesTheFolderAsideAndKeepsTheLastStory() throws Exception {
+        story("legacy");
+        var second = StoryProjects.create(workspace, "second", "Second", "en_us");
+        write(second.root(), "flags/second/started.json", "{\"type\":\"bool\"}");
+        Path moved = StoryProjects.delete(workspace, "second");
+        assertFalse(Files.exists(second.root()));
+        assertTrue(Files.exists(moved.resolve("flags/second/started.json")), "nothing erased");
+        assertEquals(workspace.resolve(StoryProjects.DELETED).toAbsolutePath().normalize(), moved.getParent());
+        assertEquals(java.util.List.of("legacy"), StoryProjects.list(workspace).stream().map(StoryProjects.Project::id).toList(),
+                "the deleted folder is not a story");
+        assertThrows(IllegalArgumentException.class, () -> StoryProjects.delete(workspace, "legacy"), "the last story stays");
+        // The same name again, deleted again: a folder of its own.
+        StoryProjects.create(workspace, "second", "Second again", "en_us");
+        assertNotEquals(moved, StoryProjects.delete(workspace, "second"));
+    }
+
     /** A new story's id from its title (November 18, 2026; before, a random story_1a2b3c4d). */
     @Test
     void aNewStorysIdComesFromItsTitle() {
