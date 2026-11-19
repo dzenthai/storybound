@@ -40,8 +40,9 @@ final class DevUi {
     static final int ROW_HOVER = 0xFF3F2C18;
     static final int CARD = 0xFF1A140F;
     static final int CARD_EDGE = 0xFF775025;
-    /** The canvas grid: the bronze, three tenths over the dark. */
-    static final int GRID_LINE = 0xFF362616;
+    /** Over the sky: the edges' bronze, half opaque (November 20, 2026, the lines one screen pixel thin; the day before,
+     * a third opaque at a canvas unit wide; before, an opaque brown on the flat ground). */
+    static final int GRID_LINE = 0x80775025;
     static final int DARK_TEXT = 0xFF1A140F;
     static final int ACCENT = 0xFFE1B34D;
     static final int TEXT = 0xFFF5DFB2;
@@ -136,29 +137,50 @@ final class DevUi {
         return (int) Math.round(value / SNAP) * SNAP;
     }
 
+    /** A cell of the grid drawn on the canvas: four of the layout's cells (November 20, 2026, the author: two, then
+     * twice that; before, one). */
+    static final int GRID_CELL = 4 * GRID;
+
     /**
-     * The canvas grid over the canvas area {@code minX..maxX}, {@code minY..maxY}, in canvas units, drawn in the
-     * canvas's own coordinates (November 18, 2026): a line at {@code x} is filled just as a card's left edge at
-     * {@code x} is, so at any zoom and pan a snapped card's frame lies on the lines. Before, the lines were placed in
-     * screen pixels with a rounded step and pan, and drifted off the cards away from the middle. Every second line goes
-     * while the cells would be under 10 pixels; at the farthest zooms a line is two units wide so it does not vanish.
+     * The canvas grid over the canvas ({@code left, top, right, bottom} on the screen), its lines one of the screen's
+     * own pixels wide at every zoom (November 20, 2026, the author: thinner, and the cells larger, {@link #GRID_CELL};
+     * before, a canvas unit wide, two or more pixels once zoomed in). A line at canvas {@code x} sits on the screen pixel
+     * where the canvas puts {@code x}, so a snapped card's frame stays on it. Every second line goes while the cells
+     * would be under 16 pixels. The origin's axes, in {@code axis}, two of the screen's pixels wide.
      */
-    static void grid(GuiGraphics graphics, double minX, double minY, double maxX, double maxY, float zoom, int color) {
-        int step = GRID;
-        while (step * zoom < 10) {
+    static void grid(GuiGraphics graphics, int left, int top, int right, int bottom, double panX, double panY, float zoom,
+                     int color, int axis) {
+        double guiScale = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale();
+        int step = GRID_CELL;
+        while (step * zoom < 16) {
             step *= 2;
         }
-        int width = zoom < 0.5f ? 2 : 1;
-        int left = (int) Math.floor(minX);
-        int top = (int) Math.floor(minY);
-        int right = (int) Math.ceil(maxX);
-        int bottom = (int) Math.ceil(maxY);
-        for (int x = Math.floorDiv(left, step) * step; x <= right; x += step) {
-            graphics.fill(x, top, x + width, bottom, color);
+        double originX = (left + panX) * guiScale;
+        double originY = (top + panY) * guiScale;
+        double unit = zoom * guiScale;
+        int pixelLeft = (int) Math.floor(left * guiScale);
+        int pixelTop = (int) Math.floor(top * guiScale);
+        int pixelRight = (int) Math.ceil(right * guiScale);
+        int pixelBottom = (int) Math.ceil(bottom * guiScale);
+        graphics.pose().pushPose();
+        graphics.pose().scale((float) (1 / guiScale), (float) (1 / guiScale), 1);
+        long first = (long) Math.floor((pixelLeft - originX) / unit / step);
+        long last = (long) Math.ceil((pixelRight - originX) / unit / step);
+        for (long i = first; i <= last; i++) {
+            int x = (int) Math.floor(originX + i * step * unit);
+            graphics.fill(x, pixelTop, x + 1, pixelBottom, color);
         }
-        for (int y = Math.floorDiv(top, step) * step; y <= bottom; y += step) {
-            graphics.fill(left, y, right, y + width, color);
+        first = (long) Math.floor((pixelTop - originY) / unit / step);
+        last = (long) Math.ceil((pixelBottom - originY) / unit / step);
+        for (long i = first; i <= last; i++) {
+            int y = (int) Math.floor(originY + i * step * unit);
+            graphics.fill(pixelLeft, y, pixelRight, y + 1, color);
         }
+        int axisX = (int) Math.floor(originX);
+        int axisY = (int) Math.floor(originY);
+        graphics.fill(axisX, pixelTop, axisX + 2, pixelBottom, axis);
+        graphics.fill(pixelLeft, axisY, pixelRight, axisY + 2, axis);
+        graphics.pose().popPose();
     }
 
     static void horizontal(GuiGraphics graphics, int x1, int x2, int y, int color) {

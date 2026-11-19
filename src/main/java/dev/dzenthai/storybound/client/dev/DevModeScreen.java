@@ -120,6 +120,7 @@ public class DevModeScreen extends Screen {
     public DevModeScreen(@Nullable Screen parent) {
         super(DevUi.text("title"));
         this.parent = parent;
+        DevBackground.shuffle();
     }
 
     private GraphView view() {
@@ -892,6 +893,9 @@ public class DevModeScreen extends Screen {
         if (!menu.isEmpty()) {
             return clickMenu(mouseX, mouseY);
         }
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && view().onCanvas(this, mouseX, mouseY) && view().clickHome(mouseX, mouseY)) {
+            return true;
+        }
         if (view().inspectorVisible(this) && button == GLFW.GLFW_MOUSE_BUTTON_LEFT
                 && DevUi.onCollapseButton(mouseX, mouseY, canvasRight(), collapseY())) {
             inspectorCollapsed = true;
@@ -1015,6 +1019,29 @@ public class DevModeScreen extends Screen {
             if (keyCode != GLFW.GLFW_KEY_ESCAPE) {
                 return super.keyPressed(keyCode, scanCode, modifiers);
             }
+        }
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            // One layer a press (November 19, 2026, the author; before, Escape left the editor from anywhere but a
+            // window): a text box lets go of the keyboard (its words stay), then the view's selection and the view inside
+            // the story, and only then the editor closes.
+            if (textFocused()) {
+                for (GuiEventListener child : children()) {
+                    if (child instanceof EditBox box && box.isFocused()) {
+                        box.setFocused(false);
+                    }
+                }
+                setFocused(null);
+                return true;
+            }
+            if (!view().escape(this)) {
+                onClose();
+            }
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_HOME) {
+            // Back to the canvas's origin, the landmark (November 19, 2026).
+            view().goHome();
+            return true;
         }
         return view().keyPressed(this, keyCode) || super.keyPressed(keyCode, scanCode, modifiers);
     }

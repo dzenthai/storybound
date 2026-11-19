@@ -27,7 +27,8 @@ final class DialogueGraph {
     static final String EXIT = "@exit";
     /** The automatic layout, on the editor's grid of 24 (November 18, 2026; before, 220, 76 and 40). */
     static final int LAYER_GAP = 9 * 24;
-    static final int ROW_GAP = 3 * 24;
+    /** Four cells from row to row: a node twice as large (November 19, 2026; before, three) and its title fit. */
+    static final int ROW_GAP = 4 * 24;
     static final int MARGIN = 2 * 24;
 
     /** What an arrow means; the view colours and labels it by this. */

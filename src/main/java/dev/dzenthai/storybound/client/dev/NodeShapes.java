@@ -18,6 +18,11 @@ final class NodeShapes {
 
     /** GUI pixels round a shape in its textures, for its glow. */
     private static final int PAD = 5;
+    /**
+     * How many times larger than their textures' names the shapes are drawn, the items in them too (November 19, 2026;
+     * before, as named). The textures are four times finer than a pixel, so twice as large stays sharp.
+     */
+    static final int SCALE = 2;
     private static final ResourceLocation LINK = Storybound.id("textures/gui/dev/node/link.png");
     private static final double SIN60 = Math.sqrt(3) / 2;
 
@@ -62,9 +67,10 @@ final class NodeShapes {
     /** Draws the shape centred on the pixel {@code cx, cy}: its glow ({@code glow}, ARGB; 0 none), its fill and its ring. */
     static void draw(GuiGraphics graphics, Shape shape, int r, int cx, int cy, int glow, int fill, int ring) {
         String name = name(shape, r);
-        int size = 2 * (r + PAD) + 1;
-        int x = cx - r - PAD;
-        int y = cy - r - PAD;
+        int pad = PAD * SCALE;
+        int size = 2 * (r + pad) + 1;
+        int x = cx - r - pad;
+        int y = cy - r - pad;
         RenderSystem.enableBlend();
         if (glow != 0) {
             tinted(graphics, Storybound.id(name + "glow.png"), x, y, size, size, glow);
@@ -77,15 +83,17 @@ final class NodeShapes {
 
     /** The shape's area in {@code argb} over what is drawn: the hovered node's light, a dimmed node's shade. */
     static void overlay(GuiGraphics graphics, Shape shape, int r, int cx, int cy, int argb) {
-        int size = 2 * (r + PAD) + 1;
+        int pad = PAD * SCALE;
+        int size = 2 * (r + pad) + 1;
         RenderSystem.enableBlend();
-        tinted(graphics, Storybound.id(name(shape, r) + "fill.png"), cx - r - PAD, cy - r - PAD, size, size, argb);
+        tinted(graphics, Storybound.id(name(shape, r) + "fill.png"), cx - r - pad, cy - r - pad, size, size, argb);
         graphics.setColor(1, 1, 1, 1);
         RenderSystem.disableBlend();
     }
 
+    /** The textures of the shape drawn at radius {@code r}: named by the radius before {@link #SCALE}. */
     private static String name(Shape shape, int r) {
-        return "textures/gui/dev/node/" + shape.name().toLowerCase(java.util.Locale.ROOT) + "_" + r + "_";
+        return "textures/gui/dev/node/" + shape.name().toLowerCase(java.util.Locale.ROOT) + "_" + r / SCALE + "_";
     }
 
     /** A link from {@code x1, y1} to {@code x2, y2} (canvas units): a line one pixel thick with soft edges. */

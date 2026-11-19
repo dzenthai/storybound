@@ -164,7 +164,15 @@ final class StoryView extends GraphView {
      * triangle; a boss a triangle; a story event a circle, and in "all links" every other kind a smaller circle. The
      * rune is the kind's icon (a quest's by its category).
      */
-    record Look(NodeShapes.Shape shape, int radius) {}
+    /**
+     * A node's shape and size: {@code base} the radius its textures are named by, {@link #radius} the radius drawn,
+     * {@link NodeShapes#SCALE} times it (November 19, 2026, the author: the nodes were small beside the room between them).
+     */
+    record Look(NodeShapes.Shape shape, int base) {
+        int radius() {
+            return base * NodeShapes.SCALE;
+        }
+    }
 
     /**
      * A node's shape by its kind (November 19, 2026, the author, as in FTB Quests: the shape tells the kind, the item
@@ -684,6 +692,22 @@ final class StoryView extends GraphView {
             return 0xFFB33A2F;
         }
         return type.equals(ClientDevStore.TYPE_CODEX) ? 0xFF6480AE : 0xFFD9785A;
+    }
+
+    /** Escape: the selection (and its inspector) first, then "All links" back to the chapters; at the map, nothing. */
+    @Override
+    boolean escape(DevModeScreen screen) {
+        if (selected != null || !selection.isEmpty()) {
+            select(screen, null);
+            screen.rebuild();
+            return true;
+        }
+        if (tab == Tab.ALL) {
+            saveEdits(screen);
+            openTab(screen, Tab.STORY);
+            return true;
+        }
+        return false;
     }
 
     // --- selection and saving
@@ -1739,7 +1763,8 @@ final class StoryView extends GraphView {
     /** The badges under a card of the map: its own nodes, "+N" for the rest; a quest starting by itself gets ⚡ first. */
     private static List<Badge> badges(Card card, Font font) {
         List<Badge> list = new ArrayList<>();
-        int y = card.y() + NODE_H + 12;
+        // Under the node and its title, as large as the node is (November 19, 2026: the nodes grew).
+        int y = card.cy() + card.look().radius() + 18;
         // Centred under the node: their whole width first.
         int count = (card.selfStart() ? 1 : 0) + Math.min(card.own().size(), MAX_BADGES);
         boolean more = card.own().size() > MAX_BADGES;
@@ -1927,8 +1952,10 @@ final class StoryView extends GraphView {
         NodeShapes.draw(graphics, look.shape(), look.radius(), cx, cy, glow, primary ? SELECTED_FILL : NODE_FILL, ringColor);
         graphics.pose().pushPose();
         // The item behind the canvas's own overlays and words (an item is drawn far in front otherwise).
-        graphics.pose().translate(0.5f, 0.5f - NodeShapes.iconLift(look.shape(), look.radius()), -140);
-        graphics.renderItem(item, cx - 8, cy - 8);
+        // As large as the shape grew: a whole number of times, so its pixels stay even at every zoom step.
+        graphics.pose().translate(cx + 0.5f, cy + 0.5f - NodeShapes.iconLift(look.shape(), look.radius()), -140);
+        graphics.pose().scale(NodeShapes.SCALE, NodeShapes.SCALE, 1);
+        graphics.renderItem(item, -8, -8);
         graphics.pose().popPose();
         if (hovered) {
             NodeShapes.overlay(graphics, look.shape(), look.radius(), cx, cy, 0x30FFF4C4);

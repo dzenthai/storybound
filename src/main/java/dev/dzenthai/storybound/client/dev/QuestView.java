@@ -26,8 +26,8 @@ final class QuestView extends GraphView {
     /** A stage's width, and a column's: the stage and the gap to the next (November 18, 2026: before, a card's width). */
     private static final int STAGE_W = 6 * DevUi.GRID;
     private static final int COLUMN = STAGE_W + 2 * DevUi.GRID;
-    /** From one node to the next under a stage: its box, its title, a little air. */
-    private static final int NODE_STEP = StoryView.NODE_H + 16;
+    /** From one node to the next under a stage: the largest node (a main quest's diamond), its title, a little air. */
+    private static final int NODE_STEP = 4 * DevUi.GRID + 8;
     private static final int LINE = 10;
     /** How wide a node's title is at most here. */
     private static final int TITLE_W = STAGE_W - 8;
@@ -393,6 +393,13 @@ final class QuestView extends GraphView {
     @Override
     boolean keyPressed(DevModeScreen screen, int keyCode) {
         return false;
+    }
+
+    /** Escape: back to the story, where the quest was opened from. */
+    @Override
+    boolean escape(DevModeScreen screen) {
+        screen.closeQuest();
+        return true;
     }
 
     @Override

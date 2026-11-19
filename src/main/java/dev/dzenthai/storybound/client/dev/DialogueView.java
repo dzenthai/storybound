@@ -1050,12 +1050,21 @@ final class DialogueView extends GraphView {
         return false;
     }
 
+    /** Escape: the selected node (and its inspector) first, then back to the story. */
     @Override
-    boolean keyPressed(DevModeScreen screen, int keyCode) {
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            screen.closeDialogue();
+    boolean escape(DevModeScreen screen) {
+        if (selected != null) {
+            saveEdits(screen);
+            selected = null;
+            screen.rebuild();
             return true;
         }
+        screen.closeDialogue();
+        return true;
+    }
+
+    @Override
+    boolean keyPressed(DevModeScreen screen, int keyCode) {
         if ((keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE) && selected != null) {
             deleteNode(screen, selected);
             return true;
