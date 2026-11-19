@@ -535,6 +535,35 @@ public final class NpcReactionGameTests {
     }
 
     /**
+     * {@code by_mobs} (November 20, 2026): a zombie's hit makes the NPC say its phrases too, but not again while the last
+     * one still shows; without it a mob's hit says nothing, as before.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 100)
+    public static void byMobsSaysThePhrasesOnAMobsHitToo(GameTestHelper helper) {
+        IronGolem told = helper.spawn(EntityType.IRON_GOLEM, 1, 1, 4);
+        told.addTag("gt_react_mobs");
+        IronGolem untold = helper.spawn(EntityType.IRON_GOLEM, 4, 1, 4);
+        untold.addTag("gt_react_nomobs");
+        net.minecraft.world.entity.monster.Zombie zombie = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 2, 1, 2);
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions()
+                .phrases("react_mobs", "{ \"order\": \"sequence\", \"lines\": [ { \"literal\": \"Monster!\" }, { \"literal\": \"Help!\" } ] }")
+                .binding("react_mobs", "{ \"entity\": { \"tag\": \"gt_react_mobs\" }, \"when_attacked\": { \"phrases\": \"gametest:react_mobs\", \"by_mobs\": true } }")
+                .binding("react_nomobs", "{ \"entity\": { \"tag\": \"gt_react_nomobs\" }, \"when_attacked\": { \"phrases\": \"gametest:react_mobs\" } }");
+        defs.install(helper);
+        told.hurt(told.damageSources().mobAttack(zombie), 1f);
+        expect(helper, NpcPhrases.position(NpcPhrases.mobHitCounterFor(told)), 1, "a zombie's hit: its first phrase");
+        told.invulnerableTime = 0;
+        told.hurt(told.damageSources().mobAttack(zombie), 1f);
+        expect(helper, NpcPhrases.position(NpcPhrases.mobHitCounterFor(told)), 1, "not again while the phrase still shows");
+        untold.hurt(untold.damageSources().mobAttack(zombie), 1f);
+        expect(helper, NpcPhrases.position(NpcPhrases.mobHitCounterFor(untold)), -1, "without by_mobs a mob's hit says nothing");
+        defs.uninstall(player);
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
      * A choice in subtitles waits for the player (November 6, 2026): "[H] Answer" until they open its window, which
      * before opened by itself mid-fight. Until opened it does not hold the screen, so a hit does not end the talk; its
      * timer (2 s) counts only the time to open it: stopped while the window is open (3 s pass, nothing), going on from

@@ -20,6 +20,7 @@ import net.minecraft.world.entity.PathfinderMob;
 import dev.dzenthai.storybound.mixin.LivingEntityAccessor;
 import java.util.List;
 import net.minecraft.world.entity.ai.Brain;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.schedule.Activity;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
@@ -36,7 +37,8 @@ import org.jetbrains.annotations.Nullable;
  * {@code patience} hits, each with the next of its {@code warning} phrases ("Careful!", "Once more and..."), and goes
  * for the player on the next. Every hit it reacts to says the next of its {@code phrases}. {@code calm_after} seconds without a hit forgive it all: the
  * reaction ends, the count and the phrases start over. Revenge is kept off by refusing the NPC the player as a target
- * ({@link LivingChangeTargetEvent}): a golem's anger never gets as far as a swing. Mobs' hits leave it to its kind.
+ * ({@link LivingChangeTargetEvent}): a golem's anger never gets as far as a swing. Mobs' hits leave it to its kind; with
+ * {@code by_mobs} it also says its phrases on them ({@link #mobHit}).
  */
 public final class NpcReactions {
     /** How long a fleeing NPC keeps running from the player after a hit. */
@@ -87,6 +89,9 @@ public final class NpcReactions {
         }
         if (event.getSource().getEntity() instanceof ServerPlayer player && player != npc && binding.whenAttacked().isPresent()) {
             hit(level.getServer().getTickCount(), npc, player, binding.whenAttacked().get());
+        } else if (event.getSource().getEntity() instanceof LivingEntity attacker && !(attacker instanceof Player) && attacker != npc
+                && binding.whenAttacked().map(WhenAttacked::byMobs).orElse(false)) {
+            mobHit(level, npc, binding.whenAttacked().get());
         }
         if (binding.invulnerable().orElse(false) && !event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             event.setCanceled(true);
@@ -212,6 +217,28 @@ public final class NpcReactions {
     public static int hits(Entity npc, ServerPlayer player) {
         Grudge grudge = grudge(npc, player);
         return grudge == null ? 0 : grudge.hits;
+    }
+
+    /**
+     * A mob's hit, with {@code by_mobs} (November 20, 2026): the next of its phrases, for all within earshot, each in
+     * their language; not while its last phrase still shows, so a mob's blows every second do not make it chatter; its
+     * own place in the phrases, apart from each player's. Nobody near enough to see it: nothing.
+     */
+    private static void mobHit(ServerLevel level, LivingEntity npc, WhenAttacked rules) {
+        long now = level.getServer().getTickCount();
+        if (rules.phrases().isEmpty() || NpcPhrases.speaking(npc, now)) {
+            return;
+        }
+        ServerPlayer nearest = null;
+        for (ServerPlayer viewer : level.players()) {
+            if (viewer.distanceToSqr(npc) <= Dialogues.BUBBLE_RANGE * Dialogues.BUBBLE_RANGE
+                    && (nearest == null || viewer.distanceToSqr(npc) < nearest.distanceToSqr(npc))) {
+                nearest = viewer;
+            }
+        }
+        if (nearest != null) {
+            NpcPhrases.say(npc, rules.phrases().get(), NpcPhrases.mobHitCounter(npc), nearest, now, true);
+        }
     }
 
     private static void hit(long now, LivingEntity npc, ServerPlayer player, WhenAttacked rules) {

@@ -94,6 +94,7 @@
         "warning": { "description": "For fight: said on the hits it forgives (in order: \"Careful!\", \"Once more and...\"); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
         "phrases": { "description": "Said on every hit it reacts to (for fight, those past its patience); a phrases node, or { \"text\": ... } of its own.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
         "dialogue": { "description": "Instead of phrases: a dialogue started with the player on such a hit, after the one they are in (a scene: \"What are you doing?!\").", "$ref": "logic.schema.json#/definitions/id" },
+        "by_mobs": { "description": "Also says its phrases when a mob hurts it (a monster, a wolf, any creature but a player), for all near enough to see, not while its last phrase still shows. Only the phrases: fleeing, fighting back and the dialogue stay with players.", "type": "boolean", "default": false },
         "calm_after": { "description": "Seconds without a hit after which it forgives everything: the reaction ends, the count of hits and the phrases start over.", "type": "number", "minimum": 5, "maximum": 600, "default": 30 }
       }
     },

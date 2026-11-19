@@ -1517,6 +1517,7 @@
   "storybound.dev.field.min_interval": "Пауза между фразами, с: от",
   "storybound.dev.field.max_interval": "Пауза между фразами, с: до",
   "storybound.dev.field.calm_after": "Успокаивается через, с",
+  "storybound.dev.field.by_mobs": "Также при ударах мобов",
   "storybound.dev.value.order.random": "случайно",
   "storybound.dev.value.order.sequence": "по порядку, остаётся на последней",
   "storybound.dev.value.order.loop": "по кругу (сверху вниз, снова и снова)",

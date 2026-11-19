@@ -694,17 +694,16 @@ final class StoryView extends GraphView {
         return type.equals(ClientDevStore.TYPE_CODEX) ? 0xFF6480AE : 0xFFD9785A;
     }
 
-    /** Escape: the selection (and its inspector) first, then "All links" back to the chapters; at the map, nothing. */
+    /**
+     * Escape: the selection (and its inspector); then nothing, and the editor closes. "All links" is a way of showing
+     * the map, not a level inside it: it stays for the next opening (November 20, 2026, the author; for a day Escape
+     * took it back to the chapters first, so the editor always reopened on them).
+     */
     @Override
     boolean escape(DevModeScreen screen) {
         if (selected != null || !selection.isEmpty()) {
             select(screen, null);
             screen.rebuild();
-            return true;
-        }
-        if (tab == Tab.ALL) {
-            saveEdits(screen);
-            openTab(screen, Tab.STORY);
             return true;
         }
         return false;

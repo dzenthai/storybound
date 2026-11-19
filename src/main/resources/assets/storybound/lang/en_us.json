@@ -1517,6 +1517,7 @@
   "storybound.dev.field.min_interval": "Pause between phrases, s: from",
   "storybound.dev.field.max_interval": "Pause between phrases, s: to",
   "storybound.dev.field.calm_after": "Calms down after, s",
+  "storybound.dev.field.by_mobs": "Also when a mob hurts it",
   "storybound.dev.value.order.random": "at random",
   "storybound.dev.value.order.sequence": "in order, stays on the last",
   "storybound.dev.value.order.loop": "round (top to bottom, again and again)",

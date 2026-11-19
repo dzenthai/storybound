@@ -119,6 +119,16 @@ public final class NpcPhrases {
         return "hit:" + npc.getUUID() + ":" + player.getUUID();
     }
 
+    /** Its place in the phrases it says on mobs' hits ({@code by_mobs}): one for every mob. */
+    static String mobHitCounter(LivingEntity npc) {
+        return "mobhit:" + npc.getUUID();
+    }
+
+    /** For tests: the counter of the phrases said on mobs' hits. */
+    public static String mobHitCounterFor(LivingEntity npc) {
+        return mobHitCounter(npc);
+    }
+
     static String warningCounter(LivingEntity npc, ServerPlayer player) {
         return "warning:" + npc.getUUID() + ":" + player.getUUID();
     }

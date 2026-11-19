@@ -125,15 +125,20 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
      * @param calmAfter seconds without a hit after which the NPC forgives everything: its reaction ends, the count of
      *                  hits and its phrases start over
      */
+    /**
+     * @param byMobs its {@code phrases} also on a mob's hit (November 20, 2026, the author): a monster's, a wolf's, any
+     *               creature's but a player's; only the phrases, the reaction stays with players
+     */
     public record WhenAttacked(Reaction reaction, int patience, Optional<PhrasesRef> warning, Optional<PhrasesRef> phrases,
-                               Optional<ResourceLocation> dialogue, float calmAfter) {
+                               Optional<ResourceLocation> dialogue, float calmAfter, boolean byMobs) {
         public static final Codec<WhenAttacked> CODEC = RecordCodecBuilder.<WhenAttacked>create(instance -> instance.group(
                 Reaction.CODEC.optionalFieldOf("reaction", Reaction.IGNORE).forGetter(WhenAttacked::reaction),
                 Codec.intRange(0, 20).optionalFieldOf("patience", 0).forGetter(WhenAttacked::patience),
                 PhrasesRef.CODEC.optionalFieldOf("warning").forGetter(WhenAttacked::warning),
                 PhrasesRef.CODEC.optionalFieldOf("phrases").forGetter(WhenAttacked::phrases),
                 ResourceLocation.CODEC.optionalFieldOf("dialogue").forGetter(WhenAttacked::dialogue),
-                Codec.floatRange(5f, 600f).optionalFieldOf("calm_after", 30f).forGetter(WhenAttacked::calmAfter)
+                Codec.floatRange(5f, 600f).optionalFieldOf("calm_after", 30f).forGetter(WhenAttacked::calmAfter),
+                Codec.BOOL.optionalFieldOf("by_mobs", false).forGetter(WhenAttacked::byMobs)
         ).apply(instance, WhenAttacked::new)).validate(rules -> rules.phrases().isPresent() && rules.dialogue().isPresent()
                 ? DataResult.error(() -> "when_attacked: \"phrases\" or \"dialogue\", not both: on a hit the NPC says a phrase or starts a scene")
                 : DataResult.success(rules));
