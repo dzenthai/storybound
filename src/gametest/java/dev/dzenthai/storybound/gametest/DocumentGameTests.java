@@ -294,6 +294,38 @@ public final class DocumentGameTests {
         helper.succeed();
     }
 
+    /**
+     * A book goes onto an empty lectern with a plain right click, as vanilla's written book does, and with a sneaking
+     * one; a scroll is not a book and stays in the hand (November 19, 2026, the author: only Shift + right click put it).
+     */
+    @GameTest(template = "empty")
+    public static void rightClickPutsABookOnALectern(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        for (boolean sneaking : new boolean[] {false, true}) {
+            BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+            helper.getLevel().setBlockAndUpdate(pos, Blocks.LECTERN.defaultBlockState());
+            player.teleportTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5);
+            player.setShiftKeyDown(sneaking);
+            ItemStack book = Documents.createStack(ResourceLocation.fromNamespaceAndPath("storybound", "book"), null);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, book);
+            player.gameMode.useItemOn(player, helper.getLevel(), book, net.minecraft.world.InteractionHand.MAIN_HAND,
+                    new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(pos), net.minecraft.core.Direction.UP, pos, false));
+            helper.assertTrue(helper.getLevel().getBlockState(pos).getValue(LecternBlock.HAS_BOOK),
+                    "the book is on the lectern (" + (sneaking ? "sneaking" : "plain right click") + ")");
+        }
+        player.setShiftKeyDown(false);
+        BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+        helper.getLevel().setBlockAndUpdate(pos, Blocks.LECTERN.defaultBlockState());
+        ItemStack scroll = Documents.createStack(ResourceLocation.fromNamespaceAndPath("storybound", "scroll"), null);
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, scroll);
+        player.gameMode.useItemOn(player, helper.getLevel(), scroll, net.minecraft.world.InteractionHand.MAIN_HAND,
+                new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(pos), net.minecraft.core.Direction.UP, pos, false));
+        helper.assertTrue(!helper.getLevel().getBlockState(pos).getValue(LecternBlock.HAS_BOOK), "a scroll is not put on a lectern");
+        remove(helper, player);
+        helper.succeed();
+    }
+
     /** A lectern next to the player, holding the document {@code id}; its absolute position. */
     private static BlockPos lecternWith(GameTestHelper helper, ServerPlayer player, ResourceLocation id) {
         BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));

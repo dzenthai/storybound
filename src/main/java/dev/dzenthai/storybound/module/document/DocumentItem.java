@@ -26,13 +26,17 @@ public class DocumentItem extends Item {
         super(properties);
     }
 
+    /**
+     * A book onto an empty lectern, before the lectern itself is asked (November 19, 2026, the author: only Shift + right
+     * click put it): an empty lectern takes every click of an item not in {@code #lectern_books}, so the item's own
+     * {@code useOn} was reached only when sneaking skipped the block. Scrolls, notes and letters are not put on it.
+     */
     @Override
-    public InteractionResult useOn(UseOnContext context) {
+    public InteractionResult onItemUseFirst(ItemStack stack, UseOnContext context) {
         Level level = context.getLevel();
         BlockPos pos = context.getClickedPos();
         BlockState state = level.getBlockState(pos);
         if (state.is(Blocks.LECTERN) && !state.getValue(LecternBlock.HAS_BOOK)) {
-            ItemStack stack = context.getItemInHand();
             DocumentRef ref = stack.get(DocumentRegistries.DOCUMENT_COMPONENT.get());
             if (ref != null) {
                 DocumentDefinition definition = (level.isClientSide()
@@ -45,7 +49,7 @@ public class DocumentItem extends Item {
                 }
             }
         }
-        return super.useOn(context);
+        return InteractionResult.PASS;
     }
 
     @Override
