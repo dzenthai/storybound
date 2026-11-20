@@ -36,6 +36,8 @@ import org.lwjgl.glfw.GLFW;
  * and the dialogue goes on in first person.
  */
 public final class DialogueCamera {
+    /** The reputation HUD layer (see {@code StoryboundClient}), shown through a shot. */
+    private static final net.minecraft.resources.ResourceLocation REPUTATION_LAYER = Storybound.id("reputation");
     private static final long EASE_MILLIS = 400;
     /** How long a framed shot may wait for the render hook before the camera gives up. */
     private static final long HOOK_GRACE_MILLIS = 2000;
@@ -212,8 +214,12 @@ public final class DialogueCamera {
         }
     }
 
+    /**
+     * The HUD hides while a shot frames the talk, but for the standing with the NPC talked to, which is shown for the
+     * very talk (November 20, 2026: before, it hid too, and a screen dialogue with a camera never showed it).
+     */
     public static void onRenderGuiLayer(RenderGuiLayerEvent.Pre event) {
-        if (isFraming()) {
+        if (isFraming() && !event.getName().equals(REPUTATION_LAYER)) {
             event.setCanceled(true);
         }
     }

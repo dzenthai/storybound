@@ -49,6 +49,8 @@ public final class NpcBindings {
     private static List<Map.Entry<ResourceLocation, NpcBinding>> files = List.of();
     private static double searchRadius = NpcBinding.Proximity.DEFAULT.radius();
     private static double chatterReach;
+    /** Some binding writes a movement: until one does, {@link NpcMovement} looks at no entity. */
+    private static boolean moves;
     /** Player → entities within a proximity radius at the last check; a dialogue starts only on coming close. */
     private static final Map<UUID, Set<UUID>> NEAR = new HashMap<>();
     /** Player → entity → tick of the last proximity start, for the cooldown. */
@@ -76,6 +78,12 @@ public final class NpcBindings {
         searchRadius = Math.max(searchRadius, NpcBinding.Proximity.DEFAULT.radius());
         chatterReach = files.stream().flatMap(entry -> entry.getValue().chatter().stream())
                 .mapToDouble(NpcBinding.Chatter::radius).max().orElse(0);
+        moves = files.stream().anyMatch(entry -> entry.getValue().movement().isPresent());
+    }
+
+    /** Whether some binding writes a movement (see {@link NpcMovement}). */
+    static boolean moves() {
+        return moves;
     }
 
     /** The binding files, in id order. */
@@ -588,7 +596,8 @@ public final class NpcBindings {
                     // A name only from a binding that names one NPC: one for every entity of a kind gives names instead.
                     first(byHand(chain), sources, "display_name", NpcBinding::displayName),
                     first(dynamic(chain), sources, "names", binding -> binding.names().isEmpty() ? Optional.empty() : Optional.of(binding.names()))
-                            .orElse(List.of()), false, Optional.empty());
+                            .orElse(List.of()), false, Optional.empty(),
+                    first(chain, sources, "movement", NpcBinding::movement));
             return new Found(List.copyOf(chain), merged, Collections.unmodifiableMap(sources));
         }
 

@@ -1,0 +1,194 @@
+{
+  "participants": {
+    "hilda": {
+      "type": "bound",
+      "name": "scenario.reputation.hilda"
+    }
+  },
+  "presentation": "hud",
+  "start": "mood",
+  "nodes": {
+    "mood": {
+      "type": "condition",
+      "conditions": {
+        "type": "var",
+        "key": "scenario:rep/reputation/hilda",
+        "op": ">=",
+        "value": 30
+      },
+      "then": "greet_warm",
+      "else": "mood_cold"
+    },
+    "mood_cold": {
+      "type": "condition",
+      "conditions": {
+        "type": "var",
+        "key": "scenario:rep/reputation/hilda",
+        "op": "<=",
+        "value": -20
+      },
+      "then": "greet_cold",
+      "else": "greet"
+    },
+    "greet_warm": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.greet_warm",
+      "next": "menu"
+    },
+    "greet_cold": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.greet_cold",
+      "next": "menu"
+    },
+    "greet": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.greet",
+      "next": "menu"
+    },
+    "menu": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "compliment",
+          "text": "scenario.reputation.ask.compliment",
+          "actions": [
+            {
+              "type": "add_var",
+              "key": "scenario:rep/reputation/hilda",
+              "amount": 10
+            }
+          ],
+          "next": "thanks"
+        },
+        {
+          "id": "rude",
+          "text": "scenario.reputation.ask.rude",
+          "actions": [
+            {
+              "type": "add_var",
+              "key": "scenario:rep/reputation/hilda",
+              "amount": -10
+            }
+          ],
+          "next": "hurt"
+        },
+        {
+          "id": "help",
+          "text": "scenario.reputation.ask.help",
+          "conditions": {
+            "type": "not",
+            "condition": {
+              "type": "quest",
+              "quest": "scenario:reputation/quest",
+              "state": "active"
+            }
+          },
+          "next": "task"
+        },
+        {
+          "id": "busy",
+          "text": "scenario.reputation.ask.busy",
+          "conditions": {
+            "type": "quest",
+            "quest": "scenario:reputation/quest",
+            "state": "active"
+          },
+          "next": "hurry"
+        },
+        {
+          "id": "bye",
+          "text": "scenario.reputation.ask.bye",
+          "next": "farewell"
+        }
+      ]
+    },
+    "thanks": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.thanks",
+      "next": "menu"
+    },
+    "hurt": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.hurt",
+      "next": "menu"
+    },
+    "task": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.task",
+      "next": "offer"
+    },
+    "offer": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "accept",
+          "text": "scenario.reputation.ask.accept",
+          "next": "glad",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "scenario:reputation/quest",
+              "state": "unknown"
+            },
+            {
+              "type": "set_quest_state",
+              "quest": "scenario:reputation/quest",
+              "state": "active"
+            },
+            {
+              "type": "spawn_entity",
+              "entity": "minecraft:husk",
+              "count": 3,
+              "tag": "scenario_reputation_husk",
+              "offset": [
+                7,
+                0,
+                5
+              ],
+              "persistent": false
+            }
+          ]
+        },
+        {
+          "id": "refuse",
+          "text": "scenario.reputation.ask.refuse",
+          "actions": [
+            {
+              "type": "add_var",
+              "key": "scenario:rep/reputation/hilda",
+              "amount": -10
+            }
+          ],
+          "next": "sigh"
+        }
+      ]
+    },
+    "glad": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.glad"
+    },
+    "sigh": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.sigh",
+      "next": "menu"
+    },
+    "hurry": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.hurry"
+    },
+    "farewell": {
+      "type": "line",
+      "speaker": "hilda",
+      "text": "scenario.reputation.farewell"
+    }
+  }
+}

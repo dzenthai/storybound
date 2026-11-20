@@ -1,0 +1,49 @@
+{
+  "display_name": "scenario.reputation.hilda",
+  "movement": "stay",
+  "entity": {
+    "type": "minecraft:villager",
+    "tag": "scenario_hilda"
+  },
+  "dialogues": [
+    {
+      "dialogue": "scenario:reputation/talk"
+    }
+  ],
+  "override_interact": true,
+  "invulnerable": true,
+  "when_attacked": {
+    "reaction": "ignore",
+    "phrases": {
+      "text": "scenario.reputation.hit"
+    }
+  },
+  "chatter": {
+    "phrases": "scenario:reputation/chatter",
+    "variants": [
+      {
+        "phrases": "scenario:reputation/chatter_warm",
+        "conditions": {
+          "type": "var",
+          "key": "scenario:rep/reputation/hilda",
+          "op": ">=",
+          "value": 30
+        },
+        "priority": 1
+      },
+      {
+        "phrases": "scenario:reputation/chatter_cold",
+        "conditions": {
+          "type": "var",
+          "key": "scenario:rep/reputation/hilda",
+          "op": "<=",
+          "value": -20
+        },
+        "priority": 1
+      }
+    ],
+    "min_interval": 12,
+    "max_interval": 24,
+    "radius": 8
+  }
+}

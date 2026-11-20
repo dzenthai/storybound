@@ -632,6 +632,8 @@ final class FormView {
             // players were sections of their own beside the dialogues they are about).
             "dialogues", "npc.group.talk",
             "chatter", "npc.group.chatter",
+            // How it walks (November 20, 2026).
+            "movement", "npc.group.movement",
             "when_attacked", "npc.group.hits",
             "custom", "npc.group.scripts");
     /** Within a section, a lighter heading over the fields of one question: how a talk starts, several players. */
@@ -640,16 +642,19 @@ final class FormView {
             "exclusive", "npc.group.players");
     /** The NPC form's order after "Who it is", as the schema lists it. */
     private static final List<String> NPC_ORDER = List.of("dialogues", "interact", "override_interact", "proximity", "exclusive", "busy",
-            "chatter", "when_attacked", "invulnerable", "respawn", "custom");
+            "chatter", "movement", "home_radius", "when_attacked", "invulnerable", "respawn", "custom");
 
     /**
      * What depends on a switch shows only while it is on, unless the file still sets it: "instead of trading" with
-     * talking by key or right-click, "reply while busy" with talking to one player at a time.
+     * talking by key or right-click, "reply while busy" with talking to one player at a time, how far from home with
+     * walking near home.
      */
     private static boolean npcFieldShown(String name, @Nullable JsonObject binding) {
         return switch (name) {
             case "override_interact" -> flag(binding, "interact", true) || flag(binding, "override_interact", false);
             case "busy" -> flag(binding, "exclusive", false) || binding != null && binding.has("busy");
+            case "home_radius" -> binding != null && (binding.has("home_radius")
+                    || binding.get("movement") instanceof JsonPrimitive movement && movement.getAsString().equals("home"));
             default -> true;
         };
     }

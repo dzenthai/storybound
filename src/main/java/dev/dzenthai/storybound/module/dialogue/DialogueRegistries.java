@@ -5,9 +5,12 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import java.util.function.Supplier;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 public final class DialogueRegistries {
@@ -42,6 +45,13 @@ public final class DialogueRegistries {
      */
     public static final Supplier<AttachmentType<NpcNames.Given>> NPC_NAME = ATTACHMENT_TYPES.register("npc_name",
             () -> AttachmentType.builder(() -> NpcNames.Given.NONE).serialize(NpcNames.Given.CODEC).build());
+
+    /**
+     * The place an NPC a binding's {@code movement} holds keeps to (November 20, 2026; see {@link NpcMovement}); check
+     * {@code hasData}, the default is a placeholder.
+     */
+    public static final Supplier<AttachmentType<GlobalPos>> NPC_HOME = ATTACHMENT_TYPES.register("npc_home",
+            () -> AttachmentType.builder(() -> GlobalPos.of(Level.OVERWORLD, BlockPos.ZERO)).serialize(GlobalPos.CODEC).build());
 
     private DialogueRegistries() {}
 

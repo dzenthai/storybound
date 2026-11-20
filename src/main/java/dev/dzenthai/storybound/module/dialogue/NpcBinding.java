@@ -58,6 +58,9 @@ import org.jetbrains.annotations.Nullable;
  * @param share        on a binding for every entity of a kind, all such (no tag, not {@code one}): only this per cent of
  *                     them, each entity rolled once for good by its uuid and the binding (see {@link #inShare}; November 8,
  *                     2026); absent or 100: all
+ * @param movement     how it walks (see {@link NpcMovement}; November 20, 2026): {@code free} as its kind does, {@code stay}
+ *                     where it stands, turning its head to players near, {@code home} within {@code home_radius} blocks of
+ *                     its place; absent: from the binding below, free when none writes it
  *                     <p>
  * Several bindings on one entity are layers (November 7, 2026; see {@link NpcBindings#find}): each setting comes from
  * the closest binding that writes it, so the on/off ones are kept as written or not ({@link Optional#empty()}: "from
@@ -67,7 +70,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                          Optional<Boolean> custom, Optional<Boolean> overrideInteract, Optional<Boolean> exclusive, Optional<PhrasesRef> busy,
                          Optional<Boolean> respawn, Optional<Boolean> invulnerable, Optional<WhenAttacked> whenAttacked, Optional<Chatter> chatter,
                          Optional<Boolean> showName, Optional<StoryText> displayName, List<StoryText> names, boolean one,
-                         Optional<Integer> share) {
+                         Optional<Integer> share, Optional<Movement> movement) {
     /** One selector, or a non-empty list of them; one is written back as an object, as files had it before lists. */
     private static final Codec<List<EntitySelector>> ENTITIES = Codec.either(EntitySelector.CODEC, ExtraCodecs.nonEmptyList(EntitySelector.CODEC.listOf()))
             .xmap(either -> either.map(List::of, Function.identity()),
@@ -87,6 +90,16 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
     private static final MapCodec<Pair<Boolean, Optional<Integer>>> CROWD = Codec.mapPair(
             Codec.BOOL.optionalFieldOf("one", false), Codec.intRange(1, 100).optionalFieldOf("share"));
 
+    /**
+     * How it walks: {@code movement}, and {@code home_radius} for {@code home} (default {@link Movement#DEFAULT_RADIUS}). A
+     * radius without a movement is not used and is dropped; one with stay or free, the validator warns of.
+     */
+    private static final MapCodec<Optional<Movement>> MOVEMENT = Codec.mapPair(
+                    Movement.Mode.CODEC.optionalFieldOf("movement"), Codec.intRange(1, 64).optionalFieldOf("home_radius"))
+            .xmap(pair -> pair.getFirst().map(mode -> new Movement(mode, pair.getSecond().orElse(Movement.DEFAULT_RADIUS))),
+                    movement -> Pair.of(movement.map(Movement::mode), movement.map(Movement::homeRadius)
+                            .filter(radius -> radius != Movement.DEFAULT_RADIUS)));
+
     public static final Codec<NpcBinding> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ENTITIES.fieldOf("entity").forGetter(NpcBinding::entities),
             Entry.CODEC.listOf().optionalFieldOf("dialogues", List.of()).forGetter(NpcBinding::dialogues),
@@ -103,12 +116,45 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
             Codec.BOOL.optionalFieldOf("show_name").forGetter(NpcBinding::showName),
             StoryText.CODEC.optionalFieldOf("display_name").forGetter(NpcBinding::displayName),
             StoryText.CODEC.listOf().optionalFieldOf("names", List.of()).forGetter(NpcBinding::names),
-            // Two fields as one: a record codec takes at most 16.
-            CROWD.forGetter(binding -> Pair.of(binding.one(), binding.share()))
+            // Four fields as one: a record codec takes at most 16.
+            Codec.mapPair(CROWD, MOVEMENT).forGetter(binding -> Pair.of(Pair.of(binding.one(), binding.share()), binding.movement()))
     ).apply(instance, (entities, dialogues, interact, proximity, custom, overrideInteract, exclusive, busy, respawn, invulnerable,
-                       whenAttacked, chatter, showName, displayName, names, crowd) -> new NpcBinding(entities, dialogues, interact, proximity, custom,
-            overrideInteract, exclusive, busy, respawn, invulnerable, whenAttacked, chatter, showName, displayName, names, crowd.getFirst(),
-            crowd.getSecond())));
+                       whenAttacked, chatter, showName, displayName, names, rest) -> new NpcBinding(entities, dialogues, interact, proximity, custom,
+            overrideInteract, exclusive, busy, respawn, invulnerable, whenAttacked, chatter, showName, displayName, names, rest.getFirst().getFirst(),
+            rest.getFirst().getSecond(), rest.getSecond())));
+
+    /**
+     * How the NPC walks (November 20, 2026; before, a story wanting it to stand wrote {@code NoAI}, which also froze its
+     * head and its flight).
+     *
+     * @param mode       free, stay or home
+     * @param homeRadius for {@code home}: how far from its place it may go, in blocks
+     */
+    public record Movement(Mode mode, int homeRadius) {
+        public static final int DEFAULT_RADIUS = 8;
+
+        public enum Mode implements StringRepresentable {
+            /** As its kind walks in vanilla; written to undo a binding below. */
+            FREE("free"),
+            /** Where it stands; pushed away, it comes back. Looks at the nearest player near. */
+            STAY("stay"),
+            /** Within the radius of its place; led away, it comes back. */
+            HOME("home");
+
+            public static final Codec<Mode> CODEC = StringRepresentable.fromEnum(Mode::values);
+
+            private final String name;
+
+            Mode(String name) {
+                this.name = name;
+            }
+
+            @Override
+            public String getSerializedName() {
+                return name;
+            }
+        }
+    }
 
     /**
      * What the NPC does when a player hits it (November 5, 2026; before, what its kind does: an iron golem killed the
@@ -418,7 +464,8 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                     // Attached to the entity, so never rewritten: a renamed dialogue is looked up by its new id.
                     List.of(Entry.of(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue))), Optional.of(interact),
                     proximity ? Optional.of(Proximity.DEFAULT) : Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of(), false, Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of(), false, Optional.empty(),
+                    Optional.empty());
         }
     }
 }

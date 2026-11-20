@@ -17,6 +17,7 @@ import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
 import dev.dzenthai.storybound.module.dialogue.NpcChatter;
+import dev.dzenthai.storybound.module.dialogue.NpcMovement;
 import dev.dzenthai.storybound.module.dialogue.NpcNames;
 import dev.dzenthai.storybound.module.dialogue.NpcParts;
 import dev.dzenthai.storybound.module.waypoint.AreaLook;
@@ -47,6 +48,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.behavior.EntityTracker;
 import net.minecraft.world.entity.ai.behavior.SleepInBed;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.IronGolem;
@@ -1273,6 +1275,158 @@ public final class NpcReactionGameTests {
 
     private static void remove(GameTestHelper helper, ServerPlayer player) {
         helper.getLevel().getServer().getPlayerList().remove(player);
+    }
+
+    /**
+     * A relationship scale on the HUD (November 20, 2026): the NPC's scale is found from its binding, named by its
+     * {@code display_name}; it holds to -50 and 50 as it is written; talking with the NPC makes it the one shown, and the
+     * talk's end lets it go.
+     */
+    @GameTest(template = "open", batch = BATCH, timeoutTicks = 100)
+    public static void aRelationshipScaleIsFoundNamedBoundedAndShownInATalk(GameTestHelper helper) {
+        IronGolem golem = helper.spawn(EntityType.IRON_GOLEM, 1, 1, 4);
+        golem.addTag("gt_rep");
+        ServerPlayer player = player(helper);
+        ResourceLocation scale = key("rep/rep_npc");
+        java.util.Map<ResourceLocation, dev.dzenthai.storybound.core.state.FlagDeclaration> previous =
+                dev.dzenthai.storybound.core.CoreDefinitions.FLAGS.serverStore().all();
+        java.util.Map<ResourceLocation, dev.dzenthai.storybound.core.state.FlagDeclaration> flags = new LinkedHashMap<>(previous);
+        flags.put(scale, new dev.dzenthai.storybound.core.state.FlagDeclaration(new StoryValue.Int(0),
+                dev.dzenthai.storybound.core.state.StoryScope.PLAYER, true, Optional.empty(),
+                Optional.of(dev.dzenthai.storybound.module.dialogue.NpcReputation.MIN), Optional.of(dev.dzenthai.storybound.module.dialogue.NpcReputation.MAX)));
+        dev.dzenthai.storybound.core.CoreDefinitions.FLAGS.serverStore().replace(flags);
+        Definitions defs = new Definitions()
+                .dialogue("rep_talk", "{ \"presentation\": \"hud\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }")
+                .binding("rep_npc", "{ \"entity\": { \"tag\": \"gt_rep\" }, \"display_name\": { \"literal\": \"Miron\" } }");
+        defs.install(helper);
+        try {
+            expect(helper, dev.dzenthai.storybound.module.dialogue.NpcReputation.scaleOf(golem), Optional.of(scale), "its NPC's scale");
+            expect(helper, dev.dzenthai.storybound.module.dialogue.NpcReputation.nameOf(player, scale).getString(), "Miron", "named by display_name");
+            StoryState.add(player, dev.dzenthai.storybound.core.state.StoryScope.PLAYER, scale, 70);
+            expect(helper, StoryState.get(player, dev.dzenthai.storybound.core.state.StoryScope.PLAYER, scale), Optional.of(new StoryValue.Int(50)), "held to 50");
+            StoryState.add(player, dev.dzenthai.storybound.core.state.StoryScope.PLAYER, scale, -500);
+            expect(helper, StoryState.get(player, dev.dzenthai.storybound.core.state.StoryScope.PLAYER, scale), Optional.of(new StoryValue.Int(-50)), "held to -50");
+            Dialogues.start(player, key("rep_talk"), golem);
+            expect(helper, dev.dzenthai.storybound.module.dialogue.NpcReputation.focus(player), scale, "talking with it: its scale shows");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            expect(helper, dev.dzenthai.storybound.module.dialogue.NpcReputation.focus(player), null, "the talk over: let go");
+        } catch (dev.dzenthai.storybound.core.StoryException e) {
+            throw new GameTestAssertException("Unexpected refusal: " + e.getMessage());
+        } finally {
+            defs.uninstall(player);
+            dev.dzenthai.storybound.core.CoreDefinitions.FLAGS.serverStore().replace(previous);
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A binding's {@code movement} (November 20, 2026), in a batch of its own: villagers with their own AI. {@code stay}:
+     * pushed 4 blocks off its place, it walks back to within 1.5 and looks at the player near.
+     */
+    @GameTest(template = "open", batch = MOVEMENT, timeoutTicks = 300)
+    public static void aStayingNpcWalksBackAndLooksAtThePlayer(GameTestHelper helper) {
+        Villager npc = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        npc.addTag("gt_move_stay");
+        BlockPos home = helper.absolutePos(new BlockPos(1, 1, 1));
+        npc.setData(DialogueRegistries.NPC_HOME, GlobalPos.of(helper.getLevel().dimension(), home));
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions().binding("move_stay", "{ \"entity\": { \"tag\": \"gt_move_stay\" }, \"movement\": \"stay\" }");
+        defs.install(helper);
+        helper.startSequence()
+                .thenIdle(25)
+                .thenExecute(() -> {
+                    helper.assertTrue(NpcMovement.held(npc), "the binding holds it");
+                    expect(helper, npc.getData(DialogueRegistries.NPC_HOME).pos(), home, "its place as it was");
+                    Vec3 pushed = helper.absoluteVec(new Vec3(5.5, 1, 1.5));
+                    npc.teleportTo(pushed.x, pushed.y, pushed.z);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(flat(npc, home) <= 1.5, "walks back: " + flat(npc, home) + " blocks off"))
+                .thenIdle(5)
+                .thenExecute(() -> {
+                    helper.assertTrue(flat(npc, home) <= 1.5, "and stays");
+                    helper.assertTrue(npc.getBrain().getMemory(MemoryModuleType.LOOK_TARGET)
+                            .filter(look -> look instanceof EntityTracker tracker && tracker.getEntity() == player).isPresent(), "looks at the player");
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * {@code home} with {@code home_radius} 2: led 5 blocks away, it walks back within 2 and keeps near. A radius is read
+     * with home (12), dropped without a movement.
+     */
+    @GameTest(template = "open", batch = MOVEMENT, timeoutTicks = 400)
+    public static void anNpcNearHomeComesBackWithinItsRadius(GameTestHelper helper) {
+        RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        expect(helper, NpcBinding.CODEC.parse(ops, JsonParser.parseString("{ \"entity\": { \"tag\": \"x\" }, \"movement\": \"home\", \"home_radius\": 12 }"))
+                .getOrThrow().movement(), Optional.of(new NpcBinding.Movement(NpcBinding.Movement.Mode.HOME, 12)), "home with its radius");
+        expect(helper, NpcBinding.CODEC.parse(ops, JsonParser.parseString("{ \"entity\": { \"tag\": \"x\" }, \"home_radius\": 12 }"))
+                .getOrThrow().movement(), Optional.empty(), "a radius alone is no movement");
+        Villager npc = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        npc.addTag("gt_move_home");
+        BlockPos home = helper.absolutePos(new BlockPos(1, 1, 1));
+        npc.setData(DialogueRegistries.NPC_HOME, GlobalPos.of(helper.getLevel().dimension(), home));
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions().binding("move_home", "{ \"entity\": { \"tag\": \"gt_move_home\" }, \"movement\": \"home\", \"home_radius\": 2 }");
+        defs.install(helper);
+        helper.startSequence()
+                .thenIdle(25)
+                .thenExecute(() -> {
+                    Vec3 led = helper.absoluteVec(new Vec3(6.5, 1, 1.5));
+                    npc.teleportTo(led.x, led.y, led.z);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(flat(npc, home) <= 2.0, "walks back: " + flat(npc, home) + " blocks off"))
+                .thenIdle(60)
+                .thenExecute(() -> {
+                    helper.assertTrue(flat(npc, home) <= 3.0, "keeps near: " + flat(npc, home) + " blocks off");
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * Put farther than it walks in a tick (a story's teleport, 9.9 blocks), its place moves with it; a binding writing
+     * free lets it go and forgets its place.
+     */
+    @GameTest(template = "open", batch = MOVEMENT, timeoutTicks = 200)
+    public static void aTeleportMovesItsPlaceAndFreeLetsItGo(GameTestHelper helper) {
+        Villager npc = helper.spawn(EntityType.VILLAGER, 0, 1, 0);
+        npc.addTag("gt_move_tp");
+        npc.setData(DialogueRegistries.NPC_HOME, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(new BlockPos(0, 1, 0))));
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions().binding("move_tp", "{ \"entity\": { \"tag\": \"gt_move_tp\" }, \"movement\": \"stay\" }");
+        defs.install(helper);
+        BlockPos there = helper.absolutePos(new BlockPos(7, 1, 7));
+        helper.startSequence()
+                .thenIdle(25)
+                .thenExecute(() -> npc.teleportTo(there.getX() + 0.5, there.getY(), there.getZ() + 0.5))
+                .thenIdle(30)
+                .thenExecute(() -> {
+                    // Where it landed: the height is where it stood, the floor below the point it was put at.
+                    BlockPos place = npc.getData(DialogueRegistries.NPC_HOME).pos();
+                    helper.assertTrue(place.getX() == there.getX() && place.getZ() == there.getZ(), "its place moved with it: " + place);
+                    helper.assertTrue(flat(npc, there) <= 1.5, "and it stays there");
+                    new Definitions().binding("move_tp", "{ \"entity\": { \"tag\": \"gt_move_tp\" }, \"movement\": \"free\" }").install(helper);
+                })
+                .thenIdle(25)
+                .thenExecute(() -> {
+                    helper.assertFalse(NpcMovement.held(npc), "free: not held");
+                    helper.assertFalse(npc.hasData(DialogueRegistries.NPC_HOME), "its place forgotten");
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    private static final String MOVEMENT = "npc_movement";
+
+    private static double flat(Entity entity, BlockPos pos) {
+        double dx = entity.getX() - (pos.getX() + 0.5);
+        double dz = entity.getZ() - (pos.getZ() + 0.5);
+        return Math.sqrt(dx * dx + dz * dz);
     }
 
     /** This test's dialogues, phrases and bindings, put in and taken out alone: others running in the batch keep theirs. */

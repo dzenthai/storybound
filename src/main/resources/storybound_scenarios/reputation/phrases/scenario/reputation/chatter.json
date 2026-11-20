@@ -1,0 +1,8 @@
+{
+  "order": "random",
+  "lines": [
+    "scenario.reputation.chatter.bread",
+    "scenario.reputation.chatter.oven",
+    "scenario.reputation.chatter.flour"
+  ]
+}

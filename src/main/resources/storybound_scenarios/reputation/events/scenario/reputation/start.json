@@ -1,0 +1,40 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:reputation"
+  },
+  "actions": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "scenario_hilda",
+      "unique": true,
+      "offset": [
+        3,
+        0,
+        0
+      ],
+      "nbt": {
+        "VillagerData": {
+          "profession": "minecraft:farmer",
+          "level": 2,
+          "type": "minecraft:plains"
+        }
+      }
+    },
+    {
+      "type": "set_var",
+      "key": "scenario:rep/reputation/hilda",
+      "value": 0
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:reputation/quest",
+      "state": "unknown"
+    },
+    {
+      "type": "run_command",
+      "command": "kill @e[tag=scenario_reputation_husk]"
+    }
+  ]
+}

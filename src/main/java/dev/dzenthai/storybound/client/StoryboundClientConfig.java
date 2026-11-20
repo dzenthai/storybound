@@ -12,6 +12,7 @@ public final class StoryboundClientConfig {
     public final ModConfigSpec.IntValue hudSize;
     public final ModConfigSpec.BooleanValue questTracker;
     public final ModConfigSpec.EnumValue<Corner> questTrackerCorner;
+    public final ModConfigSpec.EnumValue<Corner> reputationCorner;
     public final ModConfigSpec.IntValue questTrackerOffsetY;
     public final ModConfigSpec.IntValue textSpeed;
     public final ModConfigSpec.BooleanValue speechBubbles;
@@ -47,6 +48,9 @@ public final class StoryboundClientConfig {
         questTrackerOffsetY = builder.comment("Distance from the top or bottom edge, in HUD pixels (see size); leaves room for a minimap.")
                 .translation("storybound.configuration.questTrackerOffsetY")
                 .defineInRange("questTrackerOffsetY", 70, 0, 1000);
+        reputationCorner = builder.comment("Screen corner where your standing with an NPC shows (stars or skulls).")
+                .translation("storybound.configuration.reputationCorner")
+                .defineEnum("reputationCorner", Corner.TOP_LEFT);
         builder.pop();
 
         builder.translation("storybound.configuration.dialogue").push("dialogue");

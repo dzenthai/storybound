@@ -27,6 +27,14 @@
     "description": {
       "description": "A note for modpack authors; never shown to players.",
       "type": "string"
+    },
+    "min": {
+      "description": "For an int: its least value; adding or setting below it gives this.",
+      "type": "integer"
+    },
+    "max": {
+      "description": "For an int: its greatest value; adding or setting above it gives this.",
+      "type": "integer"
     }
   },
   "allOf": [

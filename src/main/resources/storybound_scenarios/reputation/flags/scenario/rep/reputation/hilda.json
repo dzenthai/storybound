@@ -1,0 +1,9 @@
+{
+  "type": "int",
+  "default": 0,
+  "scope": "player",
+  "sync": true,
+  "min": -50,
+  "max": 50,
+  "description": "Hilda the baker: how she feels about the player (the reputation scenario)"
+}

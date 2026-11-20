@@ -57,11 +57,13 @@ public final class DialogueEvents {
         gameBus.addListener(EventPriority.LOWEST, DialogueEvents::onEntityInteract);
         gameBus.addListener(DialogueEvents::onServerStopped);
         gameBus.addListener(NpcReactions::onIncomingDamage);
+        NpcReputation.register(gameBus);
         gameBus.addListener(NpcReactions::onChangeTarget);
         gameBus.addListener(NpcReactions::onLeave);
         gameBus.addListener(NpcNames::converted);
         NpcRespawns.register(gameBus);
         NpcParts.register(gameBus);
+        NpcMovement.register(gameBus);
         // "Once" marks: per dialogue option (node and option follow the id), per NPC binding.
         StoryMigrations.registerKeyPrefix(Dialogues.ONCE_PREFIX, StoryMigrations.Kind.DIALOGUES, 2);
         StoryMigrations.registerKeyPrefix(NpcBindings.ONCE_PREFIX, StoryMigrations.Kind.NPC_BINDINGS, 0);
@@ -251,9 +253,11 @@ public final class DialogueEvents {
         });
         DialogueRegistries.NPC_BINDINGS.serverStore().all().forEach((id, binding) -> {
             // An NPC that only chatters, reacts to hits, is invulnerable or named does something too (November 6, 2026); so does
-            // one writing custom, invulnerable or respawn either way, over the bindings below it (November 7, 2026).
+            // one writing custom, invulnerable or respawn either way, over the bindings below it (November 7, 2026); one
+            // that only sets how it walks (November 20, 2026).
             if (binding.dialogues().isEmpty() && binding.custom().isEmpty() && binding.chatter().isEmpty() && binding.whenAttacked().isEmpty()
-                    && binding.invulnerable().isEmpty() && binding.respawn().isEmpty() && binding.displayName().isEmpty() && binding.names().isEmpty()) {
+                    && binding.invulnerable().isEmpty() && binding.respawn().isEmpty() && binding.displayName().isEmpty() && binding.names().isEmpty()
+                    && binding.movement().isEmpty()) {
                 sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "Binds no dialogue and sets nothing else; it does nothing"));
             }
             Consumer<String> bindingError = message -> sink.accept(ValidationIssue.error(DialogueRegistries.NPC_BINDINGS.id(), id, message));
@@ -287,6 +291,10 @@ public final class DialogueEvents {
                     bindingWarning.accept("chatter: min_interval is over max_interval; it waits min_interval each time");
                 }
             });
+            binding.movement().filter(movement -> movement.mode() != NpcBinding.Movement.Mode.HOME
+                            && movement.homeRadius() != NpcBinding.Movement.DEFAULT_RADIUS)
+                    .ifPresent(movement -> bindingWarning.accept("home_radius counts only for movement home; it does nothing with "
+                            + movement.mode().getSerializedName()));
             binding.whenAttacked().ifPresent(rules -> {
                 rules.phrases().flatMap(PhrasesRef::node).filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
                         .ifPresent(phrases -> bindingError.accept("when_attacked: unknown phrases " + phrases));

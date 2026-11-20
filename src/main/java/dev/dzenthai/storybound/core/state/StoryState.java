@@ -43,9 +43,11 @@ public final class StoryState {
             throw new StoryException(Component.translatable("storybound.state.wrong_type",
                     key.toString(), declaration.type().getSerializedName(), value.type().getSerializedName()));
         }
-        StoryValue old = container(player, scope).put(key, value);
-        if (!value.equals(old)) {
-            changed(player, scope, key, Optional.ofNullable(old), Optional.of(value));
+        // A number declared with bounds stays within them (a relationship scale's -50 to 50).
+        StoryValue held = declaration != null ? declaration.bounded(value) : value;
+        StoryValue old = container(player, scope).put(key, held);
+        if (!held.equals(old)) {
+            changed(player, scope, key, Optional.ofNullable(old), Optional.of(held));
         }
     }
 

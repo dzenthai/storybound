@@ -28,6 +28,19 @@ class FlagDeclarationTest {
         assertEquals(Optional.of("Gold"), flag.description());
     }
 
+    /** A relationship scale's bounds (November 20, 2026): a number written past them is held to them; other types as they are. */
+    @Test
+    void boundsHoldANumberWithinThem() {
+        FlagDeclaration scale = parse("{ \"type\": \"int\", \"min\": -50, \"max\": 50 }").getOrThrow();
+        assertEquals(Optional.of(-50), scale.min());
+        assertEquals(new StoryValue.Int(50), scale.bounded(new StoryValue.Int(70)));
+        assertEquals(new StoryValue.Int(-50), scale.bounded(new StoryValue.Int(-999)));
+        assertEquals(new StoryValue.Int(20), scale.bounded(new StoryValue.Int(20)));
+        FlagDeclaration free = parse("{ \"type\": \"int\" }").getOrThrow();
+        assertEquals(new StoryValue.Int(999), free.bounded(new StoryValue.Int(999)), "no bounds, no limit");
+        assertEquals(new StoryValue.Bool(true), scale.bounded(new StoryValue.Bool(true)), "only numbers are bounded");
+    }
+
     @Test
     void appliesDefaults() {
         FlagDeclaration flag = parse("{ \"type\": \"bool\" }").getOrThrow();
