@@ -26,7 +26,7 @@ import net.minecraft.resources.ResourceLocation;
  * {@code enabled} (unless it says no; a new one starts off): only enabled stories load into the game ({@link #scan}),
  * a definition id in two of them is an error and the first one keeps it. {@link #owner} says which story a loaded
  * definition came from, so the editor saves it back there; the editor works on one story at a time (see
- * {@code DevProjects}). The game's own settings (difficulty scale, chapter map, tracking a quest when given) are the
+ * {@code DevProjects}). The game's own settings (difficulty scale, tracking a quest when given) are the
  * {@link #primary} story's. A new story's id is its namespace, made from its title ({@link #suggestId}).
  * <p>
  * The same day, first: {@code config/storybound/} itself was a story ({@code default}) and the others were in

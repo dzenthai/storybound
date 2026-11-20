@@ -26,7 +26,7 @@ class StoryProjectsTest {
     /** One folder, one story (November 18, 2026): the old layout moves on its own, nothing overwritten. */
     @Test
     void anOldLayoutMovesToAFolderPerStory() throws Exception {
-        Files.writeString(workspace.resolve("project.json"), "{\"namespace\":\"legacy\",\"chapter_map\":true}");
+        Files.writeString(workspace.resolve("project.json"), "{\"namespace\":\"legacy\",\"track_given_quests\":true}");
         write(workspace, "flags/legacy/started.json", "{\"type\":\"bool\"}");
         write(workspace, "README.txt", "readme");
         write(workspace, "stories/second/project.json", "{\"title\":\"Second\",\"enabled\":false}");
@@ -41,7 +41,7 @@ class StoryProjectsTest {
         assertEquals(java.util.List.of("legacy", "second"), StoryProjects.list(workspace).stream().map(StoryProjects.Project::id).toList());
         assertTrue(StoryProjects.get(workspace, "legacy").enabled());
         assertFalse(StoryProjects.get(workspace, "second").enabled());
-        assertTrue(ProjectSettings.flag(workspace.resolve("legacy"), "chapter_map"));
+        assertTrue(ProjectSettings.flag(workspace.resolve("legacy"), "track_given_quests"));
         assertEquals("legacy", StoryProjects.primary(workspace).orElseThrow().id());
         assertTrue(StoryProjects.migrate(workspace).isEmpty(), "a second start moves nothing");
     }

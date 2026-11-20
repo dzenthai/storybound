@@ -1,7 +1,6 @@
 {
   "category": "main",
   "difficulty": 1,
-  "map_visibility": "secret",
   "title": "demo.quest.festival.title",
   "text": {
     "active": "demo.quest.festival.text.active",

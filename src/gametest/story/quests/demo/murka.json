@@ -2,7 +2,6 @@
   "category": "side",
   "difficulty": 1,
   "time_limit": 900,
-  "map_visibility": "secret",
   "title": "demo.quest.murka.title",
   "text": {
     "active": "demo.quest.murka.text.active",

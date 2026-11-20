@@ -33,14 +33,13 @@ import net.minecraft.util.StringRepresentable;
  * @param repeatable the quest may be started again after it ends
  * @param difficulty shown in the Journal, on the scale the modpack picks in {@code project.json}
  * @param timeLimit  seconds of game time from the start; then the quest fails
- * @param visibility how the players' chapter map shows it before it is known
  * @param screenText words on the screen when it starts, is completed and fails, under its title (see {@link ScreenText})
  */
 public record QuestDefinition(ResourceLocation category, StoryScope scope, StoryText title, Optional<StoryText> description,
                               Texts text, Optional<Start> start, List<Stage> stages, Optional<Condition> failWhen,
                               List<Action> onStart, List<Action> onComplete, List<Action> onFailed, QuestRewards.Rewards rewards,
                               boolean announce, Optional<Repeatable> repeatable, Optional<Difficulty> difficulty, Optional<Double> timeLimit,
-                              Visibility visibility, ScreenText screenText) {
+                              ScreenText screenText) {
     public static final String COMPLETE = "@complete";
     public static final String FAIL = "@fail";
 
@@ -64,13 +63,10 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
             Codec.doubleRange(1, 10_000_000).optionalFieldOf("time_limit").forGetter(QuestDefinition::timeLimit)
     ).apply(instance, (category, scope, title, description, text, start, stages, failWhen, onStart, onComplete, onFailed, rewards,
             announce, repeatable, difficulty, timeLimit) -> new QuestDefinition(category, scope, title, description, text, start, stages,
-            failWhen, onStart, onComplete, onFailed, rewards, announce, repeatable, difficulty, timeLimit, Visibility.VISIBLE, ScreenText.EMPTY)));
+            failWhen, onStart, onComplete, onFailed, rewards, announce, repeatable, difficulty, timeLimit, ScreenText.EMPTY)));
 
-    public static final Codec<QuestDefinition> CODEC = Codec.mapPair(FIELDS, Codec.mapPair(
-                    Visibility.CODEC.optionalFieldOf("map_visibility", Visibility.VISIBLE),
-                    ScreenText.CODEC.optionalFieldOf("screen_text", ScreenText.EMPTY)))
-            .xmap(pair -> pair.getFirst().with(pair.getSecond().getFirst(), pair.getSecond().getSecond()),
-                    quest -> Pair.of(quest, Pair.of(quest.visibility(), quest.screenText()))).codec();
+    public static final Codec<QuestDefinition> CODEC = Codec.mapPair(FIELDS, ScreenText.CODEC.optionalFieldOf("screen_text", ScreenText.EMPTY))
+            .xmap(pair -> pair.getFirst().with(pair.getSecond()), quest -> Pair.of(quest, quest.screenText())).codec();
 
     public Optional<Stage> stage(String id) {
         return stages.stream().filter(stage -> stage.id().equals(id)).findFirst();
@@ -93,12 +89,12 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
     QuestDefinition clientView() {
         return new QuestDefinition(category, scope, title, description, text, Optional.empty(),
                 stages.stream().map(Stage::clientView).toList(), Optional.empty(), List.of(), List.of(), List.of(), rewards.clientView(), announce,
-                repeatable, difficulty, timeLimit, visibility, screenText);
+                repeatable, difficulty, timeLimit, screenText);
     }
 
-    QuestDefinition with(Visibility visibility, ScreenText screenText) {
+    QuestDefinition with(ScreenText screenText) {
         return new QuestDefinition(category, scope, title, description, text, start, stages, failWhen, onStart, onComplete, onFailed, rewards,
-                announce, repeatable, difficulty, timeLimit, visibility, screenText);
+                announce, repeatable, difficulty, timeLimit, screenText);
     }
 
     /**
@@ -124,29 +120,6 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
                 case QUEST_FAILED -> failed;
                 default -> Optional.empty();
             };
-        }
-    }
-
-    /**
-     * How the players' chapter map shows a quest the player does not know yet: {@code visible} as it is, {@code secret}
-     * as "???" until every quest before it is completed, {@code invisible} not at all until it starts.
-     */
-    public enum Visibility implements StringRepresentable {
-        VISIBLE("visible"),
-        SECRET("secret"),
-        INVISIBLE("invisible");
-
-        public static final Codec<Visibility> CODEC = StringRepresentable.fromEnum(Visibility::values);
-
-        private final String name;
-
-        Visibility(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String getSerializedName() {
-            return name;
         }
     }
 

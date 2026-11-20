@@ -65,7 +65,6 @@ public final class QuestEvents {
             }
         });
         gameBus.addListener((ServerStoppedEvent event) -> QuestHints.reset());
-        ChapterMap.register(gameBus);
         LogicOwners.register(QuestRegistries.QUESTS, QuestEvents::collectReferences);
         ValidationService.registerValidator(QuestEvents::validate);
     }

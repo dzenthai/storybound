@@ -740,7 +740,7 @@ abstract class FormCore {
             return CHATTER;
         }
         // The story's settings and their difficulty scale: "style" is how quests show it, not a document's look.
-        if (properties.containsKey("chapter_map")) {
+        if (properties.containsKey("track_given_quests")) {
             return "project";
         }
         if (properties.containsKey("style") && properties.containsKey("levels")) {

@@ -232,7 +232,7 @@ public final class ClientDevStore {
 
     private static volatile String projectOptions = "{}";
 
-    /** The story's preferences of {@code project.json} (chapter map, difficulty, tracking), as written, for the settings window. */
+    /** The story's preferences of {@code project.json} (difficulty, tracking), as written, for the settings window. */
     public static void setProjectOptions(String json) {
         projectOptions = json;
     }

@@ -95,7 +95,7 @@ abstract class FormDialogues extends FormWaypoints {
             // state, start, stages and rewards shown as counts): what it is; how it goes; what it gives and changes;
             // for whom. Then its stages and their objectives.
             Map.entry("quest", List.of("title", "description", "text", "screen_text", "category", "difficulty", "start", "stages", "time_limit", "fail_when",
-                    "rewards", "on_start", "on_complete", "on_failed", "scope", "repeatable", "map_visibility", "notify")),
+                    "rewards", "on_start", "on_complete", "on_failed", "scope", "repeatable", "notify")),
             Map.entry("stage", List.of("id", "log", "objectives", "next", "waypoints", "on_enter")),
             Map.entry("objective", List.of("id", "text", "trigger", "conditions", "count", "items", "since_stage", "optional", "hidden", "hint", "hints")),
             // A boss and a Codex entry (October 30, 2026; before, the file's order, a section's text an id of a file):

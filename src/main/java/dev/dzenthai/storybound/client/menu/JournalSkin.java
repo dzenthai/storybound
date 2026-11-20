@@ -258,7 +258,7 @@ public final class JournalSkin {
         private int clothIndex() {
             ResourceLocation id = tab.id();
             return id.equals(AdventureMenu.QUESTS) ? 0 : id.equals(AdventureMenu.CODEX) ? 2 : id.equals(AdventureMenu.BOSSES) ? 3
-                    : id.equals(AdventureMenu.MAP) ? 4 : id.equals(AdventureMenu.PARTY) ? 5 : 1;
+                    : id.equals(AdventureMenu.PARTY) ? 5 : 1;
         }
 
         public void renderPageJoin(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {

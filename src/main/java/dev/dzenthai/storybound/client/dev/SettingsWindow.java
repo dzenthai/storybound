@@ -13,7 +13,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 /**
  * The story's settings (November 16, 2026): the preferences of {@code project.json} that are not the languages or the
  * namespace (the top bar edits those), in a window over the editor with the form of {@code project.schema.json}:
- * the players' chapter map, the difficulty scale, tracking a quest when it is given. Save writes them (the server
+ * the difficulty scale, tracking a quest when it is given. Save writes them (the server
  * checks them and reloads the story); Cancel and Esc leave the file as it was. Not in the undo history.
  */
 final class SettingsWindow {

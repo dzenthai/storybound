@@ -198,7 +198,7 @@ final class FormView extends FormStory {
         Tooltip tooltip = node.description().isEmpty() && Schemas.resolve(node).description().isEmpty() ? null
                 : Tooltip.create(Component.literal(described(!node.description().isEmpty() ? node.description() : Schemas.resolve(node).description())));
         // A quest's difficulty; in the story's settings "difficulty" is the scale itself, an ordinary page.
-        if (name.equals("difficulty") && path.isEmpty() && !Schemas.properties(owner).containsKey("chapter_map")) {
+        if (name.equals("difficulty") && path.isEmpty() && !Schemas.properties(owner).containsKey("track_given_quests")) {
             difficultyField(name, value, label);
             return;
         }

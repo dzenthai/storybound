@@ -35,9 +35,9 @@ public record ProjectSettings(String sourceLanguage, List<String> languages, Str
 
     /**
      * The story's preferences the dev mode's settings window edits (November 16, 2026), beside the languages and the
-     * namespace, which the top bar edits: the players' chapter map, the difficulty scale, tracking a quest when given.
+     * namespace, which the top bar edits: the difficulty scale, tracking a quest when given.
      */
-    public static final List<String> OPTIONS = List.of("chapter_map", "difficulty", "track_given_quests");
+    public static final List<String> OPTIONS = List.of("difficulty", "track_given_quests");
 
     public static ProjectSettings load(Path root) {
         return load(root, problem -> {});
@@ -59,7 +59,7 @@ public record ProjectSettings(String sourceLanguage, List<String> languages, Str
         return new JsonObject();
     }
 
-    /** A yes/no preference of the file ({@code chapter_map}, {@code track_given_quests}); false when missing or not a boolean. */
+    /** A yes/no preference of the file ({@code track_given_quests}); false when missing or not a boolean. */
     public static boolean flag(Path root, String key) {
         JsonElement value = raw(root).get(key);
         return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && value.getAsBoolean();

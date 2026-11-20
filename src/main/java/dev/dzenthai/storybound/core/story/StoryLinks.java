@@ -20,7 +20,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The links between a story's definitions, read from their JSON: an NPC talks with a dialogue, a dialogue starts a
  * quest, a quest waits for another, a script block leads somewhere. The dev mode's canvas draws them; {@link StoryFlow}
- * folds them into "which quest follows which" for the story map and the players' chapter map. Needs no game: only the
+ * folds them into "which quest follows which" for the story map. Needs no game: only the
  * definitions as JSON (and, for script blocks, what reading their files showed).
  */
 public final class StoryLinks {

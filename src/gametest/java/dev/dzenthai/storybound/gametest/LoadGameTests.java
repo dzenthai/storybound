@@ -17,7 +17,6 @@ import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
-import dev.dzenthai.storybound.module.quest.ChapterMap;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestEvents;
 import dev.dzenthai.storybound.module.quest.QuestHints;
@@ -175,9 +174,6 @@ public final class LoadGameTests {
             total += measure(report, "dialogue sessions, every tick", 1, () -> Dialogues.tick(server));
             report.add(String.format(Locale.ROOT, "total per tick: %.3f ms of the %.1f ms allowed", total, BUDGET_MS));
             long start = System.nanoTime();
-            ChapterMap.assemble(server);
-            report.add(String.format(Locale.ROOT, "chapter map built once: %.1f ms", (System.nanoTime() - start) / 1e6));
-            start = System.nanoTime();
             ValidationService.validate();
             report.add(String.format(Locale.ROOT, "validation once: %.1f ms", (System.nanoTime() - start) / 1e6));
             report.add(0, "Storybound load test: " + PLAYERS + " players, " + ACTIVE + " active quests each of " + QUESTS + ", " + EVENTS

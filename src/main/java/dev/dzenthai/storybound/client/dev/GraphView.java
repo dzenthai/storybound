@@ -13,6 +13,11 @@ import net.minecraft.util.Mth;
 abstract class GraphView {
     double panX = 40;
     double panY = 30;
+    /**
+     * The next frame puts the compass rose in the middle of the canvas, as Home does: set when a canvas opens with no
+     * place of its own, as its size is known only once drawn.
+     */
+    boolean homePending;
     /** The zoom drawn now: on its way to {@link #targetZoom}, see {@link #animateZoom}. */
     float zoom = 1.0f;
     /**
@@ -240,6 +245,11 @@ abstract class GraphView {
     void beginCanvas(DevModeScreen screen, GuiGraphics graphics, int gridColor) {
         animateZoom();
         animateHome();
+        if (homePending) {
+            homePending = false;
+            // The rose sits half a unit into the origin.
+            centerOn(screen, 0.5, 0.5);
+        }
         int right = screen.canvasRight();
         drawnRight = right;
         drawnBottom = screen.height;

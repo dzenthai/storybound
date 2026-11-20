@@ -16,7 +16,6 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class AdventureMenu {
     public static final ResourceLocation QUESTS = Storybound.id("quests");
-    public static final ResourceLocation MAP = Storybound.id("map");
     public static final ResourceLocation JOURNAL = Storybound.id("journal");
     public static final ResourceLocation CODEX = Storybound.id("codex");
     public static final ResourceLocation BOSSES = Storybound.id("bosses");

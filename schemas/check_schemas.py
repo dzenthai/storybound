@@ -133,8 +133,6 @@ expect(quest, {"title": "q", "stages": [{"id": "a", "objectives": [{"items": {"i
 expect(quest, {"title": "q", "repeatable": {"cooldown": 1200, "times": 5}, "difficulty": "hard", "time_limit": 600}, True, "quest: repeatable, difficulty, time limit")
 expect(quest, {"title": "q", "repeatable": True, "difficulty": 3}, True, "quest: repeatable true, stars")
 expect(quest, {"title": "q", "difficulty": 6}, False, "quest: at most 5 stars")
-expect(quest, {"title": "q", "map_visibility": "secret"}, True, "quest: secret on the chapter map")
-expect(quest, {"title": "q", "map_visibility": "hidden"}, False, "quest: unknown visibility")
 expect(quest, {"title": "q", "repeatable": False}, False, "quest: repeatable false")
 expect(quest, {"title": "q", "rewards": {"items": [{"item": "minecraft:emerald", "count": 5}], "choice": [{"item": "minecraft:iron_sword"}, {"id": "minecraft:bow"}], "loot": "minecraft:chests/village/village_weaponsmith", "xp": 50, "actions": {"type": "set_flag", "key": "a:b"}}}, True, "quest: rewards object")
 expect(quest, {"title": "q", "rewards": [{"type": "give_item", "item": "minecraft:emerald"}]}, True, "quest: rewards as actions")
@@ -146,7 +144,6 @@ expect(project, {"difficulty": {"style": "stars", "max": 10}}, False, "project: 
 expect(project, {"difficulty": {"levels": [{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}, {"id": "e"}, {"id": "f"}]}}, False, "project: at most 5 levels")
 expect(project, {"difficulty": {"levels": [{"id": "trivial", "color": "#AAAAAA", "name": "Trivial"}, {"id": "doom", "color": "8B1A1A"}]}}, True, "project: own levels")
 expect(project, {"difficulty": {"style": "hearts"}}, False, "project: unknown style")
-expect(project, {"chapter_map": True}, True, "project: chapter map on")
 expect(project, json.loads((STARTER / "project.json").read_text(encoding="utf-8")), True, "starter project.json")
 for path in (STARTER / "chapters").rglob("*.json"):
     expect(chapter, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")

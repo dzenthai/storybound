@@ -31,7 +31,6 @@ import dev.dzenthai.storybound.module.dialogue.NpcBindings;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.document.Documents;
-import dev.dzenthai.storybound.module.quest.ChapterMap;
 import dev.dzenthai.storybound.module.quest.QuestEvents;
 import dev.dzenthai.storybound.module.quest.Quests;
 import dev.dzenthai.storybound.module.waypoint.Waypoints;
@@ -156,7 +155,7 @@ public final class DevModeServer {
                 return "unknown setting " + key;
             }
         }
-        for (String key : List.of("chapter_map", "track_given_quests")) {
+        for (String key : List.of("track_given_quests")) {
             JsonElement value = options.get(key);
             if (value != null && !(value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean())) {
                 return key + " is not yes or no";
@@ -628,8 +627,6 @@ public final class DevModeServer {
             StoryboundNetwork.sendToPlayer(online, new ConfigTextsPayload(ConfigTexts.current()));
             Waypoints.syncFull(online);
         }
-        // After the definitions: the map refers to them.
-        ChapterMap.refresh(server);
     }
 
     static @Nullable DefinitionType<?> findType(ResourceLocation typeId) {
