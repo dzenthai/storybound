@@ -134,6 +134,10 @@ public final class WaypointEvents {
             if (waypoint.target() instanceof WaypointTarget.Npc npc && !dev.dzenthai.storybound.module.dialogue.DialogueRegistries.NPC_BINDINGS.serverStore().contains(npc.npc())) {
                 sink.accept(ValidationIssue.error(WaypointRegistries.WAYPOINTS.id(), id, "Points at unknown NPC " + npc.npc()));
             }
+            if (waypoint.target() instanceof WaypointTarget.Boss boss
+                    && !dev.dzenthai.storybound.module.boss.BossRegistries.BOSSES.serverStore().contains(boss.boss())) {
+                sink.accept(ValidationIssue.error(WaypointRegistries.WAYPOINTS.id(), id, "Points at unknown boss " + boss.boss()));
+            }
         });
     }
 }

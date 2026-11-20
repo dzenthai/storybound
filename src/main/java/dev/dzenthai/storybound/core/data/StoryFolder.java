@@ -334,6 +334,11 @@ public final class StoryFolder {
         return written;
     }
 
+    /** A bundled story's own folder, read where it is (the jar, the build's resources in a dev run). */
+    public static Optional<Path> bundledRoot(String id) {
+        return bundled(STORIES).map(folder -> folder.resolve(id)).filter(Files::isDirectory);
+    }
+
     /** A folder bundled in the mod's jar (or the build's resources in a dev run). */
     private static Optional<Path> bundled(String folder) {
         return ModList.get().getModFileById(Storybound.MOD_ID) == null ? Optional.empty()

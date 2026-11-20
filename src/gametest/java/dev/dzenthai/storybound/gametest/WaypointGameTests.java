@@ -318,6 +318,56 @@ public final class WaypointGameTests {
         helper.succeed();
     }
 
+    /**
+     * A boss's waypoint finds its creature by the boss's own selector: not a creature of the same kind that is not the
+     * boss, the area where it was last seen once its chunk unloads, nothing once it is killed; an unknown boss is an
+     * error of the validator.
+     */
+    @GameTest(template = "open")
+    public static void bossWaypointFindsTheBossByItsOwnSelector(GameTestHelper helper) {
+        WaypointDefinition parsed = parse(helper, "{ \"name\": \"gametest.b\", \"target\": { \"boss\": \"gametest:beast\" } }");
+        helper.assertTrue(parsed.target() instanceof WaypointTarget.Boss boss && boss.boss().equals(key("beast"))
+                && boss.range() == WaypointTarget.Nearest.DEFAULT_RANGE, "a boss target, range 64");
+
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setPos(helper.absoluteVec(new Vec3(1.5, 1, 1.5)));
+        LivingEntity plain = helper.spawnWithNoFreeWill(EntityType.PIG, 2, 1, 1);
+        LivingEntity beast = helper.spawnWithNoFreeWill(EntityType.PIG, 5, 1, 1);
+        beast.addTag("gametest_beast");
+        ResourceLocation hunt = key("beast_hunt");
+        with(helper, dev.dzenthai.storybound.module.boss.BossRegistries.BOSSES.serverStore(), dev.dzenthai.storybound.module.boss.BossDefinition.CODEC,
+                Map.of(key("beast"), "{ \"entity\": { \"type\": \"minecraft:pig\", \"tag\": \"gametest_beast\" }, \"title\": \"gametest.beast\" }"), () -> {
+                    dev.dzenthai.storybound.module.boss.BossEvents.rebuild();
+                    with(helper, WaypointRegistries.WAYPOINTS.serverStore(), WaypointDefinition.CODEC, Map.of(hunt,
+                            "{ \"name\": \"gametest.hunt\", \"target\": { \"boss\": \"gametest:beast\", \"range\": 16 } }",
+                            key("lost_boss"), "{ \"name\": \"gametest.lost\", \"target\": { \"boss\": \"gametest:no_such_boss\" } }"), () -> {
+                        Waypoints.rebuild();
+                        try {
+                            assertAt(helper, player, hunt, beast, "the boss, not the closer pig that is not it");
+                            Vec3 left = beast.position();
+                            beast.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+                            ClientWaypoint unloaded = Waypoints.visible(player).get(hunt.toString());
+                            helper.assertTrue(unloaded != null && Math.abs(unloaded.pos().x - left.x) < 1 && unloaded.radius() >= 16,
+                                    "out of sight: the area where it was last seen, got " + unloaded);
+                            LivingEntity again = helper.spawnWithNoFreeWill(EntityType.PIG, 4, 1, 1);
+                            again.addTag("gametest_beast");
+                            assertAt(helper, player, hunt, again, "back in sight");
+                            again.remove(Entity.RemovalReason.KILLED);
+                            helper.assertFalse(Waypoints.visible(player).containsKey(hunt.toString()), "nothing once it is killed");
+                            List<ValidationIssue> issues = ValidationService.validate().issues();
+                            helper.assertTrue(errors(issues, key("lost_boss")).stream().anyMatch(message -> message.contains("unknown boss gametest:no_such_boss")),
+                                    "an unknown boss, got " + errors(issues, key("lost_boss")));
+                        } finally {
+                            plain.discard();
+                        }
+                    });
+                });
+        dev.dzenthai.storybound.module.boss.BossEvents.rebuild();
+        Waypoints.rebuild();
+        remove(helper, player);
+        helper.succeed();
+    }
+
     private static void assertAt(GameTestHelper helper, ServerPlayer player, ResourceLocation id, LivingEntity entity, String what) {
         ClientWaypoint waypoint = Waypoints.visible(player).get(id.toString());
         helper.assertTrue(waypoint != null, what + ": no waypoint");

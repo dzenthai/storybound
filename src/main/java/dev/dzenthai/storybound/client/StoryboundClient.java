@@ -91,6 +91,7 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.sound.ClientStoryMusic::onSelectMusic);
         NeoForge.EVENT_BUS.addListener(SpeechBubbles::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
+        WorldStoryButton.register();
         NeoForge.EVENT_BUS.addListener(AreaRings::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHand);

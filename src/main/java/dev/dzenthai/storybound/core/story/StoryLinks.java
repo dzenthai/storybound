@@ -144,6 +144,10 @@ public final class StoryLinks {
             if (obj.get("target") instanceof JsonObject target && target.get("npc") instanceof JsonPrimitive npc) {
                 parseId(npc.getAsString()).ifPresent(binding -> edges.add(new Edge(wpKey, new NodeKey(NPC, binding), "leads")));
             }
+            // It points at a boss.
+            if (obj.get("target") instanceof JsonObject target && target.get("boss") instanceof JsonPrimitive boss) {
+                parseId(boss.getAsString()).ifPresent(bossId -> edges.add(new Edge(wpKey, new NodeKey(BOSS, bossId), "leads")));
+            }
         });
         source.byType(EVENT).forEach((id, raw) -> collectLogicEdges(new NodeKey(EVENT, id), parseObject(raw), edges, hooks));
         for (ResourceLocation type : List.of(NPC, BOSS, CODEX)) {

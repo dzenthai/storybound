@@ -77,10 +77,7 @@ public final class ConfigTexts {
         Map<String, Map<ResourceLocation, String>> documents = new TreeMap<>();
         Map<String, String> sources = new TreeMap<>();
         Map<ResourceLocation, String> sourceDocuments = new TreeMap<>();
-        for (var project : StoryProjects.list(workspace)) {
-            if (!project.enabled()) {
-                continue;
-            }
+        for (var project : StoryProjects.loaded(workspace)) {
             Texts texts = load(project.root(), issues);
             texts.sourceTranslations().forEach(sources::putIfAbsent);
             texts.sourceDocuments().forEach(sourceDocuments::putIfAbsent);

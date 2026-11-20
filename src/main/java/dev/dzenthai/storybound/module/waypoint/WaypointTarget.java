@@ -18,18 +18,22 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Where a waypoint points: {@code { "pos": [x, y, z], "dimension": "minecraft:overworld" }}, {@code { "entity": "<uuid>" }},
- * {@code { "structure": "#minecraft:village" }}, {@code { "nearest": "minecraft:zombie" }} or {@code { "npc": "mypack:elder" }}.
+ * {@code { "structure": "#minecraft:village" }}, {@code { "nearest": "minecraft:zombie" }}, {@code { "npc": "mypack:elder" }} or
+ * {@code { "boss": "mypack:wraith" }}.
  */
 public sealed interface WaypointTarget {
-    Codec<WaypointTarget> CODEC = Codec.either(Fixed.CODEC, Codec.either(Follow.CODEC, Codec.either(Structure.CODEC, Codec.either(Npc.CODEC, Nearest.CODEC)))).xmap(
+    Codec<WaypointTarget> CODEC = Codec.either(Fixed.CODEC, Codec.either(Follow.CODEC, Codec.either(Structure.CODEC,
+            Codec.either(Npc.CODEC, Codec.either(Boss.CODEC, Nearest.CODEC))))).xmap(
             either -> either.map(fixed -> (WaypointTarget) fixed, rest -> rest.map(follow -> (WaypointTarget) follow,
-                    more -> more.map(structure -> (WaypointTarget) structure, last -> last.map(npc -> (WaypointTarget) npc, nearest -> nearest)))),
+                    more -> more.map(structure -> (WaypointTarget) structure, last -> last.map(npc -> (WaypointTarget) npc,
+                            end -> end.map(boss -> (WaypointTarget) boss, nearest -> nearest))))),
             target -> switch (target) {
                 case Fixed fixed -> Either.left(fixed);
                 case Follow follow -> Either.right(Either.left(follow));
                 case Structure structure -> Either.right(Either.right(Either.left(structure)));
                 case Npc npc -> Either.right(Either.right(Either.right(Either.left(npc))));
-                case Nearest nearest -> Either.right(Either.right(Either.right(Either.right(nearest))));
+                case Boss boss -> Either.right(Either.right(Either.right(Either.right(Either.left(boss)))));
+                case Nearest nearest -> Either.right(Either.right(Either.right(Either.right(Either.right(nearest)))));
             });
 
     /**
@@ -91,6 +95,19 @@ public sealed interface WaypointTarget {
                 ResourceLocation.CODEC.fieldOf("npc").forGetter(Npc::npc),
                 Codec.intRange(1, 256).optionalFieldOf("range", Nearest.DEFAULT_RANGE).forGetter(Npc::range)
         ).apply(instance, Npc::new));
+    }
+
+    /**
+     * A boss, by its definition: {@code { "boss": "mypack:wraith" }}. The nearest living entity that is this boss (the
+     * boss's own {@code entity} selector, so the waypoint never repeats it), within {@code range} blocks of each player,
+     * as {@link Nearest}: kept once picked, the area where it was last seen once out of sight, nothing while none has
+     * been seen.
+     */
+    record Boss(ResourceLocation boss, int range) implements WaypointTarget {
+        public static final Codec<Boss> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                ResourceLocation.CODEC.fieldOf("boss").forGetter(Boss::boss),
+                Codec.intRange(1, 256).optionalFieldOf("range", Nearest.DEFAULT_RANGE).forGetter(Boss::range)
+        ).apply(instance, Boss::new));
     }
 
     /**

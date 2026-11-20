@@ -40,12 +40,13 @@ public final class WaypointLogic {
      * Adds a waypoint for the player, their party or everyone ({@code visibility}). It points at {@code pos} (in
      * {@code dimension}, by default the player's), or follows the context entity with {@code "follow": true}, or marks
      * the nearest {@code structure} (searched in the background near each player who sees it, within
-     * {@code search_radius} chunks, and again as they travel), or an NPC by its node ({@code npc}), or the nearest mob
-     * of a kind ({@code nearest}), or marks where the context entity (else the player) stands now. The same id and
+     * {@code search_radius} chunks, and again as they travel), or an NPC by its node ({@code npc}), or a boss
+     * ({@code boss}), or the nearest mob of a kind ({@code nearest}), or marks where the context entity (else the player)
+     * stands now. The same id and
      * visibility replaces it.
      */
     public record AddWaypoint(ResourceLocation id, StoryText name, Optional<Vec3> pos, Optional<ResourceKey<Level>> dimension, boolean follow,
-                              Optional<StructureRef> structure, int searchRadius, Optional<ResourceLocation> npc,
+                              Optional<StructureRef> structure, int searchRadius, Optional<ResourceLocation> npc, Optional<ResourceLocation> boss,
                               Optional<dev.dzenthai.storybound.core.logic.EntitySelector> nearest, int range,
                               int color, float radius, AreaLook look, StoryScope visibility) implements Action {
         public static final MapCodec<AddWaypoint> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
@@ -56,8 +57,9 @@ public final class WaypointLogic {
                 Codec.BOOL.optionalFieldOf("follow", false).forGetter(AddWaypoint::follow),
                 StructureRef.CODEC.optionalFieldOf("structure").forGetter(AddWaypoint::structure),
                 Codec.intRange(1, 512).optionalFieldOf("search_radius", StructureRef.DEFAULT_SEARCH_RADIUS).forGetter(AddWaypoint::searchRadius),
-                // An NPC by its node, the nearest mob of a kind, as a waypoint's own target.
+                // An NPC by its node, a boss, the nearest mob of a kind, as a waypoint's own target.
                 ResourceLocation.CODEC.optionalFieldOf("npc").forGetter(AddWaypoint::npc),
+                ResourceLocation.CODEC.optionalFieldOf("boss").forGetter(AddWaypoint::boss),
                 WaypointTarget.Nearest.SELECTOR.optionalFieldOf("nearest").forGetter(AddWaypoint::nearest),
                 Codec.intRange(1, 256).optionalFieldOf("range", WaypointTarget.Nearest.DEFAULT_RANGE).forGetter(AddWaypoint::range),
                 ColorCodec.CODEC.optionalFieldOf("color", WaypointDefinition.DEFAULT_COLOR).forGetter(AddWaypoint::color),
@@ -101,6 +103,11 @@ public final class WaypointLogic {
                     throw new StoryException(Component.translatableWithFallback("storybound.waypoint.unknown_npc", "Unknown NPC %s", npc.get().toString()));
                 }
                 target = new WaypointTarget.Npc(npc.get(), range);
+            } else if (boss.isPresent()) {
+                if (!dev.dzenthai.storybound.module.boss.BossRegistries.BOSSES.serverStore().contains(boss.get())) {
+                    throw new StoryException(Component.translatableWithFallback("storybound.waypoint.unknown_boss", "Unknown boss %s", boss.get().toString()));
+                }
+                target = new WaypointTarget.Boss(boss.get(), range);
             } else if (nearest.isPresent()) {
                 target = new WaypointTarget.Nearest(nearest.get(), range);
             } else if (follow && context.entity() != null) {

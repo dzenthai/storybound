@@ -37,10 +37,9 @@ public record DocumentStyle(ResourceLocation texture, int width, int height, Opt
             COLOR_CODEC.optionalFieldOf("paper", UiPalette.PAPER).forGetter(DocumentStyle::paper)
     ).apply(instance, DocumentStyle::new));
 
-    /** Used when a document names a style no resource pack provides. */
     /** The letter's sheet, as in {@code styles/parchment.json}, for a document whose style cannot be found. */
-    public static final DocumentStyle FALLBACK = new DocumentStyle(Storybound.id("textures/gui/document/parchment.png"), 200, 240,
-            Optional.empty(), Optional.empty(), new Padding(26, 24, 26, 52), ResourceLocation.withDefaultNamespace("default"), UiPalette.INK, 10, true,
+    public static final DocumentStyle FALLBACK = new DocumentStyle(Storybound.id("textures/gui/document/parchment.png"), 320, 305,
+            Optional.empty(), Optional.empty(), new Padding(64, 64, 64, 163), ResourceLocation.withDefaultNamespace("default"), UiPalette.INK, 13, false,
             Optional.empty(), Optional.empty(), UiPalette.PAPER);
 
     public int textureWidthOrSize() {

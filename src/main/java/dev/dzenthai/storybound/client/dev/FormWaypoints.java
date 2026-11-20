@@ -69,8 +69,8 @@ abstract class FormWaypoints extends FormNpc {
 
     /** A waypoint's targets known in advance: a point, one entity followed. */
     private static final List<String> FIXED_KINDS = List.of("pos", "entity");
-    /** And those found as the game goes: the nearest structure, the nearest mob, an NPC by its node. */
-    private static final List<String> DYNAMIC_KINDS = List.of("structure", "nearest", "npc");
+    /** And those found as the game goes: the nearest structure, the nearest mob, an NPC by its node, a boss. */
+    private static final List<String> DYNAMIC_KINDS = List.of("structure", "nearest", "npc", "boss");
 
     /**
      * Where a waypoint points: "Rule: Known place / Dynamic", then "What" among that rule's two or three; then that
@@ -95,8 +95,8 @@ abstract class FormWaypoints extends FormNpc {
         if (kind.equals("nearest")) {
             // It finds only what is loaded near the player.
             text(DevUi.text("waypoint.kind.nearest.note"), DevUi.MUTED);
-        } else if (kind.equals("npc")) {
-            text(DevUi.text("waypoint.kind.npc.note"), DevUi.MUTED);
+        } else if (kind.equals("npc") || kind.equals("boss")) {
+            text(DevUi.text("waypoint.kind." + kind + ".note"), DevUi.MUTED);
         }
         objectPage(path, variants.get(current), Set.of(), null);
     }
@@ -142,7 +142,7 @@ abstract class FormWaypoints extends FormNpc {
     }
 
     /** add_waypoint's fields saying where it points, drawn together by {@link #addWaypointTarget}. */
-    static final Set<String> ADD_WAYPOINT_TARGET = Set.of("pos", "dimension", "follow", "structure", "search_radius", "npc", "nearest", "range");
+    static final Set<String> ADD_WAYPOINT_TARGET = Set.of("pos", "dimension", "follow", "structure", "search_radius", "npc", "boss", "nearest", "range");
     /** add_waypoint's places known in advance: a point, the one talked to (the context entity), where it stands now. */
     private static final List<String> ADD_FIXED_KINDS = List.of("pos", "follow", "here");
     /** Each kind's fields, in the order asked: the dimension before the structure it lists. */
@@ -152,14 +152,15 @@ abstract class FormWaypoints extends FormNpc {
             "here", List.of(),
             "structure", List.of("dimension", "structure", "search_radius"),
             "nearest", List.of("nearest", "range"),
-            "npc", List.of("npc", "range"));
+            "npc", List.of("npc", "range"),
+            "boss", List.of("boss", "range"));
 
     /** Which kind an add_waypoint is, as its run reads it: a point, a structure, an NPC, the nearest mob, the one talked to, else here. */
     private static String addWaypointKind(@Nullable JsonObject action) {
         if (action == null) {
             return "here";
         }
-        for (String kind : List.of("pos", "structure", "npc", "nearest")) {
+        for (String kind : List.of("pos", "structure", "npc", "boss", "nearest")) {
             if (action.has(kind)) {
                 return kind;
             }
@@ -185,8 +186,8 @@ abstract class FormWaypoints extends FormNpc {
                 () -> switchAddWaypointKind(path, kind, kinds.get((kinds.indexOf(kind) + 1) % kinds.size())));
         if (kind.equals("nearest")) {
             text(DevUi.text("waypoint.kind.nearest.note"), DevUi.MUTED);
-        } else if (kind.equals("npc")) {
-            text(DevUi.text("waypoint.kind.npc.note"), DevUi.MUTED);
+        } else if (kind.equals("npc") || kind.equals("boss")) {
+            text(DevUi.text("waypoint.kind." + kind + ".note"), DevUi.MUTED);
         } else if (kind.equals("follow") || kind.equals("here")) {
             text(DevUi.text("waypoint.what." + kind + ".note"), DevUi.MUTED);
         }
@@ -219,7 +220,7 @@ abstract class FormWaypoints extends FormNpc {
                 case "pos" -> action.add("pos", new JsonArray());
                 case "follow" -> action.addProperty("follow", true);
                 case "nearest" -> action.add("nearest", new JsonObject());
-                case "structure", "npc" -> action.addProperty(to, "");
+                case "structure", "npc", "boss" -> action.addProperty(to, "");
                 default -> { }
             }
         }
@@ -252,6 +253,10 @@ abstract class FormWaypoints extends FormNpc {
         if (target.get("npc") instanceof JsonPrimitive npc) {
             String id = npc.getAsString();
             return DevUi.str("waypoint.target.npc", id.substring(id.indexOf(':') + 1));
+        }
+        if (target.get("boss") instanceof JsonPrimitive boss) {
+            String id = boss.getAsString();
+            return DevUi.str("waypoint.target.boss", id.substring(id.indexOf(':') + 1));
         }
         if (target.has("nearest")) {
             JsonElement nearest = target.get("nearest");

@@ -70,6 +70,15 @@
         },
         {
           "type": "object",
+          "required": ["boss"],
+          "additionalProperties": false,
+          "properties": {
+            "boss": { "description": "A boss by its definition: the nearest living entity that is this boss (the boss's own entity selector), within range of each player. Kept once picked; out of sight, the area where it was last seen; nothing while none has been seen; gone once it is killed.", "$ref": "logic.schema.json#/definitions/id" },
+            "range": { "description": "In blocks, around the player.", "type": "integer", "minimum": 1, "maximum": 256, "default": 64 }
+          }
+        },
+        {
+          "type": "object",
           "required": ["nearest"],
           "additionalProperties": false,
           "properties": {

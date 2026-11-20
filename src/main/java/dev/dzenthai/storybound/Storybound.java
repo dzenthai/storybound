@@ -57,6 +57,7 @@ public final class Storybound {
         Cutscenes.register(modBus);
         // After every definition type is known: the story folder gets a folder for each.
         StoryFolder.createIfMissing();
+        dev.dzenthai.storybound.core.data.WorldStory.register();
         ValidationService.registerValidator(StoryFolder::validate);
 
         modBus.addListener(StoryboundNetwork::register);

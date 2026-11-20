@@ -1,0 +1,6 @@
+{
+  "name": "vanilla.boss.indrik.title",
+  "target": {
+    "boss": "vanilla:indrik"
+  }
+}

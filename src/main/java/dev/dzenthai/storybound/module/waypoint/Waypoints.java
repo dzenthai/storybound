@@ -546,7 +546,8 @@ public final class Waypoints {
     }
 
     private static boolean moves(WaypointTarget target) {
-        return target instanceof WaypointTarget.Follow || target instanceof WaypointTarget.Nearest || target instanceof WaypointTarget.Npc;
+        return target instanceof WaypointTarget.Follow || target instanceof WaypointTarget.Nearest || target instanceof WaypointTarget.Npc
+                || target instanceof WaypointTarget.Boss;
     }
 
     private static boolean sees(ServerPlayer player, WaypointData.Added added) {
@@ -567,6 +568,9 @@ public final class Waypoints {
                     ? nearestStructure(player, key, structure) : Place.elsewhere(structure.dimension().location());
             case WaypointTarget.Nearest nearest -> nearestEntity(player, key, new Seek(nearest.entity()::matches, nearest.range()), companions);
             case WaypointTarget.Npc npc -> npc(player, key, npc, companions);
+            // The boss's own selector: the first boss whose selector matches an entity is its boss, as for a fight.
+            case WaypointTarget.Boss boss -> nearestEntity(player, key, new Seek(entity -> dev.dzenthai.storybound.module.boss.Bosses.bossOf(entity)
+                    .map(boss.boss()::equals).orElse(false), boss.range()), companions);
         };
     }
 

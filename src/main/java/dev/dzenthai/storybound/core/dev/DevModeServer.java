@@ -612,13 +612,18 @@ public final class DevModeServer {
         }
     }
 
-    static void rebuildAndSync(MinecraftServer server) {
+    /** What is built from the loaded definitions: the triggers, the quests' events, the Codex, bosses, waypoints, NPCs. */
+    public static void rebuild() {
         StoryEvents.rebuild();
         QuestEvents.rebuild();
         CodexEvents.rebuild();
         BossEvents.rebuild();
         Waypoints.rebuild();
         NpcBindings.rebuild();
+    }
+
+    static void rebuildAndSync(MinecraftServer server) {
+        rebuild();
         ValidationService.publish(ValidationService.validate());
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
             DefinitionSync.sendTo(online);

@@ -136,6 +136,13 @@ public final class DevProjects {
                     if (enabled && !before.enabled()) {
                         validateForEnable(player.server, before);
                     }
+                    if (dev.dzenthai.storybound.core.data.WorldStory.isBundled(id) && before.enabled() != enabled) {
+                        // The bundled story is the world's setting: the switch sets the world's rule.
+                        StoryProjects.update(ConfigStorySource.root(), id, title, enabled);
+                        dev.dzenthai.storybound.core.data.WorldStory.setQuietly(player.server, enabled);
+                        reload(player, () -> dev.dzenthai.storybound.core.data.WorldStory.setQuietly(player.server, before.enabled()));
+                        return;
+                    }
                     StoryProjects.update(ConfigStorySource.root(), id, title, enabled);
                     if (before.enabled() != enabled) {
                         reload(player, () -> {

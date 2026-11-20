@@ -78,6 +78,44 @@ public final class ScenarioGameTests {
         helper.succeed();
     }
 
+    /**
+     * The world's rule decides on the bundled story: off, it does not load (not even a copy in the story folder whose
+     * project.json says enabled); on, it loads from the mod itself, or from the copy once one is installed.
+     */
+    @GameTest(template = "empty")
+    public static void theVanillaStoryLoadsWhenTheWorldsRuleSaysSo(GameTestHelper helper) {
+        net.minecraft.server.MinecraftServer server = helper.getLevel().getServer();
+        boolean before = server.getGameRules().getBoolean(dev.dzenthai.storybound.core.data.WorldStory.rule());
+        var type = dev.dzenthai.storybound.module.quest.QuestRegistries.QUESTS;
+        ResourceLocation outpost = ResourceLocation.fromNamespaceAndPath("vanilla", "ch1/outpost");
+        try {
+            java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("storybound-world-story");
+            java.util.function.Supplier<java.util.Map<ResourceLocation, com.google.gson.JsonElement>> scan = () -> {
+                java.util.Map<ResourceLocation, com.google.gson.JsonElement> files = new java.util.LinkedHashMap<>();
+                dev.dzenthai.storybound.core.data.StoryProjects.scan(workspace, type, files, new java.util.ArrayList<>());
+                return files;
+            };
+            dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, false);
+            helper.assertFalse(scan.get().containsKey(outpost), "off: the story is not in the game");
+            dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, true);
+            helper.assertTrue(scan.get().containsKey(outpost), "on: it loads from the mod, nothing installed");
+            dev.dzenthai.storybound.core.data.StoryFolder.installStory(workspace, "vanilla", false);
+            helper.assertTrue(scan.get().containsKey(outpost), "on, installed: from the copy");
+            helper.assertTrue(dev.dzenthai.storybound.core.data.StoryProjects.owner(type, outpost).startsWith(workspace.toAbsolutePath().normalize()),
+                    "the copy, not the mod's: " + dev.dzenthai.storybound.core.data.StoryProjects.owner(type, outpost));
+            dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, false);
+            helper.assertFalse(scan.get().containsKey(outpost), "off: not the copy either, though its project.json says enabled");
+        } catch (java.io.IOException e) {
+            throw new GameTestAssertException(e.toString());
+        } finally {
+            dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, before);
+            // Who owns each quest again, as the real story folder has it.
+            dev.dzenthai.storybound.core.data.StoryProjects.scan(dev.dzenthai.storybound.core.data.ConfigStorySource.root(), type,
+                    new java.util.LinkedHashMap<>(), new java.util.ArrayList<>());
+        }
+        helper.succeed();
+    }
+
     @GameTest(template = "open", batch = "scenario_scenes", timeoutTicks = 200)
     public static void eachScenarioSetsItsScene(GameTestHelper helper) {
         ServerPlayer player = player(helper);

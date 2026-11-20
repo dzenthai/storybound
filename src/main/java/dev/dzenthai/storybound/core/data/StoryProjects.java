@@ -183,6 +183,10 @@ public final class StoryProjects {
         }
         boolean enabled = !json.has("enabled") || !json.get("enabled").isJsonPrimitive()
                 || !json.getAsJsonPrimitive("enabled").isBoolean() || json.get("enabled").getAsBoolean();
+        // The bundled story's copy is in the game when the world plays it (WorldStory), whatever its file says.
+        if (WorldStory.isBundled(id)) {
+            enabled = WorldStory.on();
+        }
         return new Project(id, title, enabled, root);
     }
 
@@ -328,12 +332,22 @@ public final class StoryProjects {
                 new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create().toJson(json) + "\n");
     }
 
+    /**
+     * The stories that load into the game: the story folder's enabled ones, then the bundled story from the mod itself
+     * while the world plays it and the story folder has no copy of it ({@link WorldStory}).
+     */
+    public static List<Project> loaded(Path workspace) {
+        List<Project> stories = list(workspace);
+        List<Project> result = new ArrayList<>(stories.stream().filter(Project::enabled).toList());
+        if (WorldStory.on() && stories.stream().noneMatch(project -> project.id().equals(WorldStory.BUNDLED))) {
+            WorldStory.bundledRoot().ifPresent(root -> result.add(new Project(WorldStory.BUNDLED, StoryFolder.bundledTitle(WorldStory.BUNDLED), true, root)));
+        }
+        return List.copyOf(result);
+    }
+
     public static void scan(Path workspace, DefinitionType<?> type, Map<ResourceLocation, JsonElement> files, List<ValidationIssue> issues) {
         Map<ResourceLocation, Path> owners = new LinkedHashMap<>();
-        for (Project project : list(workspace)) {
-            if (!project.enabled()) {
-                continue;
-            }
+        for (Project project : loaded(workspace)) {
             Map<ResourceLocation, JsonElement> local = new LinkedHashMap<>();
             ConfigStorySource.scan(project.root(), type, local, issues);
             local.forEach((id, json) -> {
