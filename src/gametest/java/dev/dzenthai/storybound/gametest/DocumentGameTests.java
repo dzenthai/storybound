@@ -296,7 +296,7 @@ public final class DocumentGameTests {
 
     /**
      * A book goes onto an empty lectern with a plain right click, as vanilla's written book does, and with a sneaking
-     * one; a scroll is not a book and stays in the hand (November 19, 2026, the author: only Shift + right click put it).
+     * one; a scroll is not a book and stays in the hand.
      */
     @GameTest(template = "empty")
     public static void rightClickPutsABookOnALectern(GameTestHelper helper) {

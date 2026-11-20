@@ -36,8 +36,8 @@ import org.jetbrains.annotations.Nullable;
  */
 abstract class StoryCards extends GraphView {
     /**
-     * A node's box: two cells of the grid by two, its shape centred in it (November 18, 2026: shapes as in FTB Quests;
-     * before, cards of 6 cells by 2, and that day first 136 by 42), its title under it, its badges under the title.
+     * A node's box: two cells of the grid by two, its shape centred in it, its title under it, its badges under the
+     * title.
      */
     static final int NODE_W = 2 * DevUi.GRID;
     static final int NODE_H = 2 * DevUi.GRID;
@@ -142,13 +142,13 @@ abstract class StoryCards extends GraphView {
     }
 
     /**
-     * A node's look by its kind (November 18, 2026, the author): a quest a diamond, the main ones larger, a contract a
-     * triangle; a boss a triangle; a story event a circle, and in "all links" every other kind a smaller circle. The
-     * rune is the kind's icon (a quest's by its category).
+     * A node's look by its kind: a quest a diamond, the main ones larger, a contract a triangle; a boss a triangle; a
+     * story event a circle, and in "all links" every other kind a smaller circle. The rune is the kind's icon (a
+     * quest's by its category).
      */
     /**
      * A node's shape and size: {@code base} the radius its textures are named by, {@link #radius} the radius drawn,
-     * {@link NodeShapes#SCALE} times it (November 19, 2026, the author: the nodes were small beside the room between them).
+     * {@link NodeShapes#SCALE} times it.
      */
     record Look(NodeShapes.Shape shape, int base) {
         int radius() {
@@ -157,9 +157,9 @@ abstract class StoryCards extends GraphView {
     }
 
     /**
-     * A node's shape by its kind (November 19, 2026, the author, as in FTB Quests: the shape tells the kind, the item
-     * the node): a quest or a contract a diamond (a main quest larger), a story event or a script a circle, an NPC or a
-     * boss a hexagon, a dialogue, phrases, a document or a Codex entry a square, a waypoint a triangle, apex down.
+     * A node's shape by its kind: a quest or a contract a diamond (a main quest larger), a story event or a script a
+     * circle, an NPC or a boss a hexagon, a dialogue, phrases, a document or a Codex entry a square, a waypoint a
+     * triangle, apex down.
      */
     static Look look(ResourceLocation type, JsonObject json) {
         if (type.equals(ClientDevStore.TYPE_QUEST)) {
@@ -179,8 +179,8 @@ abstract class StoryCards extends GraphView {
     }
 
     /**
-     * A node's icon: the item the author picked for it (its {@code icon}, which only the editor reads; November 19,
-     * 2026), else its kind's.
+     * A node's icon: the item the author picked for it (its {@code icon}, which only the editor reads), else its
+     * kind's.
      */
     static ItemStack icon(NodeKey key, JsonObject json) {
         if (json.get("icon") instanceof com.google.gson.JsonPrimitive picked && picked.isString()) {
@@ -288,7 +288,7 @@ abstract class StoryCards extends GraphView {
         screen.onClose();
     }
 
-    /** No title over the map: the chapter strip and the map say where one is (November 16, 2026; before, "⚙ Dev Mode"). */
+    /** No title over the map: the chapter strip and the map say where one is. */
     @Override
     Component title() {
         return Component.empty();

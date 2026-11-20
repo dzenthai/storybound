@@ -7,11 +7,11 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * The canvases' node shapes (November 19, 2026, the author, in the manner of FTB Quests: a shape for the kind, an item
- * for the node): a diamond, a circle, a hexagon, a square with rounded corners and a triangle (apex down), smooth, each a
- * texture of its fill, its one-pixel ring and its glow, white, tinted here ({@code textures/gui/dev/node/<shape>_<radius>_*.png},
- * 4 texels a GUI pixel, linear filtering, so they stay smooth at every zoom). A shape is centred on a pixel's middle;
- * links are thin textured lines. The geometry here ({@link #distance}) is the textures' own.
+ * The canvases' node shapes: a diamond, a circle, a hexagon, a square with rounded corners and a triangle (apex down),
+ * smooth, each a texture of its fill, its one-pixel ring and its glow, white, tinted here
+ * ({@code textures/gui/dev/node/<shape>_<radius>_*.png}, 4 texels a GUI pixel, linear filtering, so they stay smooth at
+ * every zoom). A shape is centred on a pixel's middle; links are thin textured lines. The geometry here
+ * ({@link #distance}) is the textures' own.
  */
 final class NodeShapes {
     enum Shape { DIAMOND, CIRCLE, HEXAGON, SQUARE, TRIANGLE }
@@ -19,8 +19,8 @@ final class NodeShapes {
     /** GUI pixels round a shape in its textures, for its glow. */
     private static final int PAD = 5;
     /**
-     * How many times larger than their textures' names the shapes are drawn, the items in them too (November 19, 2026;
-     * before, as named). The textures are four times finer than a pixel, so twice as large stays sharp.
+     * How many times larger than their textures' names the shapes are drawn, the items in them too. The textures are
+     * four times finer than a pixel, so twice as large stays sharp.
      */
     static final int SCALE = 2;
     private static final ResourceLocation LINK = Storybound.id("textures/gui/dev/node/link.png");

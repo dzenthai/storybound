@@ -118,8 +118,7 @@ abstract class FormStory extends FormDialogues {
 
     /**
      * A Codex section (the condition "Codex entry open", the action "Open a Codex section"): a button with it by its
-     * title and a dropdown of the chosen entry's sections, "The whole entry" first (October 30, 2026; before, its id
-     * typed blind).
+     * title and a dropdown of the chosen entry's sections, "The whole entry" first.
      */
     void codexSectionField(List<Object> path, String name, @Nullable JsonElement value, Component label) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -161,9 +160,9 @@ abstract class FormStory extends FormDialogues {
     }
 
     /**
-     * A boss's section (lore, tactics, rewards) under a heading of its own: whether the entry has it (a section left out
-     * is not in the Bosses tab, whatever its text), and while it does its fields here, its text and when it opens first
-     * (October 30, 2026; before, a row each opening a page with the text as an id of a file).
+     * A boss's section (lore, tactics, rewards) under a heading of its own: whether the entry has it (a section left
+     * out is not in the Bosses tab, whatever its text), and while it does its fields here, its text and when it opens
+     * first.
      */
     void bossPartField(List<Object> path, String name, Node node, @Nullable JsonObject boss) {
         group(fieldLabel(name, false));
@@ -247,11 +246,9 @@ abstract class FormStory extends FormDialogues {
     }
 
     /**
-     * A Codex entry's sections as its author thinks of them (October 30, 2026; before, one row "Sections" hiding them
-     * all, the main description among them, so an entry seemed to have no "Opens" of its own): the first section is
-     * the entry's main description, right here with its title, text and when it opens, under a word that the entry
-     * appears in the Codex when any section opens; the others behind a row of their own. An entry without sections
-     * offers to add the main description.
+     * A Codex entry's sections as its author thinks of them: the first section is the entry's main description, right
+     * here with its title, text and when it opens, under a word that the entry appears in the Codex when any section
+     * opens; the others behind a row of their own. An entry without sections offers to add the main description.
      */
     void codexSectionsField(List<Object> path, Node node, @Nullable JsonObject entry) {
         Node items = Schemas.items(node);
@@ -365,8 +362,8 @@ abstract class FormStory extends FormDialogues {
 
     /**
      * What opens a section: switches for sight, a kill and an action, then the documents whose reading opens it, each
-     * removable, and "+ Read a document…" with the story's documents (October 30, 2026; before, a list of strings typed
-     * as "seen" or "read:storybound:diary"). The last source cannot go: a section must open somehow.
+     * removable, and "+ Read a document…" with the story's documents. The last source cannot go: a section must open
+     * somehow.
      */
     void unlockSourcesField(List<Object> path, @Nullable JsonObject unlock, Component label) {
         List<String> written = stringsOf(unlock != null ? unlock.get("on") : null);
@@ -465,7 +462,7 @@ abstract class FormStory extends FormDialogues {
 
     /**
      * A Codex entry's group in the Codex tab: a button with it by name and a dropdown of the built-in groups and those
-     * other entries have (October 30, 2026; before, an id typed, labelled "Section").
+     * other entries have.
      */
     void codexCategoryField(List<Object> path, @Nullable JsonObject entry) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -474,8 +471,7 @@ abstract class FormStory extends FormDialogues {
         labelRow(DevUi.text("field.codex.category"));
         int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
         String current = entry != null && entry.get("category") instanceof JsonPrimitive written ? shortType(written.getAsString()) : "monsters";
-        // The Codex is the bestiary: groups of creatures (October 30, 2026; before, also places and legends, which nothing
-        // in it records). Those stay offered where an entry already has them.
+        // The Codex is the bestiary: groups of creatures. Those stay offered where an entry already has them.
         java.util.Set<String> categories = new java.util.LinkedHashSet<>(List.of("monsters", "animals", "characters", "companions"));
         ClientDevStore.byType(ClientDevStore.TYPE_CODEX).values().forEach(raw -> {
             if (ClientDevStore.parseObject(raw).get("category") instanceof JsonPrimitive category) {
@@ -512,7 +508,7 @@ abstract class FormStory extends FormDialogues {
 
     /**
      * The quest's type, its group in the Quests tab: a button with it by name and a dropdown of the types (main, side,
-     * contract, and those other quests have), October 30, 2026 (before, an id typed, labelled "Section").
+     * contract, and those other quests have).
      */
     void questTypeField(List<Object> path, @Nullable JsonObject quest) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -560,8 +556,8 @@ abstract class FormStory extends FormDialogues {
     }
 
     /**
-     * Whether the quest comes again: no, or yes with how in words ("at once, without a limit", "after 600 s, at most
-     * 3 times"), which opens its settings. Before, a switch between "true" and an object.
+     * Whether the quest comes again: no, or yes with how in words ("at once, without a limit", "after 600 s, at most 3
+     * times"), which opens its settings.
      */
     void repeatField(List<Object> path, Node node, @Nullable JsonObject quest) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -604,8 +600,7 @@ abstract class FormStory extends FormDialogues {
     }
 
     /**
-     * A choice's timer: yes/no, and while yes what happens in words ("after 10 s → bye"), which opens it. Before, a row
-     * "1 ▸" or "—".
+     * A choice's timer: yes/no, and while yes what happens in words ("after 10 s → bye"), which opens it.
      */
     void timeoutField(List<Object> path, Node node, @Nullable JsonObject choice) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -639,8 +634,8 @@ abstract class FormStory extends FormDialogues {
     }
 
     /**
-     * What a document's empty style, journal section or text is, by its kind, for the box to say (October 30, 2026;
-     * before, an empty box): a letter is on parchment and goes to Letters; the text is the document's own.
+     * What a document's empty style, journal section or text is, by its kind, for the box to say: a letter is on
+     * parchment and goes to Letters; the text is the document's own.
      */
     @Nullable Component documentDefault(String name, List<Object> path) {
         JsonObject document = objectAt(List.of());
@@ -750,11 +745,10 @@ abstract class FormStory extends FormDialogues {
     private static final List<String> SCREEN_MOMENTS = List.of("started", "completed", "failed");
 
     /**
-     * A quest's text on the screen (November 20, 2026, the author: an empty box said nothing of what shows): a light
-     * heading, and for each moment a button "Show on the screen" while it is not written (nothing shows then); pressed,
-     * the moment is written empty, which shows the quest's title alone, and a box for the words under it takes its place,
-     * with ✕ that takes the moment out again. Emptied, the box writes the moment as {@code ""}, not a key with no text,
-     * which the game would show as the key.
+     * A quest's text on the screen: a light heading, and for each moment a button "Show on the screen" while it is not
+     * written (nothing shows then); pressed, the moment is written empty, which shows the quest's title alone, and a
+     * box for the words under it takes its place, with ✕ that takes the moment out again. Emptied, the box writes the
+     * moment as {@code ""}, not a key with no text, which the game would show as the key.
      */
     void screenTextFields(List<Object> path) {
         List<Object> at = with(path, "screen_text");

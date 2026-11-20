@@ -100,9 +100,9 @@ final class DevRenames {
     }
 
     /**
-     * Moves every node of the story folder in one namespace to another, as many renames at once (the story's namespace
-     * changed in the project, October 29, 2026): what names them, their texts and players' progress follow. Refused as a
-     * whole when a node of the same kind already has a new id; {@code scenario} (the debug scenarios) and {@code minecraft} are never moved.
+     * Moves every node of the story folder in one namespace to another, as many renames at once: what names them, their
+     * texts and players' progress follow. Refused as a whole when a node of the same kind already has a new id;
+     * {@code scenario} (the debug scenarios) and {@code minecraft} are never moved.
      */
     static void moveNamespace(ServerPlayer player, String from, String to) {
         if (!StoryRenames.isStoryNamespace(to) && !to.equals(dev.dzenthai.storybound.core.data.ProjectSettings.DEFAULT_NAMESPACE) || from.equals(to) || from.equals(dev.dzenthai.storybound.core.data.StoryFolder.SCENARIO) || from.equals("minecraft")) {
@@ -363,9 +363,9 @@ final class DevRenames {
     }
 
     /**
-     * A node deleted in the editor: the renames that lead to it, and those inside it (a quest's stages and objectives, a
-     * Codex entry's sections), are taken out of the editor's migrations file, as they lead nowhere now and the validator
-     * warned about each (November 5, 2026). Its long texts stay: undoing the delete brings back the node, not files.
+     * A node deleted in the editor: the renames that lead to it, and those inside it (a quest's stages and objectives,
+     * a Codex entry's sections), are taken out of the editor's migrations file, as they lead nowhere now and the
+     * validator warned about each. Its long texts stay: undoing the delete brings back the node, not files.
      */
     static void forgetDeleted(Path root, MinecraftServer server, ResourceLocation typeId, ResourceLocation id) {
         try {

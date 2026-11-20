@@ -183,8 +183,8 @@ class DevEditsTest {
     }
 
     /**
-     * An arrow from a waypoint to an NPC (November 9, 2026): the waypoint points at it, whatever it pointed at before;
-     * unlinking leaves the target to choose again (the form then says "Choose the NPC"); not the other way round.
+     * An arrow from a waypoint to an NPC: the waypoint points at it, whatever it pointed at before; unlinking leaves
+     * the target to choose again (the form then says "Choose the NPC"); not the other way round.
      */
     @Test
     void aWaypointIsLinkedToTheNpcItPointsAt() {
@@ -200,9 +200,9 @@ class DevEditsTest {
     }
 
     /**
-     * Arrows from an NPC to phrases (November 6, 2026): its chatter first, then for when it is hit, then a click entry;
-     * phrases point at nothing (a line no longer starts a dialogue). Unlinking takes a click entry and a chatter
-     * variant with the phrases, the chatter only when nothing else is left in it, and a hit's dialogue but not the reaction.
+     * Arrows from an NPC to phrases: its chatter first, then for when it is hit, then a click entry; phrases point at
+     * nothing (a line no longer starts a dialogue). Unlinking takes a click entry and a chatter variant with the
+     * phrases, the chatter only when nothing else is left in it, and a hit's dialogue but not the reaction.
      */
     @Test
     void phrasesAreLinkedFromTheNpcOnly() {
@@ -323,7 +323,7 @@ class DevEditsTest {
     @Test
     void handlersWithoutABlockShowAsBlocksFromTheScript() {
         ResourceLocation block = Storybound.id("burn_block");
-        // The story whose handlers these are: a story shows blocks for its own handlers (November 19, 2026).
+        // The story whose handlers these are: a story shows blocks for its own handlers.
         ClientDevStore.setNamespace("mypack");
         ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_SCRIPT, Map.of(block, "{ \"hook\": \"mypack:burn_village\" }"),
                 ClientDevStore.TYPE_QUEST, Map.of(QUEST, "{}")), List.of(), "en_us", List.of("en_us"));
@@ -348,7 +348,7 @@ class DevEditsTest {
     @Test
     void aDeletedBlockWhoseHandlerLivesOnStaysHidden() {
         ResourceLocation block = Storybound.id("burn_block");
-        // The story whose handlers these are: a story shows blocks for its own handlers (November 19, 2026).
+        // The story whose handlers these are: a story shows blocks for its own handlers.
         ClientDevStore.setNamespace("mypack");
         ResourceLocation bell = ResourceLocation.parse("mypack:ring_bell");
         ClientDevStore.setSnapshot(Map.of(ClientDevStore.TYPE_SCRIPT, Map.of(
@@ -499,8 +499,8 @@ class DevEditsTest {
 
     /**
      * A jump's two fields go together: "dialogue" is which dialogue, "node" where in it. A jump to another dialogue's
-     * node draws no arrow (before, one went to this dialogue's node of the same name) and walks nowhere here; within
-     * this dialogue it is an arrow; an arrow drawn from a jump to another dialogue makes it a jump within this one.
+     * node draws no arrow and walks nowhere here; within this dialogue it is an arrow; an arrow drawn from a jump to
+     * another dialogue makes it a jump within this one.
      */
     @Test
     void aJumpToAnotherDialoguesNodeIsNoArrowHere() {

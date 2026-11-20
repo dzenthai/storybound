@@ -10,10 +10,9 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 
 /**
- * The story each operator last opened in the editor, kept with the world (November 19, 2026, the author: after a
- * restart the editor opened the first story, not the one left). In the world's data, not the story folder: the folder
- * may be a pack's repository, and which story someone edits is not the pack's. {@code DevProjects} reads it when it has
- * no choice of the session yet, and writes it on every choice.
+ * The story each operator last opened in the editor, kept with the world. In the world's data, not the story folder:
+ * the folder may be a pack's repository, and which story someone edits is not the pack's. {@code DevProjects} reads it
+ * when it has no choice of the session yet, and writes it on every choice.
  */
 final class DevSelections extends SavedData {
     private static final String NAME = "storybound_dev_selection";

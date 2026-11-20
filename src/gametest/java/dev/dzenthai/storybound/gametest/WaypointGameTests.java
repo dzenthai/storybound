@@ -421,10 +421,10 @@ public final class WaypointGameTests {
     }
 
     /**
-     * A quest's waypoint in another dimension (November 9, 2026). The player is in the overworld. A fortress in the
-     * Nether is not searched for (an unvisited dimension is not touched) and is sent with only its dimension known
-     * ("placed": false, which nothing draws; the quest tracker names the dimension); a point in the Nether is sent with
-     * its place and dimension, which the client does not draw here either.
+     * A quest's waypoint in another dimension. The player is in the overworld. A fortress in the Nether is not searched
+     * for (an unvisited dimension is not touched) and is sent with only its dimension known ("placed": false, which
+     * nothing draws; the quest tracker names the dimension); a point in the Nether is sent with its place and
+     * dimension, which the client does not draw here either.
      */
     @GameTest(template = "empty")
     public static void aWaypointInAnotherDimensionNamesItAndSearchesNothing(GameTestHelper helper) {
@@ -460,9 +460,9 @@ public final class WaypointGameTests {
     }
 
     /**
-     * add_waypoint can point at the nearest mob of a kind, filters and all, and at an NPC by its node (November 9, 2026:
-     * before, only a point, a structure or the one talked to). Expected: the nearest grown villager is followed, not the
-     * child beside it; an NPC that does not exist fails the action, saying so.
+     * add_waypoint can point at the nearest mob of a kind, filters and all, and at an NPC by its node. Expected: the
+     * nearest grown villager is followed, not the child beside it; an NPC that does not exist fails the action, saying
+     * so.
      */
     @GameTest(template = "empty")
     public static void addWaypointPointsAtTheNearestMobAndAtAnNpc(GameTestHelper helper) {

@@ -84,9 +84,8 @@ public final class Codex {
     }
 
     /**
-     * Sections that open on reading a document the player has read already (before the entry or the section existed,
-     * or while its conditions did not hold) open now: a read is a state that holds, as quests and story events count
-     * it (October 29, 2026). On joining and after a reload.
+     * Sections that open on reading a document the player has read already open now: a read is a state that holds, as
+     * quests and story events count it. On joining and after a reload.
      */
     public static void catchUpReads(ServerPlayer player) {
         if (!isEnabled()) {

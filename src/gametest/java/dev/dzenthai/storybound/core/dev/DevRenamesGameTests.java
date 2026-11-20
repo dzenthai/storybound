@@ -21,8 +21,8 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * Renaming a node in a story folder of its own (October 29, 2026): the files move with what belongs to them by name,
- * what names them is rewritten, and the migrations follow. Lives in the package of {@link DevRenames} to reach it.
+ * Renaming a node in a story folder of its own: the files move with what belongs to them by name, what names them is
+ * rewritten, and the migrations follow. Lives in the package of {@link DevRenames} to reach it.
  */
 @GameTestHolder(Storybound.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -48,7 +48,7 @@ public final class DevRenamesGameTests {
         return Files.isRegularFile(ConfigStorySource.fileFor(root, definitions, id(id)));
     }
 
-    /** A node deleted in the editor takes its renames out of the editor's migrations; the others stay (November 5, 2026). */
+    /** A node deleted in the editor takes its renames out of the editor's migrations; the others stay. */
     @GameTest(template = "empty")
     public static void aDeletedNodeTakesItsRenamesAlong(GameTestHelper helper) {
         try {

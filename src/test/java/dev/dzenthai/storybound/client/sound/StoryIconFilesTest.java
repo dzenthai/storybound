@@ -13,7 +13,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** The story's icons folder (October 30, 2026): what a document's item can show, and how it finds it. */
+/** The story's icons folder: what a document's item can show, and how it finds it. */
 class StoryIconFilesTest {
     @TempDir
     Path folder;

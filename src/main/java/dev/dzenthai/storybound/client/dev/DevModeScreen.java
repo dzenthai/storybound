@@ -189,7 +189,7 @@ public class DevModeScreen extends Screen {
 
     /**
      * Whether a modal window is open: the panels under it draw only their background, as their widgets are the window's
-     * now (before, the inspector's labels stayed without their fields).
+     * now.
      */
     boolean modalOpen() {
         return !modalNow().isEmpty();
@@ -344,8 +344,7 @@ public class DevModeScreen extends Screen {
     // --- top bar
 
     private void addTopBar() {
-        // Small signs with their words on hover (November 16, 2026, the author: "heavy, not as minimal as FTB"; before,
-        // "← Menu", "↶ Undo", "Redo ↷", "🌐 EN_US", "+", "Story: …", "⚙ Settings" written out).
+        // Small signs with their words on hover.
         GraphView view = view();
         int x = 4;
         x = topButton(Component.literal("←"), view.backLabel(), true, x, () -> view.back(this));
@@ -353,9 +352,9 @@ public class DevModeScreen extends Screen {
         x = topButton(Component.literal("↶"), DevUi.text("undo"), HISTORY.canUndo(), x, this::undo);
         x = topButton(Component.literal("↷"), DevUi.text("redo"), HISTORY.canRedo(), x, this::redo);
         x += 4;
-        // The order the author set (November 19, 2026): at the left ← ↶ ↷, the stories, then the view's own (the story's
-        // search and whose progress); in the middle what the map shows; at the right the language, the view's own (the
-        // problems), the story's settings at the very end.
+        // The order the author set: at the left ← ↶ ↷, the stories, then the view's own (the story's search and whose
+        // progress); in the middle what the map shows; at the right the language, the view's own (the problems), the
+        // story's settings at the very end.
         List<TopButton> viewLeft = view.topLeft(this);
         int viewLeftW = viewLeft.stream().mapToInt(button -> DevButton.oddWidth(font, button.label()) + 2).sum();
         int centerWidth = Math.max(DevButton.oddWidth(font, DevUi.text("canvas.show_all_links")),
@@ -371,8 +370,7 @@ public class DevModeScreen extends Screen {
             x = topButton(button.label(), button.tooltip(), true, x, button.action());
         }
 
-        // The story's settings at the bar's right end, straight to their window (November 19, 2026, the author: next to
-        // the language nobody would look for them, and their menu's "Stories" was the 📁 button again).
+        // The story's settings at the bar's right end, straight to their window.
         int right = width - 4 - DevButton.oddWidth(font, Component.literal("⛭"));
         topButton(Component.literal("⛭"), DevUi.text("top.settings.tooltip"), true, right, () -> {
             view.saveEdits(this);
@@ -385,8 +383,7 @@ public class DevModeScreen extends Screen {
             right -= DevButton.oddWidth(font, button.label()) + 2;
             topButton(button.label(), button.tooltip(), true, right, button.action());
         }
-        // The story's languages to pick from and adding one, under the button (November 19, 2026, the author; before, a
-        // click went to the next language and adding one was in the settings' menu).
+        // The story's languages to pick from and adding one, under the button.
         Component language = Component.literal("🌐 " + ClientDevStore.activeLanguage().split("_")[0].toUpperCase(Locale.ROOT));
         int languageX = right - DevButton.oddWidth(font, language) - 2;
         topButton(language, DevUi.text("top.language.tooltip", ClientDevStore.activeLanguage()), true, languageX,
@@ -441,7 +438,7 @@ public class DevModeScreen extends Screen {
     }
 
     private int topButton(Component label, Component tooltip, boolean active, int x, Runnable action) {
-        // Odd sizes, so a 9-pixel icon sits exactly in the middle (November 17, 2026).
+        // Odd sizes, so a 9-pixel icon sits exactly in the middle.
         int w = DevButton.oddWidth(font, label);
         Button button = Button.builder(label, b -> action.run()).tooltip(Tooltip.create(tooltip)).bounds(x, 3, w, 19).build();
         button.active = active;
@@ -722,8 +719,7 @@ public class DevModeScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         cuts.clear();
         // A window opened or closed without a rebuild (the text window, the catalog: open() only marks them open) gets
-        // its widgets before anything can be clicked. Before (October 29, 2026), the text window showed but took no
-        // input, and the inspector's buttons under it stayed live: its Save rebuilt the screen, only then the window worked.
+        // its widgets before anything can be clicked.
         if (!modalNow().equals(builtFor)) {
             rebuild();
         } else if (view().inspectorVisible(this) && view().animateInspector()) {
@@ -774,14 +770,13 @@ public class DevModeScreen extends Screen {
         }
     }
 
-    /** A line drawn cut to fit: its whole text, shown on hover (November 9, 2026). */
+    /** A line drawn cut to fit: its whole text, shown on hover. */
     private record Cut(int x, int y, int width, String text) {}
 
     private final List<Cut> cuts = new ArrayList<>();
 
     /**
-     * Draws a line of text cut to the width, its whole text on hover when cut (the status line, the inspector's warning:
-     * November 9, 2026; before, what did not fit was lost, "Choose wh").
+     * Draws a line of text cut to the width, its whole text on hover when cut.
      */
     void drawCut(GuiGraphics graphics, String text, int x, int y, int width, int color) {
         String shown = font.plainSubstrByWidth(text, width);
@@ -850,7 +845,7 @@ public class DevModeScreen extends Screen {
                 graphics.fill(textX + 1, y + 4, textX + 9, y + 12, item.swatch());
                 textX += 14;
             }
-            // A line's glyph is its icon (November 17, 2026): "🗑 Delete" shows the bin, painted as the line's words.
+            // A line's glyph is its icon: "🗑 Delete" shows the bin, painted as the line's words.
             DevIcons.Split split = DevIcons.split(item.label().getString());
             if (split.icon() != null) {
                 DevIcons.draw(graphics, split.icon(), textX, y + (MENU_ITEM_H - DevIcons.SIZE) / 2, item.danger() ? color : hover ? DevUi.ACCENT : DevUi.LABEL);
@@ -1021,9 +1016,8 @@ public class DevModeScreen extends Screen {
             }
         }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            // One layer a press (November 19, 2026, the author; before, Escape left the editor from anywhere but a
-            // window): a text box lets go of the keyboard (its words stay), then the view's selection and the view inside
-            // the story, and only then the editor closes.
+            // One layer a press: a text box lets go of the keyboard (its words stay), then the view's selection and the
+            // view inside the story, and only then the editor closes.
             if (textFocused()) {
                 for (GuiEventListener child : children()) {
                     if (child instanceof EditBox box && box.isFocused()) {
@@ -1039,7 +1033,7 @@ public class DevModeScreen extends Screen {
             return true;
         }
         if (keyCode == GLFW.GLFW_KEY_HOME) {
-            // Back to the canvas's origin, the landmark (November 19, 2026).
+            // Back to the canvas's origin, the landmark.
             view().goHome();
             return true;
         }

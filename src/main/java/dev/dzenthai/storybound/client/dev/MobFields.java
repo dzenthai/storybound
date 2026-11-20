@@ -42,15 +42,13 @@ import net.neoforged.fml.loading.FMLPaths;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What a kind of mob keeps of its own, found by reading mobs, nothing written per kind or mod (November 9, 2026, the
- * author: "the mod reads a villager's data and sees a profession, a level, an age; a Born in Chaos zombie's stages show
- * up though the mod knows nothing of them"). The fields of the mob's saved data that tell one mob of the kind from
- * another, each with the values met, from:
+ * What a kind of mob keeps of its own, found by reading mobs, nothing written per kind or mod. The fields of the mob's
+ * saved data that tell one mob of the kind from another, each with the values met, from:
  * <ul>
  * <li>a test mob of the kind made on the client (never added to the world): every field, with the value a new one has;</li>
  * <li>the mobs of the kind the client sees;</li>
  * <li>in a world of one's own, the server's mobs of the kind, gathered once per kind and game, in the background (the
- * form is drawn again when they are in; before, the screen waited for them on every redraw);</li>
+ * form is drawn again when they are in);</li>
  * <li>what was met before, remembered on the author's disk ({@value #FILE}), so a woman of Villagers Reborn met once
  * stays offered in a new world.</li>
  * </ul>

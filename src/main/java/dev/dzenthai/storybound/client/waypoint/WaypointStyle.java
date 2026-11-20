@@ -8,11 +8,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
 
 /**
- * How waypoint markers are drawn in the world, from {@code assets/<ns>/storybound/waypoint_styles/<path>.json}.
- * One look for every marker ({@code storybound:default}), which resource packs restyle. Sprites are GUI sprites drawn
- * light-on-transparent and tinted with the waypoint's colour (October 29, 2026: the tracked quest's markers too; before,
- * they all took one {@code tracked_color}). Whether off-screen markers get an edge arrow is the player's setting
- * ({@code StoryboundClientConfig.waypointEdgeArrows}, November 16, 2026); a style's older {@code edge} is ignored.
+ * How waypoint markers are drawn in the world, from {@code assets/<ns>/storybound/waypoint_styles/<path>.json}. One
+ * look for every marker ({@code storybound:default}), which resource packs restyle. Sprites are GUI sprites drawn
+ * light-on-transparent and tinted with the waypoint's colour. Whether off-screen markers get an edge arrow is the
+ * player's setting; a style's older {@code edge} is ignored.
  *
  * @param size        the icon's size in GUI pixels, before the player's scale setting
  * @param fadeStart   farther than this (blocks), the marker starts fading

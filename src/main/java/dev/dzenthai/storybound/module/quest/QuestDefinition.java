@@ -98,11 +98,10 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
     }
 
     /**
-     * {@code screen_text} (November 20, 2026, the author, as in The Witcher and Dungeon Difficulty): words in the middle of
-     * the screen, the game's own title and subtitle, the quest's title big and these under it, when it starts (and is
-     * taken up again), is completed and fails; each only where written, and written empty ({@code ""}) the title alone
-     * (November 20, 2026, the author: a quest may want only its name, or only "failed"). They are besides the toast, which
-     * says what happened, and shown whatever {@code notify} says, to every player sharing the quest.
+     * {@code screen_text}: words in the middle of the screen, the game's own title and subtitle, the quest's title big
+     * and these under it, when it starts (and is taken up again), is completed and fails; each only where written, and
+     * written empty ({@code ""}) the title alone. They are besides the toast, which says what happened, and shown
+     * whatever {@code notify} says, to every player sharing the quest.
      */
     public record ScreenText(Optional<StoryText> started, Optional<StoryText> completed, Optional<StoryText> failed) {
         public static final ScreenText EMPTY = new ScreenText(Optional.empty(), Optional.empty(), Optional.empty());

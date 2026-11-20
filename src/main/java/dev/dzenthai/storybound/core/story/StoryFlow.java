@@ -173,10 +173,10 @@ public final class StoryFlow {
      * right. A loop (a repeatable quest leading back) is cut where it closes.
      */
     /**
-     * What belongs to each spine node, for the editor's badges under it (November 16, 2026): the chain where it starts
-     * (its giver NPC and that NPC's dialogue), the nodes between it and the spine nodes it leads to, and every other
-     * node linked with it directly (its waypoints, its boss, a document it gives). Never a spine node; each once, in
-     * that order. A node shared by several spine nodes is under each of them.
+     * What belongs to each spine node, for the editor's badges under it: the chain where it starts (its giver NPC and
+     * that NPC's dialogue), the nodes between it and the spine nodes it leads to, and every other node linked with it
+     * directly (its waypoints, its boss, a document it gives). Never a spine node; each once, in that order. A node
+     * shared by several spine nodes is under each of them.
      */
     public static Map<NodeKey, List<NodeKey>> attached(Collection<Edge> edges, Predicate<NodeKey> spine) {
         Map<NodeKey, Set<NodeKey>> own = new LinkedHashMap<>();

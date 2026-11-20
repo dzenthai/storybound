@@ -3,13 +3,12 @@ package dev.dzenthai.storybound.client.camera;
 import net.minecraft.util.Mth;
 
 /**
- * The floating camera of a dialogue shot (November 16, 2026, as in The Witcher 3): while a line plays, moving the mouse
- * turns the frame a little, left and right as the mouse goes, up and down inverted; left alone it drifts slowly back,
- * and while the answers are shown it returns to the shot's own aim. Only the aim turns, never the position, so the
- * wall checks of the shot still hold. Pure arithmetic, fed once a frame by {@link DialogueCamera}.
+ * The floating camera of a dialogue shot: while a line plays, moving the mouse turns the frame a little, left and right
+ * as the mouse goes, up and down inverted; left alone it drifts slowly back, and while the answers are shown it returns
+ * to the shot's own aim. Only the aim turns, never the position, so the wall checks of the shot still hold. Pure
+ * arithmetic, fed once a frame by {@link DialogueCamera}.
  * <p>
- * As smooth as it can be (the author, the same day, after the first version: "not sharp, as smooth as possible, and
- * not much room to move"): the mouse moves an aim that slows down towards its limits instead of stopping at them
+ * As smooth as it can be: the mouse moves an aim that slows down towards its limits instead of stopping at them
  * ({@code tanh}), and the frame follows that aim on a critically damped spring ({@link #smoothDamp}), so it never
  * starts or stops with a jerk, whatever the mouse does, the frame rate or a hitch.
  */

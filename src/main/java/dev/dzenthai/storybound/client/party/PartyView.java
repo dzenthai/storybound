@@ -21,9 +21,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The party tab (November 19, 2026; before, parties were made only with commands): the invite waiting for the player,
- * their party or a way to make one, and the other players online to invite. Every button asks the server, which checks
- * it as the commands do and answers with the party as it now is ({@link ClientParty}).
+ * The party tab: the invite waiting for the player, their party or a way to make one, and the other players online to
+ * invite. Every button asks the server, which checks it as the commands do and answers with the party as it now is
+ * ({@link ClientParty}).
  */
 public class PartyView extends ListDetailView<PartyView.Entry> {
     private BookButton primary;
@@ -31,8 +31,8 @@ public class PartyView extends ListDetailView<PartyView.Entry> {
     private @Nullable Runnable primaryAction;
     private @Nullable Runnable secondaryAction;
     /**
-     * The new party's name, written on the page above "Create party" (November 19, 2026, the author); kept while the
-     * menu is open, across resizes. Empty: the default name.
+     * The new party's name, written on the page above "Create party"; kept while the menu is open, across resizes.
+     * Empty: the default name.
      */
     private BookEditBox nameBox;
     private String typedName = "";

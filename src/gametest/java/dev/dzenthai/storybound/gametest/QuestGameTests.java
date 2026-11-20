@@ -86,8 +86,8 @@ public final class QuestGameTests {
     private QuestGameTests() {}
 
     /**
-     * {@code screen_text} (November 20, 2026): read, each one for its moment (none for an advance), written back; one
-     * written empty is there (the title alone); a quest without it has none and writes none.
+     * {@code screen_text}: read, each one for its moment (none for an advance), written back; one written empty is
+     * there (the title alone); a quest without it has none and writes none.
      */
     @GameTest(template = "empty")
     public static void screenTextIsReadForEachMoment(GameTestHelper helper) {

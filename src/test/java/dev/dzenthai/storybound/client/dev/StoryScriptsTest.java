@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * A story shows a block for a handler of the server's scripts only when the handler is its own (its namespace) or it
- * uses it (November 19, 2026: every story showed every handler, other stories' and old tests' too).
+ * uses it.
  */
 class StoryScriptsTest {
     private static final String SCRIPTS = """

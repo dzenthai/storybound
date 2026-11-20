@@ -33,7 +33,7 @@ public final class StoryLinks {
     public static final ResourceLocation CODEX = Storybound.id("codex");
     public static final ResourceLocation EVENT = Storybound.id("event");
     public static final ResourceLocation SCRIPT = Storybound.id("script");
-    /** An NPC's phrases (November 5, 2026): its chatter and what it says when hit. */
+    /** An NPC's phrases: its chatter and what it says when hit. */
     public static final ResourceLocation PHRASES = Storybound.id("phrases");
 
     /** A definition: its type and id. */
@@ -71,7 +71,7 @@ public final class StoryLinks {
                     if (el.isJsonObject() && el.getAsJsonObject().get("dialogue") instanceof JsonPrimitive dialogue) {
                         parseId(dialogue.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "talk")));
                     }
-                    // Phrases said on a click (November 6, 2026).
+                    // Phrases said on a click.
                     if (el.isJsonObject() && el.getAsJsonObject().get("phrases") instanceof JsonPrimitive phrases) {
                         parseId(phrases.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "talk")));
                     }
@@ -86,19 +86,19 @@ public final class StoryLinks {
                 }
             }
             phrasesOf(obj, "when_attacked").ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "hit")));
-            // The busy line (November 9, 2026), a phrases node or a text of its own.
+            // The busy line, a phrases node or a text of its own.
             if (obj.get("busy") instanceof JsonPrimitive busy) {
                 parseId(busy.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "busy")));
             }
             if (obj.get("when_attacked") instanceof JsonObject hit && hit.get("warning") instanceof JsonPrimitive warning) {
                 parseId(warning.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(PHRASES, target), "warning")));
             }
-            // A scene started on a hit, instead of phrases (November 6, 2026).
+            // A scene started on a hit, instead of phrases.
             if (obj.get("when_attacked") instanceof JsonObject hit && hit.get("dialogue") instanceof JsonPrimitive dialogue) {
                 parseId(dialogue.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "hit")));
             }
         });
-        // Phrases name nothing since November 6, 2026 (a line could start a dialogue before): no edges from them.
+        // Phrases name nothing: no edges from them.
         source.byType(DIALOGUE).forEach((id, raw) -> collectLogicEdges(new NodeKey(DIALOGUE, id), parseObject(raw), edges, hooks));
         source.byType(DOCUMENT).forEach((id, raw) -> {
             NodeKey from = new NodeKey(DOCUMENT, id);
@@ -140,7 +140,7 @@ public final class StoryLinks {
                 parseId(obj.get("quest").getAsString())
                         .ifPresent(quest -> edges.add(new Edge(new NodeKey(QUEST, quest), wpKey, "quest")));
             }
-            // It points at an NPC (November 9, 2026).
+            // It points at an NPC.
             if (obj.get("target") instanceof JsonObject target && target.get("npc") instanceof JsonPrimitive npc) {
                 parseId(npc.getAsString()).ifPresent(binding -> edges.add(new Edge(wpKey, new NodeKey(NPC, binding), "leads")));
             }

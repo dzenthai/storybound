@@ -7,23 +7,21 @@ import net.minecraft.network.chat.Component;
 
 /**
  * A button on the book's pages: paper with a stamped frame, the label in the book's font, an optional pin, and an
- * optional burst of sparks when what it does is ready (a reward to claim). Keeps vanilla's input, narration and
- * label clipping (November 4, 2026; before, {@code ArchiveChrome.ArchiveButton}, which also had a look for a menu
- * without the book).
+ * optional burst of sparks when what it does is ready (a reward to claim). Keeps vanilla's input, narration and label
+ * clipping.
  */
 public final class BookButton extends Button {
     private boolean pin;
     /**
      * A unit of the label (and its pin) in the button's units: below 1 where the button stands in a book's pixels and
-     * the text has units of its own, as under the leather book read as an item (November 5, 2026).
+     * the text has units of its own, as under the leather book read as an item.
      */
     private float labelScale = 1;
     private java.util.function.BooleanSupplier readyEffect = () -> false;
     private long readySince = -1;
     /**
      * The menu's book, when the button stands on its pages: then its frame and sparks are drawn on the book's pixels,
-     * as the page's rules and arrows (November 7, 2026; before, on the text's units, finer than the book's pixels at
-     * 1920 × 1080: two kinds of pixel side by side). Null on a document, where the button stands in its pixels already.
+     * as the page's rules and arrows. Null on a document, where the button stands in its pixels already.
      */
     private java.util.function.Supplier<JournalLayout> book;
 
@@ -96,11 +94,10 @@ public final class BookButton extends Button {
             long now = net.minecraft.Util.getMillis();
             if (readySince < 0) readySince = now;
             long elapsed = now - readySince;
-            // Stars, each in a lane of its own above the button (November 7, 2026; before, neighbours drifted towards each
-            // other and stuck together, and every round rose the same, in a row): 5 over a wide button, 4 or 3 over a
-            // narrow one; they set off evenly through the round, the largest in the middle, a size smaller in narrow
-            // lanes; each drifts away from the middle, so neighbours never close in, and each round starts from another
-            // place in its lane and rises at another pace. Checked by a simulation of widths 36 to 90: none touch.
+            // Stars, each in a lane of its own above the button: 5 over a wide button, 4 or 3 over a narrow one; they
+            // set off evenly through the round, the largest in the middle, a size smaller in narrow lanes; each drifts
+            // away from the middle, so neighbours never close in, and each round starts from another place in its lane
+            // and rises at another pace. Checked by a simulation of widths 36 to 90: none touch.
             int count = width >= 60 ? 5 : width >= 44 ? 4 : 3;
             int[] sizes = SPARK_SIZES[count - 3];
             float lane = width / (float) (count + 1);

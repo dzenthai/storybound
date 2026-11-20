@@ -16,11 +16,11 @@ import net.minecraft.world.entity.LivingEntity;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * An NPC's voice for its phrases (November 5, 2026): which of a {@link PhrasesDefinition}'s lines comes next. Chatter
- * waits until the NPC has said nothing for {@link #LINE_GAP_TICKS}; a hit's phrase cuts in at once (before, it waited
- * for the chatter's bubble to fade), only not more often than every {@link #HIT_GAP_TICKS}, so quick hits do not fill
- * the air with bubbles. Where the list stands is kept per counter: an NPC's chatter has one,
- * each player who hits it another, so the same phrases given to five NPCs go on for each on its own.
+ * An NPC's voice for its phrases: which of a {@link PhrasesDefinition}'s lines comes next. Chatter waits until the NPC
+ * has said nothing for {@link #LINE_GAP_TICKS}; a hit's phrase cuts in at once, only not more often than every
+ * {@link #HIT_GAP_TICKS}, so quick hits do not fill the air with bubbles. Where the list stands is kept per counter: an
+ * NPC's chatter has one, each player who hits it another, so the same phrases given to five NPCs go on for each on its
+ * own.
  */
 public final class NpcPhrases {
     /** Chatter speaks only after the NPC has said nothing for this long. */
@@ -148,9 +148,8 @@ public final class NpcPhrases {
     }
 
     /**
-     * Phrases said on a click (November 6, 2026): per player and per click entry (its binding and its place in that
-     * binding's list; the binding since November 7, 2026, as an NPC's entries now come from several), so each player
-     * goes through each entry's lines in order on their own.
+     * Phrases said on a click: per player and per click entry (its binding and its place in that binding's list), so
+     * each player goes through each entry's lines in order on their own.
      *
      * @param binding the binding of the entry; null for the one stored on the entity
      */
@@ -159,8 +158,8 @@ public final class NpcPhrases {
     }
 
     /**
-     * The counter of an NPC's busy line for a player (November 9, 2026): the binding that gave {@code busy}, its own
-     * order of lines; public for tests.
+     * The counter of an NPC's busy line for a player: the binding that gave {@code busy}, its own order of lines;
+     * public for tests.
      */
     public static String busyCounter(Entity npc, ServerPlayer player, @Nullable ResourceLocation binding) {
         return "busy:" + npc.getUUID() + ":" + player.getUUID() + ":" + (binding != null ? binding : "own");

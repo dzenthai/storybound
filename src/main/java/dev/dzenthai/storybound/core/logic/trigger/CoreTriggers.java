@@ -149,12 +149,12 @@ public final class CoreTriggers {
 
     /**
      * The player looked straight at the target for {@code time} seconds from at most {@code distance} blocks (see
-     * {@link ObservationTracker}; a bar under the crosshair fills meanwhile): an entity ({@code entity}, the selector of
-     * NPC bindings), a kind of block ({@code block}: an id, a #tag or a list), or one block ({@code pos}, with
+     * {@link ObservationTracker}; a bar under the crosshair fills meanwhile): an entity ({@code entity}, the selector
+     * of NPC bindings), a kind of block ({@code block}: an id, a #tag or a list), or one block ({@code pos}, with
      * {@code dimension}); {@code block} and {@code pos} together: that block, if it is still such a one. Or an item
-     * ({@code item}: an id, a #tag or a list; November 20, 2026, the author's backlog "observing items"), wherever it
-     * shows: lying on the ground, in an item frame, held or worn by the one looked at, or, an item that is a block,
-     * placed as that block ({@link #itemSeen}); never in the player's own hand.
+     * ({@code item}: an id, a #tag or a list), wherever it shows: lying on the ground, in an item frame, held or worn
+     * by the one looked at, or, an item that is a block, placed as that block ({@link #itemSeen}); never in the
+     * player's own hand.
      *
      * @param text what the bar says ("Examine the tracks"); without one, "Observing: <the target>"
      */

@@ -21,7 +21,7 @@ public final class DialogueRegistries {
     public static final DefinitionType<NpcBinding> NPC_BINDINGS = DefinitionTypes.register(
             DefinitionType.serverOnly(Storybound.id("npc_binding"), "storybound/npc_bindings", NpcBinding.CODEC));
 
-    /** An NPC's short lines for chatter and for being hit (November 5, 2026). */
+    /** An NPC's short lines for chatter and for being hit. */
     public static final DefinitionType<PhrasesDefinition> PHRASES = DefinitionTypes.register(
             DefinitionType.serverOnly(Storybound.id("phrases"), "storybound/phrases", PhrasesDefinition.CODEC));
 
@@ -40,15 +40,15 @@ public final class DialogueRegistries {
             () -> AttachmentType.builder(() -> "").serialize(Codec.STRING).build());
 
     /**
-     * What the mod named an entity (November 7, 2026; see {@link NpcNames}): a name from a binding's list and the custom
-     * name it put on it; check {@code hasData}.
+     * What the mod named an entity (see {@link NpcNames}): a name from a binding's list and the custom name it put on
+     * it; check {@code hasData}.
      */
     public static final Supplier<AttachmentType<NpcNames.Given>> NPC_NAME = ATTACHMENT_TYPES.register("npc_name",
             () -> AttachmentType.builder(() -> NpcNames.Given.NONE).serialize(NpcNames.Given.CODEC).build());
 
     /**
-     * The place an NPC a binding's {@code movement} holds keeps to (November 20, 2026; see {@link NpcMovement}); check
-     * {@code hasData}, the default is a placeholder.
+     * The place an NPC a binding's {@code movement} holds keeps to (see {@link NpcMovement}); check {@code hasData},
+     * the default is a placeholder.
      */
     public static final Supplier<AttachmentType<GlobalPos>> NPC_HOME = ATTACHMENT_TYPES.register("npc_home",
             () -> AttachmentType.builder(() -> GlobalPos.of(Level.OVERWORLD, BlockPos.ZERO)).serialize(GlobalPos.CODEC).build());

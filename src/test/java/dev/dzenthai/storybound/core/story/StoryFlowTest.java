@@ -110,7 +110,7 @@ class StoryFlowTest {
 
     private static final NodeKey FESTIVAL = key(StoryLinks.EVENT, "festival");
 
-    /** The editor's canvas (November 16, 2026): quests and story events are its nodes, the rest badges under them. */
+    /** The editor's canvas: quests and story events are its nodes, the rest badges under them. */
     private static boolean spine(NodeKey key) {
         return key.type().equals(StoryLinks.QUEST) || key.type().equals(StoryLinks.EVENT);
     }

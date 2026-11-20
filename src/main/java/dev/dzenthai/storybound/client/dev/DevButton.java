@@ -8,10 +8,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextColor;
 
 /**
- * The dev mode's button (November 17, 2026; before, Minecraft's stone button, which the author found heavy): flat, the
- * dark of the palette with a thin edge, gold on hover, its glyph drawn as an icon ({@link DevIcons}). Every button the
- * editor adds becomes one ({@link DevModeScreen#add}): it presses the original and reads its words, its tooltip and
- * whether it is active every frame, so code that changes the original later still works.
+ * The dev mode's button: flat, the dark of the palette with a thin edge, gold on hover, its glyph drawn as an icon
+ * ({@link DevIcons}). Every button the editor adds becomes one ({@link DevModeScreen#add}): it presses the original and
+ * reads its words, its tooltip and whether it is active every frame, so code that changes the original later still
+ * works.
  */
 final class DevButton extends Button {
     private final Button original;

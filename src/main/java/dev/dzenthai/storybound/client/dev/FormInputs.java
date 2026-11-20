@@ -42,9 +42,9 @@ abstract class FormInputs extends FormPickers {
     }
 
     /**
-     * A list of ids (mobs, biomes, blocks, places; each an id or a #tag): a row each by its name, which picks another in
-     * its place, ✕ to take it out, "+ Add" from the list (October 30, 2026; before, one line of ids typed with commas,
-     * against the rule that lists are added to). One is written alone, several as a list, as the files have them.
+     * A list of ids (mobs, biomes, blocks, places; each an id or a #tag): a row each by its name, which picks another
+     * in its place, ✕ to take it out, "+ Add" from the list. One is written alone, several as a list, as the files have
+     * them.
      *
      * @param label above the rows; null where the page already says it (an entity's type under its switch)
      */
@@ -53,9 +53,9 @@ abstract class FormInputs extends FormPickers {
     }
 
     /**
-     * As {@link #idListRows(List, String, Picker, Component)}, picking from {@code choose} (a list only of what fits,
-     * November 9, 2026) and naming by {@code names}; a row whose id no longer fits ({@code problem} says why) shows red
-     * with the reason, to be taken out or picked again.
+     * As {@link #idListRows(List, String, Picker, Component)}, picking from {@code choose} and naming by {@code names};
+     * a row whose id no longer fits ({@code problem} says why) shows red with the reason, to be taken out or picked
+     * again.
      *
      * @param max at most so many (1: a field of one, as a location's structure); 0 for any
      */
@@ -121,8 +121,7 @@ abstract class FormInputs extends FormPickers {
             }
         }
         if (id.startsWith("#") && picker.kind() != null) {
-            // A #tag as the list names it ("Raiders"), else its name made readable ("Skeletons"; November 9, 2026: before,
-            // "#minecraft:raiders" on the button and "Raiders" in the list).
+            // A #tag as the list names it ("Raiders"), else its name made readable ("Skeletons").
             String listed = Catalog.label(picker.kind(), id);
             ResourceLocation tag = ResourceLocation.tryParse(id.substring(1));
             return listed != null ? listed : tag != null ? DevUi.humanize(tag.getPath().substring(tag.getPath().lastIndexOf('/') + 1)) : id;
@@ -161,8 +160,8 @@ abstract class FormInputs extends FormPickers {
     }
 
     /**
-     * A share written as a fraction, in percent: "5" for 0.05 (October 30, 2026; before, the fraction). Empty leaves it
-     * out (the default); a number off 0–100 turns red and is not written.
+     * A share written as a fraction, in percent: "5" for 0.05. Empty leaves it out (the default); a number off 0–100
+     * turns red and is not written.
      */
     void percentField(List<Object> path, String name, Node node, @Nullable JsonObject object, Component label) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -209,10 +208,9 @@ abstract class FormInputs extends FormPickers {
 
     /**
      * Where an arrow of a dialogue node leads ({@code next}, {@code then}, {@code else}, an answer's, a branch's, the
-     * timer's): not typed but shown, as the graph's arrows are the way to draw them (October 29, 2026; before, a box
-     * for the node's id, the same as dragging an arrow). A click shows the node on the graph; ▾ picks another (the
-     * nodes by their name and first words, the end of the dialogue, leaving the whole conversation); ✕ unlinks it, so
-     * it ends the dialogue.
+     * timer's): not typed but shown, as the graph's arrows are the way to draw them. A click shows the node on the
+     * graph; ▾ picks another (the nodes by their name and first words, the end of the dialogue, leaving the whole
+     * conversation); ✕ unlinks it, so it ends the dialogue.
      */
     void targetField(List<Object> path, String name, @Nullable JsonElement value, Component label, boolean required) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -274,7 +272,7 @@ abstract class FormInputs extends FormPickers {
     /**
      * A sound (a line's, play_sound's...): its id, "…" to pick it from the story's own sounds and every sound the game
      * knows, ▶ to hear it here. One the game does not know is red, and says why: a file of the story's that is not Ogg
-     * Vorbis or is wrongly named, or none at all (October 30, 2026; before, an id typed blind).
+     * Vorbis or is wrongly named, or none at all.
      */
     void soundField(List<Object> path, String name, @Nullable JsonElement value, Component label) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -329,9 +327,8 @@ abstract class FormInputs extends FormPickers {
 
     /**
      * A document's icon in the inventory, its {@code custom_model_data}: the story's icons
-     * ({@code config/storybound/icons}) by name, picked from a list that shows them; empty, the kind's own icon (October
-     * 30, 2026; before, a number to type, to pair with a resource pack made by hand). A number no icon of the story
-     * has stays, said to come from a resource pack.
+     * ({@code config/storybound/icons}) by name, picked from a list that shows them; empty, the kind's own icon. A
+     * number no icon of the story has stays, said to come from a resource pack.
      */
     void iconField(List<Object> path, String name, @Nullable JsonObject document) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -368,8 +365,7 @@ abstract class FormInputs extends FormPickers {
     /**
      * Whether a story text is written at length, so its field has the text window's ✎: a dialogue's line and answer, a
      * quest's description, its texts per state and its stages' log, an objective's hint and hints by circumstance. The
-     * rest (titles, names, a contract's lines, an objective's line) is one line (October 30, 2026; before, ✎ on every
-     * text field).
+     * rest (titles, names, a contract's lines, an objective's line) is one line.
      */
     static boolean longText(String name, Node owner) {
         Map<String, Node> properties = Schemas.properties(owner);
@@ -412,7 +408,7 @@ abstract class FormInputs extends FormPickers {
         if (!window) {
             return;
         }
-        // The same text in a window of its own, for a long line (October 29, 2026; before, only the one-line box).
+        // The same text in a window of its own, for a long line.
         screen.add(Button.builder(Component.literal("✎"), b -> {
             JsonObject owner = objectAt(path);
             String current = owner != null ? ClientDevStore.readStoryText(owner, name, "", ClientDevStore.activeLanguage()) : "";
@@ -612,7 +608,7 @@ abstract class FormInputs extends FormPickers {
         }
         JsonElement fallback = node.defaultValue();
         boolean byDefault = fallback != null && fallback.isJsonPrimitive() && fallback.getAsBoolean();
-        // An NPC's switches add up with the nodes below it (layers): not written, it is theirs (November 8, 2026).
+        // An NPC's switches add up with the nodes below it (layers): not written, it is theirs.
         boolean layered = path.isEmpty() && host.npcBinding() != null;
         if (layered && name.equals("respawn") && flag(host.root(), "one", false)) {
             // A "one" NPC comes back unless it says otherwise.

@@ -14,9 +14,6 @@ import net.minecraft.client.gui.GuiGraphics;
  * from the window ({@code BookViewport}). Drawn between {@link #push} and {@link #pop}, one unit is a HUD pixel and
  * (0, 0) the window's top left, so whole units fall on whole window pixels; the HUD's width and height are in them.
  * The dialogue's hint and subtitles keep the plain GUI scale until their art is redone.
- * <p>
- * October 31, 2026; before, the same day, the window's height over 360 whatever the GUI scale (3 at 1080): at GUI
- * scale 1 the tracker, the markers and the words came out three times the hotbar's size.
  */
 public final class HudScale {
     /** The smallest HUD pixel is the window's height over this, in window pixels. */

@@ -32,8 +32,7 @@ final class DevChecks {
     }
 
     /**
-     * What a waypoint's target still lacks, in the author's words (November 9, 2026: before, the codec's "Failed to parse
-     * either. First: No key pos in MapLike"); empty when it has it, the codec then says the rest.
+     * What a waypoint's target still lacks, in the author's words; empty when it has it, the codec then says the rest.
      */
     private static Optional<String> waypointTarget(JsonObject waypoint) {
         if (!(waypoint.get("target") instanceof JsonObject target)) {
@@ -47,8 +46,7 @@ final class DevChecks {
                 return empty ? Optional.of(DevUi.str("check.waypoint." + kind)) : Optional.empty();
             }
         }
-        // Nothing written yet: the form shows a point, so its position is what to fill in (November 9, 2026: before, "Choose
-        // where the marker points" beside a form that showed a point).
+        // Nothing written yet: the form shows a point, so its position is what to fill in.
         return Optional.of(DevUi.str("check.waypoint.pos"));
     }
 

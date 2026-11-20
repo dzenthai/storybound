@@ -8,9 +8,9 @@ import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A line to write on in the book (November 19, 2026, the party's name): Minecraft's text field, typed into as usual,
- * but drawn as ink on the page, without its frame and without the drop shadow that doubled the letters on the paper;
- * a thin blinking stroke for the cursor. For short texts that fit the line (it does not scroll).
+ * A line to write on in the book: Minecraft's text field, typed into as usual, but drawn as ink on the page, without
+ * its frame and without the drop shadow that doubled the letters on the paper; a thin blinking stroke for the cursor.
+ * For short texts that fit the line (it does not scroll).
  */
 public class BookEditBox extends EditBox {
     private final Font font;

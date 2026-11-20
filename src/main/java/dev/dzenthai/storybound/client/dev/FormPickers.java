@@ -208,16 +208,16 @@ abstract class FormPickers extends FormCore {
     }
 
     /**
-     * What depends on another field of the same object (October 30, 2026; before, typed): a quest's stage (the condition
-     * "quest at stage", set_quest_stage, the trigger "stage changed"), a dialogue's node (the trigger "dialogue ended",
-     * a jump or call to another dialogue), a statistic of its kind, a script's handler, a KubeJS handler, a waypoint
-     * added by an action, a Journal entry's section. Without the field it depends on, the button says to pick that first.
+     * What depends on another field of the same object: a quest's stage (the condition "quest at stage",
+     * set_quest_stage, the trigger "stage changed"), a dialogue's node (the trigger "dialogue ended", a jump or call to
+     * another dialogue), a statistic of its kind, a script's handler, a KubeJS handler, a waypoint added by an action,
+     * a Journal entry's section. Without the field it depends on, the button says to pick that first.
      */
     private @Nullable Picker dependentPicker(String field, Node owner, @Nullable JsonObject object) {
         Map<String, Node> properties = Schemas.properties(owner);
         String type = object != null && object.get("type") instanceof JsonPrimitive written ? written.getAsString() : "";
         if (field.equals("structure") && properties.containsKey("dimension") && properties.containsKey("search_radius")) {
-            // A waypoint's structure: those of its dimension, picked first (November 9, 2026).
+            // A waypoint's structure: those of its dimension, picked first.
             ResourceLocation dimension = object != null && object.get("dimension") instanceof JsonPrimitive written
                     ? ResourceLocation.tryParse(written.getAsString()) : null;
             ResourceLocation in = dimension != null ? dimension : ResourceLocation.withDefaultNamespace("overworld");
@@ -414,9 +414,8 @@ abstract class FormPickers extends FormCore {
     }
 
     /**
-     * Fields naming something the game or the server knows (October 30, 2026; before, typed): a dimension, an effect, an
-     * item tag, a kind of statistic, an advancement and a loot table (both listed by the server), a script file, a
-     * chapter's icon.
+     * Fields naming something the game or the server knows: a dimension, an effect, an item tag, a kind of statistic,
+     * an advancement and a loot table (both listed by the server), a script file, a chapter's icon.
      */
     private static @Nullable Picker knownPicker(String field, Node owner) {
         Map<String, Node> properties = Schemas.properties(owner);

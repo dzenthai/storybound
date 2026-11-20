@@ -34,8 +34,8 @@ public record ProjectSettings(String sourceLanguage, List<String> languages, Str
     public static final String FILE_NAME = "project.json";
 
     /**
-     * The story's preferences the dev mode's settings window edits (November 16, 2026), beside the languages and the
-     * namespace, which the top bar edits: the difficulty scale, tracking a quest when given.
+     * The story's preferences the dev mode's settings window edits, beside the languages and the namespace, which the
+     * top bar edits: the difficulty scale, tracking a quest when given.
      */
     public static final List<String> OPTIONS = List.of("difficulty", "track_given_quests");
 

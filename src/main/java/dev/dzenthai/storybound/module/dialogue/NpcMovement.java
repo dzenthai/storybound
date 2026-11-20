@@ -22,12 +22,12 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 /**
- * NPC bindings' {@code movement} (November 20, 2026): {@code stay} keeps the NPC where it stands, its head turning to
- * the nearest player near; {@code home} lets it walk within {@code home_radius} blocks of its place; pushed or led away,
- * it walks back. Its place is where it stood when the binding first held it (a spawned NPC: where it was spawned; one
- * living in the world: where it was then), kept on the entity; moved farther in one tick than it can walk (a story's
- * teleport) or to another dimension, its place moves with it. A binding that no longer holds it (free, or none) lets it go
- * and forgets its place.
+ * NPC bindings' {@code movement}: {@code stay} keeps the NPC where it stands, its head turning to the nearest player
+ * near; {@code home} lets it walk within {@code home_radius} blocks of its place; pushed or led away, it walks back.
+ * Its place is where it stood when the binding first held it (a spawned NPC: where it was spawned; one living in the
+ * world: where it was then), kept on the entity; moved farther in one tick than it can walk (a story's teleport) or to
+ * another dimension, its place moves with it. A binding that no longer holds it (free, or none) lets it go and forgets
+ * its place.
  * <p>
  * It does not hold an NPC that has more to do: in a dialogue (which holds it itself), sleeping, ridden or on a lead,
  * fighting or running (a binding's reaction or its kind's own: a villager's panic, hiding from a raid), or with

@@ -55,8 +55,7 @@ public final class WaypointMarkers {
     private static final float STACK_RADIUS = 8f;
     /**
      * And this close in the world, in blocks, or this share of the distance to them (two searches finding one village a
-     * few blocks apart): November 9, 2026; before, a mark 500 blocks behind another was stacked with it, its distance
-     * hidden.
+     * few blocks apart).
      */
     private static final double STACK_WORLD = 4;
     private static final double STACK_WORLD_SHARE = 0.05;
@@ -182,9 +181,9 @@ public final class WaypointMarkers {
 
     /**
      * Markers drawn at one place on screen (two quests' marks on one NPC, a village found by two searches): each one's
-     * place in their stack, 0 for the one drawn on top (the tracked or the nearest), counted per group of icons
-     * closer than {@link #STACK_RADIUS} to the group's top one. Their names stand one above another instead of over each
-     * other, and the distance is drawn once (November 9, 2026: before, the names were drawn over each other, unreadable).
+     * place in their stack, 0 for the one drawn on top (the tracked or the nearest), counted per group of icons closer
+     * than {@link #STACK_RADIUS} to the group's top one. Their names stand one above another instead of over each
+     * other, and the distance is drawn once.
      */
     private static int[] stacks(List<Marker> markers) {
         int[] stack = new int[markers.size()];

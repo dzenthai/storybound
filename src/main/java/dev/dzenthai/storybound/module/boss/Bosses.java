@@ -109,9 +109,8 @@ public final class Bosses {
     }
 
     /**
-     * Players who dealt their share of the damage and left before the end get the victory when they next join
-     * (October 29, 2026; before, they got nothing). What it counted for the parties of the players who were there
-     * and for the world is not counted again.
+     * Players who dealt their share of the damage and left before the end get the victory when they next join. What it
+     * counted for the parties of the players who were there and for the world is not counted again.
      */
     private static void oweAbsent(MinecraftServer server, ResourceLocation boss, BossDefinition definition, LivingEntity victim,
                                   @Nullable Fight fight, List<ServerPlayer> credited, long ticks) {
@@ -141,9 +140,8 @@ public final class Bosses {
     }
 
     /**
-     * Sections that open on reading a document the player has read already (before the boss or the section existed,
-     * or while its conditions did not hold) open now: a read is a state that holds (October 29, 2026). On joining
-     * and after a reload.
+     * Sections that open on reading a document the player has read already open now: a read is a state that holds. On
+     * joining and after a reload.
      */
     public static void catchUpReads(ServerPlayer player) {
         if (!isEnabled()) {

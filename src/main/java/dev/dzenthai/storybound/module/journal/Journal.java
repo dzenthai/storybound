@@ -56,8 +56,8 @@ public final class Journal {
 
     /**
      * Archives what the player has read that belongs in the Journal ({@code belongs}) but is not there: read while the
-     * Journal was disabled, or before the document's {@code add_on_read} was turned on (October 29, 2026). On joining
-     * and after a reload; the caller syncs.
+     * Journal was disabled, or before the document's {@code add_on_read} was turned on. On joining and after a reload;
+     * the caller syncs.
      */
     public static void archiveMissing(ServerPlayer player, Predicate<ResourceLocation> belongs) {
         if (!isEnabled()) {

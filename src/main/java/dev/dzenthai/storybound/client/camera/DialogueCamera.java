@@ -52,7 +52,7 @@ public final class DialogueCamera {
     private static @Nullable Shot shot;
     private static @Nullable Pose easeFrom;
     private static long easeStart;
-    /** The mouse turning the frame while a line plays (November 16, 2026). */
+    /** The mouse turning the frame while a line plays. */
     private static final FloatingCamera FLOATING = new FloatingCamera();
     /** The answers are shown: the frame returns to the shot's aim and the cursor is back. */
     private static boolean choosing;
@@ -216,7 +216,7 @@ public final class DialogueCamera {
 
     /**
      * The HUD hides while a shot frames the talk, but for the standing with the NPC talked to, which is shown for the
-     * very talk (November 20, 2026: before, it hid too, and a screen dialogue with a camera never showed it).
+     * very talk.
      */
     public static void onRenderGuiLayer(RenderGuiLayerEvent.Pre event) {
         if (isFraming() && !event.getName().equals(REPUTATION_LAYER)) {

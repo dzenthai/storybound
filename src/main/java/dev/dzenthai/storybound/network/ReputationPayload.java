@@ -13,9 +13,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * An NPC's relationship scale for the HUD (November 20, 2026): with {@code focus} false, it changed by {@code delta} to
- * {@code value} (shown a few seconds); with {@code focus} true, the player talks with that NPC now (shown all the
- * while), or, with no scale, the talk ended.
+ * An NPC's relationship scale for the HUD: with {@code focus} false, it changed by {@code delta} to {@code value}
+ * (shown a few seconds); with {@code focus} true, the player talks with that NPC now (shown all the while), or, with no
+ * scale, the talk ended.
  */
 public record ReputationPayload(Optional<ResourceLocation> scale, Component name, int value, int delta, boolean focus) implements CustomPacketPayload {
     public static final Type<ReputationPayload> TYPE = new Type<>(Storybound.id("reputation"));

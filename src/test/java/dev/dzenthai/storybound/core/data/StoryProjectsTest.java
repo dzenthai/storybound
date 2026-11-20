@@ -23,7 +23,7 @@ class StoryProjectsTest {
     @TempDir
     Path workspace;
 
-    /** One folder, one story (November 18, 2026): the old layout moves on its own, nothing overwritten. */
+    /** One folder, one story: the old layout moves on its own, nothing overwritten. */
     @Test
     void anOldLayoutMovesToAFolderPerStory() throws Exception {
         Files.writeString(workspace.resolve("project.json"), "{\"namespace\":\"legacy\",\"track_given_quests\":true}");
@@ -149,7 +149,7 @@ class StoryProjectsTest {
         Files.writeString(file, value);
     }
 
-    /** Deleting a story moves its folder aside, nothing erased; the last one stays (November 19, 2026). */
+    /** Deleting a story moves its folder aside, nothing erased; the last one stays. */
     @Test
     void deletingMovesTheFolderAsideAndKeepsTheLastStory() throws Exception {
         story("legacy");
@@ -167,7 +167,7 @@ class StoryProjectsTest {
         assertNotEquals(moved, StoryProjects.delete(workspace, "second"));
     }
 
-    /** A new story's id from its title (November 18, 2026; before, a random story_1a2b3c4d). */
+    /** A new story's id from its title. */
     @Test
     void aNewStorysIdComesFromItsTitle() {
         assertEquals("moya_istoriya", StoryProjects.suggestId("Моя история", java.util.Set.of()));

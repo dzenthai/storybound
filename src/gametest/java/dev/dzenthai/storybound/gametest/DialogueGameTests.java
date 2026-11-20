@@ -223,10 +223,10 @@ public final class DialogueGameTests {
     }
 
     /**
-     * One dialogue, one presentation (decided on November 6, 2026): another presentation is another dialogue, reached by
-     * a jump. A bubble call-out ("Hey, traveller!") jumping to a conversation on the screen: the bubble keeps the
-     * player's view and the screen free; after the jump the screen is held and the camera frames the NPC; the
-     * conversation is the same session, and leaving the screen part ends it.
+     * One dialogue, one presentation: another presentation is another dialogue, reached by a jump. A bubble call-out
+     * ("Hey, traveller!") jumping to a conversation on the screen: the bubble keeps the player's view and the screen
+     * free; after the jump the screen is held and the camera frames the NPC; the conversation is the same session, and
+     * leaving the screen part ends it.
      */
     @GameTest(template = "empty")
     public static void aJumpToAnotherDialogueTakesItsPresentation(GameTestHelper helper) {
@@ -867,10 +867,10 @@ public final class DialogueGameTests {
      * before lists, and an empty list is no binding at all.
      */
     /**
-     * A name belongs to one NPC, names from a list to every entity of a kind (November 7, 2026). Expected: a warning for
-     * display_name on a binding by kind (it names nobody), one for names on a binding by tag (not given); none for each
-     * in its place, and a binding giving only names does something; "one" with a tag is not used (the tag decides), and
-     * display_name on one picked by the mod is in its place.
+     * A name belongs to one NPC, names from a list to every entity of a kind. Expected: a warning for display_name on a
+     * binding by kind (it names nobody), one for names on a binding by tag (not given); none for each in its place, and
+     * a binding giving only names does something; "one" with a tag is not used (the tag decides), and display_name on
+     * one picked by the mod is in its place.
      */
     @GameTest(template = "empty")
     public static void namesInTheWrongPlaceAreWarnedOf(GameTestHelper helper) {

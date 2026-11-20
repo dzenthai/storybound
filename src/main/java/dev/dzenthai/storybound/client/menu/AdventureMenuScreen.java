@@ -17,8 +17,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The Adventure Menu: the book, its bookmarks the tabs, the selected tab's view on its pages (November 4, 2026; before,
- * a theme could also turn the book off for a panel with tabs drawn from sprites, which no theme used any more).
+ * The Adventure Menu: the book, its bookmarks the tabs, the selected tab's view on its pages.
  */
 public class AdventureMenuScreen extends Screen {
     private final Map<ResourceLocation, MenuView> views = new HashMap<>();

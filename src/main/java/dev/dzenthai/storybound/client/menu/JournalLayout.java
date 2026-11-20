@@ -1,16 +1,15 @@
 package dev.dzenthai.storybound.client.menu;
 
 /**
- * Geometry follows the blank book texture; all measurements are GUI pixels, not window pixels. In the 384×256 book
- * (October 30, 2026) the pages are x 23–183 and 200–360, their frames' lines the pixels x 33 and 176, 207 and 350,
- * y 32–208, the small squares in the middle of the frames the pixels x 102–107 and 276–281: each page's middle is the
- * line between pixels, x 105 and 279. Halfway down, the frames' side squares stand 3 pixels into the pages (x 30–36
- * and 173–179, 204–210 and 347–353). The index (x 41 up to 169) and the details (x 215 up to 343), 128 book pixels
- * each, are centred on the pages' middles, so the title's rule and its diamond line up with the square, and keep 4
- * pixels from the side squares, their scrollbars (1–3 pixels to the right) clear of them (before, 10%–44% and
- * 56%–90% of the book, off the middles; then 38–171, a third of a pixel short of them; then 38 up to 172 and 212 up
- * to 346, from the frames' lines: the details passed 2 pixels from the left square, the scrollbar ran over the right
- * one).
+ * Geometry follows the blank book texture; all measurements are GUI pixels, not window pixels. In the 384×256 book the
+ * pages are x 23–183 and 200–360, their frames' lines the pixels x 33 and 176, 207 and 350, y 32–208, the small squares
+ * in the middle of the frames the pixels x 102–107 and 276–281: each page's middle is the line between pixels, x 105
+ * and 279. Halfway down, the frames' side squares stand 3 pixels into the pages (x 30–36 and 173–179, 204–210 and
+ * 347–353). The index (x 41 up to 169) and the details (x 215 up to 343), 128 book pixels each, are centred on the
+ * pages' middles, so the title's rule and its diamond line up with the square, and keep 4 pixels from the side squares,
+ * their scrollbars (1–3 pixels to the right) clear of them (then 38–171, a third of a pixel short of them; then 38 up
+ * to 172 and 212 up to 346, from the frames' lines: the details passed 2 pixels from the left square, the scrollbar ran
+ * over the right one).
  */
 public record JournalLayout(int x, int y, int width, int height) {
     public record Rect(int x, int y, int width, int height) {

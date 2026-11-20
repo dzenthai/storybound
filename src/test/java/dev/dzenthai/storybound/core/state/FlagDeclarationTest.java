@@ -28,7 +28,7 @@ class FlagDeclarationTest {
         assertEquals(Optional.of("Gold"), flag.description());
     }
 
-    /** A relationship scale's bounds (November 20, 2026): a number written past them is held to them; other types as they are. */
+    /** A relationship scale's bounds: a number written past them is held to them; other types as they are. */
     @Test
     void boundsHoldANumberWithinThem() {
         FlagDeclaration scale = parse("{ \"type\": \"int\", \"min\": -50, \"max\": 50 }").getOrThrow();

@@ -14,9 +14,9 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Keeps every player's party tab current (November 19, 2026): what it shows depends on everyone (who is online, in
- * which party, invited by whom), so each change sends each player online their own view, as a whole. Parties are a
- * few players each; there is nothing to save by sending less.
+ * Keeps every player's party tab current: what it shows depends on everyone (who is online, in which party, invited by
+ * whom), so each change sends each player online their own view, as a whole. Parties are a few players each; there is
+ * nothing to save by sending less.
  */
 public final class PartySync {
     private PartySync() {}

@@ -21,11 +21,11 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The story editor's search and problems (November 16, 2026; the same day they were sections of a left panel the
- * author found heavy): a window over the map, opened from the top bar's 🔍 (or Ctrl+F) and ⚠. <b>Search</b> lists every
- * definition by its title or id, greyed when nothing uses it, red with a problem; a click closes the window and shows
- * the node where it is (opening a chapter that has it), a right click offers what can be done with it, "+ New" makes a
- * node of any kind. <b>Problems</b> lists the validator's lines; a click goes to the node one names.
+ * The story editor's search and problems: a window over the map, opened from the top bar's 🔍 (or Ctrl+F) and ⚠.
+ * <b>Search</b> lists every definition by its title or id, greyed when nothing uses it, red with a problem; a click
+ * closes the window and shows the node where it is (opening a chapter that has it), a right click offers what can be
+ * done with it, "+ New" makes a node of any kind. <b>Problems</b> lists the validator's lines; a click goes to the node
+ * one names.
  */
 final class StoryFinder {
     private static final int MAX_WIDTH = 380;

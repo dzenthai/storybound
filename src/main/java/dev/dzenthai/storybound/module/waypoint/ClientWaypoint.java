@@ -17,8 +17,8 @@ import net.minecraft.world.phys.Vec3;
  * @param quest  the quest it belongs to, so the tracked quest's waypoints can be highlighted
  * @param showRadius for an area: write its radius by the name
  * @param showRing   for an area: draw its edge on the ground
- * @param placed     false when only its dimension is known (a structure in a dimension the player is not in, not searched
- *                   for; November 9, 2026): nothing is drawn, the quest tracker names the dimension
+ * @param placed     false when only its dimension is known (a structure in a dimension the player is not in, not
+ *                   searched for): nothing is drawn, the quest tracker names the dimension
  */
 public record ClientWaypoint(String key, ResolvedText name, ResourceLocation dimension, Vec3 pos, int entity, float radius,
                              boolean showRadius, boolean showRing, int color, Optional<ResourceLocation> quest, boolean placed) {

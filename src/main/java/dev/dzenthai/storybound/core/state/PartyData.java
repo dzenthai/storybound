@@ -82,10 +82,7 @@ public final class PartyData extends SavedData {
     /**
      * The newcomer brings in their own party scope: of each quest the further progress (the party goes on from the
      * furthest point; who was behind skips ahead, without the rewards of what they skipped), and the flags the party
-     * has not set (the party's own stay). Their own stays where it was, out of sight while they are in the party
-     * (October 28, 2026; before, all of it was frozen, and a quest half done alone started from nothing; the same day,
-     * at first only what the party lacked came, so a newcomer who had finished a quest the party had just begun went
-     * back to its beginning).
+     * has not set (the party's own stay). Their own stays where it was, out of sight while they are in the party.
      */
     void join(UUID partyId, UUID player) {
         requireNotInParty(player);

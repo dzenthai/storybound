@@ -96,8 +96,8 @@ public class DocumentScreen extends Screen {
     private float downAlpha;
     private float scale = 1;
     /**
-     * A unit of the leather book's text in its pixels, so it reads at the Adventure Menu's size ({@link BookViewport#bookText};
-     * November 5, 2026; before, a unit was a pixel of the book and its text 1.5 to 2 times the menu's); 1 for the rest.
+     * A unit of the leather book's text in its pixels, so it reads at the Adventure Menu's size
+     * ({@link BookViewport#bookText}); 1 for the rest.
      */
     private float textScale = 1;
     private float left;
@@ -125,7 +125,7 @@ public class DocumentScreen extends Screen {
         return this;
     }
 
-    /** Read from a lectern: under the book, "Take Book" besides "Done" (November 4, 2026). */
+    /** Read from a lectern: under the book, "Take Book" besides "Done". */
     public DocumentScreen fromLectern(@Nullable BlockPos pos) {
         lectern = pos;
         return this;
@@ -370,7 +370,7 @@ public class DocumentScreen extends Screen {
             graphics.blitSprite(sprite, x, y, ARROW_WIDTH, ARROW_HEIGHT);
             return;
         }
-        // The scroll arrows' page-turning kind, in the middle of the arrow's place (November 4, 2026; before, a chevron).
+        // The scroll arrows' page-turning kind, in the middle of the arrow's place.
         ScrollArrows.drawSide(graphics, x + (ARROW_WIDTH - ScrollArrows.SIDE_WIDTH) / 2, y + (ARROW_HEIGHT - ScrollArrows.SIDE_HEIGHT) / 2,
                 1, forward, hover);
     }
@@ -404,8 +404,8 @@ public class DocumentScreen extends Screen {
     }
 
     /**
-     * Moves {@link #shownScroll} towards {@link #scroll}, quickly at first and softly at the end, so the wheel, the keys
-     * and the arrows scroll smoothly (October 31, 2026; before, in jumps of three lines); returns the frame's length.
+     * Moves {@link #shownScroll} towards {@link #scroll}, quickly at first and softly at the end, so the wheel, the
+     * keys and the arrows scroll smoothly; returns the frame's length.
      */
     private float ease() {
         long now = Util.getMillis();
@@ -429,7 +429,7 @@ public class DocumentScreen extends Screen {
 
     /**
      * Where the scrolled text shows: its whole room. The arrows lie over its edges, on bands that fade the lines out
-     * there (October 31, 2026; before, the same day, room was kept for them, which moved the first line down).
+     * there.
      */
     private int viewTop(SbtLayout.Page page) {
         return textTop();

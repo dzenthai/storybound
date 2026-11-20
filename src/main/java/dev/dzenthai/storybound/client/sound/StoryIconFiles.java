@@ -16,10 +16,10 @@ import java.util.stream.Stream;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What the story folder's {@code icons/} holds (October 30, 2026): {@code icons/<namespace>/<name>.png} is the item
- * icon {@code <namespace>:<name>}, one right in {@code icons/} is {@code storybound:<name>}, as with sounds. A document
- * shows it in the inventory through its {@code custom_model_data}: each icon has a number of its own, made from its
- * id, so it is the same on every machine and in every file ({@link #number}). Pure, for {@link StoryAssets} and tests.
+ * What the story folder's {@code icons/} holds: {@code icons/<namespace>/<name>.png} is the item icon
+ * {@code <namespace>:<name>}, one right in {@code icons/} is {@code storybound:<name>}, as with sounds. A document
+ * shows it in the inventory through its {@code custom_model_data}: each icon has a number of its own, made from its id,
+ * so it is the same on every machine and in every file ({@link #number}). Pure, for {@link StoryAssets} and tests.
  */
 public final class StoryIconFiles {
     private static final Pattern NAME = Pattern.compile("[a-z0-9_.-]+");

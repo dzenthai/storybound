@@ -108,8 +108,7 @@ public final class StoryboundClientConfig {
     }
 
     /**
-     * Which off-screen markers get an edge arrow (November 16, 2026, a player's setting; before, the resource pack's
-     * waypoint style decided it with {@code edge}, which is no longer read).
+     * Which off-screen markers get an edge arrow.
      */
     public enum EdgeArrows {
         TRACKED,

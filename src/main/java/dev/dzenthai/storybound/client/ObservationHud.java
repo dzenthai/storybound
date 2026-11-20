@@ -34,19 +34,15 @@ import org.jetbrains.annotations.Nullable;
  * is lost the fill runs back to nothing, its percent counting down, and only then fades. Looked at again on the way
  * down, it turns and fills from where it is.
  * <p>
- * The bar is the author's art ({@code textures/gui/observation/bar.png}, from the author's concept,
- * October 31, 2026; before, a pixel ring round the crosshair drawn by the code, then the same day a
- * 73 × 7 bar drawn a step larger than the HUD): three strips of {@link #BAR_WIDTH} × {@link #BAR_HEIGHT}, the frame
- * with a dark translucent ground inside it, the full fill in gold, and the full fill in the glint that runs over it at
- * the end, each fill strip with its tip (the chevron spark, {@link #TIP} columns) beside it. While it grows the fill is
- * the strip's left part with the tip at its end; full, it is the whole strip, its right end as round as its left, up to
- * the frame. The bar and its words are in HUD pixels ({@link HudScale}), as the rest of the HUD: the art is drawn large
+ * The bar is the author's art: three strips of {@link #BAR_WIDTH} × {@link #BAR_HEIGHT}, the frame with a dark
+ * translucent ground inside it, the full fill in gold, and the full fill in the glint that runs over it at the end,
+ * each fill strip with its tip (the chevron spark, {@link #TIP} columns) beside it. While it grows the fill is the
+ * strip's left part with the tip at its end; full, it is the whole strip, its right end as round as its left, up to the
+ * frame. The bar and its words are in HUD pixels ({@link HudScale}), as the rest of the HUD: the art is drawn large
  * enough for it (2 window pixels at 1080 by default, 220 × 22).
  * <p>
- * The ground and the gold make it read on any picture, as vanilla's experience bar does: before, the same day, the
- * fill was the wood's brown on nothing, the colour of the oak, dirt and dry grass behind it, and a variant for a light
- * and one for a dark picture, picked by reading the screen, could not help that. The words are paper with an ink edge,
- * gold when done.
+ * The ground and the gold make it read on any picture, as vanilla's experience bar does. The words are paper with an
+ * ink edge, gold when done.
  */
 public final class ObservationHud {
     private static final ResourceLocation BAR = Storybound.id("textures/gui/observation/bar.png");

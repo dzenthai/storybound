@@ -69,8 +69,8 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
     }
 
     /**
-     * What a fight does to a dialogue in subtitles or bubbles (November 5, 2026), as companions' talk in God of War or Red
-     * Dead Redemption 2: a story told on the way stops when a fight starts and goes on after it.
+     * What a fight does to a dialogue in subtitles or bubbles, as companions' talk in God of War or Red Dead Redemption
+     * 2: a story told on the way stops when a fight starts and goes on after it.
      *
      * @param mode        {@code continue}: nothing (callouts in a fight); {@code pause}: what is shown goes away until
      *                    the fight is over, then {@code resume} plays and the line is shown again; {@code stop}: the

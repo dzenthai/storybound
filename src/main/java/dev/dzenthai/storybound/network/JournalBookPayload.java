@@ -11,7 +11,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-/** A kept signed book's pages, asked for to read it from the Journal (November 20, 2026); the client opens it. */
+/** A kept signed book's pages, asked for to read it from the Journal; the client opens it. */
 public record JournalBookPayload(String title, String author, List<Component> pages) implements CustomPacketPayload {
     public static final Type<JournalBookPayload> TYPE = new Type<>(Storybound.id("journal_book"));
     public static final StreamCodec<RegistryFriendlyByteBuf, JournalBookPayload> STREAM_CODEC = StreamCodec.composite(

@@ -98,12 +98,10 @@ public final class NpcBindings {
 
     /**
      * The NPC the entity is: every binding matching it, closest first ({@link NpcBinding.Rank}), each setting from the
-     * first that writes it (November 7, 2026, "layers" as in The Witcher; before, the closest binding alone applied, so
-     * an elder tagged by hand lost what "every villager" gave). Empty when no binding matches. Worked out once per entity
-     * and kept for {@link #CACHE_TICKS} (cleared on a reload; worked out again at once when its tags, its name or its own
-     * binding change, as a story re-tagging an NPC and killing it in one go needs the new answer), as the talk hint,
-     * proximity, chatter, names, hits and
-     * respawns all ask it.
+     * first that writes it. Empty when no binding matches. Worked out once per entity and kept for {@link #CACHE_TICKS}
+     * (cleared on a reload; worked out again at once when its tags, its name or its own binding change, as a story
+     * re-tagging an NPC and killing it in one go needs the new answer), as the talk hint, proximity, chatter, names,
+     * hits and respawns all ask it.
      */
     public static Optional<Found> find(Entity entity) {
         long now = entity.level().getGameTime();
@@ -119,8 +117,8 @@ public final class NpcBindings {
     }
 
     /**
-     * The bindings the entity fits but for its roll, "id (30%)", for {@code /storybound debug npc}: a share leaves it out
-     * (November 9, 2026).
+     * The bindings the entity fits but for its roll, "id (30%)", for {@code /storybound debug npc}: a share leaves it
+     * out.
      */
     public static List<String> outOfShare(Entity entity) {
         List<String> out = new ArrayList<>();
@@ -170,9 +168,8 @@ public final class NpcBindings {
     }
 
     /**
-     * Whether the entity comes back (see {@link NpcRespawns}): {@code respawn} of the closest binding that writes it.
-     * Before (November 6, 2026), any matching file's did, so "every villager comes back" brought back an elder whose
-     * own file said otherwise; now an elder whose file says nothing comes back with every villager (November 7, 2026).
+     * Whether the entity comes back (see {@link NpcRespawns}): {@code respawn} of the closest binding that writes it, so
+     * an elder whose file says nothing comes back with every villager, and one whose file says otherwise does not.
      */
     public static boolean respawns(Entity entity) {
         return find(entity).map(Found::respawn).orElse(false);
@@ -273,8 +270,7 @@ public final class NpcBindings {
             return false;
         }
         if (saysPhrases(player, target, found)) {
-            // A phrase needs no conversation: the one in subtitles goes on (November 7, 2026; before, it was interrupted,
-            // its on_abort running, for a line in a bubble).
+            // A phrase needs no conversation: the one in subtitles goes on.
             return true;
         }
         StoryTrace.note(player, bindingName(found, target), "talk: the dialogue in subtitles gives way");
@@ -326,8 +322,7 @@ public final class NpcBindings {
         if (found.interact() && (Dialogues.state(player).isEmpty() || saysPhrases(player, target, found))) {
             ServerPlayer other = busyWith(found, target, player);
             if (other != null) {
-                // Taken: the busy line in a bubble, if the binding has one, instead of its dialogues (November 9, 2026;
-                // before, a dialogue was started with this player, which a busy NPC should not).
+                // Taken: the busy line in a bubble, if the binding has one, instead of its dialogues.
                 StoryTrace.note(player, bindingName(found, target), "talk: busy with " + other.getGameProfile().getName());
                 Optional<PhrasesRef> busy = found.binding().busy();
                 if (busy.isPresent() && target instanceof LivingEntity living) {
@@ -360,9 +355,9 @@ public final class NpcBindings {
 
     /**
      * What a click entry names: its dialogue started, or its phrases said over the NPC in a bubble, with no
-     * conversation (November 6, 2026). Phrases count as handled even when they come too soon after the last ones (a
-     * quick second click): the click is still the NPC's, so it does not open trading. Each entry goes through its
-     * phrases on its own: "thank you" lines after a quest start at their first, wherever the ones before it stood.
+     * conversation. Phrases count as handled even when they come too soon after the last ones (a quick second click):
+     * the click is still the NPC's, so it does not open trading. Each entry goes through its phrases on its own: "thank
+     * you" lines after a quest start at their first, wherever the ones before it stood.
      */
     private static boolean startEntry(ServerPlayer player, Entity target, Picked picked) {
         NpcBinding.Entry entry = picked.entry();
@@ -466,17 +461,16 @@ public final class NpcBindings {
     }
 
     /**
-     * Asleep in its bed (November 7, 2026): it is not talked to, by key, click or coming close, until it wakes; a hit
-     * still wakes it, as in vanilla.
+     * Asleep in its bed: it is not talked to, by key, click or coming close, until it wakes; a hit still wakes it, as
+     * in vanilla.
      */
     private static boolean asleep(Entity entity) {
         return entity instanceof LivingEntity living && living.isSleeping();
     }
 
     /**
-     * Whether the NPC is talking, so it does not go to bed (asked by vanilla's {@code SleepInBed}; November 7, 2026):
-     * in a dialogue, or its phrase still over its head. It lies down once it is done; before, it went to bed in the
-     * middle of a conversation.
+     * Whether the NPC is talking, so it does not go to bed (asked by vanilla's {@code SleepInBed}): in a dialogue, or
+     * its phrase still over its head. It lies down once it is done.
      */
     public static boolean keepsAwake(LivingEntity npc) {
         return Dialogues.isEnabled() && npc.level() instanceof net.minecraft.server.level.ServerLevel level

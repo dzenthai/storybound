@@ -29,11 +29,11 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * Dialogues in a fight (November 5, 2026): a story told in subtitles pauses while the player fights and goes on after
- * it, with "Where was I" first; a choice comes back; a dialogue started in a fight waits for it; callouts play over a
- * paused one; a long fight gives up; the modes continue and stop; the dialogue screen is left alone; the NPC far away
- * or gone. Each test runs on real server ticks, with {@code quiet} at 1 second. They have a batch of their own: zombies of other
- * tests go for villagers, and a mob after the NPC talked to is a fight.
+ * Dialogues in a fight: a story told in subtitles pauses while the player fights and goes on after it, with "Where was
+ * I" first; a choice comes back; a dialogue started in a fight waits for it; callouts play over a paused one; a long
+ * fight gives up; the modes continue and stop; the dialogue screen is left alone; the NPC far away or gone. Each test
+ * runs on real server ticks, with {@code quiet} at 1 second. They have a batch of their own: zombies of other tests go
+ * for villagers, and a mob after the NPC talked to is a fight.
  */
 @SuppressWarnings("removal")
 @GameTestHolder(Storybound.MOD_ID)
@@ -131,7 +131,7 @@ public final class CombatDialogueGameTests {
                 .thenWaitUntil(() -> expect(helper, node(f.player), "where", "the resume again, without another one before it"))
                 .thenExecute(() -> {
                     advance(f.player);
-                    // Its question, the line before it, is said again (November 6, 2026), then the answers wait.
+                    // Its question, the line before it, is said again, then the answers wait.
                     expect(helper, node(f.player), "b", "the question again");
                     advance(f.player);
                     helper.assertTrue(waitsForChoice(f.player), "then the choice comes back");

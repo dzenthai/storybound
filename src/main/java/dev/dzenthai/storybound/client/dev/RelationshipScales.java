@@ -9,11 +9,9 @@ import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * An NPC's relationship scale: a number flag {@code <ns>:rep/<npc>} per player, starting at 0, from -50 to 50 (November
- * 20, 2026: ten a star or a skull on the HUD, see {@code NpcReputation}; before, unbounded). Once made, the lists of
- * actions and conditions offer "+10 / -10" and "at least 20 / at most -20" for it. In the NPC binding's form, a yes/no
- * field: yes makes it, no deletes it unless the story uses it (October 29, 2026; before, a button under the form made
- * it and a second click only wrote a hint).
+ * An NPC's relationship scale: a number flag {@code <ns>:rep/<npc>} per player, starting at 0, from -50 to 50. Once
+ * made, the lists of actions and conditions offer "+10 / -10" and "at least 20 / at most -20" for it. In the NPC
+ * binding's form, a yes/no field: yes makes it, no deletes it unless the story uses it.
  */
 final class RelationshipScales {
     private RelationshipScales() {}

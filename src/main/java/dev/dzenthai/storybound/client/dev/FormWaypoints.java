@@ -27,9 +27,8 @@ abstract class FormWaypoints extends FormNpc {
     }
 
     /**
-     * A waypoint's form in the order its author asks (October 29, 2026; before, the file's order: the colour before when
-     * it shows, point or area at the very bottom, the stage even without a quest): its name, where it points and whether
-     * a point or an area; how it looks; when it shows.
+     * A waypoint's form in the order its author asks: its name, where it points and whether a point or an area; how it
+     * looks; when it shows.
      */
     static final Map<String, String> WAYPOINT_GROUPS = Map.of(
             "name", "waypoint.group.where",
@@ -74,17 +73,16 @@ abstract class FormWaypoints extends FormNpc {
     private static final List<String> DYNAMIC_KINDS = List.of("structure", "nearest", "npc");
 
     /**
-     * Where a waypoint points (November 9, 2026, as an NPC's "Who it is"): "Rule: Known place / Dynamic", then "What"
-     * among that rule's two or three (before, one button went round all five, and the author did not find the structure
-     * or the mob behind it); then that kind's fields, with their hints. What a switch took
-     * away comes back on switching to it again, while the node is open.
+     * Where a waypoint points: "Rule: Known place / Dynamic", then "What" among that rule's two or three; then that
+     * kind's fields, with their hints. What a switch took away comes back on switching to it again, while the node is
+     * open.
      */
     void waypointTargetPage(List<Object> path, List<Node> variants, int current) {
         String kind = Schemas.required(variants.get(current)).iterator().next();
         boolean dynamic = DYNAMIC_KINDS.contains(kind);
         String rule = dynamic ? "dynamic" : "fixed";
         // As every switch of the forms (an NPC's "Rule", "How many"): its label, one button "Value ▸" going round, a
-        // tooltip saying what it is (November 9, 2026: a row of radio buttons first, which no other form had).
+        // tooltip saying what it is.
         switchRow(DevUi.text("waypoint.rule"), DevUi.text("waypoint.rule." + rule), DevUi.text("waypoint.rule.tooltip"), () -> {
             String other = dynamic ? "fixed" : "dynamic";
             List<String> kinds = other.equals("dynamic") ? DYNAMIC_KINDS : FIXED_KINDS;
@@ -95,8 +93,7 @@ abstract class FormWaypoints extends FormNpc {
                 Component.empty().append(DevUi.text("waypoint.what." + kind + ".tooltip")).append(" ").append(DevUi.text("form.click_to_switch")),
                 () -> switchTargetKind(path, variants, kind, kinds.get((kinds.indexOf(kind) + 1) % kinds.size())));
         if (kind.equals("nearest")) {
-            // It finds only what is loaded near the player (November 9, 2026: a quest pointing at "the nearest alchemist"
-            // from its start showed nothing in a new world).
+            // It finds only what is loaded near the player.
             text(DevUi.text("waypoint.kind.nearest.note"), DevUi.MUTED);
         } else if (kind.equals("npc")) {
             text(DevUi.text("waypoint.kind.npc.note"), DevUi.MUTED);
@@ -119,8 +116,8 @@ abstract class FormWaypoints extends FormNpc {
         JsonElement next = back;
         if (next == null) {
             // Its own field written empty, so the kind is known (the skeleton leaves out a field with no default: the
-            // target was {}, read as a point again, and the button seemed to do nothing; November 9, 2026). A point
-            // starts without a position rather than at 0 64 0; the status line says what to fill in.
+            // target was { }, read as a point again, and the button seemed to do nothing). A point starts without a
+            // position rather than at 0 64 0; the status line says what to fill in.
             JsonObject skeleton = Schemas.skeleton(variant);
             skeleton.add(to, to.equals("pos") ? new JsonArray() : to.equals("nearest") ? new JsonObject() : new JsonPrimitive(""));
             next = skeleton;
@@ -171,10 +168,8 @@ abstract class FormWaypoints extends FormNpc {
     }
 
     /**
-     * Where add_waypoint points (November 9, 2026): "Rule" and "What" as a waypoint's target page has them, over the
-     * action's own fields (it can also follow the one talked to, or mark where it stands now), then that kind's fields
-     * and hints. Before, every field at once, and no NPC nor mob: a story could not point at Miron or "the nearest
-     * alchemist" from an event or a dialogue.
+     * Where add_waypoint points: "Rule" and "What" as a waypoint's target page has them, over the action's own fields
+     * (it can also follow the one talked to, or mark where it stands now), then that kind's fields and hints.
      */
     void addWaypointTarget(List<Object> path, Node schema, @Nullable JsonObject action) {
         String kind = addWaypointKind(action);
@@ -233,7 +228,7 @@ abstract class FormWaypoints extends FormNpc {
 
     /**
      * A waypoint's target in words: "point 120, 64, -30", "· the Nether" when not the overworld; "nearest village";
-     * "nearest Wolf · within 64"; "entity …a1b2". Before, only the kind ("Position").
+     * "nearest Wolf · within 64"; "entity …a1b2".
      */
     static String targetSummary(@Nullable JsonElement value) {
         if (!(value instanceof JsonObject target) || target.isEmpty()) {

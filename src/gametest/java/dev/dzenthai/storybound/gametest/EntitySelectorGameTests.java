@@ -26,11 +26,11 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * The entity selector's filters (November 7, 2026, stage 1 of "who an NPC is"): what a villager is (profession, outfit),
- * a baby or not, the biome it stands in and whether it is in a village. Each is decoded from JSON as an author writes it.
- * Expected: every given part must match; profession and outfit never match an entity without villager data (an iron
- * golem), but do match a zombie villager; a selector of only "where" parts (baby, biome, in_village) is refused, as it
- * would take every entity there; an unknown profession fails the file, as an unknown entity type does.
+ * The entity selector's filters: what a villager is (profession, outfit), a baby or not, the biome it stands in and
+ * whether it is in a village. Each is decoded from JSON as an author writes it. Expected: every given part must match;
+ * profession and outfit never match an entity without villager data (an iron golem), but do match a zombie villager; a
+ * selector of only "where" parts (baby, biome, in_village) is refused, as it would take every entity there; an unknown
+ * profession fails the file, as an unknown entity type does.
  */
 @GameTestHolder(Storybound.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -88,8 +88,8 @@ public final class EntitySelectorGameTests {
     }
 
     /**
-     * A variant and a mob's data (November 9, 2026), for what mods' mobs keep: a snowy wolf matches "minecraft:snowy",
-     * not "minecraft:pale"; a pig has no variant; a red sheep holds {Color:14b} and not {Color:1b} (the type of the
+     * A variant and a mob's data, for what mods' mobs keep: a snowy wolf matches "minecraft:snowy", not
+     * "minecraft:pale"; a pig has no variant; a red sheep holds { Color:14b} and not { Color:1b} (the type of the
      * number counts, as in vanilla's @e[nbt=...]). Both are filters: a selector with them ranks closer.
      */
     @GameTest(template = "empty")
@@ -121,11 +121,12 @@ public final class EntitySelectorGameTests {
     }
 
     /**
-     * A mob's data (November 9, 2026): fields of what it saves, nothing known of its kind. Expected: a weaponsmith matches
-     * "VillagerData/profession" weaponsmith or armorer, a farmer does not and the trace says which value it has; a number
-     * matches any numeric tag of that value (a villager's level 1, saved as an int); true / false a 1 or 0 (a sheep not
-     * sheared); a field the mob does not save (a "Stage" of another mod's zombie) never matches; each field is a filter;
-     * a number is written back whole (1, not 1.0), and the filter reads the same from NBT, as a waypoint keeps it.
+     * A mob's data: fields of what it saves, nothing known of its kind. Expected: a weaponsmith matches
+     * "VillagerData/profession" weaponsmith or armorer, a farmer does not and the trace says which value it has; a
+     * number matches any numeric tag of that value (a villager's level 1, saved as an int); true / false a 1 or 0 (a
+     * sheep not sheared); a field the mob does not save (a "Stage" of another mod's zombie) never matches; each field
+     * is a filter; a number is written back whole (1, not 1.0), and the filter reads the same from NBT, as a waypoint
+     * keeps it.
      */
     @GameTest(template = "empty")
     public static void dataPicksAMobByWhatItSaves(GameTestHelper helper) {

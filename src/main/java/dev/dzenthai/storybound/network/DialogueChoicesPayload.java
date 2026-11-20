@@ -39,8 +39,8 @@ public record DialogueChoicesPayload(int session, int step, int flags, List<Show
     }
 
     /**
-     * Shown in subtitles or bubbles (November 6, 2026): the window waits for the talk key, a prompt "[H] Answer" until
-     * then, and ESC in it goes back to the prompt.
+     * Shown in subtitles or bubbles: the window waits for the talk key, a prompt "[H] Answer" until then, and ESC in it
+     * goes back to the prompt.
      */
     public boolean asks() {
         return (flags & ASKS) != 0;

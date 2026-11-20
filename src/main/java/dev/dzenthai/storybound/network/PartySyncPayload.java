@@ -13,9 +13,9 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * What the party tab shows (November 19, 2026): the player's party with its members, the invite waiting for them, and
- * the other players online. Sent to everyone online whenever a party changes and when someone joins or leaves the
- * server; replaces what the client had.
+ * What the party tab shows: the player's party with its members, the invite waiting for them, and the other players
+ * online. Sent to everyone online whenever a party changes and when someone joins or leaves the server; replaces what
+ * the client had.
  */
 public record PartySyncPayload(Optional<Info> party, Optional<Invite> invite, List<Player> players) implements CustomPacketPayload {
     public static final Type<PartySyncPayload> TYPE = new Type<>(Storybound.id("sync_party"));

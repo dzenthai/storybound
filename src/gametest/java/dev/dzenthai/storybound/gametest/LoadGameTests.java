@@ -52,12 +52,12 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
  * A busy server, measured: {@value #PLAYERS} players with {@value #ACTIVE} active quests each (of {@value #QUESTS},
- * with hints, item objectives, {@code fail_when} and time limits), {@value #EVENTS} story events on {@code entity_seen} and {@value #AREA_EVENTS} on biomes, villages, levels and statistics,
- * {@value #WAYPOINTS} waypoints at the nearest pig, {@value #BINDINGS} NPC bindings by tag and {@value #PIGS} pigs around, and a
- * village: {@value #VILLAGERS} villagers and five bindings layered on them (every villager, smiths, desert folk, children,
- * in a village; November 7, 2026). Each
- * of the mod's server tick handlers runs many times and its cost per tick (a handler that runs every n ticks counts
- * 1/n) goes to the log and {@code logs/storybound-load.txt}. Not part of the usual run: {@code -PloadTest=true}.
+ * with hints, item objectives, {@code fail_when} and time limits), {@value #EVENTS} story events on {@code entity_seen}
+ * and {@value #AREA_EVENTS} on biomes, villages, levels and statistics, {@value #WAYPOINTS} waypoints at the nearest
+ * pig, {@value #BINDINGS} NPC bindings by tag and {@value #PIGS} pigs around, and a village: {@value #VILLAGERS}
+ * villagers and five bindings layered on them (every villager, smiths, desert folk, children, in a village). Each of
+ * the mod's server tick handlers runs many times and its cost per tick (a handler that runs every n ticks counts 1/n)
+ * goes to the log and {@code logs/storybound-load.txt}. Not part of the usual run: {@code -PloadTest=true}.
  */
 @SuppressWarnings("removal")
 @GameTestHolder(Storybound.MOD_ID + "_load")

@@ -15,9 +15,9 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 /**
- * Signed books into the Journal (November 20, 2026, the author): a player who opens a signed book, theirs or another's,
- * from the hand or from a lectern, keeps a copy under "Your books", to read again from the Journal even once the book
- * is gone. Book and quill (not signed) are not kept: they are still being written. Nothing when the Journal is off.
+ * Signed books into the Journal: a player who opens a signed book, theirs or another's, from the hand or from a
+ * lectern, keeps a copy under "Your books", to read again from the Journal even once the book is gone. Book and quill
+ * (not signed) are not kept: they are still being written. Nothing when the Journal is off.
  */
 public final class JournalBooks {
     private JournalBooks() {}

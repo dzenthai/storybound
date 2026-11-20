@@ -148,8 +148,7 @@ final class StoryEdits {
         ResourceLocation b = target.type();
         String id = target.id().toString();
         if (a.equals(ClientDevStore.TYPE_NPC) && b.equals(ClientDevStore.TYPE_PHRASES)) {
-            // Its chatter first; then for when it is hit, if it says nothing there yet; then on a click (November 6, 2026;
-            // before, a second arrow replaced what it said when hit).
+            // Its chatter first; then for when it is hit, if it says nothing there yet; then on a click.
             JsonObject chatter = from.get("chatter") instanceof JsonObject existing ? existing : new JsonObject();
             JsonObject hit = from.get("when_attacked") instanceof JsonObject existing ? existing : null;
             if (!chatter.has("phrases") && !chatter.has("variants")) {
@@ -177,7 +176,7 @@ final class StoryEdits {
             contract.addProperty("quest", id);
             from.add("contract", contract);
         } else if (a.equals(ClientDevStore.TYPE_WAYPOINT) && b.equals(ClientDevStore.TYPE_NPC)) {
-            // The waypoint points at the NPC (November 9, 2026); what it pointed at before is replaced.
+            // The waypoint points at the NPC; what it pointed at before is replaced.
             JsonObject points = new JsonObject();
             points.addProperty("npc", id);
             from.add("target", points);
@@ -299,7 +298,7 @@ final class StoryEdits {
             ClientDevStore.TYPE_CODEX, "entry",
             ClientDevStore.TYPE_SCRIPT, "id",
             ClientDevStore.TYPE_PHRASES, "phrases",
-            // A waypoint's target { "npc": ... } (November 9, 2026).
+            // A waypoint's target { "npc"... }.
             ClientDevStore.TYPE_NPC, "npc");
     /** Fields holding conditions: a condition naming the target stays, even of a type that is also an action ("Script"). */
     private static final Set<String> CONDITION_FIELDS = Set.of("conditions", "condition", "fail_when");
@@ -357,7 +356,7 @@ final class StoryEdits {
             changed = true;
         }
         if (target.type().equals(ClientDevStore.TYPE_PHRASES)) {
-            // When hit: the phrases or the warnings named go, the reaction stays; the busy line goes (November 9, 2026).
+            // When hit: the phrases or the warnings named go, the reaction stays; the busy line goes.
             for (String field : List.of("phrases", "warning", "busy")) {
                 if (isId(object.get(field), id)) {
                     object.remove(field);

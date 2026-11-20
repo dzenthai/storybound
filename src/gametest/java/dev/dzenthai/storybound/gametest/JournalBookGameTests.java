@@ -21,8 +21,8 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * Signed books into the Journal (November 20, 2026): read from the hand, a signed book is kept with its pages; another
- * of the same author and title replaces it (a new edition), a book and quill is not kept, the Journal keeps at most
+ * Signed books into the Journal: read from the hand, a signed book is kept with its pages; another of the same author
+ * and title replaces it (a new edition), a book and quill is not kept, the Journal keeps at most
  * {@link JournalData#MAX_BOOKS}, and a kept book can be taken out.
  */
 @SuppressWarnings("removal")

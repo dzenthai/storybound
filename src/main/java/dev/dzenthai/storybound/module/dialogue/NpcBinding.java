@@ -31,17 +31,15 @@ import org.jetbrains.annotations.Nullable;
 /**
  * {@code data/<ns>/storybound/npc_bindings/<path>.json}: which entities talk, which dialogue they start and how.
  *
- * @param entities  the binding is for any of them: one selector, or a list ({@code "entity"} takes both; a list since
- *                  October 29, 2026, so one NPC file covers, say, the elder and his double in another village)
- * @param dialogues what a click or the talk key gets, tried by priority (highest first): the first entry whose conditions
- *                  pass; a dialogue started, or phrases said in a bubble with no conversation (since November 6, 2026)
+ * @param entities  the binding is for any of them: one selector, or a list ({@code "entity"} takes both)
+ * @param dialogues what a click or the talk key gets, tried by priority (highest first): the first entry whose
+ *                  conditions pass; a dialogue started, or phrases said in a bubble with no conversation
  * @param interact  right-click starts the dialogue
  * @param proximity coming close starts it
  * @param custom    right-click posts {@code npcInteract} to scripts, which decide what happens
  * @param exclusive while the NPC talks with one player, others cannot start its dialogues (parallel talks are the default)
- * @param busy         what others get meanwhile: a line in a bubble ("Wait, I am busy"), the next of its phrases each time;
- *                     without it, nothing (November 9, 2026; before, {@code busy_dialogue} started a dialogue with them, which an
- *                     NPC busy talking should not)
+ * @param busy         what others get meanwhile: a line in a bubble ("Wait, I am busy"), the next of its phrases each
+ *                     time; without it, nothing
  * @param respawn   the NPC comes back where it died or disappeared (see {@link NpcRespawns})
  * @param invulnerable nothing hurts the NPC but the void and {@code /kill} (see {@link NpcReactions})
  * @param whenAttacked what the NPC does when a player hits it; without it, what its kind does in vanilla
@@ -50,21 +48,21 @@ import org.jetbrains.annotations.Nullable;
  *                     unless turned off, so a name written is a name shown
  * @param displayName  the NPC's one name: over its head, and in dialogues, where a participant names nothing else; on a
  *                     binding by hand (a tag, a name, a uuid) only: one for every entity of a kind would name them all
- *                     alike (November 7, 2026; before, it did)
- * @param names        on a binding for every entity of a kind (no tag), names to give them, one each, the one least used
- *                     around (see {@link NpcNames}; November 7, 2026)
- * @param one          on a binding for every entity of a kind (no tag): one entity only, picked by the mod (an Elder; see
- *                     {@link NpcParts}; November 7, 2026)
- * @param share        on a binding for every entity of a kind, all such (no tag, not {@code one}): only this per cent of
- *                     them, each entity rolled once for good by its uuid and the binding (see {@link #inShare}; November 8,
- *                     2026); absent or 100: all
- * @param movement     how it walks (see {@link NpcMovement}; November 20, 2026): {@code free} as its kind does, {@code stay}
- *                     where it stands, turning its head to players near, {@code home} within {@code home_radius} blocks of
- *                     its place; absent: from the binding below, free when none writes it
+ *                     alike
+ * @param names        on a binding for every entity of a kind (no tag), names to give them, one each, the one least
+ *                     used around (see {@link NpcNames})
+ * @param one          on a binding for every entity of a kind (no tag): one entity only, picked by the mod (an Elder;
+ *                     see {@link NpcParts})
+ * @param share        on a binding for every entity of a kind, all such (no tag, not {@code one}): only this per cent
+ *                     of them, each entity rolled once for good by its uuid and the binding (see {@link #inShare});
+ *                     absent or 100: all
+ * @param movement     how it walks (see {@link NpcMovement}): {@code free} as its kind does, {@code stay} where it
+ *                     stands, turning its head to players near, {@code home} within {@code home_radius} blocks of its
+ *                     place; absent: from the binding below, free when none writes it
  *                     <p>
- * Several bindings on one entity are layers (November 7, 2026; see {@link NpcBindings#find}): each setting comes from
- * the closest binding that writes it, so the on/off ones are kept as written or not ({@link Optional#empty()}: "from
- * the binding below", the default when none writes it: {@code interact} and {@code show_name} on, the rest off).
+ * Several bindings on one entity are layers (see {@link NpcBindings#find}): each setting comes from the closest binding
+ * that writes it, so the on/off ones are kept as written or not ({@link Optional#empty()}: "from the binding below",
+ * the default when none writes it: {@code interact} and {@code show_name} on, the rest off).
  */
 public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, Optional<Boolean> interact, Optional<Proximity> proximity,
                          Optional<Boolean> custom, Optional<Boolean> overrideInteract, Optional<Boolean> exclusive, Optional<PhrasesRef> busy,
@@ -77,8 +75,8 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                     entities -> entities.size() == 1 ? Either.left(entities.getFirst()) : Either.right(entities));
 
     /**
-     * What others get while it talks with one player: a line in a bubble. {@code busy_dialogue}, a dialogue, is gone
-     * (November 9, 2026): a file still writing it fails with a word on what to write instead.
+     * What others get while it talks with one player: a line in a bubble. {@code busy_dialogue}, a dialogue, is gone: a
+     * file still writing it fails with a word on what to write instead.
      */
     private static final MapCodec<Optional<PhrasesRef>> BUSY = Codec.mapPair(PhrasesRef.CODEC.optionalFieldOf("busy"), Codec.STRING.optionalFieldOf("busy_dialogue"))
             .flatXmap(pair -> pair.getSecond().isPresent()
@@ -124,8 +122,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
             rest.getFirst().getSecond(), rest.getSecond())));
 
     /**
-     * How the NPC walks (November 20, 2026; before, a story wanting it to stand wrote {@code NoAI}, which also froze its
-     * head and its flight).
+     * How the NPC walks.
      *
      * @param mode       free, stay or home
      * @param homeRadius for {@code home}: how far from its place it may go, in blocks
@@ -157,8 +154,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
     }
 
     /**
-     * What the NPC does when a player hits it (November 5, 2026; before, what its kind does: an iron golem killed the
-     * player who hit it by accident). Only players' hits count; mobs' leave it to its kind.
+     * What the NPC does when a player hits it. Only players' hits count; mobs' leave it to its kind.
      *
      * @param reaction  {@code ignore}: no revenge; {@code flee}: runs from the player for a few seconds; {@code fight}:
      *                  goes for the player (for kinds that can attack)
@@ -166,14 +162,14 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
      * @param warning   for {@code fight} only: one of them said on each forgiven hit ("Careful!", "Once more and..."); a
      *                  phrases node or a text of its own, as {@code phrases}
      * @param phrases   one of them said on every hit it reacts to: for {@code fight}, those past its patience
-     * @param dialogue  instead of phrases, a dialogue started with the player on such a hit ("What are you doing?!" as a
-     *                  scene), after the one they are in (November 6, 2026; before, a line of the phrases could be one)
+     * @param dialogue  instead of phrases, a dialogue started with the player on such a hit ("What are you doing?!" as
+     *                  a scene), after the one they are in
      * @param calmAfter seconds without a hit after which the NPC forgives everything: its reaction ends, the count of
      *                  hits and its phrases start over
      */
     /**
-     * @param byMobs its {@code phrases} also on a mob's hit (November 20, 2026, the author): a monster's, a wolf's, any
-     *               creature's but a player's; only the phrases, the reaction stays with players
+     * @param byMobs its {@code phrases} also on a mob's hit: a monster's, a wolf's, any creature's but a player's; only
+     *               the phrases, the reaction stays with players
      */
     public record WhenAttacked(Reaction reaction, int patience, Optional<PhrasesRef> warning, Optional<PhrasesRef> phrases,
                                Optional<ResourceLocation> dialogue, float calmAfter, boolean byMobs) {
@@ -236,10 +232,8 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
     }
 
     /**
-     * How closely a binding names an entity (November 6, 2026; before, the first by id won, so "every villager" named
-     * {@code all_villagers} took the elder from {@code elder}; filters November 7, 2026): by its uuid, over by a tag or a
-     * name it carries, over by its kind (and filters) alone; of the last, more filters first ("weaponsmiths" over
-     * "villagers"). Ordered closest first.
+     * How closely a binding names an entity: by its uuid, over by a tag or a name it carries, over by its kind (and
+     * filters) alone; of the last, more filters first ("weaponsmiths" over "villagers"). Ordered closest first.
      *
      * @param by      {@link #OWN}, {@link #UUID}, {@link #TAG} or {@link #KIND}
      * @param filters the matching selector's filters ({@link EntitySelector#filters})
@@ -290,9 +284,9 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
     }
 
     /**
-     * Whether the entity is within a binding's share (November 8, 2026): a roll of its own, from its uuid and the
-     * binding's id, the same for good (a restart, a respawn), so a guard stays a guard; raising the share keeps those
-     * in it and adds others, lowering it takes some out. Another binding rolls anew; a renamed one too.
+     * Whether the entity is within a binding's share: a roll of its own, from its uuid and the binding's id, the same
+     * for good (a restart, a respawn), so a guard stays a guard; raising the share keeps those in it and adds others,
+     * lowering it takes some out. Another binding rolls anew; a renamed one too.
      */
     public static boolean inShare(UUID entity, ResourceLocation binding, int percent) {
         long h = entity.getMostSignificantBits() * 0x9E3779B97F4A7C15L ^ entity.getLeastSignificantBits()
@@ -348,7 +342,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
 
     /**
      * One thing a click may get: a dialogue started, or phrases said in a bubble (a node's next line, or a text of its
-     * own) with no conversation ("Wolves again…", "Thank you!"; November 6, 2026). Exactly one of the two.
+     * own) with no conversation ("Wolves again…", "Thank you!"). Exactly one of the two.
      */
     public record Entry(Optional<ResourceLocation> dialogue, Optional<PhrasesRef> phrases, Condition conditions, int priority) {
         public static final Codec<Entry> CODEC = RecordCodecBuilder.<Entry>create(instance -> instance.group(
@@ -393,13 +387,12 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
     }
 
     /**
-     * The NPC's chatter (November 5, 2026): now and then, while a player is within {@code radius} and the NPC is free (not
-     * in a dialogue, not angry), it says one of its phrases. The {@code conditions} are tested for the nearest of
-     * those players.
+     * The NPC's chatter: now and then, while a player is within {@code radius} and the NPC is free (not in a dialogue,
+     * not angry), it says one of its phrases. The {@code conditions} are tested for the nearest of those players.
      *
      * @param phrases     what it says when no variant's conditions pass (or it has none)
-     * @param variants    what it says as the story goes on (November 6, 2026): tried by priority, highest first, for the
-     *                    nearest player; the first whose conditions pass is said instead of {@code phrases}
+     * @param variants    what it says as the story goes on: tried by priority, highest first, for the nearest player;
+     *                    the first whose conditions pass is said instead of {@code phrases}
      * @param minInterval seconds between two phrases at least; the wait is random up to {@code maxInterval}
      */
     public record Chatter(Optional<PhrasesRef> phrases, List<Variant> variants, float minInterval, float maxInterval, float radius, Condition conditions) {
@@ -449,8 +442,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
 
     /**
      * The binding the removed {@code /storybound npc bind} stores on one entity; the first layer, over binding files,
-     * giving what it has: its dialogue, whether a click starts it and, when on, the default proximity (November 7, 2026;
-     * before, it was the whole NPC).
+     * giving what it has: its dialogue, whether a click starts it and, when on, the default proximity.
      */
     public record Attached(ResourceLocation dialogue, boolean interact, boolean proximity) {
         public static final Codec<Attached> CODEC = RecordCodecBuilder.create(instance -> instance.group(

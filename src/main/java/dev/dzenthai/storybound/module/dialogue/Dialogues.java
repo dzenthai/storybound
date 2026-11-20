@@ -67,9 +67,9 @@ public final class Dialogues {
 
     private static final Map<UUID, DialogueSession> SESSIONS = new HashMap<>();
     /**
-     * Per player: the dialogue a fight paused, at most one (November 5, 2026). Out of {@link #SESSIONS}, so the player is
-     * free meanwhile: callouts (dialogues a fight does not pause) play over it, and it goes on once the fight is over and
-     * the player is free again.
+     * Per player: the dialogue a fight paused, at most one. Out of {@link #SESSIONS}, so the player is free meanwhile:
+     * callouts (dialogues a fight does not pause) play over it, and it goes on once the fight is over and the player is
+     * free again.
      */
     private static final Map<UUID, DialogueSession> PAUSED = new HashMap<>();
     /**
@@ -222,10 +222,10 @@ public final class Dialogues {
     }
 
     /**
-     * The player opens ({@code open}) or closes the window of a choice shown in subtitles or bubbles (November 6, 2026):
-     * the prompt "[H] Answer" waits for the talk key, and ESC in the window goes back to it. Its timer counts only the
-     * time to open it: it stops while the window is open and goes on from what was left once it is closed, so opening
-     * and closing gives no more time. Only an open window holds the screen (a hit then ends the talk, as on the screen).
+     * The player opens ({@code open}) or closes the window of a choice shown in subtitles or bubbles: the prompt "[H]
+     * Answer" waits for the talk key, and ESC in the window goes back to it. Its timer counts only the time to open it:
+     * it stops while the window is open and goes on from what was left once it is closed, so opening and closing gives
+     * no more time. Only an open window holds the screen (a hit then ends the talk, as on the screen).
      */
     public static boolean openChoice(ServerPlayer player, int sessionId, int step, boolean open) {
         DialogueSession session = current(player, sessionId, step, Waiting.CHOICE);
@@ -338,9 +338,9 @@ public final class Dialogues {
     }
 
     /**
-     * The NPC the player talks to got angry at them (a hit made it fight or run, November 6, 2026): a dialogue that a
-     * fight pauses is paused (the hit counts as a fight, also on an invulnerable NPC, whose hit never lands); any other is
-     * interrupted, {@code on_abort} running: nobody talks on with someone who just attacked them.
+     * The NPC the player talks to got angry at them: a dialogue that a fight pauses is paused (the hit counts as a
+     * fight, also on an invulnerable NPC, whose hit never lands); any other is interrupted, {@code on_abort} running:
+     * nobody talks on with someone who just attacked them.
      */
     static void attackedBy(ServerPlayer player, LivingEntity npc, long now) {
         DialogueSession session = SESSIONS.get(player.getUUID());
@@ -456,8 +456,7 @@ public final class Dialogues {
         Optional<String> own = session.dialogue.nodes().get(interrupted) instanceof Line line ? line.resume() : Optional.empty();
         if (session.dialogue.nodes().get(interrupted) instanceof Choice && !session.lastLine.isEmpty()
                 && session.dialogueId.equals(session.lastLineIn) && session.dialogue.nodes().get(session.lastLine) instanceof Line) {
-            // A choice: its question, the last line before it, is said again after the resume (November 6, 2026; before,
-            // the choice came back right after "Where was I...", which then stood over the answers as if it were the question).
+            // A choice: its question, the last line before it, is said again after the resume.
             session.replayLine = session.lastLine;
             session.thenChoice = interrupted;
             interrupted = session.lastLine;
@@ -729,7 +728,7 @@ public final class Dialogues {
                 if (participant.kind() == Participant.Kind.BOUND) {
                     entity = session.bound;
                     if (name.isEmpty() && entity != null) {
-                        // The NPC's own name, also while it is not shown over its head (November 6, 2026).
+                        // The NPC's own name, also while it is not shown over its head.
                         name = NpcNames.nameOf(entity).map(text -> text.resolve(player));
                     }
                 } else {

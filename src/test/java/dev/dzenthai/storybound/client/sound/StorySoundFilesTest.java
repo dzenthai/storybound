@@ -10,7 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** The story's sounds folder (October 30, 2026): what plays, what is left out and why. */
+/** The story's sounds folder: what plays, what is left out and why. */
 class StorySoundFilesTest {
     @TempDir
     Path folder;

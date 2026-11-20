@@ -162,10 +162,9 @@ public final class NpcReactionGameTests {
      * Several bindings matching one villager: the one naming it most closely comes first, whatever the ids' order.
      * "Every villager" (a_every, by kind, comes back) matches all four; z_elder (by its tag, says nothing of coming
      * back) is the tagged one's first, though a_every comes first by id; m_one (by uuid) is over both; the plain
-     * villager has only a_every. Coming back is the closest binding's that writes it (November 7, 2026, layers): the
-     * elder comes back as every villager does, since his file does not say; y_stay, by a tag and writing
-     * {@code "respawn": false}, keeps its villager from coming back. In a batch of its own: "every villager" would take
-     * others'.
+     * villager has only a_every. Coming back is the closest binding's that writes it: the elder comes back as every
+     * villager does, since his file does not say; y_stay, by a tag and writing {@code "respawn": false}, keeps its
+     * villager from coming back. In a batch of its own: "every villager" would take others'.
      */
     @GameTest(template = "open", batch = "npc_precision")
     public static void theClosestBindingApplies(GameTestHelper helper) {
@@ -202,16 +201,17 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * Layers as in The Witcher (November 7, 2026), on a village. Villagers: every villager, chatter, flees when hit,
-     * comes back, no talking on a click ({@code interact: false}), a greeting on a click anyway written for the others
-     * below. Desert folk: villagers in desert clothes, chatter of their own. Smiths: weaponsmiths, chatter, tell the
-     * script ({@code custom}), a phrase on a click. Elder: the villager tagged so, the name Miron, talks on a click
+     * Layers as in The Witcher, on a village. Villagers: every villager, chatter, flees when hit, comes back, no
+     * talking on a click ({@code interact: false}), a greeting on a click anyway written for the others below. Desert
+     * folk: villagers in desert clothes, chatter of their own. Smiths: weaponsmiths, chatter, tell the script
+     * ({@code custom}), a phrase on a click. Elder: the villager tagged so, the name Miron, talks on a click
      * ({@code interact: true} over the Villagers' false, kept though it is the default), a dialogue line once a flag is
      * set. Expected: the elder (a plains weaponsmith) is Elder → Smiths → Villagers: his name from Elder, chatter from
      * Smiths, fleeing and coming back from Villagers, the script told of Smiths; a click gets Smiths' phrase until the
      * flag, then the Elder's own. A desert smith ties Desert folk and Smiths (a filter each): Desert folk first by id,
      * chatter from them, the tie marked. A farmer is only Villagers. The elder losing his job keeps Smiths for a second
-     * (the chain is kept), not once forgotten; his tag taken off drops Elder at once. In a batch of its own: "every villager" would take others'.
+     * (the chain is kept), not once forgotten; his tag taken off drops Elder at once. In a batch of its own: "every
+     * villager" would take others'.
      */
     @GameTest(template = "open", batch = "npc_layers")
     public static void layersAddUpAsInTheWitcher(GameTestHelper helper) {
@@ -288,10 +288,10 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * A share (November 8, 2026): "Guards" are 50% of villagers, over "Villagers". The roll: about the share over many
-     * entities, the same for good, raising the share keeps those in, another binding rolls anew. On villagers: those in
-     * the share have Guards before Villagers (a share counts as a filter), the others Villagers only; written back as
-     * written; on a "one" or tagged NPC it is not used.
+     * A share: "Guards" are 50% of villagers, over "Villagers". The roll: about the share over many entities, the same
+     * for good, raising the share keeps those in, another binding rolls anew. On villagers: those in the share have
+     * Guards before Villagers (a share counts as a filter), the others Villagers only; written back as written; on a
+     * "one" or tagged NPC it is not used.
      */
     @GameTest(template = "open", batch = "npc_share")
     public static void aShareOfThemIsRolledOnceForGood(GameTestHelper helper) {
@@ -403,9 +403,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * Killed, an NPC forgets its grudges (November 8, 2026): a fleeing golem hit by the player is angry at them; killed, it
-     * comes back 5 s later with the same uuid (respawn) and talks with its killer at once. Before, it was still angry
-     * until calm_after (30 s) had passed since the last hit, which the check of a "one" Elder found.
+     * Killed, an NPC forgets its grudges: a fleeing golem hit by the player is angry at them; killed, it comes back 5 s
+     * later with the same uuid (respawn) and talks with its killer at once.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 300)
     public static void aKilledNpcComesBackWithoutAGrudge(GameTestHelper helper) {
@@ -484,8 +483,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * A hit's dialogue instead of phrases (since November 6, 2026 a phrases line no longer starts one): the golem runs
-     * and the scene starts; a second hit while it runs does not queue it again.
+     * A hit's dialogue instead of phrases: the golem runs and the scene starts; a second hit while it runs does not
+     * queue it again.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
     public static void aFleeingGolemRunsAndItsHitDialogueStarts(GameTestHelper helper) {
@@ -537,8 +536,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * {@code by_mobs} (November 20, 2026): a zombie's hit makes the NPC say its phrases too, but not again while the last
-     * one still shows; without it a mob's hit says nothing, as before.
+     * {@code by_mobs}: a zombie's hit makes the NPC say its phrases too, but not again while the last one still shows;
+     * without it a mob's hit says nothing, as before.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 100)
     public static void byMobsSaysThePhrasesOnAMobsHitToo(GameTestHelper helper) {
@@ -566,10 +565,10 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * A choice in subtitles waits for the player (November 6, 2026): "[H] Answer" until they open its window, which
-     * before opened by itself mid-fight. Until opened it does not hold the screen, so a hit does not end the talk; its
-     * timer (2 s) counts only the time to open it: stopped while the window is open (3 s pass, nothing), going on from
-     * what was left once it is closed, so the timeout comes about 2 s later.
+     * A choice in subtitles waits for the player: "[H] Answer" until they open its window, which before opened by
+     * itself mid-fight. Until opened it does not hold the screen, so a hit does not end the talk; its timer (2 s)
+     * counts only the time to open it: stopped while the window is open (3 s pass, nothing), going on from what was
+     * left once it is closed, so the timeout comes about 2 s later.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 300)
     public static void aChoiceInSubtitlesWaitsForThePlayer(GameTestHelper helper) {
@@ -610,9 +609,9 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * Phrases in order and round (November 9, 2026): of two lines, "sequence" says the first, the second, then the second
-     * again (lines that build up); "loop" says the first, the second, then the first again (chatter going round). A
-     * counter's position is the next line: the round one goes 1, 0, 1, the one in order 1, 2, 3 (staying on the last).
+     * Phrases in order and round: of two lines, "sequence" says the first, the second, then the second again (lines
+     * that build up); "loop" says the first, the second, then the first again (chatter going round). A counter's
+     * position is the next line: the round one goes 1, 0, 1, the one in order 1, 2, 3 (staying on the last).
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
     public static void phrasesInOrderStayOnTheLastAndRoundOnesGoRound(GameTestHelper helper) {
@@ -654,9 +653,9 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * Phrases on a click (November 6, 2026): an entry of phrases says the next line in a bubble and starts no
-     * conversation; the click is the NPC's (no trading), also a quick second one that says nothing (not more than one
-     * phrase a second); once the story moves on (a flag), a higher entry's phrases apply and start at their first line.
+     * Phrases on a click: an entry of phrases says the next line in a bubble and starts no conversation; the click is
+     * the NPC's (no trading), also a quick second one that says nothing (not more than one phrase a second); once the
+     * story moves on (a flag), a higher entry's phrases apply and start at their first line.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
     public static void aClickSaysPhrasesAndStartsNoConversation(GameTestHelper helper) {
@@ -711,9 +710,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * A phrase needs no conversation (November 7, 2026): clicked during a conversation in subtitles with someone else,
-     * an NPC whose click gets phrases says one and the conversation goes on (before, it was interrupted, its on_abort
-     * running, for a line in a bubble).
+     * A phrase needs no conversation: clicked during a conversation in subtitles with someone else, an NPC whose click
+     * gets phrases says one and the conversation goes on.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 100)
     public static void aPhraseOnAClickLeavesASubtitledTalkAlone(GameTestHelper helper) {
@@ -740,8 +738,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * A hostile kind going for the player chatters through the fight (November 7, 2026): its own target is its nature,
-     * not anger, for chatter as for talking.
+     * A hostile kind going for the player chatters through the fight: its own target is its nature, not anger, for
+     * chatter as for talking.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
     public static void anEnemyChattersWhileItGoesForThePlayer(GameTestHelper helper) {
@@ -764,8 +762,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * Chatter variants (November 6, 2026): the NPC says its own phrases while no variant applies, then the variant's once
-     * its conditions pass for the nearest player; each goes through its lines on its own counter.
+     * Chatter variants: the NPC says its own phrases while no variant applies, then the variant's once its conditions
+     * pass for the nearest player; each goes through its lines on its own counter.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 400)
     public static void chatterVariantsFollowTheStory(GameTestHelper helper) {
@@ -805,7 +803,7 @@ public final class NpcReactionGameTests {
                 .thenSucceed();
     }
 
-    /** A phrases line that is a dialogue (the format before November 6, 2026) fails the file and says where it goes now. */
+    /** A phrases line that is a dialogue fails the file and says where it goes now. */
     @GameTest(template = "open", batch = BATCH)
     public static void aPhrasesLineIsNoLongerADialogue(GameTestHelper helper) {
         var ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
@@ -842,8 +840,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * An NPC angry at a player does not talk with them (November 6, 2026): talking to it says its phrase instead; a
-     * subtitle conversation with it ends when it gets angry; another player talks with it as ever; calmed down, it talks.
+     * An NPC angry at a player does not talk with them: talking to it says its phrase instead; a subtitle conversation
+     * with it ends when it gets angry; another player talks with it as ever; calmed down, it talks.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 300)
     public static void anAngryNpcDoesNotTalkWithThePlayer(GameTestHelper helper) {
@@ -883,7 +881,7 @@ public final class NpcReactionGameTests {
                 .thenSucceed();
     }
 
-    /** "Does not react" is no panic either: a villager hit does not run off, as one without a binding does (November 6, 2026). */
+    /** "Does not react" is no panic either: a villager hit does not run off, as one without a binding does. */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 200)
     public static void aVillagerThatDoesNotReactDoesNotPanic(GameTestHelper helper) {
         Villager calm = helper.spawn(EntityType.VILLAGER, 1, 1, 4);
@@ -910,7 +908,7 @@ public final class NpcReactionGameTests {
                 .thenSucceed();
     }
 
-    /** A tagged villager carries its NPC's name over its head; turned off, the name goes (November 6, 2026). */
+    /** A tagged villager carries its NPC's name over its head; turned off, the name goes. */
     @GameTest(template = "open", batch = BATCH)
     public static void anNpcShowsItsNameOverItsHead(GameTestHelper helper) {
         Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 2);
@@ -933,13 +931,13 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * Names from a list (November 7, 2026). Villagers: every villager, names Agna, Bertil, Ilsa. Smiths: weaponsmiths,
-     * the name Hammer. Elder: the villager tagged so, display_name Miron. Expected: three farmers get the three names, one
-     * each, shown only when looked at; a fourth gets one of them again (the list ran out); the smith gets Hammer (the
-     * closest binding naming him) and keeps it when he loses his job; the Elder is Miron, always shown, and with his tag
-     * taken off gets a name from the list; a name tag put on a villager is its own, the list's forgotten; a name taken
-     * out of the list is taken off and another given; the bindings gone, the names they gave go. A villager turned into
-     * a zombie villager carries no name the mod gave.
+     * Names from a list. Villagers: every villager, names Agna, Bertil, Ilsa. Smiths: weaponsmiths, the name Hammer.
+     * Elder: the villager tagged so, display_name Miron. Expected: three farmers get the three names, one each, shown
+     * only when looked at; a fourth gets one of them again (the list ran out); the smith gets Hammer (the closest
+     * binding naming him) and keeps it when he loses his job; the Elder is Miron, always shown, and with his tag taken
+     * off gets a name from the list; a name tag put on a villager is its own, the list's forgotten; a name taken out of
+     * the list is taken off and another given; the bindings gone, the names they gave go. A villager turned into a
+     * zombie villager carries no name the mod gave.
      */
     @GameTest(template = "open", batch = "npc_names")
     public static void namesFromAListAreGivenOneEachAndKeptForLife(GameTestHelper helper) {
@@ -1015,19 +1013,18 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * One, picked by the mod (November 7, 2026). Villagers: every villager, the name Agna. Elder: one grown farmer, the
-     * name Miron. Brann: the villager tagged so, by hand. Expected: a child and Brann are never picked; the first grown
-     * farmer worked out is, and carries the Elder's tag; no second one, also not one given a copy of the tag; the Elder
-     * is Elder → Villagers, called Miron, always shown, coming back when he dies (on by default for one); he stays the
-     * Elder when he is no longer a farmer; a waypoint at the Elder shows nothing until he is picked, then follows him;
-     * one at Villagers points at the nearest villager. Freed, the part goes to the next one worked out; with respawn
-     * off, it ends when its holder is discarded and is never given again; the binding gone, the part is dropped.
+     * One, picked by the mod. Villagers: every villager, the name Agna. Elder: one grown farmer, the name Miron. Brann:
+     * the villager tagged so, by hand. Expected: a child and Brann are never picked; the first grown farmer worked out
+     * is, and carries the Elder's tag; no second one, also not one given a copy of the tag; the Elder is Elder →
+     * Villagers, called Miron, always shown, coming back when he dies (on by default for one); he stays the Elder when
+     * he is no longer a farmer; a waypoint at the Elder shows nothing until he is picked, then follows him; one at
+     * Villagers points at the nearest villager. Freed, the part goes to the next one worked out; with respawn off, it
+     * ends when its holder is discarded and is never given again; the binding gone, the part is dropped.
      */
     /**
-     * The Elder who was to come back but does not (November 9, 2026): picked, he dies while his binding has him come back
-     * (on by default for one), so his part waits; then the binding is changed to "respawn": false before his 5 seconds
-     * are up. Expected: when his time comes he stays gone and his part ends (before, it stayed his for good, a waypoint
-     * led to his grave and nobody was picked again).
+     * The Elder who was to come back but does not: picked, he dies while his binding has him come back (on by default
+     * for one), so his part waits; then the binding is changed to "respawn": false before his 5 seconds are up.
+     * Expected: when his time comes he stays gone and his part ends.
      */
     @GameTest(template = "open", batch = "npc_parts_back", timeoutTicks = 300)
     public static void aPartEndsWhenItsHolderDoesNotComeBack(GameTestHelper helper) {
@@ -1142,7 +1139,7 @@ public final class NpcReactionGameTests {
 
     /**
      * With a player near, chatter speaks every 2 s, in order; with nobody near, in a dialogue or asleep (a villager in
-     * its bed at night; November 7, 2026), it keeps quiet, and speaks again once free or awake.
+     * its bed at night), it keeps quiet, and speaks again once free or awake.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 1000)
     public static void chatterSpeaksWithAPlayerNearAndKeepsQuietOtherwise(GameTestHelper helper) {
@@ -1194,9 +1191,9 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * Bed time and talking (November 7, 2026). Expected: a villager next to its bed (its home) does not lie down while it
-     * is in a dialogue, nor while its phrase is still over its head; once it is done, it does. In bed it is not talked to:
-     * no talk hint, the talk key and a click say nothing (the click is vanilla's, which does nothing with a sleeping
+     * Bed time and talking. Expected: a villager next to its bed (its home) does not lie down while it is in a
+     * dialogue, nor while its phrase is still over its head; once it is done, it does. In bed it is not talked to: no
+     * talk hint, the talk key and a click say nothing (the click is vanilla's, which does nothing with a sleeping
      * villager); woken, it talks again.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 300)
@@ -1278,9 +1275,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * A relationship scale on the HUD (November 20, 2026): the NPC's scale is found from its binding, named by its
-     * {@code display_name}; it holds to -50 and 50 as it is written; talking with the NPC makes it the one shown, and the
-     * talk's end lets it go.
+     * A relationship scale on the HUD: the NPC's scale is found from its binding, named by its {@code display_name}; it
+     * holds to -50 and 50 as it is written; talking with the NPC makes it the one shown, and the talk's end lets it go.
      */
     @GameTest(template = "open", batch = BATCH, timeoutTicks = 100)
     public static void aRelationshipScaleIsFoundNamedBoundedAndShownInATalk(GameTestHelper helper) {
@@ -1321,8 +1317,8 @@ public final class NpcReactionGameTests {
     }
 
     /**
-     * A binding's {@code movement} (November 20, 2026), in a batch of its own: villagers with their own AI. {@code stay}:
-     * pushed 4 blocks off its place, it walks back to within 1.5 and looks at the player near.
+     * A binding's {@code movement}, in a batch of its own: villagers with their own AI. {@code stay}: pushed 4 blocks
+     * off its place, it walks back to within 1.5 and looks at the player near.
      */
     @GameTest(template = "open", batch = MOVEMENT, timeoutTicks = 300)
     public static void aStayingNpcWalksBackAndLooksAtThePlayer(GameTestHelper helper) {

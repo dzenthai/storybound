@@ -77,8 +77,7 @@ public final class DemoGameTests {
     private DemoGameTests() {}
 
     /**
-     * Leaving while the whisper plays still gives the first quest. (The test story is the former demo; it no longer
-     * starts the whisper on joining, November 5, 2026, so it does not run for every player of the other tests.)
+     * Leaving while the whisper plays still gives the first quest. (The test story is the former demo)
      */
     @GameTest(template = "empty", batch = "demo_whisper", timeoutTicks = TIMEOUT)
     public static void leavingDuringTheWhisperStillGivesTheFirstQuest(GameTestHelper helper) {
@@ -360,8 +359,7 @@ public final class DemoGameTests {
                     run(helper, player, retry);
                     expect(helper, murkas(helper), List.of(murka[0]), "after a failure she runs off again");
                     expect(helper, tagged(helper, EntityType.CAT, "demo_murka_home").size(), 0, "and is no longer at home");
-                    // Killed where chunks tick (the search spreads her up to 12 blocks off; 40 in the fixture until November 7, 2026,
-                    // which now and then put her in a chunk that was not loaded, and the tests did not find her).
+                    // Killed where chunks tick (the search spreads her up to 12 blocks off).
                     dead[0] = tagged(helper, EntityType.CAT, "demo_murka").getFirst();
                     dead[0].teleportTo(player.getX(), player.getY(), player.getZ());
                     dead[0].kill();

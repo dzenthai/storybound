@@ -24,11 +24,10 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A player's standing with an NPC on the HUD (November 20, 2026, the author's backlog "personal reputation, top left,
- * as stars or skulls"): an NPC's relationship scale ({@code <ns>:rep/<npc>}, a number flag of the player's, -50 to 50)
- * shows a star for every 10 above 0, a skull for every 10 below, five at most. It shows for a few seconds when it
- * changes, and all the while the player talks with that NPC. The server says which scale and whose name; the client
- * draws it ({@code ReputationHud}).
+ * A player's standing with an NPC on the HUD: an NPC's relationship scale ({@code <ns>:rep/<npc>}, a number flag of the
+ * player's, -50 to 50) shows a star for every 10 above 0, a skull for every 10 below, five at most. It shows for a few
+ * seconds when it changes, and all the while the player talks with that NPC. The server says which scale and whose
+ * name; the client draws it ({@code ReputationHud}).
  */
 public final class NpcReputation {
     public static final int MIN = -50;

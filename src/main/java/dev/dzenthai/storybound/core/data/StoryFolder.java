@@ -32,7 +32,7 @@ public final class StoryFolder {
 
     private StoryFolder() {}
 
-    /** The story a new story folder starts with (November 18, 2026: one folder, one story; before, the folder itself). */
+    /** The story a new story folder starts with. */
     public static final String FIRST_STORY = "my_story";
 
     /**
@@ -41,8 +41,7 @@ public final class StoryFolder {
      * with a README and the story {@value #FIRST_STORY} (a folder per definition type and four blank documents):
      * deleting the folder brings them back, changing them never does. A folder given by {@code -Dstorybound.folder} (a
      * pack's repository checked by CI) is never changed: an old layout there is a validation error instead. There is no
-     * demo story any more (November 5, 2026: it started for every player who joined, a live server's too); see the
-     * debug scenarios.
+     * demo story any more; see the debug scenarios.
      */
     public static void createIfMissing() {
         Path root = ConfigStorySource.root();

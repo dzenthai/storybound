@@ -23,7 +23,7 @@ import org.lwjgl.glfw.GLFW;
  * else is shown selected on the "All links" canvas.
  */
 final class QuestView extends GraphView {
-    /** A stage's width, and a column's: the stage and the gap to the next (November 18, 2026: before, a card's width). */
+    /** A stage's width, and a column's: the stage and the gap to the next. */
     private static final int STAGE_W = 6 * DevUi.GRID;
     private static final int COLUMN = STAGE_W + 2 * DevUi.GRID;
     /** From one node to the next under a stage: the largest node (a main quest's diamond), its title, a little air. */
@@ -37,8 +37,7 @@ final class QuestView extends GraphView {
      */
     private record Card(NodeKey key, String relation, int x, int y, StoryView.Look look, ItemStack item, String title, boolean missing) {
         /**
-         * A node and how it relates, read once when laid out (November 19, 2026: before, its definition was parsed
-         * several times a frame, for its shape, its hit test, its links and its title).
+         * A node and how it relates, read once when laid out.
          */
         static Card of(NodeKey key, String relation, int x, int y) {
             String raw = ClientDevStore.getJson(key.type(), key.id());
@@ -283,8 +282,7 @@ final class QuestView extends GraphView {
     }
 
     /**
-     * A stage's lines, wrapped to its box (November 19, 2026; before, cut at its edge: "No objectives: an action m"):
-     * the log line, then each objective, or that there is none.
+     * A stage's lines, wrapped to its box: the log line, then each objective, or that there is none.
      */
     private static List<Line> stageLines(QuestOutline.Stage stage) {
         Font font = Minecraft.getInstance().font;

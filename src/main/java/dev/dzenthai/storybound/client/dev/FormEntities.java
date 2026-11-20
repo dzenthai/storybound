@@ -33,10 +33,9 @@ abstract class FormEntities extends FormInputs {
     }
 
     /**
-     * A dynamic NPC's variants (November 9, 2026, the author: one NPC that is both a Villagers Reborn man smith and a
-     * woman farmer): a row each, "Villager · Smith, male ▸" opening its page ({@link #variantPage}), ✕ taking it out;
-     * "+ Add" asks the kind first and opens the new one. One is written alone, several as a list, as the game reads
-     * them; the same kind as often as wanted.
+     * A dynamic NPC's variants: a row each, "Villager · Smith, male ▸" opening its page ({@link #variantPage}), ✕
+     * taking it out; "+ Add" asks the kind first and opens the new one. One is written alone, several as a list, as the
+     * game reads them; the same kind as often as wanted.
      *
      * @param one a "one" NPC: a new variant that can be young is written grown-up
      */
@@ -147,10 +146,9 @@ abstract class FormEntities extends FormInputs {
 
     /**
      * One variant of a mob (an NPC's, a waypoint's nearest mob, a boss, an observed creature), as the author laid it
-     * out (November 9, 2026): who, the kind; where, the base every mob has (dimension → biome → structure, each list
-     * only what fits the one before); its data, read from the mob itself. Older parts (a profession, an outfit, a
-     * variant, "in a village", SNBT) show as a line with ✕. An NPC's variant has no tag: "only those tagged" is for the
-     * others.
+     * out: who, the kind; where, the base every mob has (dimension → biome → structure, each list only what fits the
+     * one before); its data, read from the mob itself. Older parts (a profession, an outfit, a variant, "in a village",
+     * SNBT) show as a line with ✕. An NPC's variant has no tag: "only those tagged" is for the others.
      */
     private void variantPage(List<Object> path, boolean tagFilter) {
         JsonObject selector = objectAt(path);
@@ -193,9 +191,8 @@ abstract class FormEntities extends FormInputs {
     }
 
     /**
-     * A variant's kind: one (November 9, 2026, the author: two "+ Add" buttons, one for a variant and one for a kind in
-     * it, said nothing of which to press). One button, "Villager ▸", picking another in its place; another kind is
-     * another variant. An older file with several kinds in one variant shows them as rows with ✕, nothing to add.
+     * A variant's kind: one. One button, "Villager ▸", picking another in its place; another kind is another variant.
+     * An older file with several kinds in one variant shows them as rows with ✕, nothing to add.
      */
     private void variantKind(List<Object> path, @Nullable JsonObject selector, boolean npc) {
         Picker kinds = new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("entity.pick"));
@@ -217,10 +214,10 @@ abstract class FormEntities extends FormInputs {
     }
 
     /**
-     * Where (November 9, 2026): dimension → biome → structure, each list holding only what fits the parts before, as
-     * the world's map the server sent says ({@link WorldMap}; mods' alike). A part that no longer fits (the dimension
-     * changed) is not taken out: it shows red, with why, and ✕. The same for a mob's variant and for the player's
-     * condition "location", whose structure is one.
+     * Where: dimension → biome → structure, each list holding only what fits the parts before, as the world's map the
+     * server sent says ({@link WorldMap}; mods' alike). A part that no longer fits (the dimension changed) is not taken
+     * out: it shows red, with why, and ✕. The same for a mob's variant and for the player's condition "location", whose
+     * structure is one.
      */
     void placeRows(List<Object> path, boolean manyStructures) {
         JsonObject owner = objectAt(path);
@@ -257,10 +254,10 @@ abstract class FormEntities extends FormInputs {
     }
 
     /**
-     * A mob's data (November 9, 2026): a row per field the kind keeps ({@link MobFields}), "Any" or the values chosen,
-     * any of which matches; a value met is picked from the list (a click on a chosen one takes it out), one not met yet
-     * typed ("Other value..."). "Age" when the kind can be young. A field written that the kind is not seen to have
-     * shows with ✕.
+     * A mob's data: a row per field the kind keeps ({@link MobFields}), "Any" or the values chosen, any of which
+     * matches; a value met is picked from the list (a click on a chosen one takes it out), one not met yet typed
+     * ("Other value..."). "Age" when the kind can be young. A field written that the kind is not seen to have shows
+     * with ✕.
      */
     private void mobDataRows(List<Object> path, @Nullable JsonObject selector) {
         List<net.minecraft.world.entity.EntityType<?>> kinds = kindsOf(selector);
@@ -276,7 +273,7 @@ abstract class FormEntities extends FormInputs {
         Set<String> shown = new java.util.HashSet<>();
         fields.forEach(field -> shown.add(field.path()));
         // Words first (a profession, a type, a coat) and what is set; numbers and yes / no folded under "More fields",
-        // unless there are no words at all (raiders: all flags), when nothing is folded (November 9, 2026).
+        // unless there are no words at all (raiders: all flags), when nothing is folded.
         boolean fold = fields.stream().anyMatch(MobFields.Field::words);
         List<MobFields.Field> first = !fold ? fields
                 : fields.stream().filter(field -> field.words() || !SelectorEdits.dataValues(selector, field.path()).isEmpty()).toList();
@@ -350,7 +347,7 @@ abstract class FormEntities extends FormInputs {
                 choices.add(new Entry(text, (on ? "✓ " : "") + MobFields.valueLabel(tag, field.flag()), ItemStack.EMPTY));
             });
             // Values written that none met is (typed as "Other value..."): listed too, chosen, so each can be taken out
-            // alone (November 9, 2026: before, only "Any" cleared them, with all the rest).
+            // alone.
             for (int i = 0; i < chosen.size(); i++) {
                 JsonPrimitive value = chosen.get(i);
                 if (field.values().values().stream().noneMatch(tag -> MobFields.holds(value, tag))) {
@@ -489,7 +486,7 @@ abstract class FormEntities extends FormInputs {
 
     /**
      * A field written as entity types (an id, a #tag or a list) or as a selector (a waypoint's nearest entity): edited
-     * as a selector, whose type is the same list (October 30, 2026; before, the types' variant had nothing to edit).
+     * as a selector, whose type is the same list.
      */
     static boolean isTypesOrSelector(Node node) {
         List<Node> variants = Schemas.variants(node);
@@ -537,10 +534,9 @@ abstract class FormEntities extends FormInputs {
 
     /**
      * An entity's page (a waypoint's mob, a boss, an observed creature, one of an NPC's several entities), as an NPC's
-     * "Who it is" asks it (November 9, 2026: before, "Known by: type / only with this name from a name tag / one entity
-     * by its uuid", the ways an NPC's form had dropped: a name tag any player can copy, a uuid an author of a pack cannot
-     * know): its kind, its filters, and only those carrying a tag the story put on them (spawn_entity, /tag). A file
-     * still knowing it by a name or a uuid says so in a line; an NPC's own entity keeps its tag line and 🎯 instead.
+     * "Who it is" asks it: its kind, its filters, and only those carrying a tag the story put on them (spawn_entity,
+     * /tag). A file still knowing it by a name or a uuid says so in a line; an NPC's own entity keeps its tag line and
+     * 🎯 instead.
      */
     void entityPage(List<Object> path) {
         boolean npcEntity = host.npcBinding() != null && !path.isEmpty() && "entity".equals(path.getFirst());
@@ -561,9 +557,9 @@ abstract class FormEntities extends FormInputs {
     }
 
     /**
-     * An NPC's link to its entities (November 6, 2026): its tag is its node's name ("npc_3"; a folder's "/" as "_", which
-     * /tag does not take), said in a line, not a field to fill; a button links an entity in the world, putting the tag
-     * on it. A tag the file already has stays, also after the node is renamed: the entities linked before keep theirs.
+     * An NPC's link to its entities: its tag is its node's name ("npc_3"; a folder's "/" as "_", which /tag does not
+     * take), said in a line, not a field to fill; a button links an entity in the world, putting the tag on it. A tag
+     * the file already has stays, also after the node is renamed: the entities linked before keep theirs.
      */
     void npcLink(List<Object> path, @Nullable JsonObject selector) {
         ResourceLocation npc = host.npcBinding();

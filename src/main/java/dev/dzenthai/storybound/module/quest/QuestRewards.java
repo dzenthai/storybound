@@ -176,11 +176,11 @@ public final class QuestRewards {
     }
 
     /**
-     * A player joined a party (October 29, 2026): whoever now sees a party quest completed that they had not completed
-     * (the newcomer behind the party, or the party behind the newcomer) skipped it, and is paid as if they had been
-     * there, as FTB Quests pays a newcomer to a team. Once: not when they already got its rewards, have them waiting or
-     * are owed them. Not for a repeatable quest (the next round is theirs to do) or one that is not loaded. Members away
-     * are paid when they next join. What the quest did on completing ({@code on_complete}) does not run again: it was a
+     * A player joined a party: whoever now sees a party quest completed that they had not completed (the newcomer
+     * behind the party, or the party behind the newcomer) skipped it, and is paid as if they had been there, as FTB
+     * Quests pays a newcomer to a team. Once: not when they already got its rewards, have them waiting or are owed
+     * them. Not for a repeatable quest (the next round is theirs to do) or one that is not loaded. Members away are
+     * paid when they next join. What the quest did on completing ({@code on_complete}) does not run again: it was a
      * moment in the world (a spawn, the weather), not something owed. Public for tests.
      */
     public static void payCaughtUp(PartyEvent.Joined event) {

@@ -11,7 +11,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** The story's namespace in project.json (October 29, 2026): where the dev mode makes new nodes. */
+/** The story's namespace in project.json: where the dev mode makes new nodes. */
 class ProjectSettingsTest {
     @TempDir
     Path root;
@@ -27,7 +27,7 @@ class ProjectSettingsTest {
         assertTrue(Files.readString(root.resolve(ProjectSettings.FILE_NAME)).contains("\"track_given_quests\": true"), "other settings stay");
     }
 
-    /** The settings window's preferences (November 16, 2026): written beside the languages, taken out when left out. */
+    /** The settings window's preferences: written beside the languages, taken out when left out. */
     @Test
     void theSettingsWindowWritesOnlyItsOwnPreferences() throws IOException {
         Files.writeString(root.resolve(ProjectSettings.FILE_NAME),

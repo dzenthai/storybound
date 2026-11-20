@@ -81,7 +81,7 @@ public final class StorySoundFiles {
                     }
                     continue;
                 }
-                // Right in sounds/: the default namespace (before, such a file was left out without a word).
+                // Right in sounds/: the default namespace.
                 String namespace = slash < 0 ? DEFAULT_NAMESPACE : relative.substring(0, slash);
                 String name = relative.substring(slash + 1, relative.length() - ".ogg".length());
                 if (!NAMESPACE.matcher(namespace).matches() || !NAME.matcher(name).matches() || name.startsWith("/") || name.contains("//")) {

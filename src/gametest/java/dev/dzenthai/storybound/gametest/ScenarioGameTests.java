@@ -26,9 +26,9 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * The debug scenarios (November 5, 2026), loaded as if installed (the build copies them into the GameTest story
- * folder): {@code /storybound debug scenario <name>} fires {@code scenario:<name>}, and each sets its scene; Brann's
- * story pauses for a fight and goes on with "Where was I".
+ * The debug scenarios, loaded as if installed (the build copies them into the GameTest story folder):
+ * {@code /storybound debug scenario <name>} fires {@code scenario:<name>}, and each sets its scene; Brann's story
+ * pauses for a fight and goes on with "Where was I".
  */
 @SuppressWarnings("removal")
 @GameTestHolder(Storybound.MOD_ID)
@@ -55,7 +55,7 @@ public final class ScenarioGameTests {
                     expect(helper, tagged(helper, player, EntityType.VILLAGER, "scenario_tikhon").size(), 1, "last_stand: Tikhon");
                     expect(helper, status(player, "campfire"), Optional.of(QuestStatus.ACTIVE), "campfire's quest");
                     expect(helper, status(player, "last_stand"), Optional.of(QuestStatus.ACTIVE), "last_stand's quest");
-                    // His name is his node's now (November 8, 2026; before, the spawn wrote it): put on as names are, always shown.
+                    // His name is his node's now: put on as names are, always shown.
                     Entity brann = tagged(helper, player, EntityType.IRON_GOLEM, "scenario_brann").getFirst();
                     dev.dzenthai.storybound.module.dialogue.NpcNames.apply(brann);
                     helper.assertTrue(brann.getCustomName() != null && brann.getCustomName().getContents()
@@ -77,11 +77,11 @@ public final class ScenarioGameTests {
     }
 
     /**
-     * The village scenario (November 8, 2026, stage 6 of "Who an NPC is"). Its NPCs are every villager, so it is left
-     * out of the GameTest story (they would be every other test's villagers too) and loaded here alone, from the mod's
-     * own files as {@code /storybound debug scenario village} copies them: they load and the validator has nothing to say
-     * of them; each villager gets a name from the list, all different while it lasts; smiths have their node; a grown-up
-     * is a guard exactly when the roll puts it in the 30%, a child never; the Elder is "one" and its waypoint follows him.
+     * The village scenario. Its NPCs are every villager, so it is left out of the GameTest story (they would be every
+     * other test's villagers too) and loaded here alone, from the mod's own files as
+     * {@code /storybound debug scenario village} copies them: they load and the validator has nothing to say of them;
+     * each villager gets a name from the list, all different while it lasts; smiths have their node; a grown-up is a
+     * guard exactly when the roll puts it in the 30%, a child never; the Elder is "one" and its waypoint follows him.
      * Taken out, the names go.
      */
     @GameTest(template = "open", batch = "scenario_village", timeoutTicks = 100)
@@ -199,9 +199,8 @@ public final class ScenarioGameTests {
     }
 
     /**
-     * A fight at Brann's question (November 6, 2026): the story pauses at the choice; after the fight the dialogue's
-     * resume plays ("So. Where was I..."; a choice has none of its own), then the question itself again, then the choice
-     * waits. Before, the choice came back right after the resume, which stood over the answers as if it were the question.
+     * A fight at Brann's question: the story pauses at the choice; after the fight the dialogue's resume plays ("So.
+     * Where was I..."; a choice has none of its own), then the question itself again, then the choice waits.
      */
     @GameTest(template = "open", batch = "scenario_brann_ask", timeoutTicks = 400)
     public static void aFightAtAChoiceSaysTheQuestionAgain(GameTestHelper helper) {
@@ -236,10 +235,10 @@ public final class ScenarioGameTests {
     }
 
     /**
-     * The duel (November 6, 2026): Ataman Grom, met close by while he goes for the player, starts his taunts in
-     * subtitles, the player answering (a hostile kind going for the player is not "angry" for talking: first it never
-     * started); the player's hits do not stop it ({@code combat: continue});
-     * killed, he is gone from the talk, the quest is done, and his last words follow.
+     * The duel: Ataman Grom, met close by while he goes for the player, starts his taunts in subtitles, the player
+     * answering (a hostile kind going for the player is not "angry" for talking: first it never started); the player's
+     * hits do not stop it ({@code combat: continue}); killed, he is gone from the talk, the quest is done, and his last
+     * words follow.
      */
     @GameTest(template = "open", batch = "scenario_duel", timeoutTicks = 300)
     public static void gromTalksThroughTheDuel(GameTestHelper helper) {
@@ -274,9 +273,9 @@ public final class ScenarioGameTests {
     }
 
     /**
-     * Shoulder to shoulder (November 6, 2026): Kamen the golem talks through the fight beside the player ({@code combat:
-     * continue}), a second wave coming mid-talk; heard to the end, the quest is done. Run again and walked away from,
-     * the talk breaks off and the quest fails.
+     * Shoulder to shoulder: Kamen the golem talks through the fight beside the player ({@code combat: continue}), a
+     * second wave coming mid-talk; heard to the end, the quest is done. Run again and walked away from, the talk breaks
+     * off and the quest fails.
      */
     @GameTest(template = "open", batch = "scenario_shoulder", timeoutTicks = 300)
     public static void kamenTalksThroughTheFightBesideThePlayer(GameTestHelper helper) {

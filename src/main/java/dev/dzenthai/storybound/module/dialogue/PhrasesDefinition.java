@@ -10,12 +10,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
 
 /**
- * {@code data/<ns>/storybound/phrases/<path>.json} (November 5, 2026): a list of an NPC's short lines, spoken one at a
- * time without a conversation (what games call barks: "Fresh fish!", "Hey, you don't hit your own!"). An NPC binding
- * points at it for its chatter, for a click and for what it says when a player hits it. A line is a text shown in a
- * bubble over the NPC. Only text since November 6, 2026: a line could start a dialogue before, so phrases and dialogues
- * pointed at each other; a dialogue is now the NPC's own choice where it says something ("Phrases / Dialogue" for a click
- * or a hit), and a phrases node names nothing.
+ * {@code data/<ns>/storybound/phrases/<path>.json}: a list of an NPC's short lines, spoken one at a time without a
+ * conversation (what games call barks: "Fresh fish!", "Hey, you don't hit your own!"). An NPC binding points at it for
+ * its chatter, for a click and for what it says when a player hits it. A line is a text shown in a bubble over the NPC.
+ * Only text: a dialogue is the NPC's own choice where it says something ("Phrases / Dialogue" for a click or a hit),
+ * and a phrases node names nothing.
  *
  * @param order {@code random}: one at random, never the same twice in a row; {@code sequence}: top to bottom, then the
  *              last one again (lines that build up: "Careful!", "Last warning!"); {@code loop}: top to bottom, then from
@@ -40,7 +39,7 @@ public record PhrasesDefinition(Order order, List<StoryText> lines) {
     public enum Order implements StringRepresentable {
         RANDOM("random"),
         SEQUENCE("sequence"),
-        // Top to bottom, then from the top again (November 9, 2026): chatter that goes round, where "sequence" stays on its last.
+        // Top to bottom, then from the top again: chatter that goes round, where "sequence" stays on its last.
         LOOP("loop");
 
         public static final Codec<Order> CODEC = StringRepresentable.fromEnum(Order::values);

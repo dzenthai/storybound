@@ -25,9 +25,9 @@ import org.jetbrains.annotations.Nullable;
 final class DialogueGraph {
     static final String END = "@end";
     static final String EXIT = "@exit";
-    /** The automatic layout, on the editor's grid of 24 (November 18, 2026; before, 220, 76 and 40). */
+    /** The automatic layout, on the editor's grid of 24. */
     static final int LAYER_GAP = 9 * 24;
-    /** Four cells from row to row: a node twice as large (November 19, 2026; before, three) and its title fit. */
+    /** Four cells from row to row: a node twice as large and its title fit. */
     static final int ROW_GAP = 4 * 24;
     static final int MARGIN = 2 * 24;
 
@@ -154,8 +154,7 @@ final class DialogueGraph {
             case "action" -> edges.add(new Edge(from, next(node), EdgeKind.ACTION, ""));
             case "call" -> edges.add(new Edge(from, next(node), EdgeKind.RETURN, ""));
             case "jump" -> {
-                // Only a jump within this dialogue is an arrow: with "dialogue" set, its node is the other dialogue's
-                // (November 6, 2026; before, an arrow went to this dialogue's node of the same name).
+                // Only a jump within this dialogue is an arrow: with "dialogue" set, its node is the other dialogue's.
                 if (node.has("node") && !jumpsElsewhere(node)) {
                     edges.add(new Edge(from, node.get("node").getAsString(), EdgeKind.JUMP, ""));
                 }
@@ -280,8 +279,7 @@ final class DialogueGraph {
                 node.addProperty("next", END);
             }
             case "random" -> {
-                // Two even branches, both ending until they are drawn (October 29, 2026; before, the kinds below
-                // could be written only by hand).
+                // Two even branches, both ending until they are drawn.
                 for (int i = 0; i < 2; i++) {
                     JsonObject branch = new JsonObject();
                     branch.addProperty("weight", 1);

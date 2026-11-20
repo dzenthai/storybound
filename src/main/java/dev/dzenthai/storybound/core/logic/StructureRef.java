@@ -110,10 +110,10 @@ public record StructureRef(ResourceLocation id, boolean tag) {
     }
 
     /**
-     * Where a marker for this structure found at {@code at} stands (November 9, 2026): the middle of the structure itself
-     * once its chunk is loaded (an underground stronghold underground, a fortress in the Nether's middle); before, the
-     * top block, the surface above a stronghold and the bedrock roof of the Nether. Until then, and for a structure
-     * whose start is not there: the ground, else the sea level in a dimension with a roof (whose top block is the roof).
+     * Where a marker for this structure found at {@code at} stands: the middle of the structure itself once its chunk
+     * is loaded (an underground stronghold underground, a fortress in the Nether's middle). Until then, and for a
+     * structure whose start is not there: the ground, else the sea level in a dimension with a roof (whose top block is
+     * the roof).
      */
     public net.minecraft.world.phys.Vec3 markerPos(ServerLevel level, BlockPos at) {
         if (level.getChunkSource().hasChunk(at.getX() >> 4, at.getZ() >> 4)) {

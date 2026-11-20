@@ -216,8 +216,7 @@ abstract class StoryEditing extends StoryChapters {
             String draft = DevUi.GSON.toJson(editing);
             lastSaved = draft;
             ClientDevStore.putDraft(drafted.type(), drafted.id(), draft);
-            // Undoable as any edit (November 7, 2026; before, an edit that left the node unfinished, a switch that
-            // cleared what the entity was known by, could not be undone).
+            // Undoable as any edit.
             if (draftBefore != null && !draftBefore.equals(draft)) {
                 screen.remember(DevUi.str("history.save", drafted.id().getPath()),
                         () -> DevRequests.restore(drafted.type(), drafted.id(), draftBefore, Optional.empty()),
@@ -526,9 +525,8 @@ abstract class StoryEditing extends StoryChapters {
     /**
      * Deletes a node's definition. A script block that comes from the code would come straight back from it, so it is
      * hidden instead ({@code "hidden": true} in its file; the code stays in KubeJS); returns whether it was. That is a
-     * block whose handler the scripts register, or one the editor makes from a KubeJS file itself (November 19, 2026:
-     * those were only seen as registered by a running KubeJS; without it, deleting tried to delete a file there never
-     * was, and the block came back from the script file at once).
+     * block whose handler the scripts register, or one the editor makes from a KubeJS file itself (without it, deleting
+     * tried to delete a file there never was, and the block came back from the script file at once).
      */
     private static boolean removeNode(NodeKey key, @Nullable String json) {
         if (json != null && key.type().equals(ClientDevStore.TYPE_SCRIPT)

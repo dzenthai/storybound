@@ -28,9 +28,8 @@ abstract class FormDialogues extends FormWaypoints {
     }
 
     /**
-     * A dialogue's own settings (its lines are on the graph) in the order its author asks (October 29, 2026; before, the
-     * file's order, who speaks first and the camera after what an interruption does): how it shows, with the camera
-     * only on the dialogue screen; who speaks; what an interruption does.
+     * A dialogue's own settings (its lines are on the graph) in the order its author asks: how it shows, with the
+     * camera only on the dialogue screen; who speaks; what an interruption does.
      */
     static final Map<String, String> DIALOGUE_GROUPS = Map.of(
             "presentation", "dialogue.group.show",
@@ -52,8 +51,8 @@ abstract class FormDialogues extends FormWaypoints {
     static boolean participantFieldShown(String name, @Nullable JsonObject participant) {
         boolean virtual = participant != null && participant.get("type") instanceof JsonPrimitive type && type.getAsString().equals("virtual");
         if (name.equals("name")) {
-            // The NPC talked to is named by its NPC (November 6, 2026): a name here only for a voice without an entity,
-            // or when the file still writes one.
+            // The NPC talked to is named by its NPC: a name here only for a voice without an entity, or when the file
+            // still writes one.
             return virtual || participant != null && participant.has("name");
         }
         return !name.equals("portrait") || virtual || participant != null && participant.has("portrait");
@@ -61,7 +60,7 @@ abstract class FormDialogues extends FormWaypoints {
 
     /**
      * Who speaks besides the player, in words: "npc (started with) · narrator «Narrator»". Without any written, the
-     * default: the entity the dialogue was started with. Before, a count.
+     * default: the entity the dialogue was started with.
      */
     static String participantsSummary(@Nullable JsonElement value) {
         if (!(value instanceof JsonObject participants) || participants.isEmpty()) {
@@ -81,31 +80,30 @@ abstract class FormDialogues extends FormWaypoints {
     }
 
     /**
-     * The nodes of a dialogue's graph and a choice's options, in the order their author asks (October 29, 2026; before,
-     * the file's order: an option's id first, a jump's node before its dialogue): what is said and where it goes first;
-     * then, in groups, the rest. A line's camera shows only where it turns (the dialogue screen with the camera on).
+     * The nodes of a dialogue's graph and a choice's options, in the order their author asks: what is said and where it
+     * goes first; then, in groups, the rest. A line's camera shows only where it turns (the dialogue screen with the
+     * camera on).
      */
     static final Map<String, List<String>> NODE_ORDER = Map.ofEntries(
             Map.entry("node.jump", List.of("dialogue", "node")),
             Map.entry("option", List.of("text", "next", "conditions", "locked", "locked_text", "actions", "once", "think", "id")),
-            // A document (October 30, 2026; before, the file's order, the journal behind a row, the contract for every kind).
+            // A document.
             Map.entry("document", List.of("title", "kind", "custom_model_data", "style", "journal", "on_read", "contract", "content")),
             Map.entry("journal", List.of("add_on_read", "category")),
-            // A quest (October 30, 2026; before, the file's order: its group and scope before its title, its texts per
-            // state, start, stages and rewards shown as counts): what it is; how it goes; what it gives and changes;
-            // for whom. Then its stages and their objectives.
+            // A quest: what it is; how it goes; what it gives and changes; for whom. Then its stages and their
+            // objectives.
             Map.entry("quest", List.of("title", "description", "text", "screen_text", "category", "difficulty", "start", "stages", "time_limit", "fail_when",
                     "rewards", "on_start", "on_complete", "on_failed", "scope", "repeatable", "notify")),
             Map.entry("stage", List.of("id", "log", "objectives", "next", "waypoints", "on_enter")),
             Map.entry("objective", List.of("id", "text", "trigger", "conditions", "count", "items", "since_stage", "optional", "hidden", "hint", "hints")),
-            // A boss and a Codex entry (October 30, 2026; before, the file's order, a section's text an id of a file):
-            // who or what it is; its sections in the tab, each with its text and when it opens; what a victory does.
+            // A boss and a Codex entry: who or what it is; its sections in the tab, each with its text and when it
+            // opens; what a victory does.
             Map.entry("boss", List.of("title", "entity", "notify", "lore", "tactics", "rewards", "participation", "on_first_kill", "on_kill")),
             Map.entry("codex", List.of("title", "category", "entity", "show_kills", "notify", "sections")),
             Map.entry("codex.section", List.of("title", "text", "unlock", "id")),
             Map.entry("unlock", List.of("on", "count", "conditions")),
-            // A story event, a script block, a flag (October 30, 2026; before, the file's order without headings): when
-            // and what; what the block is and where it leads, its file last; what the flag holds, then where.
+            // A story event, a script block, a flag: when and what; what the block is and where it leads, its file
+            // last; what the flag holds, then where.
             Map.entry("event", List.of("trigger", "conditions", "once", "actions", "on_fail")),
             Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
             Map.entry("flag", List.of("description", "type", "default", "scope", "sync")),
@@ -113,10 +111,9 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("observed", List.of("entity", "block", "pos", "item", "dimension", "time", "distance", "text")));
 
     /**
-     * The headings of a form's groups, each at its first field (October 30, 2026: the first group's too, so every form
-     * goes on from the name under a heading; before, its first fields read as the name's). A small page (a dialogue's
-     * jump, a condition) has none: its title says what it is. A lone field joins a neighbouring group rather than
-     * standing under a heading of its own, except a technical one at the end ("Other").
+     * The headings of a form's groups, each at its first field. A small page (a dialogue's jump, a condition) has none:
+     * its title says what it is. A lone field joins a neighbouring group rather than standing under a heading of its
+     * own, except a technical one at the end ("Other").
      */
     static final Map<String, Map<String, String>> NODE_GROUPS = Map.ofEntries(
             Map.entry("boss", Map.of("title", "boss.group.who", "participation", "boss.group.victory")),
@@ -188,8 +185,7 @@ abstract class FormDialogues extends FormWaypoints {
     }
 
     /**
-     * One line of a phrases node (November 5, 2026): its text, with \u270E for the text window. Text only since November 6,
-     * 2026: a switch at its left picked a dialogue instead, gone with dialogue lines (an NPC starts a dialogue itself now).
+     * One line of a phrases node: its text, with \u270E for the text window. Text only: an NPC starts a dialogue itself.
      */
     void phraseRow(List<Object> path, String field, JsonArray array, int index, int rowY, int width) {
         int right = x;
@@ -226,11 +222,11 @@ abstract class FormDialogues extends FormWaypoints {
     }
 
     /**
-     * An NPC's phrases, for its chatter, a click or when it is hit (November 5, 2026), as an entity's "known by": at the
-     * left a switch, "own text" or "phrases node"; at its right, a text written there (with \u270E for the text window) or
-     * a button that picks one of the story's phrases nodes. Where a dialogue may stand instead (a click entry, a hit;
-     * November 6, 2026) the switch has a third way, "dialogue", which writes the owner's {@code dialogue} in place of its
-     * phrases; a click entry starts on it. Switching empties the field; it is written once filled.
+     * An NPC's phrases, for its chatter, a click or when it is hit, as an entity's "known by": at the left a switch,
+     * "own text" or "phrases node"; at its right, a text written there (with \u270E for the text window) or a button
+     * that picks one of the story's phrases nodes. Where a dialogue may stand instead (a click entry, a hit) the switch
+     * has a third way, "dialogue", which writes the owner's {@code dialogue} in place of its phrases; a click entry
+     * starts on it. Switching empties the field; it is written once filled.
      */
     void phrasesField(List<Object> path, String name, @Nullable JsonElement value, Component label, Node owner) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -345,10 +341,9 @@ abstract class FormDialogues extends FormWaypoints {
     }
 
     /**
-     * Where a jump goes, chosen first (November 6, 2026; before, two fields side by side, "to another dialogue" and "to
-     * the node", and which one counted was unclear): "Within this dialogue ▸" leaves the node alone to pick (its arrow on
-     * the graph), "To another dialogue ▸" asks for the dialogue, then the node in it (empty: its start). Switching
-     * empties both, as a node of one dialogue means nothing in another.
+     * Where a jump goes, chosen first: "Within this dialogue ▸" leaves the node alone to pick (its arrow on the graph),
+     * "To another dialogue ▸" asks for the dialogue, then the node in it (empty: its start). Switching empties both, as
+     * a node of one dialogue means nothing in another.
      *
      * @return whether the dialogue's field is shown (to another dialogue)
      */

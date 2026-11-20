@@ -1,13 +1,12 @@
 package dev.dzenthai.storybound.client;
 
 /**
- * The author's palette for what the code draws beside their art ({@code aseprite/palette/}; October 31, 2026,
- * before the same day an 18-colour sheet): the scroll arrows,
- * the observation HUD, the documents' and the book's rules and text, the bookmarks, the menu theme's defaults. Five
- * sheets: the paper and wood ramp down to the ink, the dark tones (a brown bridge from the ink to black, burgundy,
- * neutral blacks), gold, iron to steel, and four colours of four tones each (light, base, shadow, dark). Every colour
- * stands for a material Minecraft has (wood, paper, leather, charcoal, gold, iron, the gems), so the mod fits vanilla
- * and any pack. Colours are RGB without alpha.
+ * The author's palette for what the code draws beside their art ({@code aseprite/palette/}): the scroll arrows, the
+ * observation HUD, the documents' and the book's rules and text, the bookmarks, the menu theme's defaults. Five sheets:
+ * the paper and wood ramp down to the ink, the dark tones (a brown bridge from the ink to black, burgundy, neutral
+ * blacks), gold, iron to steel, and four colours of four tones each (light, base, shadow, dark). Every colour stands
+ * for a material Minecraft has (wood, paper, leather, charcoal, gold, iron, the gems), so the mod fits vanilla and any
+ * pack. Colours are RGB without alpha.
  */
 public final class UiPalette {
     /** Paper and wood, light to dark, down to the ink: text, outlines and shadows. */

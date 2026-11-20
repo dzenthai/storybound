@@ -510,7 +510,7 @@ public final class LogicGameTests {
         });
     }
 
-    /** A mob spawned by an offset into a hill comes out on top of it, not stuck in it (November 5, 2026). */
+    /** A mob spawned by an offset into a hill comes out on top of it, not stuck in it. */
     @GameTest(template = "open")
     public static void aSpawnInBlocksMovesToRoom(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();

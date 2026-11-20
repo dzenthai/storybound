@@ -156,8 +156,7 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
 
     /**
      * Pinned quests carry the track button's pin at the end of their row, the same pin for each; only active quests: a
-     * finished one is no longer pinned (November 6, 2026; before, a "» " before the title, easy to miss). First 2 pixels
-     * from the row's end, pressed to the edge; then, the author's choice over a pin right after the title, moved in.
+     * finished one is no longer pinned.
      */
     @Override
     protected int entryTextEndInset(Entry entry) {
@@ -242,7 +241,7 @@ public class QuestsView extends ListDetailView<QuestsView.Entry> {
                 detail.text(Component.translatable("storybound.quests.difficulty", difficultyLabel(entry.id(), difficulty)), theme.ink()));
         secondsLeft(definition, progress).ifPresent(left -> detail.text(Component.translatable("storybound.quests.time_left", clock(left)),
                 left < 60 ? 0xFFD9534F : theme.ink()));
-        // Where its markers are, when not here: "📍 The Nether", as the tracker says it (November 9, 2026).
+        // Where its markers are, when not here: "📍 The Nether", as the tracker says it.
         Component elsewhere = progress.status() == QuestStatus.ACTIVE ? QuestHud.elsewhere(entry.id()) : null;
         if (elsewhere != null) {
             detail.text(elsewhere, theme.ink());

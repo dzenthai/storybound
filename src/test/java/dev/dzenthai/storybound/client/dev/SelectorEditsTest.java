@@ -15,11 +15,11 @@ import net.minecraft.nbt.StringTag;
 import org.junit.jupiter.api.Test;
 
 /**
- * The editor's changes to a mob's variants and data (November 9, 2026), each one click of the form. Expected, on the
- * author's example of one NPC that is a Villagers Reborn man smith and a woman farmer: a second variant turns the one
- * selector into a list of two, taking one out of two writes the one left alone again, taking the last leaves nothing;
- * a value picked joins the field's list, picked again it leaves, the last one leaving takes the field and "data" out;
- * switching the rule keeps the kind and changes nothing else by surprise, and switching back gives back what was there.
+ * The editor's changes to a mob's variants and data, each one click of the form. Expected, on the author's example of
+ * one NPC that is a Villagers Reborn man smith and a woman farmer: a second variant turns the one selector into a list
+ * of two, taking one out of two writes the one left alone again, taking the last leaves nothing; a value picked joins
+ * the field's list, picked again it leaves, the last one leaving takes the field and "data" out; switching the rule
+ * keeps the kind and changes nothing else by surprise, and switching back gives back what was there.
  */
 final class SelectorEditsTest {
     private static JsonObject json(String text) {

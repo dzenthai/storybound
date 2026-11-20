@@ -20,7 +20,7 @@ class WaypointStyleTest {
 
     @Test
     void anOlderPacksEdgeIsIgnored() {
-        // Since November 16, 2026 the edge arrow is the player's setting; a pack that still writes "edge" loads as before.
+        // The edge arrow is the player's setting; a pack that still writes "edge" loads as before.
         WaypointStyle style = parse("{ \"size\": 9, \"edge\": \"never\" }");
         assertEquals(9, style.size());
         assertEquals(WaypointStyle.FALLBACK.arrow(), style.arrow());

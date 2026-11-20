@@ -10,7 +10,7 @@ import java.util.Optional;
  * Optional, but lets the validator catch typos in keys.
  * <pre>{ "type": "int", "default": 0, "scope": "party", "sync": true, "description": "...", "min": -50, "max": 50 }</pre>
  *
- * @param min a number flag's least value: what writes it is held to it (November 20, 2026, for relationship scales)
+ * @param min a number flag's least value: what writes it is held to it
  * @param max its greatest value
  */
 public record FlagDeclaration(StoryValue defaultValue, StoryScope scope, boolean sync, Optional<String> description,

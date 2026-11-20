@@ -19,15 +19,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * The stories of the story folder (November 18, 2026): one folder, one story. Each folder of {@code config/storybound/}
- * holding a {@code project.json} is a story, its folder's name its id, with its own definitions, texts, sounds and
- * settings inside ({@code config/storybound/wolf_hunt/quests/...}); the debug scenarios are the story
- * {@value #SCENARIOS}. A story's {@code project.json} gives its {@code title} (else its namespace) and whether it is
- * {@code enabled} (unless it says no; a new one starts off): only enabled stories load into the game ({@link #scan}),
- * a definition id in two of them is an error and the first one keeps it. {@link #owner} says which story a loaded
- * definition came from, so the editor saves it back there; the editor works on one story at a time (see
- * {@code DevProjects}). The game's own settings (difficulty scale, tracking a quest when given) are the
- * {@link #primary} story's. A new story's id is its namespace, made from its title ({@link #suggestId}).
+ * The stories of the story folder: one folder, one story. Each folder of {@code config/storybound/} holding a
+ * {@code project.json} is a story, its folder's name its id, with its own definitions, texts, sounds and settings
+ * inside ({@code config/storybound/wolf_hunt/quests/...}); the debug scenarios are the story {@value #SCENARIOS}. A
+ * story's {@code project.json} gives its {@code title} (else its namespace) and whether it is {@code enabled} (unless
+ * it says no; a new one starts off): only enabled stories load into the game ({@link #scan}), a definition id in two of
+ * them is an error and the first one keeps it. {@link #owner} says which story a loaded definition came from, so the
+ * editor saves it back there; the editor works on one story at a time (see {@code DevProjects}). The game's own
+ * settings (difficulty scale, tracking a quest when given) are the {@link #primary} story's. A new story's id is its
+ * namespace, made from its title ({@link #suggestId}).
  * <p>
  * The same day, first: {@code config/storybound/} itself was a story ({@code default}) and the others were in
  * {@code stories/<id>/}, a story inside a story; {@link #migrate} moves such a folder to the layout above.
@@ -193,9 +193,8 @@ public final class StoryProjects {
     private static final Map<Character, String> LATIN = latin();
 
     /**
-     * A new story's id, which is also its namespace (the prefix of its nodes' ids), made from its title (November 18,
-     * 2026; before, a random {@code story_1a2b3c4d}, which then stood in every id and translation key): lowercase Latin
-     * letters, digits and {@code _}, Cyrillic written in Latin letters ("Моя история" is {@code moya_istoriya});
+     * A new story's id, which is also its namespace (the prefix of its nodes' ids), made from its title: lowercase
+     * Latin letters, digits and {@code _}, Cyrillic written in Latin letters ("Моя история" is {@code moya_istoriya});
      * {@code story_1}, {@code story_2}... when nothing is left of the title; {@code _2}, {@code _3}... after one that
      * is taken or reserved. A valid id for {@link #resolve} and {@link StoryRenames#isStoryNamespace}.
      */
@@ -278,9 +277,9 @@ public final class StoryProjects {
     public static final String DELETED = ".deleted";
 
     /**
-     * Deletes a story (November 19, 2026, the author: there was no way but by hand): its folder is moved into
-     * {@value #DELETED}{@code /<id>-<date and time>/}, nothing erased, so moving it back brings it back. The last story is
-     * not deleted: the editor and the game's own settings need one. Returns where the folder went.
+     * Deletes a story: its folder is moved into {@value #DELETED}{@code /<id>-<date and time>/}, nothing erased, so
+     * moving it back brings it back. The last story is not deleted: the editor and the game's own settings need one.
+     * Returns where the folder went.
      */
     public static Path delete(Path workspace, String id) throws IOException {
         Project project = get(workspace, id);

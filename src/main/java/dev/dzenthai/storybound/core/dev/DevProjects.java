@@ -27,12 +27,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Which story each operator edits, and the stories' actions (November 18, 2026): every editor request comes wrapped
- * with the story it was made for ({@code DevProjectPayloads.Edit}) and is taken only while that is still the operator's
- * story and no reload runs ({@link #accepts}), so an edit never lands in another story. {@code select} opens a story in
- * the editor, {@code create} makes one (off in the game) and opens it, {@code update} renames any story and turns it on or
- * off; turning one on checks first that its files load and none of its ids is another story's, and turning one on or
- * off reloads the server's data (a failed reload puts its settings back). After each action the operator gets a new
+ * Which story each operator edits, and the stories' actions: every editor request comes wrapped with the story it was
+ * made for ({@code DevProjectPayloads.Edit}) and is taken only while that is still the operator's story and no reload
+ * runs ({@link #accepts}), so an edit never lands in another story. {@code select} opens a story in the editor,
+ * {@code create} makes one (off in the game) and opens it, {@code update} renames any story and turns it on or off;
+ * turning one on checks first that its files load and none of its ids is another story's, and turning one on or off
+ * reloads the server's data (a failed reload puts its settings back). After each action the operator gets a new
  * snapshot and the list of stories ({@link #sendState}).
  */
 public final class DevProjects {
@@ -43,8 +43,7 @@ public final class DevProjects {
 
     /**
      * The story the operator edits: the one they opened while it is there (this session's, else the one kept with the
-     * world from before, {@link DevSelections}; November 19, 2026: after a restart the editor opened the first story),
-     * else the primary one; empty when there is no story.
+     * world from before, {@link DevSelections}), else the primary one; empty when there is no story.
      */
     public static String selected(ServerPlayer player) {
         String id = SELECTED.get(player);

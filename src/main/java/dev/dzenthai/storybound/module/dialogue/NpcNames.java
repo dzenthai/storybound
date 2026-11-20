@@ -23,8 +23,7 @@ import net.neoforged.neoforge.event.entity.living.LivingConversionEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * NPCs' names over their heads (November 6, 2026; names from a list November 7, 2026). What an entity is called comes
- * from the first binding of its chain that names it:
+ * NPCs' names over their heads. What an entity is called comes from the first binding of its chain that names it:
  * <ul>
  * <li>{@code display_name} of a binding by hand (a tag, a name, a uuid): the one NPC's name, always shown over its
  * head (unless {@code show_name} is off), each player reading it in their own language (sent as a translation key);
@@ -35,12 +34,10 @@ import org.jetbrains.annotations.Nullable;
  * that list (so a village has no two Agnas while the list lasts), then at random. It keeps it for life, while its
  * binding exists and still lists the name, also once it no longer matches that binding (a smith who lost his job).
  * Shown over the head only when looked at, so a village is not a field of name plates.</li>
- * </ul>
- * The mod remembers on the entity which name is its own doing ({@link Given}), and takes off only that one; a
+ * </ul> The mod remembers on the entity which name is its own doing ({@link Given}), and takes off only that one; a
  * player's name tag over a name from a list is the entity's own from then on, the list's forgotten. A mob turning into
  * another (a villager into a zombie villager) keeps its custom name in vanilla: the name the mod gave is taken off the
- * new one, so there is no zombie Miron. Before, an entity named by a binding carried the tag {@value #NAMED_TAG}
- * (still read in old worlds), and a plain text name could not be told from a name tag's.
+ * new one, so there is no zombie Miron.
  */
 public final class NpcNames {
     private static final int CHECK_TICKS = 40;
@@ -48,7 +45,7 @@ public final class NpcNames {
     private static final double REACH = 32;
     /** Around an entity given a name from a list, the others named from it are counted this far: about a village. */
     static final double AROUND = 64;
-    /** Marked an entity whose name a binding gave, until November 7, 2026; read once and replaced by {@link Given}. */
+    /** Marked an entity whose name a binding gave, in older worlds; read once and replaced by {@link Given}. */
     static final String NAMED_TAG = "storybound_named";
 
     private NpcNames() {}
@@ -85,8 +82,7 @@ public final class NpcNames {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             List<Entity> around = new java.util.ArrayList<>(player.level().getEntities(player, player.getBoundingBox().inflate(REACH),
                     candidate -> candidate instanceof LivingEntity && !(candidate instanceof Player)));
-            // Nearest first: "one" picks the fitting entity nearest the player (November 9, 2026; before, the first the
-            // level listed, maybe one behind a wall rather than the villager in front of them).
+            // Nearest first: "one" picks the fitting entity nearest the player.
             around.sort(java.util.Comparator.comparingDouble(entity -> entity.distanceToSqr(player)));
             for (Entity entity : around) {
                 if (seen.add(entity)) {
@@ -179,7 +175,7 @@ public final class NpcNames {
         outcome.removeData(DialogueRegistries.NPC_NAME);
     }
 
-    /** What the mod gave the entity; a world from before November 7, 2026 marked it with a tag instead. */
+    /** What the mod gave the entity; an older world marked it with a tag instead. */
     private static Given given(Entity entity) {
         if (entity.hasData(DialogueRegistries.NPC_NAME)) {
             return entity.getData(DialogueRegistries.NPC_NAME);

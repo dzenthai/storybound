@@ -22,8 +22,8 @@ abstract class GraphView {
     float zoom = 1.0f;
     /**
      * Where the sky behind the canvas has moved to: half of every move of the canvas, but nothing of what zooming does
-     * to the pan (it keeps the point under the mouse in place), so zooming leaves the sky still (November 19, 2026, the
-     * author). The pan and zoom it last saw, to tell the two apart.
+     * to the pan (it keeps the point under the mouse in place), so zooming leaves the sky still. The pan and zoom it
+     * last saw, to tell the two apart.
      */
     private double skyX;
     private double skyY;
@@ -40,10 +40,9 @@ abstract class GraphView {
     private double panStartX;
     private double panStartY;
     /**
-     * The landmark (November 19, 2026, the author: one got lost on the endless canvas): the canvas's origin, its axes
-     * brighter than the grid and a compass rose on it; while it is off the canvas, the waypoints' arrow at the edge on its
-     * side, which (as Home) glides back to the origin, the compass rose in the middle of the canvas as seen (November 20,
-     * 2026, the author; before, near its top left, at 40, 30, where a canvas starts, and the rose was found in a corner).
+     * The landmark: the canvas's origin, its axes brighter than the grid and a compass rose on it; while it is off the
+     * canvas, the waypoints' arrow at the edge on its side, which (as Home) glides back to the origin, the compass rose
+     * in the middle of the canvas as seen.
      */
     private static final double HOME_X = 40;
     private static final double HOME_Y = 30;
@@ -76,9 +75,8 @@ abstract class GraphView {
     abstract boolean inspectorVisible(DevModeScreen screen);
 
     /**
-     * Escape in this view, one layer a press (November 19, 2026, the author; before, Escape left the editor from
-     * anywhere): what is selected, then the view inside the story; false when there is nothing left, and the screen
-     * leaves the editor.
+     * Escape in this view, one layer a press: what is selected, then the view inside the story; false when there is
+     * nothing left, and the screen leaves the editor.
      */
     boolean escape(DevModeScreen screen) {
         return false;
@@ -181,9 +179,8 @@ abstract class GraphView {
 
     /**
      * Zooms around the mouse, so the point under it stays put, to steps where a canvas pixel is a whole number of the
-     * screen's pixels (November 18, 2026, the author: before, 10% steps made pixel shapes and icons uneven): the zoom is
-     * a multiple of one screen pixel, {@code k / guiScale}, from about 35% to 200%. The wheel sets where it goes; the
-     * drawn zoom glides there ({@link #animateZoom}; November 19, 2026, the author: it jumped).
+     * screen's pixels: the zoom is a multiple of one screen pixel, {@code k / guiScale}, from about 35% to 200%. The
+     * wheel sets where it goes; the drawn zoom glides there ({@link #animateZoom}).
      */
     void zoomAt(double mouseX, double mouseY, double amount) {
         wheel += amount;
@@ -254,10 +251,10 @@ abstract class GraphView {
         drawnRight = right;
         drawnBottom = screen.height;
         graphics.enableScissor(canvasLeft(), DevUi.TOP_BAR_H, right, screen.height);
-        // The sky behind, at half the canvas's pace, still while zooming (November 19, 2026).
+        // The sky behind, at half the canvas's pace, still while zooming.
         if (Double.isNaN(skyPanX)) {
-            // At first sight its middle and the grid's origin agree as they would with the origin in the screen's middle,
-            // so the sky's mirrored seams lie far from the origin (November 20, 2026, the author saw one in plain view).
+            // At first sight its middle and the grid's origin agree as they would with the origin in the screen's
+            // middle, so the sky's mirrored seams lie far from the origin.
             skyX = (canvasLeft() + panX - screen.width / 2.0) * DevBackground.PARALLAX;
             skyY = (DevUi.TOP_BAR_H + panY - screen.height / 2.0) * DevBackground.PARALLAX;
         } else if (zoom == skyZoom) {
@@ -283,9 +280,8 @@ abstract class GraphView {
     }
 
     /**
-     * The origin's compass rose (November 20, 2026, the author: the diamond before it grew into coarse squares with the
-     * zoom and looked like a toy): four faceted points shaded as a pinwheel, a glint in the middle, gold ticks on the
-     * diagonals, no edge (the dark edge it had at first the author did not like); on the screen's own pixels, the same
+     * The origin's compass rose: four faceted points shaded as a pinwheel, a glint in the middle, gold ticks on the
+     * diagonals, no edge; on the screen's own pixels, the same
      * size and sharp at every zoom.
      */
     private static final String[] COMPASS = {
@@ -370,9 +366,8 @@ abstract class GraphView {
     }
 
     /**
-     * While the origin is off the canvas: the waypoints' arrow (the author's, as at the screen's edge in the world;
-     * November 20, 2026, the author; the day before, a square button with a target), at the canvas's edge where the
-     * line from its middle to the origin leaves it, turned towards the origin, pulsing as the waypoints' does.
+     * While the origin is off the canvas: the waypoints' arrow, at the canvas's edge where the line from its middle to
+     * the origin leaves it, turned towards the origin, pulsing as the waypoints' does.
      */
     private void renderHomeButton(GuiGraphics graphics) {
         double ox = canvasLeft() + panX;

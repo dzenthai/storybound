@@ -9,7 +9,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-/** Client intent from the Journal (November 20, 2026): read a kept signed book ({@code remove} false), or take it out. */
+/** Client intent from the Journal: read a kept signed book ({@code remove} false), or take it out. */
 public record JournalBookActionPayload(String key, boolean remove) implements CustomPacketPayload {
     public static final Type<JournalBookActionPayload> TYPE = new Type<>(Storybound.id("journal_book_action"));
     public static final StreamCodec<ByteBuf, JournalBookActionPayload> STREAM_CODEC = StreamCodec.composite(

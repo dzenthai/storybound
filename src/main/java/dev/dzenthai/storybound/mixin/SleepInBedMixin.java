@@ -10,9 +10,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * A villager talking (in a dialogue, or its phrase still over its head) does not go to bed until it is done (November 7,
- * 2026; before, it lay down in the middle of a conversation next to its bed). Vanilla tries again a moment later, so it
- * lies down once the talk is over.
+ * A villager talking (in a dialogue, or its phrase still over its head) does not go to bed until it is done. Vanilla
+ * tries again a moment later, so it lies down once the talk is over.
  */
 @Mixin(SleepInBed.class)
 public abstract class SleepInBedMixin {

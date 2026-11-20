@@ -41,7 +41,7 @@ import org.jetbrains.annotations.Nullable;
  * one is taken. Used by NPC bindings, bosses, waypoints' nearest entity and the "observed" trigger, always on the server.
  * <p>
  * Where it is ({@code dimension}, {@code biome}, {@code structure}) is the base every mob has ({@link WorldPlaces});
- * what it is like is read from its own saved data ({@code data}), nothing known of any kind or mod (November 9, 2026).
+ * what it is like is read from its own saved data ({@code data}), nothing known of any kind or mod.
  *
  * @param type       an entity type, a #tag or a list
  * @param tag        a scoreboard tag
@@ -252,9 +252,9 @@ public record EntitySelector(Optional<HolderSet<EntityType<?>>> type, Optional<S
     private static final ThreadLocal<Saved[]> SHARED = new ThreadLocal<>();
 
     /**
-     * Runs the work with one reading of an entity's saved data for every selector asking it (November 9, 2026): an
-     * NPC's chain asks each binding, and saving a villager is the dearest part of a check. Outside it, each match reads
-     * anew, so a story changing a mob and asking about it at once is answered rightly.
+     * Runs the work with one reading of an entity's saved data for every selector asking it: an NPC's chain asks each
+     * binding, and saving a villager is the dearest part of a check. Outside it, each match reads anew, so a story
+     * changing a mob and asking about it at once is answered rightly.
      */
     public static <T> T sharingSavedData(java.util.function.Supplier<T> work) {
         if (SHARED.get() != null) {

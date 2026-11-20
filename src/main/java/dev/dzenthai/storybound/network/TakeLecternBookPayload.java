@@ -11,8 +11,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * Client intent: take the book being read off its lectern ("Take Book" under it, November 4, 2026). The server checks
- * that this document still lies on that lectern, that the player is near it and may build, as vanilla's lectern does.
+ * Client intent: take the book being read off its lectern. The server checks that this document still lies on that
+ * lectern, that the player is near it and may build, as vanilla's lectern does.
  */
 public record TakeLecternBookPayload(BlockPos lectern, ResourceLocation document) implements CustomPacketPayload {
     public static final Type<TakeLecternBookPayload> TYPE = new Type<>(Storybound.id("take_lectern_book"));

@@ -149,8 +149,7 @@ public final class Quests {
     }
 
     /**
-     * Whether {@code project.json} tracks every quest when it is given ({@code track_given_quests}, November 16, 2026),
-     * set on each load of the story.
+     * Whether {@code project.json} tracks every quest when it is given, set on each load of the story.
      */
     private static volatile boolean trackGiven;
 
@@ -404,10 +403,9 @@ public final class Quests {
     }
 
     /**
-     * Whether a party or world quest's objective may count the happening being handled: one happening fired for
-     * several players who share the progress (a kill shared with the party, a boss's victory for each credited player,
-     * a party quest's change for each member online) counts once (October 29, 2026; before, once per player it
-     * reached, so two members at one boss counted two). See {@link TriggerDispatcher#asOne}.
+     * Whether a party or world quest's objective may count the happening being handled: one happening fired for several
+     * players who share the progress (a kill shared with the party, a boss's victory for each credited player, a party
+     * quest's change for each member online) counts once. See {@link TriggerDispatcher#asOne}.
      */
     private static long countedOccurrence = -1;
     /** What the happening {@link #countedOccurrence} counted: owner, quest and objective. */
@@ -694,8 +692,7 @@ public final class Quests {
     /**
      * Who the quest triggers fire for: the player who made the change, then, for a party or world quest, everyone else
      * online who shares it, so what follows a shared quest (a personal quest starting, a story event for the player)
-     * happens to each of them. The quest's own {@code on_*} actions still run once. (World quests since October 29,
-     * 2026: before, a story event on a world quest's change ran for the one who made it only.)
+     * happens to each of them. The quest's own {@code on_*} actions still run once.
      */
     private static List<ServerPlayer> witnesses(ServerPlayer player, QuestDefinition definition) {
         List<ServerPlayer> witnesses = new ArrayList<>(List.of(player));
@@ -742,8 +739,8 @@ public final class Quests {
     private static final int SCREEN_FAILED = 0xE05A47;
 
     /**
-     * The quest's title big in the middle of the screen, the words under it (see {@link QuestDefinition.ScreenText}); the
-     * title green on completion, red on failure, as it is on a start (November 20, 2026, the author), the words as written.
+     * The quest's title big in the middle of the screen, the words under it (see {@link QuestDefinition.ScreenText});
+     * the title green on completion, red on failure, as it is on a start, the words as written.
      */
     private static void onScreen(ServerPlayer player, StoryText title, StoryText words, NotifyKind kind) {
         Component shown = title.resolve(player).toComponent();

@@ -252,9 +252,9 @@ public final class DialogueEvents {
             }
         });
         DialogueRegistries.NPC_BINDINGS.serverStore().all().forEach((id, binding) -> {
-            // An NPC that only chatters, reacts to hits, is invulnerable or named does something too (November 6, 2026); so does
-            // one writing custom, invulnerable or respawn either way, over the bindings below it (November 7, 2026); one
-            // that only sets how it walks (November 20, 2026).
+            // An NPC that only chatters, reacts to hits, is invulnerable or named does something too; so does one
+            // writing custom, invulnerable or respawn either way, over the bindings below it; one that only sets how it
+            // walks.
             if (binding.dialogues().isEmpty() && binding.custom().isEmpty() && binding.chatter().isEmpty() && binding.whenAttacked().isEmpty()
                     && binding.invulnerable().isEmpty() && binding.respawn().isEmpty() && binding.displayName().isEmpty() && binding.names().isEmpty()
                     && binding.movement().isEmpty()) {
@@ -265,7 +265,7 @@ public final class DialogueEvents {
             if (binding.showName().orElse(true) && binding.displayName().isPresent() && NpcNames.byName(binding)) {
                 bindingWarning.accept("display_name is not shown over its head: the NPC is known by the name it carries (entity name), which it keeps");
             }
-            // A name belongs to one NPC, names from a list to every entity of a kind (November 7, 2026).
+            // A name belongs to one NPC, names from a list to every entity of a kind.
             if (binding.displayName().isPresent() && !binding.byHand() && !binding.isOne()) {
                 bindingWarning.accept("display_name names nobody: the NPC is every entity of its kind, and one name would name them all alike;"
                         + " give them names (a list), or make it one NPC (\"one\": true, or a tag)");
@@ -331,7 +331,7 @@ public final class DialogueEvents {
     /**
      * Warns about a spawn of an NPC that a binding talks through (by its tag), written without {@code unique}, where it
      * may run more than once (for each player or party that gets there): each would get a copy of their own, as three
-     * players got three demo elders (October 28, 2026). An explicit {@code unique} says which was meant.
+     * players got three demo elders. An explicit {@code unique} says which was meant.
      */
     private record NpcCopies(DefinitionType<?> owner, ResourceLocation ownerId, Set<String> boundTags, boolean runsOnce, Set<String> reported,
                              Consumer<ValidationIssue> sink) implements References {

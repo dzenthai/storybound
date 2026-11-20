@@ -28,17 +28,17 @@ import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * "One, picked by the mod" (November 7, 2026, stage 4 of "Who an NPC is"): an NPC binding for every entity of a kind with
- * {@code "one": true} (an Elder: a grown villager in a village) is one entity only, picked when the mod first works out a
- * fitting one near a player (as names are put on, within 32 blocks); until then the part is empty. Never one a binding by
- * hand matches (Brann, a tagged elder of another story), nor one holding another part. One per world, kept in SavedData
- * {@value #NAME} of the overworld: binding → its holder's uuid, where it was last worked out, ended or not. The part is
- * the uuid: the binding's tag is put on the holder too (for vanilla selectors and {@code /data}), but a copy of the tag
- * on another entity does not make a second Elder. The filters pick him only once: he stays the Elder when he loses his
- * job or walks out of the village. Gone: with {@code respawn} (on unless the binding writes it off) he comes back as
- * himself ({@link NpcRespawns}); without, the part ends when he dies or is discarded, and is never given again.
- * Unloaded, in another dimension, a restart or a reload: the part stays his. A binding renamed in the editor: its part
- * moves with it (the migrations); deleted, or no longer "one": its part is dropped.
+ * "One, picked by the mod": an NPC binding for every entity of a kind with {@code "one": true} (an Elder: a grown
+ * villager in a village) is one entity only, picked when the mod first works out a fitting one near a player (as names
+ * are put on, within 32 blocks); until then the part is empty. Never one a binding by hand matches (Brann, a tagged
+ * elder of another story), nor one holding another part. One per world, kept in SavedData {@value #NAME} of the
+ * overworld: binding → its holder's uuid, where it was last worked out, ended or not. The part is the uuid: the
+ * binding's tag is put on the holder too (for vanilla selectors and {@code /data}), but a copy of the tag on another
+ * entity does not make a second Elder. The filters pick him only once: he stays the Elder when he loses his job or
+ * walks out of the village. Gone: with {@code respawn} (on unless the binding writes it off) he comes back as himself
+ * ({@link NpcRespawns}); without, the part ends when he dies or is discarded, and is never given again. Unloaded, in
+ * another dimension, a restart or a reload: the part stays his. A binding renamed in the editor: its part moves with it
+ * (the migrations); deleted, or no longer "one": its part is dropped.
  */
 public final class NpcParts extends SavedData {
     private static final String NAME = "storybound_npc_parts";
@@ -66,7 +66,7 @@ public final class NpcParts extends SavedData {
     private final Map<ResourceLocation, Part> parts = new LinkedHashMap<>();
     /**
      * Entities not loaded when a part left them (freed, its binding renamed or gone) → the tags to take off them when
-     * they are next worked out (November 9, 2026: before, the tag stayed, and {@code @e[tag=...]} found two).
+     * they are next worked out.
      */
     private final Map<UUID, List<String>> untag = new LinkedHashMap<>();
     private int generation = -1;
@@ -211,8 +211,7 @@ public final class NpcParts extends SavedData {
 
     /**
      * The holder of a part did not come back after all (its binding no longer has it come back, its kind no longer
-     * loads, its dimension is gone; November 9, 2026: before, the part stayed his for good, a waypoint led to his grave
-     * and nobody else was ever picked): the part ends, as when it dies without coming back.
+     * loads, its dimension is gone): the part ends, as when it dies without coming back.
      */
     static void notBack(MinecraftServer server, UUID holder) {
         NpcParts data = get(server);

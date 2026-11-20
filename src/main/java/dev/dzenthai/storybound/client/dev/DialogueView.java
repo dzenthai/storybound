@@ -34,8 +34,8 @@ import org.lwjgl.glfw.GLFW;
  */
 final class DialogueView extends GraphView {
     /**
-     * A node's box: two cells by two, its shape in the middle, as on the story canvas (November 18, 2026: shapes; that
-     * day first cards of 6 cells by 2, before 144 by 46). The line or what the node does is written under the shape.
+     * A node's box: two cells by two, its shape in the middle, as on the story canvas (that day first cards of 6 cells
+     * by 2, before 144 by 46). The line or what the node does is written under the shape.
      */
     static final int NODE_W = 2 * DevUi.GRID;
     static final int NODE_H = 2 * DevUi.GRID;
@@ -75,8 +75,8 @@ final class DialogueView extends GraphView {
     }
 
     /**
-     * A dialogue node's shape (November 19, 2026, the author): a line a circle, a choice and a condition a diamond (they
-     * branch), the rest (an action, a random pick, a jump, a call, the end, Start) a square; in it, its kind's item.
+     * A dialogue node's shape: a line a circle, a choice and a condition a diamond (they branch), the rest (an action,
+     * a random pick, a jump, a call, the end, Start) a square; in it, its kind's item.
      */
     private static StoryView.Look look(String type, boolean player) {
         return switch (type) {
@@ -86,7 +86,7 @@ final class DialogueView extends GraphView {
         };
     }
 
-    /** " (dialogue screen)": how another dialogue shows (November 6, 2026); empty when it is not in the story. */
+    /** " (dialogue screen)": how another dialogue shows; empty when it is not in the story. */
     private static String shownAs(String dialogue) {
         ResourceLocation id = ResourceLocation.tryParse(dialogue);
         if (id == null || ClientDevStore.getJson(ClientDevStore.TYPE_DIALOGUE, id) == null) {
@@ -98,9 +98,9 @@ final class DialogueView extends GraphView {
     }
 
     /**
-     * The card "Start" (October 29, 2026; before, "Make it the start" on every node and in its menu, useful once): it
-     * cannot be deleted, and its one arrow leads to the dialogue's first node; dragged to another node, it makes that
-     * one the first. Its place is kept in the layout under this key, which no node can have ({@code @} is for targets).
+     * The card "Start": it cannot be deleted, and its one arrow leads to the dialogue's first node; dragged to another
+     * node, it makes that one the first. Its place is kept in the layout under this key, which no node can have
+     * ({@code @} is for targets).
      */
     static final String START = "@start";
 
@@ -597,8 +597,8 @@ final class DialogueView extends GraphView {
             form.reset(schema != null ? Schemas.typed(schema, DialogueGraph.type(node)) : null, nodeId, Set.of("type"));
         }
         form.addWidgets(screen, x, y, w, screen.height - 34);
-        // At the bottom as on the story's inspector (November 19, 2026, the author: a dialogue node had no Save; its
-        // words were sent only on leaving it): saving it now, and deleting it (Delete and its menu still do).
+        // At the bottom as on the story's inspector (its words were sent only on leaving it): saving it now, and
+        // deleting it (Delete and its menu still do).
         screen.add(Button.builder(Component.literal("💾 ").append(DevUi.text("inspector.save")), b -> saveNode(screen, nodeId))
                 .bounds(x, screen.height - 26, w - 54, 20).build());
         screen.add(Button.builder(Component.literal("🗑"), b -> deleteNode(screen, nodeId))
@@ -626,8 +626,8 @@ final class DialogueView extends GraphView {
     }
 
     /**
-     * The node's name, as a node's on the story canvas: arrows, other dialogues and players' marks of its options chosen
-     * once name it by it, so ✓ renames it with all of them (October 29, 2026; before, a node kept "line_3").
+     * The node's name, as a node's on the story canvas: arrows, other dialogues and players' marks of its options
+     * chosen once name it by it, so ✓ renames it with all of them.
      */
     private void nameRow(DevModeScreen screen, String nodeId, int x, int y, int w) {
         if (!nodeId.equals(renameFor)) {

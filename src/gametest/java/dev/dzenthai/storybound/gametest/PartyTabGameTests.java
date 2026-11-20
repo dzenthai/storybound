@@ -16,9 +16,9 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * The party tab's actions and what it shows (November 19, 2026): the same rules as the commands, reached through
- * {@link PartyManager#act}, and each player's view as {@link PartySync} sends it. Other tests' mock players may be
- * online at the same time, so the lists are checked for these players, never counted.
+ * The party tab's actions and what it shows: the same rules as the commands, reached through {@link PartyManager#act},
+ * and each player's view as {@link PartySync} sends it. Other tests' mock players may be online at the same time, so
+ * the lists are checked for these players, never counted.
  */
 @SuppressWarnings("removal")
 @GameTestHolder(Storybound.MOD_ID)

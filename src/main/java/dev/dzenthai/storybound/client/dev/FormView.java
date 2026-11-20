@@ -97,12 +97,12 @@ final class FormView extends FormStory {
             npcWho(schema, object);
         }
         List<String> order = npc ? NPC_ORDER : form != null ? NODE_ORDER.getOrDefault(form, List.of()) : List.of();
-        // add_waypoint: where it points, as a waypoint's target page asks it, over its own fields (November 9, 2026).
+        // add_waypoint: where it points, as a waypoint's target page asks it, over its own fields.
         boolean addWaypoint = Schemas.properties(schema).containsKey("follow") && Schemas.properties(schema).containsKey("structure")
                 && Schemas.properties(schema).containsKey("show_ring");
         boolean targetDrawn = false;
-        // The player's condition "location": where, as a mob's variant asks it, dimension → biome → structure, each list
-        // only what fits (November 9, 2026: before, the Nether with plains could be chosen).
+        // The player's condition "location": where, as a mob's variant asks it, dimension → biome → structure, each
+        // list only what fits.
         Map<String, Node> own = Schemas.properties(schema);
         boolean location = own.containsKey("dimension") && own.containsKey("biome") && own.containsKey("area") && own.containsKey("structure");
         for (Map.Entry<String, Node> property : ordered(Schemas.properties(schema), order)) {
@@ -123,8 +123,8 @@ final class FormView extends FormStory {
                 }
                 continue;
             }
-            // "Hits forgiven" and their warnings only for an NPC that fights back: the others never take revenge anyway.
-            // "Calms down after" not for one that does not react: it never gets angry (November 6, 2026).
+            // "Hits forgiven" and their warnings only for an NPC that fights back: the others never take revenge
+            // anyway. "Calms down after" not for one that does not react: it never gets angry.
             String reaction = object != null && object.get("reaction") instanceof JsonPrimitive written ? written.getAsString() : "ignore";
             boolean hiddenByReaction = Schemas.properties(schema).containsKey("calm_after")
                     && ((name.equals("patience") || name.equals("warning")) && !reaction.equals("fight") || name.equals("calm_after") && reaction.equals("ignore"));
@@ -175,8 +175,7 @@ final class FormView extends FormStory {
                 relationshipField(host.npcBinding());
             }
             if (npc && name.equals("busy") && (object == null || !object.has("busy"))) {
-                // Without it, others get nothing while it talks, not even the talk hint (November 9, 2026: an author
-                // wondered where the second player's button had gone).
+                // Without it, others get nothing while it talks, not even the talk hint.
                 text(DevUi.text("npc.busy_missing"), DevUi.MUTED);
             }
         }
@@ -274,7 +273,7 @@ final class FormView extends FormStory {
             // A click entry's or a hit's dialogue is the third way of its phrases' switch, shown there.
             return;
         }
-        // An NPC's busy line is said as its phrases are: its own text or a phrases node (November 9, 2026).
+        // An NPC's busy line is said as its phrases are: its own text or a phrases node.
         boolean busyLine = name.equals("busy") && path.isEmpty() && host.npcBinding() != null;
         if ((name.equals("phrases") || name.equals("warning")) && phrasesOwner || busyLine) {
             phrasesField(path, name, value, label, owner);
@@ -300,8 +299,7 @@ final class FormView extends FormStory {
             }
             case ID_LIST, STRING, INTEGER, NUMBER, LITERAL, POSITION, RAW -> inputField(path, name, node, kind, value, label, tooltip, owner);
             default -> {
-                // Under its label, as every other field (October 30, 2026; before, "Label: value ▸" in the button itself, the
-                // only fields without a label above: the eye found no column of names to run down).
+                // Under its label, as every other field.
                 if (row(LABEL_H + CONTROL_H)) {
                     labelRow(label);
                     Component shown = name.equals("target") && path.isEmpty() && Schemas.properties(owner).containsKey("show_ring")
@@ -546,7 +544,7 @@ final class FormView extends FormStory {
                 JsonArray list = ensureArray(path);
                 JsonObject element = itemKind == Kind.OBJECT ? Schemas.skeleton(items) : new JsonObject();
                 // A quest's objective gets a name too, though the schema does not ask for one: by position, players'
-                // counters would move to another objective when the list is reordered (October 30, 2026).
+                // counters would move to another objective when the list is reordered.
                 boolean named = Schemas.required(items).contains("id") || Schemas.properties(items).containsKey("since_stage");
                 if (named && !element.has("id")) {
                     element.addProperty("id", freeId(list, field));
@@ -679,8 +677,7 @@ final class FormView extends FormStory {
             }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build());
         }
         if (target && Schemas.required(variants.get(current)).contains("nearest")) {
-            // It finds only what is loaded near the player (November 9, 2026: a quest pointing at "the nearest alchemist"
-            // from its start showed nothing in a new world).
+            // It finds only what is loaded near the player.
             text(DevUi.text("waypoint.kind.nearest.note"), DevUi.MUTED);
         }
         objectPage(path, variants.get(current), Set.of(), null);

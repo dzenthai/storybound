@@ -80,11 +80,11 @@ public sealed interface WaypointTarget {
     }
 
     /**
-     * An NPC, by its binding (November 7, 2026, stage 4 of "Who an NPC is"): {@code { "npc": "mypack:elder" }}. One picked by
-     * the mod (a {@code "one"} binding) is followed as {@link Follow}: its last known place while it is not loaded; nothing
-     * while its part is empty (nobody picked yet) or has ended. Any other NPC: the nearest entity it is, within
-     * {@code range} blocks of each player, as {@link Nearest}. Without it, a quest could not point at an Elder the mod
-     * picked, whose uuid nobody knows beforehand.
+     * An NPC, by its binding: {@code { "npc": "mypack:elder" }}. One picked by the mod (a {@code "one"} binding) is
+     * followed as {@link Follow}: its last known place while it is not loaded; nothing while its part is empty (nobody
+     * picked yet) or has ended. Any other NPC: the nearest entity it is, within {@code range} blocks of each player, as
+     * {@link Nearest}. Without it, a quest could not point at an Elder the mod picked, whose uuid nobody knows
+     * beforehand.
      */
     record Npc(ResourceLocation npc, int range) implements WaypointTarget {
         public static final Codec<Npc> CODEC = RecordCodecBuilder.create(instance -> instance.group(

@@ -21,8 +21,7 @@ final class NodeTemplates {
     }
 
     /**
-     * The question a new node is asked at once, its one thing no default can stand for (October 30, 2026; before, an
-     * NPC was a villager tagged npc_1 and a boss a wolf, stand-ins easy to leave and that matched nothing in game).
+     * The question a new node is asked at once, its one thing no default can stand for.
      */
     enum Ask { NONE, ENTITY, CREATURE, TRIGGER }
 
@@ -95,8 +94,8 @@ final class NodeTemplates {
                 dialogue.addProperty("start", "greet");
                 JsonObject npc = new JsonObject();
                 npc.addProperty("type", "bound");
-                // No name of its own: the NPC talked to is named as it is in the world (its name over its head, a name tag,
-                // its kind). Before (November 6, 2026), "Speaker" was written here and shown instead of the NPC's name.
+                // No name of its own: the NPC talked to is named as it is in the world (its name over its head, a name
+                // tag, its kind).
                 JsonObject participants = new JsonObject();
                 participants.add("npc", npc);
                 dialogue.add("participants", participants);
@@ -114,7 +113,7 @@ final class NodeTemplates {
                 JsonObject npc = new JsonObject();
                 npc.addProperty("interact", true);
                 npc.addProperty("override_interact", true);
-                // Its tag is its name: an entity carrying it is this NPC (November 6, 2026); what kind it is is asked next.
+                // Its tag is its name: an entity carrying it is this NPC; what kind it is is asked next.
                 JsonObject entity = new JsonObject();
                 entity.addProperty("tag", id.getPath().replace('/', '_'));
                 npc.add("entity", entity);

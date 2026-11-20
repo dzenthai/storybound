@@ -6,13 +6,13 @@ import dev.dzenthai.storybound.client.UiPalette;
 import dev.dzenthai.storybound.core.data.ColorCodec;
 
 /**
- * Colours of the Adventure Menu and the HUD, from {@code assets/storybound/storybound/menu/theme.json} (a resource
- * pack overrides it; November 4, 2026, its sprites of a panel and tabs went with the menu without the book).
+ * Colours of the Adventure Menu and the HUD, from {@code assets/storybound/storybound/menu/theme.json} (a resource pack
+ * overrides it).
  */
 public record MenuTheme(int title, int ink, int muted, int accent, int unseen, int completed, int failed,
                         int selection, int hover, int divider, int hudBackground, int hudTitle, int hudText) {
     public static final MenuTheme FALLBACK = new MenuTheme(
-            // As theme.json, in the author's palette (October 31, 2026); muted and the HUD's background are not in it.
+            // As theme.json, in the author's palette; muted and the HUD's background are not in it.
             UiPalette.opaque(UiPalette.INK), UiPalette.opaque(UiPalette.INK), 0xFF806747, UiPalette.opaque(UiPalette.DARK_BROWN),
             UiPalette.opaque(UiPalette.OCHRE), UiPalette.opaque(UiPalette.GREEN_DARK), UiPalette.opaque(UiPalette.RED_SHADOW),
             0x60000000 | UiPalette.TAN_LIGHT, 0x30000000 | UiPalette.TAN, UiPalette.opaque(UiPalette.TAN), 0xA62A221C,

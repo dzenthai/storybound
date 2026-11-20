@@ -10,10 +10,10 @@ import java.util.function.Predicate;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The editor's changes to an entity selector and to an NPC's entity, as JSON (November 9, 2026), apart from the screen
- * so each is tested: a mob's variants (one object, or a list of them: a man smith and a woman farmer of one NPC),
- * values of its {@code data}, the rule by hand / dynamic. Each is one change the form makes on a click; none is made
- * on showing a node, which leaves its file as it is.
+ * The editor's changes to an entity selector and to an NPC's entity, as JSON, apart from the screen so each is tested:
+ * a mob's variants (one object, or a list of them: a man smith and a woman farmer of one NPC), values of its
+ * {@code data}, the rule by hand / dynamic. Each is one change the form makes on a click; none is made on showing a
+ * node, which leaves its file as it is.
  */
 final class SelectorEdits {
     /** What makes an entity one "by hand": the parts naming particular entities. */

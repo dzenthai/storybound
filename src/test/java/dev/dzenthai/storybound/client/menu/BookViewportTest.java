@@ -10,8 +10,8 @@ class BookViewportTest {
         JournalLayout book = JournalLayout.fit(BookViewport.MENU_WIDTH, BookViewport.MENU_HEIGHT);
         int[][] windows = {{1920, 1080}, {2560, 1440}, {3840, 2160}, {3440, 1440}, {1366, 768}, {1280, 720}, {1600, 900},
                 {1024, 768}, {854, 480}, {640, 360}};
-        // Window pixels per pixel of the 384×256 book: the largest with which it takes at most 80% of the window's height
-        // and 90% of its width, as the documents (October 31, 2026; before, as large as the menu fits: 4, 5, 8, 2).
+        // Window pixels per pixel of the 384×256 book: the largest with which it takes at most 80% of the window's
+        // height and 90% of its width, as the documents.
         double[][] expected = {{1920, 3}, {2560, 4}, {3840, 6}, {1366, 2}};
         for (int[] window : windows) {
             var reference = BookViewport.wholePixels(window[0], window[1], 1, JournalSkin.BOOK_WIDTH, book);

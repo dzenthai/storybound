@@ -10,8 +10,8 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What an NPC says for its chatter, a click or a hit (November 5, 2026): a phrases node by its id, or a text of its own written
- * right there ({@code { "text": ... }}), for an NPC that needs one line and no node.
+ * What an NPC says for its chatter, a click or a hit: a phrases node by its id, or a text of its own written right
+ * there ({@code { "text"... }}), for an NPC that needs one line and no node.
  */
 public record PhrasesRef(Optional<ResourceLocation> node, Optional<StoryText> text) {
     private static final Codec<StoryText> OWN = RecordCodecBuilder.create(instance -> instance.group(

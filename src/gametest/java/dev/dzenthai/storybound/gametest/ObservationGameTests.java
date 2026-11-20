@@ -38,10 +38,10 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * The trigger "observed" on a real server (October 30, 2026): the time adding up while the player looks straight at the
- * target, pausing and then lost when they look away, a wall and the distance, a target counted once, two observations
- * of one target each on their own, no bar for what would do nothing, a block by its position, a Codex section studied.
- * Checks are run by hand, {@link ObservationTracker#INTERVAL} ticks apart, so the tests do not wait for the server.
+ * The trigger "observed" on a real server: the time adding up while the player looks straight at the target, pausing
+ * and then lost when they look away, a wall and the distance, a target counted once, two observations of one target
+ * each on their own, no bar for what would do nothing, a block by its position, a Codex section studied. Checks are run
+ * by hand, {@link ObservationTracker#INTERVAL} ticks apart, so the tests do not wait for the server.
  */
 @SuppressWarnings("removal")
 @GameTestHolder(Storybound.MOD_ID)
@@ -210,9 +210,9 @@ public final class ObservationGameTests {
     }
 
     /**
-     * A dialogue on the screen freezes the look on whoever stands in front (November 5, 2026): it observes nothing, a bar
-     * already filling pauses and is lost as when looking away, a player beside them who is not talking still observes,
-     * and once it ends the bar starts from nothing.
+     * A dialogue on the screen freezes the look on whoever stands in front: it observes nothing, a bar already filling
+     * pauses and is lost as when looking away, a player beside them who is not talking still observes, and once it ends
+     * the bar starts from nothing.
      */
     @GameTest(template = "open")
     public static void aDialogueOnTheScreenObservesNothing(GameTestHelper helper) {
@@ -246,8 +246,8 @@ public final class ObservationGameTests {
     }
 
     /**
-     * Subtitles leave the look to the player, so the lines observe; so does a choice in them while it waits for the talk
-     * key (since November 6, 2026 its window opens only then); its window, once open, holds the screen and does not.
+     * Subtitles leave the look to the player, so the lines observe; so does a choice in them while it waits for the
+     * talk key; its window, once open, holds the screen and does not.
      */
     @GameTest(template = "open")
     public static void subtitlesObserveButTheirChoiceDoesNot(GameTestHelper helper) {
@@ -302,9 +302,9 @@ public final class ObservationGameTests {
     }
 
     /**
-     * Observing an item (November 20, 2026), wherever it shows: an emerald lying on the ground (Minecraft's crosshair does
-     * not pick it), one in an item frame, a golden helmet worn by an armor stand, a chest placed as a block; an item the
-     * subscription does not name, and the player's own hand, count for nothing.
+     * Observing an item, wherever it shows: an emerald lying on the ground (Minecraft's crosshair does not pick it),
+     * one in an item frame, a golden helmet worn by an armor stand, a chest placed as a block; an item the subscription
+     * does not name, and the player's own hand, count for nothing.
      */
     @GameTest(template = "open", timeoutTicks = 200)
     public static void anItemIsObservedWhereverItShows(GameTestHelper helper) {

@@ -6,17 +6,16 @@ import net.minecraft.client.gui.GuiGraphics;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The dev mode's icons (November 17, 2026; before, the game font's emoji, which the author found heavy beside the
- * minimal look of FTB Quests): 11 by 11 ({@link #SIZE}), a line one pixel wide, in the manner of Pixelarticons, drawn by hand as pixel
- * maps here and painted in the colour they are given ({@code #} is a pixel). They stand where the editor wrote a glyph:
- * a label beginning with one ("💾 Save", "🗑") shows the icon instead ({@link #GLYPHS}), so every button, menu line
- * and badge gets them without being changed; a glyph with no icon stays as it was.
+ * The dev mode's icons: 11 by 11 ({@link #SIZE}), a line one pixel wide, in the manner of Pixelarticons, drawn by hand
+ * as pixel maps here and painted in the colour they are given ({@code #} is a pixel). They stand where the editor wrote
+ * a glyph: a label beginning with one ("💾 Save", "🗑") shows the icon instead ({@link #GLYPHS}), so every button, menu
+ * line and badge gets them without being changed; a glyph with no icon stays as it was.
  */
 final class DevIcons {
     /**
-     * The icons' size, in GUI pixels (November 19, 2026, the author: 9 was too small for a drawing to read; before, 9):
-     * odd, so an icon sits exactly in the middle of the editor's odd-width buttons, and to the game's 7-pixel letters as
-     * Pixelarticons are to their text. A drawing smaller than the square is centred in it.
+     * The icons' size, in GUI pixels: odd, so an icon sits exactly in the middle of the editor's odd-width buttons, and
+     * to the game's 7-pixel letters as Pixelarticons are to their text. A drawing smaller than the square is centred in
+     * it.
      */
     static final int SIZE = 11;
     /** From an icon to the text after it. */
@@ -27,7 +26,7 @@ final class DevIcons {
             Map.entry("undo", new String[]{"...........", "...#.......", "..#........", ".#######...", "..#.....#..", "...#.....#.", ".........#.", ".........#.", "........#..", "..######...", "..........."}),
             Map.entry("redo", new String[]{"...........", ".......#...", "........#..", "...#######.", "..#.....#..", ".#.....#...", ".#.........", ".#.........", "..#........", "...######..", "..........."}),
             Map.entry("globe", new String[]{"...#####...", "..#..#..#..", ".#..#.#..#.", "#...#.#...#", "#...#.#...#", "###########", "#...#.#...#", "#...#.#...#", ".#..#.#..#.", "..#..#..#..", "...#####..."}),
-            // The story's settings (⛭), after the author's reference (November 19, 2026): at 9 by 9 a gear read as a sun.
+            // The story's settings (⛭), after the author's reference: at 9 by 9 a gear read as a sun.
             Map.entry("gear", new String[]{"....###....", ".##.#.#.##.", ".#.##.##.#.", "..#.....#..", "###.###.###", "#...#.#...#", "###.###.###", "..#.....#..", ".#.##.##.#.", ".##.#.#.##.", "....###...."}),
             // Scripts (⚙), so they are not taken for the settings.
             Map.entry("code", new String[]{".......#...", ".......#...", "..#...#.#..", ".#....#..#.", "#....#....#", ".#...#...#.", "..#.#...#..", "....#......", "...#......."}),
@@ -159,8 +158,8 @@ final class DevIcons {
     }
 
     /**
-     * Paints the icon in the {@link #SIZE} square whose top left is {@code x, y}, its drawing centred in it (the author: icons
-     * leaning to the top left looked wrong; each map is drawn centred, and this keeps one that is not from showing it).
+     * Paints the icon in the {@link #SIZE} square whose top left is {@code x, y}, its drawing centred in it (each map
+     * is drawn centred, and this keeps one that is not from showing it).
      */
     static void draw(GuiGraphics graphics, String icon, int x, int y, int color) {
         String[] rows = ICONS.get(icon);
@@ -190,8 +189,8 @@ final class DevIcons {
 
     /**
      * How far the drawing moves to look centred in its square: first by its edges (equal empty columns and rows), then
-     * by its mass (November 17, 2026, the author: icons still leaned left; an arrow's head or a play sign's wide side
-     * weighs on one side) as far as the square lets it, by a whole pixel once the mass is off by a third of one.
+     * by its mass (an arrow's head or a play sign's wide side weighs on one side) as far as the square lets it, by a
+     * whole pixel once the mass is off by a third of one.
      */
     private static int[] offset(String[] rows) {
         int left = SIZE;

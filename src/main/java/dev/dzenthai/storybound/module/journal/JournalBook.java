@@ -10,9 +10,9 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 
 /**
- * A signed book a player read, kept in their Journal under "Your books" (November 20, 2026, the author): its title,
- * author and pages as they were then, to read again even when the book itself is gone. One per author and title, the
- * last read; see {@link JournalData#putBook}.
+ * A signed book a player read, kept in their Journal under "Your books": its title, author and pages as they were then,
+ * to read again even when the book itself is gone. One per author and title, the last read; see
+ * {@link JournalData#putBook}.
  */
 public record JournalBook(String title, String author, List<Component> pages) {
     public static final Codec<JournalBook> CODEC = RecordCodecBuilder.create(instance -> instance.group(

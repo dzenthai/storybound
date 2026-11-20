@@ -24,7 +24,7 @@ public final class WaypointStyles extends SimpleJsonResourceReloadListener {
 
     /**
      * The look of every marker: {@code storybound:default} as resource packs give it, else the built-in one. One look
-     * for all (October 29, 2026: waypoints no longer pick a style of their own; resource packs can restyle them all).
+     * for all (resource packs can restyle them all).
      */
     public WaypointStyle get() {
         return styles.getOrDefault(DEFAULT, WaypointStyle.FALLBACK);

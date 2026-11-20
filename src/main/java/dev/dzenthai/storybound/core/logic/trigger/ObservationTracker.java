@@ -28,29 +28,28 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fires {@code observed} when a player has looked straight at its target long enough (October 30, 2026). Every
- * {@link #INTERVAL} ticks, for each player, while something subscribes to {@code observed}: what is under the crosshair
- * (an entity, else the block; a wall in between hides what is behind it), and for each subscription that the target
- * matches, within its distance, and that would do something for the player now ({@link Subscription#active}: an
- * objective of their stage not done yet, a section not open yet), its time adds up. A bar under the crosshair shows the
- * one nearest to done. Looking away pauses it; {@link #GRACE} ticks later it is lost. Each subscription counts on its
- * own and fires alone ({@link TriggerDispatcher#fireOne}); a target it counted does not count again for it until the
- * player has gone out of its distance (studying three bookshelves needs three of them). A player whose screen a module
- * holds ({@link #blindWhile}: a dialogue on the dialogue screen) looks at nothing meanwhile.
+ * Fires {@code observed} when a player has looked straight at its target long enough. Every {@link #INTERVAL} ticks,
+ * for each player, while something subscribes to {@code observed}: what is under the crosshair (an entity, else the
+ * block; a wall in between hides what is behind it), and for each subscription that the target matches, within its
+ * distance, and that would do something for the player now ({@link Subscription#active}: an objective of their stage
+ * not done yet, a section not open yet), its time adds up. A bar under the crosshair shows the one nearest to done.
+ * Looking away pauses it; {@link #GRACE} ticks later it is lost. Each subscription counts on its own and fires alone
+ * ({@link TriggerDispatcher#fireOne}); a target it counted does not count again for it until the player has gone out of
+ * its distance (studying three bookshelves needs three of them). A player whose screen a module holds
+ * ({@link #blindWhile}: a dialogue on the dialogue screen) looks at nothing meanwhile.
  */
 public final class ObservationTracker {
     public static final int INTERVAL = 2;
     /**
-     * How long looking away keeps the progress: almost none, as FTB Quests' observation resets at once (October 30,
-     * 2026; before, 40 ticks, which felt slow); a crosshair slipping off the edge is already forgiven by
-     * {@link #AIM_MARGIN}.
+     * How long looking away keeps the progress: almost none, as FTB Quests' observation resets at once; a crosshair
+     * slipping off the edge is already forgiven by {@link #AIM_MARGIN}.
      */
     public static final int GRACE = 8;
     /** A counted target counts again once the player is this much farther than the subscription's distance. */
     private static final double FORGET_MARGIN = 8;
     /**
-     * How far beside an entity's or a block's box the crosshair may be (blocks): walking, or a mob that moves, takes the
-     * crosshair off its edge now and then; without it the bar stopped at every step (October 30, 2026).
+     * How far beside an entity's or a block's box the crosshair may be (blocks): walking, or a mob that moves, takes
+     * the crosshair off its edge now and then; without it the bar stopped at every step.
      */
     public static final double AIM_MARGIN = 0.5;
     /** A miss this short still shows the bar as looked at, so it does not flicker. */
@@ -83,9 +82,8 @@ public final class ObservationTracker {
 
     /**
      * While {@code blind} holds for a player, they observe nothing: their look stands still under a screen they did not
-     * choose to look at, so whatever was in front of them would fill on its own (November 5, 2026; before, a dialogue
-     * observed the NPC talked to, or anyone behind it). Progress is paused and lost as when looking away; the
-     * conversation itself counts as no observation.
+     * choose to look at, so whatever was in front of them would fill on its own. Progress is paused and lost as when
+     * looking away; the conversation itself counts as no observation.
      */
     public static void blindWhile(Predicate<ServerPlayer> blind) {
         BLIND.add(blind);
@@ -144,7 +142,7 @@ public final class ObservationTracker {
         List<Looked> looked = blind ? List.of() : look(player, reach, items);
         Progress shown = null;
         boolean shownActive = false;
-        // What ended now: the bar shows it full before it goes (before, it went at about 90%, still easing up).
+        // What ended now: the bar shows it full before it goes.
         ResolvedText finished = null;
         for (Subscription<?> raw : subscriptions) {
             Subscription<CoreTriggers.Observation> subscription = (Subscription<CoreTriggers.Observation>) raw;
@@ -241,8 +239,8 @@ public final class ObservationTracker {
         Entity best = null;
         double bestDistance = Double.MAX_VALUE;
         boolean bestExact = false;
-        // An item lying on the ground too, while something observes an item: Minecraft's crosshair does not pick it
-        // (November 20, 2026); only then, so an item dropped in front of a block or a creature observed hides nothing.
+        // An item lying on the ground too, while something observes an item: Minecraft's crosshair does not pick it;
+        // only then, so an item dropped in front of a block or a creature observed hides nothing.
         for (Entity candidate : player.level().getEntities(player, box, entity -> !entity.isSpectator()
                 && (entity.isPickable() || items && entity instanceof net.minecraft.world.entity.item.ItemEntity) && entity.isAlive())) {
             Optional<Vec3> exact = candidate.getBoundingBox().clip(eye, blockEnd);

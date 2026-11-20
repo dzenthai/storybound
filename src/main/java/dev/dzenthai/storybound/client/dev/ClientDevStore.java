@@ -158,8 +158,8 @@ public final class ClientDevStore {
 
 
     /**
-     * Definitions being filled in, which the server would refuse (a new NPC before it is told who it is): kept here over
-     * every snapshot until they load, then sent (October 30, 2026; before, the next snapshot dropped them).
+     * Definitions being filled in, which the server would refuse (a new NPC before it is told who it is): kept here
+     * over every snapshot until they load, then sent.
      */
     private static final Map<ResourceLocation, Map<ResourceLocation, String>> DRAFTS = new LinkedHashMap<>();
     /** The ids the last snapshot had: a draft the server never got is deleted here alone. */
@@ -302,15 +302,15 @@ public final class ClientDevStore {
     }
 
     /**
-     * Writes made here and sent, which the server has not answered yet (November 19, 2026). The server takes the
-     * editor's requests one after another and answers each with a whole snapshot; while several are on their way, the
-     * snapshots in between show the server before the later ones, and laid straight over the editor they undid its own
-     * writes for a moment: a new node stood far away in the automatic layout (its chapter came back old), nodes deleted
-     * quickly lined up before vanishing, an undone or redone delete blinked. Telling them apart by content cannot work
-     * (an undo writes back what an older snapshot already had), so they are counted: the editor numbers every request
-     * it sends ({@link #sending}), the server says in each snapshot how many it had ({@code received}), and a write
-     * here stays over the snapshots until the server has had the request sent after it. Then the server's copy is the
-     * truth again, the write taken, or refused. {@link #PENDING_MS} is only a safety net, for a request never sent.
+     * Writes made here and sent, which the server has not answered yet. The server takes the editor's requests one
+     * after another and answers each with a whole snapshot; while several are on their way, the snapshots in between
+     * show the server before the later ones, and laid straight over the editor they undid its own writes for a moment:
+     * a new node stood far away in the automatic layout (its chapter came back old), nodes deleted quickly lined up
+     * before vanishing, an undone or redone delete blinked. Telling them apart by content cannot work (an undo writes
+     * back what an older snapshot already had), so they are counted: the editor numbers every request it sends
+     * ({@link #sending}), the server says in each snapshot how many it had ({@code received}), and a write here stays
+     * over the snapshots until the server has had the request sent after it. Then the server's copy is the truth again,
+     * the write taken, or refused. {@link #PENDING_MS} is only a safety net, for a request never sent.
      */
     private record Pending(@Nullable String json, int request, long since) {}
 
@@ -510,8 +510,7 @@ public final class ClientDevStore {
     }
 
     /**
-     * A text in a list of texts ({@code say}: one of several lines), as {@link #readStoryText} reads one in a field
-     * (November 5, 2026; before, the editor could not edit such a list: "+ Add" put an empty object in it).
+     * A text in a list of texts ({@code say}: one of several lines), as {@link #readStoryText} reads one in a field.
      */
     public static String readStoryTextAt(JsonArray array, int index, String language) {
         JsonObject holder = new JsonObject();
@@ -747,9 +746,8 @@ public final class ClientDevStore {
                 if (id == null || covered.contains(handler) || merged.containsKey(id)) {
                     continue;
                 }
-                // Only this story's handlers, and those it uses (November 19, 2026: the server's scripts are one for
-                // every story, and each story showed a block for every handler of every file, other stories' and old
-                // tests' too; such a block could be hidden in one story only, a block's id being one story's).
+                // Only this story's handlers, and those it uses (such a block could be hidden in one story only, a
+                // block's id being one story's).
                 if (!id.getNamespace().equals(namespace)) {
                     if (referenced == null) {
                         referenced = referencedHandlers();

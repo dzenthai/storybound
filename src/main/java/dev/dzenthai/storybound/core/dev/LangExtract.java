@@ -40,7 +40,7 @@ public final class LangExtract {
         if (!ConfigStorySource.isLanguageCode(language)) {
             throw new IOException("Not a language code: " + language);
         }
-        // Every story, each into its own lang file (November 18, 2026: a folder per story); paths relative to the story folder.
+        // Every story, each into its own lang file; paths relative to the story folder.
         Path workspace = ConfigStorySource.root().toAbsolutePath().normalize();
         List<String> files = new ArrayList<>();
         int moved = 0;

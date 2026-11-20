@@ -16,8 +16,7 @@ import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
 
 /**
- * The mod's own lang files (November 9, 2026: a second "storybound.dev.field.nbt" quietly replaced the first, and the
- * form said "NBT" where it meant "Mob's data"): no key twice in a file, the same keys in English and Russian.
+ * The mod's own lang files: no key twice in a file, the same keys in English and Russian.
  */
 final class ModLangTest {
     @Test

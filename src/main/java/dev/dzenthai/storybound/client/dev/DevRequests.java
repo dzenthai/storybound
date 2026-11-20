@@ -44,8 +44,7 @@ final class DevRequests {
             return;
         }
         ClientDevStore.dropDraft(type, id);
-        // Here at once, as a save does: the inspector reloads right after an undo, before the server's snapshot comes
-        // (November 7, 2026; before, it showed the undone edit still, and undo seemed not to work on a node's settings).
+        // Here at once, as a save does: the inspector reloads right after an undo, before the server's snapshot comes.
         ClientDevStore.putLocal(type, id, json);
         DevRequests.send(new DevModePayloads.SaveDefinition(type, id, json, text, ClientDevStore.activeLanguage(), Map.of()));
     }
@@ -58,9 +57,7 @@ final class DevRequests {
     static void delete(ResourceLocation type, ResourceLocation id) {
         boolean draftOnly = ClientDevStore.isDraft(type, id) && !ClientDevStore.onServer(type, id);
         ClientDevStore.dropDraft(type, id);
-        // Gone here at once, and kept gone over the snapshots answering earlier requests (November 19, 2026: deleting
-        // several nodes quickly, the ones not yet deleted on the server came back without their places, which the
-        // chapter no longer had, lined up in the automatic layout, then vanished one snapshot later).
+        // Gone here at once, and kept gone over the snapshots answering earlier requests.
         ClientDevStore.removeLocal(type, id);
         if (draftOnly) {
             // The server never had it.

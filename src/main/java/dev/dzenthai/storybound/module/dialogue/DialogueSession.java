@@ -30,8 +30,8 @@ final class DialogueSession {
     /** Game tick at which a timed line moves on or a choice times out; -1 for none. */
     long deadline = -1;
     /**
-     * Whether the choice's window is open (November 6, 2026). Always on the dialogue screen; in subtitles and bubbles the
-     * player opens it with the talk key ("[H] Answer"), so a choice no longer throws them into a window mid-fight.
+     * Whether the choice's window is open. Always on the dialogue screen; in subtitles and bubbles the player opens it
+     * with the talk key ("[H] Answer"), so a choice no longer throws them into a window mid-fight.
      */
     boolean choiceOpen;
     /** While the window is open, the ticks its timer had left (it counts only the time to open it); -1 for none. */

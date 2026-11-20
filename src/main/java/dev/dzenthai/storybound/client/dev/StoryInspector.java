@@ -175,11 +175,11 @@ final class StoryInspector {
 
     /** Fields edited elsewhere (the canvas, a dialogue's graph) or kept out of the form. */
     private static Set<String> hidden(ResourceLocation type) {
-        // A node's icon is picked by the button left of its name, not in the form (November 19, 2026).
+        // A node's icon is picked by the button left of its name, not in the form.
         if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
             return Set.of("nodes", "start", "icon");
         }
-        // A chapter's icon too: its button is left of its title (November 19, 2026).
+        // A chapter's icon too: its button is left of its title.
         return type.equals(ClientDevStore.TYPE_CHAPTER) ? Set.of("nodes", "icon") : Set.of("icon");
     }
 
@@ -201,8 +201,7 @@ final class StoryInspector {
         }
         boolean askTrigger = false;
         if (key.equals(askFor)) {
-            // A boss is asked its creature at once, on that page; an NPC's form opens with "Who it is" itself (November 9,
-            // 2026: before, a new NPC jumped to its entity's page, the older way, past the form's own question).
+            // A boss is asked its creature at once, on that page; an NPC's form opens with "Who it is" itself.
             if (ask == NodeTemplates.Ask.ENTITY && key.type().equals(ClientDevStore.TYPE_BOSS)) {
                 form.openRoot("entity", DevUi.str("template.ask_boss"));
             }
@@ -288,9 +287,8 @@ final class StoryInspector {
     }
 
     /**
-     * The node's icon, left of its name (November 19, 2026, the author, as in FTB Quests): the item its shape shows on
-     * the canvases. A click lists every item, its kind's own first; the pick is the node's {@code icon}, which only the
-     * editor reads, saved at once.
+     * The node's icon, left of its name: the item its shape shows on the canvases. A click lists every item, its kind's
+     * own first; the pick is the node's {@code icon}, which only the editor reads, saved at once.
      */
     private void iconButton(DevModeScreen screen, NodeKey key, int x, int y) {
         JsonObject json = view.editing;
@@ -406,7 +404,7 @@ final class StoryInspector {
         if (buttons.isEmpty()) {
             return y;
         }
-        // Under a heading of their own, as the form's groups (October 30, 2026; before, a row of buttons without one).
+        // Under a heading of their own, as the form's groups.
         testsY = y;
         y += 12;
         int each = (w - (buttons.size() - 1) * 2) / buttons.size();
@@ -448,7 +446,7 @@ final class StoryInspector {
 
     /**
      * A Codex entry's sections' texts, a row each by the section's title, saved on their own: one click each, as the
-     * sections' pages have them too. A boss's are in its form, under its sections (October 30, 2026).
+     * sections' pages have them too. A boss's are in its form, under its sections.
      */
     private int sectionTexts(DevModeScreen screen, NodeKey key, JsonObject json, int x, int y, int w) {
         Map<String, ResourceLocation> texts = new LinkedHashMap<>();
@@ -722,7 +720,7 @@ final class StoryInspector {
         int rows = Math.min(links.size(), MAX_LINKS);
         for (int i = 0; i < rows; i++) {
             Link link = links.get(i);
-            // In words (November 16, 2026): "← Gives it: 🧑 The elder" rather than "← elder (talk)".
+            // In words: "← Gives it: 🧑 The elder" rather than "← elder (talk)".
             String partner = link.missing() ? link.partner().id().getPath() : StoryView.glyph(link.partner().type()) + " " + StoryView.title(link.partner());
             String line = (link.outgoing() ? "→ " : "← ") + link.label() + ": " + partner
                     + (link.missing() ? " — " + DevUi.str("links.missing") : "");
@@ -743,7 +741,7 @@ final class StoryInspector {
         if (key == null || view.editing == null || screen.modalOpen()) {
             return;
         }
-        // The label of the name below; before, the panel's own title "Inspector", which said nothing.
+        // The label of the name below.
         boolean chapter = key.type().equals(ClientDevStore.TYPE_CHAPTER);
         Component header = view.selection.size() > 1 ? DevUi.text("inspector.header_many", view.selection.size())
                 : DevUi.text(chapter ? "chapter.header" : "rename.label");

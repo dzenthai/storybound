@@ -21,8 +21,7 @@ public final class DialogueScreen extends Screen {
     private static final int MARGIN = 18;
     private static final int BOTTOM_OFFSET = 56;
     /**
-     * Answers opened from the prompt in subtitles keep the line where the subtitles had it (November 6, 2026; before, it
-     * dropped to the screen's place, over the health and hunger bars, which stay shown while the player moves).
+     * Answers opened from the prompt in subtitles keep the line where the subtitles had it.
      */
     private static final int SUBTITLES_BOTTOM_OFFSET = 72;
     private static final int PADDING = 5;

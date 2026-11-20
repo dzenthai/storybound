@@ -15,9 +15,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * Client intent from the party tab (November 19, 2026): one of {@link PartyManager#act}'s actions, with the player it
- * concerns for invite and kick, and the name typed for create (empty for none). The server checks it as it checks the
- * commands; a refusal comes back in the chat.
+ * Client intent from the party tab: one of {@link PartyManager#act}'s actions, with the player it concerns for invite
+ * and kick, and the name typed for create (empty for none). The server checks it as it checks the commands; a refusal
+ * comes back in the chat.
  */
 public record PartyActionPayload(String action, Optional<UUID> target, String name) implements CustomPacketPayload {
     public static final Type<PartyActionPayload> TYPE = new Type<>(Storybound.id("party_action"));

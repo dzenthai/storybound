@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-/** The floating camera of dialogue shots (November 16, 2026), frame by frame at 60 frames a second. */
+/** The floating camera of dialogue shots, frame by frame at 60 frames a second. */
 class FloatingCameraTest {
     private static final float FRAME = 1f / 60f;
 

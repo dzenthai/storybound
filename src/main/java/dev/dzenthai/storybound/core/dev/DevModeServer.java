@@ -78,11 +78,10 @@ public final class DevModeServer {
     }
 
     /**
-     * How many editor requests each operator has sent, taken or refused (November 19, 2026): every snapshot says it, so
-     * the editor knows which of its own writes the snapshot already answers (see {@code ClientDevStore}); before, a
-     * snapshot answering an earlier request undid a write still on its way, and nodes jumped, lined up or blinked.
-     * By the player's id, not the player object (dying and respawning makes a new one, and the count must go on as the
-     * editor's does); forgotten when the player leaves, as the editor starts counting again on its next connection.
+     * How many editor requests each operator has sent, taken or refused: every snapshot says it, so the editor knows
+     * which of its own writes the snapshot already answers (see {@code ClientDevStore}). By the player's id, not the
+     * player object (dying and respawning makes a new one, and the count must go on as the editor's does); forgotten
+     * when the player leaves, as the editor starts counting again on its next connection.
      */
     private static final java.util.Map<java.util.UUID, Integer> RECEIVED = new java.util.HashMap<>();
 
@@ -117,7 +116,7 @@ public final class DevModeServer {
 
     /**
      * The settings window's preferences ({@link ProjectSettings#OPTIONS}): checked, written into {@code project.json}
-     * (what is left out is taken out of it) and loaded as a reload would (November 16, 2026).
+     * (what is left out is taken out of it) and loaded as a reload would.
      */
     public static void saveProjectOptions(ServerPlayer player, String json) {
         if (!player.hasPermissions(2)) {
@@ -187,7 +186,7 @@ public final class DevModeServer {
         Map<String, List<String>> lists = new LinkedHashMap<>();
         lists.put("advancement", advancements);
         lists.put("loot_table", lootTables);
-        // Dimension → biomes, structure → biomes, so the editor lists only what can be (November 9, 2026).
+        // Dimension → biomes, structure → biomes, so the editor lists only what can be.
         lists.putAll(dev.dzenthai.storybound.core.logic.WorldPlaces.forEditor(server));
         return lists;
     }

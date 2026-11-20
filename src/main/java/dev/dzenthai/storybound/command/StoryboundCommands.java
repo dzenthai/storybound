@@ -16,9 +16,8 @@ public final class StoryboundCommands {
     private StoryboundCommands() {}
 
     public static void register(RegisterCommandsEvent event) {
-        // The author's debugging tools are under debug (November 7, 2026; before, at the top: twenty entries in the
-        // command hints). capture is gone (the dev mode's 🎯 pickers took its place), and so is npc bind (a dialogue
-        // stored on an entity beside the NPC nodes, two ways to make an NPC).
+        // The author's debugging tools are under debug. capture is gone (the dev mode's 🎯 pickers took its place), and
+        // so is npc bind (a dialogue stored on an entity beside the NPC nodes, two ways to make an NPC).
         event.getDispatcher().register(Commands.literal("storybound")
                 .then(DebugCommands.debug()
                         .then(Commands.literal("validate").executes(StoryboundCommands::validate))

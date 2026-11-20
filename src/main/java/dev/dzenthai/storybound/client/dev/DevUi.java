@@ -16,9 +16,8 @@ final class DevUi {
 
     static final int LEFT_PANEL_W = 148;
     /**
-     * The inspector's width, by the screen's (November 19, 2026, the author: wider; the left panel stays as it was):
-     * about a third of it, never narrower than before (220) nor wider than 320. Set by {@link #fitPanels} whenever the
-     * dev mode screen is laid out.
+     * The inspector's width, by the screen's (the left panel stays as it was): about a third of it, never narrower than
+     * before (220) nor wider than 320. Set by {@link #fitPanels} whenever the dev mode screen is laid out.
      */
     static int RIGHT_PANEL_W = 220;
 
@@ -28,9 +27,8 @@ final class DevUi {
 
     static final int TOP_BAR_H = 24;
 
-    // The editor's colours, the palette's (UiPalette) gold side (November 19, 2026, the author: the browns and tans of
-    // before, SHADOW, INK, TAN, read reddish): panels and canvas one warm dark (CHARCOAL), parted by bronze lines
-    // (OCHRE_DARK), labels light gold (PAPER_SHADE), quieter words ochre; red only for problems.
+    // The editor's colours, the palette's (UiPalette) gold side: panels and canvas one warm dark (CHARCOAL), parted by
+    // bronze lines (OCHRE_DARK), labels light gold (PAPER_SHADE), quieter words ochre; red only for problems.
     static final int BACKGROUND = 0xFF1A140F;
     static final int BAR = 0xFF1A140F;
     static final int PANEL = 0xFF1A140F;
@@ -40,8 +38,7 @@ final class DevUi {
     static final int ROW_HOVER = 0xFF3F2C18;
     static final int CARD = 0xFF1A140F;
     static final int CARD_EDGE = 0xFF775025;
-    /** Over the sky: the edges' bronze, half opaque (November 20, 2026, the lines one screen pixel thin; the day before,
-     * a third opaque at a canvas unit wide; before, an opaque brown on the flat ground). */
+    /** Over the sky: the edges' bronze, half opaque, the lines one screen pixel thin. */
     static final int GRID_LINE = 0x80775025;
     static final int DARK_TEXT = 0xFF1A140F;
     static final int ACCENT = 0xFFE1B34D;
@@ -129,7 +126,7 @@ final class DevUi {
 
     /** A cell of the canvas grid, in canvas units. */
     static final int GRID = 24;
-    /** Where nodes snap to: a line of the grid or the middle of a cell (November 18, 2026; before, 8 against lines every 24). */
+    /** Where nodes snap to: a line of the grid or the middle of a cell. */
     static final int SNAP = GRID / 2;
 
     /** A canvas position on the snap grid. */
@@ -137,16 +134,14 @@ final class DevUi {
         return (int) Math.round(value / SNAP) * SNAP;
     }
 
-    /** A cell of the grid drawn on the canvas: four of the layout's cells (November 20, 2026, the author: two, then
-     * twice that; before, one). */
+    /** A cell of the grid drawn on the canvas: four of the layout's cells. */
     static final int GRID_CELL = 4 * GRID;
 
     /**
      * The canvas grid over the canvas ({@code left, top, right, bottom} on the screen), its lines one of the screen's
-     * own pixels wide at every zoom (November 20, 2026, the author: thinner, and the cells larger, {@link #GRID_CELL};
-     * before, a canvas unit wide, two or more pixels once zoomed in). A line at canvas {@code x} sits on the screen pixel
-     * where the canvas puts {@code x}, so a snapped card's frame stays on it. Every second line goes while the cells
-     * would be under 16 pixels. The origin's axes, in {@code axis}, two of the screen's pixels wide.
+     * own pixels wide at every zoom. A line at canvas {@code x} sits on the screen pixel where the canvas puts
+     * {@code x}, so a snapped card's frame stays on it. Every second line goes while the cells would be under 16
+     * pixels. The origin's axes, in {@code axis}, two of the screen's pixels wide.
      */
     static void grid(GuiGraphics graphics, int left, int top, int right, int bottom, double panX, double panY, float zoom,
                      int color, int axis) {
@@ -192,9 +187,7 @@ final class DevUi {
     }
 
     /**
-     * A frame one pixel wide inside the box (November 17, 2026: buttons and chapter slots drew theirs with
-     * {@link #horizontal} and {@link #vertical}, two pixels wide for the canvas's lines, so the right and bottom edges
-     * stood one pixel outside and everything in the box looked pushed to the left).
+     * A frame one pixel wide inside the box.
      */
     static void frame(GuiGraphics graphics, int x, int y, int width, int height, int color) {
         graphics.fill(x, y, x + width, y + 1, color);
@@ -206,7 +199,7 @@ final class DevUi {
     /** The round button on the inspector's edge that folds it away. */
     /**
      * The round button that hides the side panel, centred on the panel's edge ({@code cx}). Small enough to stay off
-     * the panel's labels, which start 8 pixels in (October 30, 2026; before, a radius of 11, over them).
+     * the panel's labels, which start 8 pixels in.
      */
     static void collapseButton(GuiGraphics graphics, int cx, int cy, int mouseX, int mouseY) {
         int r = COLLAPSE_R;

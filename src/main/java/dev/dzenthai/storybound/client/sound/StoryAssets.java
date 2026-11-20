@@ -28,11 +28,11 @@ import net.neoforged.neoforge.event.AddPackFindersEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The story's own sounds and item icons (October 30, 2026; before, either needed a resource pack made by hand): every
- * {@code .ogg} in {@code config/storybound/sounds/<namespace>/} is a sound event of that namespace, every {@code .png}
- * in {@code config/storybound/icons/<namespace>/} an icon a document's item can show, through a resource pack the mod
- * makes of the two folders, always on. A modpack ships the folders with its config, so players hear and see them; the
- * server only names them. Added files load with the resources (F3+T, or "Reload" in the editor's lists).
+ * The story's own sounds and item icons: every {@code .ogg} in {@code config/storybound/sounds/<namespace>/} is a sound
+ * event of that namespace, every {@code .png} in {@code config/storybound/icons/<namespace>/} an icon a document's item
+ * can show, through a resource pack the mod makes of the two folders, always on. A modpack ships the folders with its
+ * config, so players hear and see them; the server only names them. Added files load with the resources (F3+T, or
+ * "Reload" in the editor's lists).
  */
 public final class StoryAssets {
     public static final String SOUNDS = "sounds";
@@ -56,7 +56,7 @@ public final class StoryAssets {
         return editedStory().resolve(ICONS);
     }
 
-    /** The story the editor works on, else the primary one (November 18, 2026: a folder per story). */
+    /** The story the editor works on, else the primary one. */
     private static Path editedStory() {
         try {
             return StoryProjects.resolve(ConfigStorySource.root(), dev.dzenthai.storybound.client.dev.ClientDevStore.projectId());

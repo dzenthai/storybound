@@ -71,7 +71,7 @@ public final class QuestEvents {
 
     /** Subscribes quest starts and objectives to their triggers; nothing while the module is disabled. */
     public static void rebuild() {
-        // The game's own default: the primary story's (a folder per story since November 18, 2026); each story's quests use their own below.
+        // The game's own default: the primary story's; each story's quests use their own below.
         DifficultyScale.set(DifficultyScale.load(StoryProjects.primaryRoot()));
         Quests.setTrackGiven(ProjectSettings.flag(StoryProjects.primaryRoot(), "track_given_quests"));
         Map<Path, DifficultyScale> scales = new HashMap<>();

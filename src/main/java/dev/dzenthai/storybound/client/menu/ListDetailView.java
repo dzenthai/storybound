@@ -30,8 +30,8 @@ public abstract class ListDetailView<E> extends MenuView {
     private int listScroll;
     private int detailScroll;
     /**
-     * Where the list (in rows) and the detail (in units) show now, following {@link #listScroll} and {@link #detailScroll}
-     * smoothly, as the documents do (October 31, 2026; before, in jumps).
+     * Where the list (in rows) and the detail (in units) show now, following {@link #listScroll} and
+     * {@link #detailScroll} smoothly, as the documents do.
      */
     private double shownList;
     private double shownDetail;
@@ -169,8 +169,7 @@ public abstract class ListDetailView<E> extends MenuView {
         lastFrame = now;
         int rowHeight = rowHeight();
         // A list longer than the page: arrows in the middle over and under it, lying on its edges over bands of the
-        // paper that fade the rows out there, so the rows keep their places (October 31, 2026; before, a scrollbar at
-        // its right, then, the same day, room kept for the arrows, which moved the rows down off the title's line).
+        // paper that fade the rows out there, so the rows keep their places.
         listRoom = rows.size() * rowHeight > height ? arrowRoom() : 0;
         int viewTop = top;
         int viewHeight = height;
@@ -243,7 +242,7 @@ public abstract class ListDetailView<E> extends MenuView {
         int available = Math.max(1, listWidth() - inset - endInset - 3);
         if (hovered && font.width(text) > available) rowTooltip = text;
         if (row.entry() == null) {
-            // As long and thick as the title's rule over the list, on the book's pixels (before, 3 shorter).
+            // As long and thick as the title's rule over the list, on the book's pixels.
             JournalSkin.bookRule(graphics, screen.bookLayout(), left, y + rowHeight() - 2, listWidth(), theme.divider());
         } else {
             if (hovered) graphics.fill(left, y, left + listWidth(), y + rowHeight(), theme.hover());

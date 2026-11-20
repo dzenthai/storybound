@@ -194,9 +194,9 @@ public final class SceneActions {
 
         /**
          * Moves an entity stuck in blocks to the nearest place it fits: straight up (a hill where the offset was taken
-         * from lower ground), then ring by ring around, at the same height and up (November 5, 2026; before, mobs spawned
-         * by an offset on uneven ground were stuck in it and suffocated). One that fits is left where it is, also in the
-         * air or in water: a balcony or a pond may be meant. Returns false when nothing fits, leaving it where it was.
+         * from lower ground), then ring by ring around, at the same height and up. One that fits is left where it is,
+         * also in the air or in water: a balcony or a pond may be meant. Returns false when nothing fits, leaving it
+         * where it was.
          */
         static boolean freeSpot(ServerLevel level, Entity spawned) {
             if (level.noCollision(spawned)) {

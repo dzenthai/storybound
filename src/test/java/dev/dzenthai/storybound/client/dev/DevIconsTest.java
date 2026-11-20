@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-/** The dev mode's icons (November 17, 2026): every glyph has one, and a label's glyph is read only at its start. */
+/** The dev mode's icons: every glyph has one, and a label's glyph is read only at its start. */
 class DevIconsTest {
     @Test
     void everyGlyphHasAnIcon() {

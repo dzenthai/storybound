@@ -12,8 +12,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * Opens the reading screen; the server has already marked the document as read. {@code lectern} is where the book
- * lies when it was opened from a lectern, for the "Take Book" button (November 4, 2026).
+ * Opens the reading screen; the server has already marked the document as read. {@code lectern} is where the book lies
+ * when it was opened from a lectern, for the "Take Book" button.
  */
 public record OpenDocumentPayload(ResourceLocation document, Optional<BlockPos> lectern) implements CustomPacketPayload {
     public static final Type<OpenDocumentPayload> TYPE = new Type<>(Storybound.id("open_document"));

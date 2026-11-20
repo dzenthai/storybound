@@ -37,13 +37,12 @@ public final class WaypointLogic {
     private WaypointLogic() {}
 
     /**
-     * Adds a waypoint for the player, their party or everyone ({@code visibility}). It points at {@code pos}
-     * (in {@code dimension}, by default the player's), or follows the context entity with {@code "follow": true},
-     * or marks the nearest {@code structure} (searched in the background near each player who sees it, within
-     * {@code search_radius} chunks, and again as they travel), or an NPC by its node ({@code npc}), or the nearest mob of a kind
-     * ({@code nearest}; both within {@code range}, November 9, 2026: before, a story could not point at Miron or at "the
-     * nearest alchemist"), or marks where the context entity (else the player) stands now. The same id and visibility
-     * replaces it.
+     * Adds a waypoint for the player, their party or everyone ({@code visibility}). It points at {@code pos} (in
+     * {@code dimension}, by default the player's), or follows the context entity with {@code "follow": true}, or marks
+     * the nearest {@code structure} (searched in the background near each player who sees it, within
+     * {@code search_radius} chunks, and again as they travel), or an NPC by its node ({@code npc}), or the nearest mob
+     * of a kind ({@code nearest}), or marks where the context entity (else the player) stands now. The same id and
+     * visibility replaces it.
      */
     public record AddWaypoint(ResourceLocation id, StoryText name, Optional<Vec3> pos, Optional<ResourceKey<Level>> dimension, boolean follow,
                               Optional<StructureRef> structure, int searchRadius, Optional<ResourceLocation> npc,
@@ -57,7 +56,7 @@ public final class WaypointLogic {
                 Codec.BOOL.optionalFieldOf("follow", false).forGetter(AddWaypoint::follow),
                 StructureRef.CODEC.optionalFieldOf("structure").forGetter(AddWaypoint::structure),
                 Codec.intRange(1, 512).optionalFieldOf("search_radius", StructureRef.DEFAULT_SEARCH_RADIUS).forGetter(AddWaypoint::searchRadius),
-                // An NPC by its node, the nearest mob of a kind (November 9, 2026), as a waypoint's own target.
+                // An NPC by its node, the nearest mob of a kind, as a waypoint's own target.
                 ResourceLocation.CODEC.optionalFieldOf("npc").forGetter(AddWaypoint::npc),
                 WaypointTarget.Nearest.SELECTOR.optionalFieldOf("nearest").forGetter(AddWaypoint::nearest),
                 Codec.intRange(1, 256).optionalFieldOf("range", WaypointTarget.Nearest.DEFAULT_RANGE).forGetter(AddWaypoint::range),

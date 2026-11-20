@@ -31,17 +31,15 @@ abstract class FormNpc extends FormEntities {
     }
 
     /**
-     * An NPC binding's form in the order its author asks (October 29, 2026; before, the file's order, with the
-     * relationship scale after respawn): who it is, what it says and the relationship its options move; how a talk
-     * starts; what happens with several players; the rest. Each group but the first opens with a heading at this field.
+     * An NPC binding's form in the order its author asks: who it is, what it says and the relationship its options
+     * move; how a talk starts; what happens with several players; the rest. Each group but the first opens with a
+     * heading at this field.
      */
     static final Map<String, String> NPC_GROUPS = Map.of(
-            // "Who it is" opens the form, drawn by npcWho; then the sections (November 8, 2026: before, the chatter's
-            // heading said the same as its field, the script's switch stood under it, and how a talk starts and the
-            // players were sections of their own beside the dialogues they are about).
+            // "Who it is" opens the form, drawn by npcWho; then the sections.
             "dialogues", "npc.group.talk",
             "chatter", "npc.group.chatter",
-            // How it walks (November 20, 2026).
+            // How it walks.
             "movement", "npc.group.movement",
             "when_attacked", "npc.group.hits",
             "custom", "npc.group.scripts");
@@ -75,12 +73,11 @@ abstract class FormNpc extends FormEntities {
     private static final List<Object> ENTITY = List.of("entity");
 
     /**
-     * An NPC's "Who it is" (November 8, 2026, stage 5 of "Who an NPC is"; its variants November 9, 2026), as its author
-     * asks: the rule, by hand (the entities carrying its tag) or dynamic (every mob of a variant: its kind, where it is,
-     * its data); for dynamic, how many: all such, or one picked by the mod, and the variants, a row each (a man smith and
-     * a woman farmer of Villagers Reborn as one NPC); then its name: the displayed name for one NPC (by hand, or one),
-     * names from a list for all such. A field of the other way shows only while the file still writes it, so it can be
-     * cleared. Showing it never changes the file.
+     * An NPC's "Who it is", as its author asks: the rule, by hand (the entities carrying its tag) or dynamic (every mob
+     * of a variant: its kind, where it is, its data); for dynamic, how many: all such, or one picked by the mod, and
+     * the variants, a row each (a man smith and a woman farmer of Villagers Reborn as one NPC); then its name: the
+     * displayed name for one NPC (by hand, or one), names from a list for all such. A field of the other way shows only
+     * while the file still writes it, so it can be cleared. Showing it never changes the file.
      */
     void npcWho(Node schema, @Nullable JsonObject binding) {
         Map<String, Node> fields = Schemas.properties(schema);
@@ -136,10 +133,9 @@ abstract class FormNpc extends FormEntities {
     }
 
     /**
-     * "Rule: By hand / Dynamic" (November 9, 2026: the whole entity switches, as the rules ask different things). To
-     * dynamic: the kind kept, the tag gone; to by hand: the node's tag, the kind of the first variant. "One" goes with
-     * dynamic. What a switch took away (the variants with their data, the tag) comes back on switching again, while
-     * this node is open.
+     * "Rule: By hand / Dynamic". To dynamic: the kind kept, the tag gone; to by hand: the node's tag, the kind of the
+     * first variant. "One" goes with dynamic. What a switch took away (the variants with their data, the tag) comes
+     * back on switching again, while this node is open.
      */
     private void npcRule(boolean byHand) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -208,8 +204,8 @@ abstract class FormNpc extends FormEntities {
     }
 
     /**
-     * "Share": a slider from 1 to 100 per cent, under "How many" for all such (November 8, 2026). Written when let go
-     * (or moved by the keys), as every write reloads the story; 100 writes nothing, all of them.
+     * "Share": a slider from 1 to 100 per cent, under "How many" for all such. Written when let go (or moved by the
+     * keys), as every write reloads the story; 100 writes nothing, all of them.
      */
     private void npcShare(@Nullable JsonObject binding) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -238,8 +234,8 @@ abstract class FormNpc extends FormEntities {
             }
 
             /**
-             * In the editor's look (November 19, 2026, the author: Minecraft's stone slider stood out): the dark field in
-             * its bronze frame, the share up to the handle a little lighter, the handle a gold bar, the value in words.
+             * In the editor's look: the dark field in its bronze frame, the share up to the handle a little lighter,
+             * the handle a gold bar, the value in words.
              */
             @Override
             public void renderWidget(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
@@ -262,8 +258,7 @@ abstract class FormNpc extends FormEntities {
             }
 
             /**
-             * The arrows move it by 1%, Enter or leaving it writes it (November 9, 2026: before, each key wrote it and
-             * rebuilt the form, the slider losing its focus after one step).
+             * The arrows move it by 1%, Enter or leaving it writes it.
              */
             @Override
             public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
@@ -311,8 +306,7 @@ abstract class FormNpc extends FormEntities {
 
     /**
      * After a switch of the rule or of how many: the name of one NPC (displayed, shown over the head) for one NPC, by
-     * hand or "one", the names from a list for all such; the other kind is put away, and given back on switching again
-     * (November 8, 2026: before, "All such" left the displayed name in the form, naming nobody).
+     * hand or "one", the names from a list for all such; the other kind is put away, and given back on switching again.
      */
     private void tidyNames(JsonObject root) {
         boolean oneNpc = SelectorEdits.byHand(root.get("entity")) || flag(root, "one", false);
@@ -334,7 +328,7 @@ abstract class FormNpc extends FormEntities {
             return;
         }
         ResourceLocation npc = host.npcBinding();
-        // Two clicks (November 9, 2026): the first asks, the second frees the part; a pick cannot be undone.
+        // Two clicks: the first asks, the second frees the part; a pick cannot be undone.
         boolean armed = Util.getMillis() < resetArmedUntil;
         Button button = Button.builder(DevUi.text(armed ? "npc.picked.reset.sure" : "npc.picked.reset"), b -> {
             if (Util.getMillis() < resetArmedUntil) {
@@ -352,8 +346,8 @@ abstract class FormNpc extends FormEntities {
     }
 
     /**
-     * Speaking up when a player comes near: yes/no, and while yes its settings in words ("4 blocks · every 30 s"), which
-     * open them. Before, one row "1 ▸" or "—", and "—" for {@code {}} too, which is on with the defaults.
+     * Speaking up when a player comes near: yes/no, and while yes its settings in words ("4 blocks · every 30 s"),
+     * which open them.
      */
     void proximityField(List<Object> path, Node node, @Nullable JsonObject binding) {
         if (!row(LABEL_H + CONTROL_H)) {
@@ -364,7 +358,7 @@ abstract class FormNpc extends FormEntities {
         JsonObject settings = binding != null && binding.get("proximity") instanceof JsonObject value ? value : null;
         boolean on = settings != null;
         int toggleW = on ? Math.min(60, w / 3) : w;
-        // Not written, it is the nodes' below (layers), else off: there is no "off" over theirs (November 8, 2026).
+        // Not written, it is the nodes' below (layers), else off: there is no "off" over theirs.
         Component state = on ? Component.literal(DevUi.yesNo(true)) : DevUi.text("form.from_below", DevUi.yesNo(false));
         Button toggle = Button.builder(state, b -> {
             if (on) {

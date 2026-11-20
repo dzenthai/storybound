@@ -16,12 +16,10 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The story editor's chapters, as FTB Quests shows them (November 16, 2026; the same day, a panel of three sections,
- * Chapters, Search and Problems, which the author found heavy): a narrow strip of icons on the left, the chapter's
- * item (its {@code icon}) or its first letter, ★ for the whole story, ◌ for the nodes in no chapter, + for a new one.
- * Hovering it slides the names out over the canvas; moving away folds them back. A chapter's row, hovered or open,
- * has a "⋯" at its end for what can be done with it, editing it, its icon, deleting it, the same as a right click
- * (November 19, 2026, the author: the right click was the only way, and not one anybody would guess). Search and the
+ * The story editor's chapters, as FTB Quests shows them: a narrow strip of icons on the left, the chapter's item (its
+ * {@code icon}) or its first letter, ★ for the whole story, ◌ for the nodes in no chapter, + for a new one. Hovering it
+ * slides the names out over the canvas; moving away folds them back. A chapter's row, hovered or open, has a "⋯" at its
+ * end for what can be done with it, editing it, its icon, deleting it, the same as a right click. Search and the
  * problems are buttons of the top bar ({@link StoryFinder}).
  */
 final class StoryPanel {
@@ -91,8 +89,7 @@ final class StoryPanel {
     /** Slides the names out while the mouse is on the strip or the slid-out panel; never while something is dragged. */
     void hover(DevModeScreen screen, double mouseX, double mouseY, boolean busy) {
         if (menuFor != null && screen.menuOpen()) {
-            // A chapter's menu is open: the panel stays out under it, with its row lit (November 19, 2026, the author:
-            // it folded away as the mouse went over to the menu).
+            // A chapter's menu is open: the panel stays out under it, with its row lit.
             return;
         }
         menuFor = null;
@@ -148,7 +145,7 @@ final class StoryPanel {
                 int countRight = width - 8;
                 if (editable(row) && (hover || open)) {
                     // "⋯": three dots at the row's end, no frame, in the count's colour, gold under the mouse or while
-                    // its menu is open (November 19, 2026, the author: a framed button stood out of the panel).
+                    // its menu is open.
                     int mx = moreX(width);
                     boolean onMore = menuHere || (menuFor == null && DevUi.inside(mouseX, mouseY, mx, y + 4, MORE, MORE));
                     int dots = onMore ? DevUi.WARN : DevUi.MUTED;

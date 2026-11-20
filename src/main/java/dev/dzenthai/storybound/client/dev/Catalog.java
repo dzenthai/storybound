@@ -48,7 +48,7 @@ final class Catalog {
     static final String PROBLEM = "@problem:";
     /**
      * A row that is not picked: a section's heading ({@code @section:}), or a muted note under it ({@code @note:}), as
-     * the sound list's "The story's sounds" and "Minecraft's and mods' sounds" (October 30, 2026).
+     * the sound list's "The story's sounds" and "Minecraft's and mods' sounds".
      */
     static final String SECTION = "@section:";
     static final String NOTE = "@note:";
@@ -155,9 +155,8 @@ final class Catalog {
     }
 
     /**
-     * The sound list's own buttons, in its title bar (October 30, 2026; before, two rows of the list, and reloading
-     * closed the window): reloading the sounds keeps the window open and lists them again once loaded; the folder
-     * opens in the system's file manager.
+     * The sound list's own buttons, in its title bar: reloading the sounds keeps the window open and lists them again
+     * once loaded; the folder opens in the system's file manager.
      */
     private void soundButtons(DevModeScreen screen, int left, int top) {
         int folderW = 64;
@@ -303,8 +302,7 @@ final class Catalog {
     }
 
     /**
-     * The structures that appear in a dimension, for a waypoint's structure after its dimension (November 9, 2026: before,
-     * the same list whatever the dimension, a fortress and a village alike).
+     * The structures that appear in a dimension, for a waypoint's structure after its dimension.
      */
     static List<Entry> structuresIn(ResourceLocation dimension) {
         return entries(Kind.STRUCTURE, Minecraft.getInstance().level).stream().filter(entry -> structureIn(entry.id(), dimension)).toList();
@@ -317,14 +315,13 @@ final class Catalog {
      * the End city in the End, the rest above; a mod's not known there is kept everywhere.
      */
     static boolean structureIn(String id, ResourceLocation dimension) {
-        // From the world's map the server sent (November 9, 2026: before, vanilla's dimensions written here for a server
-        // elsewhere): a mod's structure in a mod's dimension alike.
+        // From the world's map the server sent: a mod's structure in a mod's dimension alike.
         return WorldMap.structureFits(id, dimension.toString(), null);
     }
 
     /**
-     * The biomes that can be where a place's parts say (November 9, 2026): those its dimension makes, and, for a
-     * structure, those it stands in; a biome entry a #tag of which any can. Everything when nothing is chosen.
+     * The biomes that can be where a place's parts say: those its dimension makes, and, for a structure, those it
+     * stands in; a biome entry a #tag of which any can. Everything when nothing is chosen.
      */
     static List<Entry> biomesFitting(@Nullable String dimension, List<String> structures) {
         return entries(Kind.BIOME, Minecraft.getInstance().level).stream()

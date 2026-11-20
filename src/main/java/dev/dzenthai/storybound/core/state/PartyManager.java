@@ -52,7 +52,7 @@ public final class PartyManager {
         }
         data.addInvite(target.getUUID(), party.id(), System.currentTimeMillis() + INVITE_TTL_MILLIS);
         inviter.sendSystemMessage(Component.translatable("storybound.party.invited", target.getDisplayName()));
-        // With [Accept] and [Decline] to click (November 19, 2026; before, the command to type was written out).
+        // With [Accept] and [Decline] to click.
         target.sendSystemMessage(Component.translatable("storybound.party.invite_received", inviter.getDisplayName(), displayName(inviter.server, party))
                 .append(" ").append(chatButton("storybound.party.button.accept", "/storybound party accept", ChatFormatting.GREEN))
                 .append(" ").append(chatButton("storybound.party.button.decline", "/storybound party decline", ChatFormatting.RED)));

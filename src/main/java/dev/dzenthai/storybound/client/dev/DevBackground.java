@@ -18,18 +18,17 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 
 /**
- * The sky behind the editor's canvas (November 19, 2026; the author's five skies, drawn in Aseprite; before, a flat
- * dark ground): a far layer, as behind the skill trees of games, moving at half the canvas's pace when it is dragged,
- * so the cards seem to float over it. It neither moves nor changes its size when the canvas zooms (scaled to cover the screen), and repeats
- * mirrored, so the endless canvas never shows its edge or a seam. Softened and darkened once, when first drawn: doubled
- * by nearest neighbour, a gaussian blur of one of its pixels, 45% of its light; then drawn smoothly. A sky is drawn at
- * random each time the editor opens, never the one of the time before ({@link #shuffle}; November 19, 2026, the author;
- * the same day, one per story by its id).
+ * The sky behind the editor's canvas: a far layer, as behind the skill trees of games, moving at half the canvas's pace
+ * when it is dragged, so the cards seem to float over it. It neither moves nor changes its size when the canvas zooms
+ * (scaled to cover the screen), and repeats mirrored, so the endless canvas never shows its edge or a seam. Softened
+ * and darkened once, when first drawn: doubled by nearest neighbour, a gaussian blur of one of its pixels, 45% of its
+ * light; then drawn smoothly. A sky is drawn at random each time the editor opens, never the one of the time before
+ * ({@link #shuffle}).
  */
 final class DevBackground {
     /** How far the sky moves for the canvas's movement (the canvas keeps the sum, see {@code GraphView}). */
     static final double PARALLAX = 0.5;
-    /** The light kept: 45% (November 19, 2026, the author; the same day 60%, too bright under the cards). */
+    /** The light kept: 45%. */
     private static final float DARKEN = 0.45f;
     /** How many screens one copy of the sky covers, the narrower way. */
     private static final float SIZE = 2f;
@@ -63,13 +62,13 @@ final class DevBackground {
             return;
         }
         Sky sky = made.get();
-        // One copy of the sky: twice as large as covers the screen (November 20, 2026; before, just covering it), so its
-        // mirrored seam shows only once the grid's origin is half a screen and more off it.
+        // One copy of the sky: twice as large as covers the screen, so its mirrored seam shows only once the grid's
+        // origin is half a screen and more off it.
         float scale = SIZE * Math.max(screenWidth / (float) sky.width(), screenHeight / (float) sky.height());
         int tileWidth = Math.max(1, Math.round(sky.width() * scale));
         int tileHeight = Math.max(1, Math.round(sky.height() * scale));
-        // Placed by the screen, not the canvas (November 19, 2026: centred on the canvas, it jumped when the inspector
-        // opened and the canvas narrowed): centred on the screen at the start, then moved; the canvas only shows a part.
+        // Placed by the screen, not the canvas: centred on the screen at the start, then moved; the canvas only shows a
+        // part.
         float u = (float) (left - ((screenWidth - tileWidth) / 2.0 + skyX));
         float v = (float) (top - ((screenHeight - tileHeight) / 2.0 + skyY));
         RenderSystem.enableBlend();

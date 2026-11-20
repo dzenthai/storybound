@@ -30,7 +30,7 @@ public record WaypointDefinition(StoryText name, WaypointTarget target, int colo
     /**
      * The colours a waypoint offers: Minecraft's 16 text colours, the only ones Xaero's Minimap shows (any other is
      * shown there as the nearest of them, while JourneyMap and the markers in the world show it as it is). The dev
-     * mode's colour window offers them as presets and shows what Xaero will show (October 29, 2026).
+     * mode's colour window offers them as presets and shows what Xaero will show.
      */
     public static final List<Integer> PALETTE = Arrays.stream(ChatFormatting.values())
             .filter(ChatFormatting::isColor).map(format -> 0xFF000000 | format.getColor()).toList();
@@ -49,7 +49,7 @@ public record WaypointDefinition(StoryText name, WaypointTarget target, int colo
     /**
      * The colours the dev mode offers, which look the same in the world, in Xaero's Minimap and in JourneyMap: the
      * default and Minecraft's light text colours (markers show a darker colour raised, and Xaero has only the 16 text
-     * colours; October 29, 2026).
+     * colours).
      */
     public static final List<Integer> MARKER_COLORS = List.of(DEFAULT_COLOR,
             0xFF000000 | ChatFormatting.GOLD.getColor(), 0xFF000000 | ChatFormatting.YELLOW.getColor(),

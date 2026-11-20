@@ -11,9 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * A write made here survives the snapshots that answer earlier requests, by the count of requests the server had
- * (November 19, 2026: a new node's chapter, saved right after the node, was undone by the snapshot answering the node;
- * nodes deleted quickly lined up before vanishing; an undone or redone delete blinked).
+ * A write made here survives the snapshots that answer earlier requests, by the count of requests the server had (nodes
+ * deleted quickly lined up before vanishing; an undone or redone delete blinked).
  */
 class LocalWritesTest {
     private static final ResourceLocation CHAPTER = ResourceLocation.parse("example:one");

@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-/** The canvas grid (November 18, 2026): nodes snap to lines and cell middles, and every size and step is on it. */
+/** The canvas grid: nodes snap to lines and cell middles, and every size and step is on it. */
 class DevGridTest {
     @Test
     void positionsSnapToLinesAndCellMiddles() {
@@ -16,7 +16,7 @@ class DevGridTest {
         assertEquals(-24, DevUi.snap(-19));
     }
 
-    /** Zoom steps of whole screen pixels (November 18, 2026). */
+    /** Zoom steps of whole screen pixels. */
     @Test
     void zoomStepsByWholeScreenPixels() {
         assertEquals(1.25f, GraphView.zoomStep(1f, 1, 4));

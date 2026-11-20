@@ -17,9 +17,9 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 /**
- * The packets of the editor's stories (November 18, 2026): {@link Edit} carries any editor request with the story it
- * was made for, {@link Action} a story's action (select, create, update), {@link State} the stories and the edited
- * one's texts to the editor, {@link Result} whether an action went through.
+ * The packets of the editor's stories: {@link Edit} carries any editor request with the story it was made for,
+ * {@link Action} a story's action (select, create, update), {@link State} the stories and the edited one's texts to the
+ * editor, {@link Result} whether an action went through.
  */
 public final class DevProjectPayloads {
     private DevProjectPayloads() {}

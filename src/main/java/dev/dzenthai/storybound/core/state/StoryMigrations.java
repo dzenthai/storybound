@@ -86,9 +86,7 @@ public final class StoryMigrations {
     }
 
     /**
-     * What a quest has now, so a renamed stage or objective moves only where it still means the same thing (October 29,
-     * 2026; before, a rename of objective "0" moved every stage's "0", and a stage given the old name again was renamed
-     * away on every join).
+     * What a quest has now, so a renamed stage or objective moves only where it still means the same thing.
      */
     public interface QuestShape {
         /** Whether the quest is defined; for one that is not, renames move as written. */

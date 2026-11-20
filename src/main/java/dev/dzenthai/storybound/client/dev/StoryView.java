@@ -17,15 +17,14 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The story editor: one workspace (November 16, 2026, stage 1 of the workspace redesign; before, three tabs, Story,
- * Library and All links): the left panel ({@link StoryPanel}: chapters, search, problems), the canvas, and the selected
- * definition's inspector on the right ({@link StoryInspector}). The canvas is the story's spine as in FTB Quests: the
- * quests and story events of the open chapter, an arrow from each to what it leads to with the nodes between folded
- * into it ({@link StoryFlow}) and its words on it ("after it is completed", "through 💬"); what belongs to a quest or
- * an event (its giver, dialogues, documents, waypoints, boss) is badges under it ({@link StoryFlow#attached}).
- * Hovering a node lights its links and dims the rest. "Show all links" ({@link Tab#ALL}) shows every definition as a
- * card with every link as an arrow. On both, Shift selects several cards; dragging from a card's port to another card
- * writes the link into the first one's JSON ({@link StoryEdits#link}).
+ * The story editor: one workspace: the left panel ({@link StoryPanel}: chapters, search, problems), the canvas, and the
+ * selected definition's inspector on the right ({@link StoryInspector}). The canvas is the story's spine as in FTB
+ * Quests: the quests and story events of the open chapter, an arrow from each to what it leads to with the nodes
+ * between folded into it ({@link StoryFlow}) and its words on it ("after it is completed", "through 💬"); what belongs
+ * to a quest or an event (its giver, dialogues, documents, waypoints, boss) is badges under it
+ * ({@link StoryFlow#attached}). Hovering a node lights its links and dims the rest. "Show all links" ({@link Tab#ALL})
+ * shows every definition as a card with every link as an arrow. On both, Shift selects several cards; dragging from a
+ * card's port to another card writes the link into the first one's JSON ({@link StoryEdits#link}).
 
  * <p>
  * One layer of the story editor, split by topic, each seeing the ones below it; the rest of the editor uses StoryView:
@@ -34,8 +33,8 @@ import org.lwjgl.glfw.GLFW;
 final class StoryView extends StoryDrawing {
     /**
      * Escape: the selection (and its inspector); then nothing, and the editor closes. "All links" is a way of showing
-     * the map, not a level inside it: it stays for the next opening (November 20, 2026, the author; for a day Escape
-     * took it back to the chapters first, so the editor always reopened on them).
+     * the map, not a level inside it: it stays for the next opening (for a day Escape took it back to the chapters
+     * first, so the editor always reopened on them).
      */
     @Override
     boolean escape(DevModeScreen screen) {
@@ -311,8 +310,7 @@ final class StoryView extends StoryDrawing {
         if (dragging != null) {
             int[] anchor = dragStart.get(dragging);
             if (anchor != null) {
-                // The grabbed card snaps to the grid and the others move with it, each onto the grid too (one placed
-                // off it before November 18, 2026 lands on it at the first move).
+                // The grabbed card snaps to the grid and the others move with it, each onto the grid too.
                 int dx = DevUi.snap(worldX(mouseX) - dragOffsetX) - anchor[0];
                 int dy = DevUi.snap(worldY(mouseY) - dragOffsetY) - anchor[1];
                 dragStart.forEach((key, start) -> positions.put(key, new int[]{DevUi.snap(start[0] + dx), DevUi.snap(start[1] + dy)}));

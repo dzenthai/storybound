@@ -92,8 +92,8 @@ public final class QuestHud {
     }
 
     /**
-     * "📍 The Nether": the dimensions the quest's waypoints are in other than the player's (November 9, 2026: before,
-     * nothing said where to go, as no marker is drawn in another dimension); null when they are all here or it has none.
+     * "📍 The Nether": the dimensions the quest's waypoints are in other than the player's; null when they are all here
+     * or it has none.
      */
     static @org.jetbrains.annotations.Nullable Component elsewhere(ResourceLocation quest) {
         Minecraft minecraft = Minecraft.getInstance();

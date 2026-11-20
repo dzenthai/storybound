@@ -147,14 +147,13 @@ abstract class FormCore {
         frames.clear();
         resetScroll();
         // A switch's way chosen for a field not written yet belongs to this node, not to the next one shown at the same
-        // path (November 7, 2026; before, another jump or NPC opened on the way picked here).
+        // path.
         entityModes.clear();
         switchedAway.clear();
     }
 
     /**
-     * The wheel moves where the form goes; the rows glide there (November 19, 2026, the author: they jumped 24 pixels a
-     * notch): see {@link #animateScroll}.
+     * The wheel moves where the form goes; the rows glide there: see {@link #animateScroll}.
      */
     void scroll(double amount) {
         scrollTarget = Math.max(0, scrollTarget - amount * 28);
@@ -294,7 +293,7 @@ abstract class FormCore {
     /** {@code stages.hunt.objectives.wolves.}: list elements by their id when they have one, for stable text keys. */
     /**
      * The key of a list's texts, before the item's index: the list's path already ends with its field, named once
-     * ("npc_50.names.0"; November 9, 2026: before, "npc_50.names.names.0"; keys already written stay as they are).
+     * ("npc_50.names.0"; keys already written stay as they are).
      */
     String listKey(List<Object> path, String field) {
         boolean named = !path.isEmpty() && field.equals(path.getLast());
@@ -357,7 +356,7 @@ abstract class FormCore {
                         .tooltip(Tooltip.create(DevUi.text("form.remove_field"))).bounds(x + width - 16, y0, 16, 14).build());
             }
             // Where the page is (greyed), then what it is, as a heading: every page goes on under one, as the node's
-            // form under its name (October 30, 2026; before, only the grey path, the page's own name last in it).
+            // form under its name.
             labels.add(new Label(Component.literal(crumbs(screen.font(), width - 40)), x + 20, y0 + 3, DevUi.MUTED));
             labels.add(new Label(Component.literal(screen.font().plainSubstrByWidth(frame.label(), width)), x, y0 + 18, DevUi.ACCENT));
             y0 += 32;
@@ -376,7 +375,7 @@ abstract class FormCore {
             page(frame.path(), frame.schema());
         }
         contentHeight = y + scroll - y0;
-        // A thin bar along the form's right edge when its rows do not fit (November 19, 2026; before, ▲ ▼ in a corner).
+        // A thin bar along the form's right edge when its rows do not fit.
         barX = contentHeight > bottom - y0 ? x + width + 3 : -1;
         barTop = y0;
         barBottom = bottom;
@@ -533,8 +532,8 @@ abstract class FormCore {
     }
 
     /**
-     * A lighter heading within a group, over the fields of one question (November 8, 2026): golden sections, light
-     * questions in them, grey labels over each field.
+     * A lighter heading within a group, over the fields of one question: golden sections, light questions in them, grey
+     * labels over each field.
      */
     void subgroup(Component title) {
         y += 2;
@@ -596,8 +595,7 @@ abstract class FormCore {
     /** The way an entity is known by, chosen on its page before its field is filled (per path; the form's own state). */
     final Map<String, String> entityModes = new java.util.HashMap<>();
     /**
-     * What a switch cleared, per path and field, given back when it is switched to that way again (November 7, 2026;
-     * before, switching an entity from the one picked to its type lost the pick for good). For this node only.
+     * What a switch cleared, per path and field, given back when it is switched to that way again. For this node only.
      */
     final Map<String, JsonElement> switchedAway = new java.util.HashMap<>();
 
@@ -788,8 +786,8 @@ abstract class FormCore {
     }
 
     /**
-     * A part's value in words, for the button under its label: a list by its elements ("Quest: demo:hunt · Flag set"), a
-     * map by its keys, an object by how many of its fields are set; "None" when empty (before, a count: "2", "—").
+     * A part's value in words, for the button under its label: a list by its elements ("Quest: demo:hunt · Flag set"),
+     * a map by its keys, an object by how many of its fields are set; "None" when empty.
      */
     Component summary(Kind kind, Node node, @Nullable JsonElement value) {
         return switch (kind) {

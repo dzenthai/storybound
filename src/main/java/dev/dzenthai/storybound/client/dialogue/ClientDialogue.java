@@ -133,8 +133,8 @@ public final class ClientDialogue {
     }
 
     /**
-     * A choice in subtitles or bubbles waits for the player (November 6, 2026): "[H] Answer" over the subtitles, its
-     * timer running, until the talk key opens its window; before, the window opened by itself, even mid-fight.
+     * A choice in subtitles or bubbles waits for the player: "[H] Answer" over the subtitles, its timer running, until
+     * the talk key opens its window.
      */
     public static boolean waitsForAnswer() {
         return choices != null && asks && !choiceOpen && answered != choices.step();

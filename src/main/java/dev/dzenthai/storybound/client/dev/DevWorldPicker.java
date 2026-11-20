@@ -193,8 +193,8 @@ public final class DevWorldPicker {
         graphics.fill(boxX, boxY, boxX + boxW, boxY + 30, 0xEE16191F);
         graphics.drawString(font, title, (w - font.width(title)) / 2, boxY + 5, DevUi.TEXT, false);
         graphics.drawString(font, aimed, (w - font.width(aimed)) / 2, boxY + 17, color, false);
-        // The crosshair's middle pixel as vanilla draws it (15 x 15 from (w - 15) / 2): with an even width a pixel left of
-        // w / 2, and the frame was off by one, right and down (November 20, 2026, the author).
+        // The crosshair's middle pixel as vanilla draws it (15 x 15 from (w - 15) / 2): with an even width a pixel left
+        // of w / 2, and the frame was off by one, right and down.
         int cx = (w - 15) / 2 + 7;
         int cy = (h - 15) / 2 + 7;
         // Corners of a frame around the crosshair, in the colour of what is aimed at.

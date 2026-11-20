@@ -131,7 +131,7 @@ public final class ValidationService {
             return null;
         }
         try {
-            // In the story it came from (a folder per story since November 18, 2026).
+            // In the story it came from.
             Path inFolder = ConfigStorySource.fileFor(StoryProjects.owner(type, issue.entry()), type, issue.entry());
             if (Files.isRegularFile(inFolder)) {
                 return inFolder.toAbsolutePath().normalize().toString().replace('\\', '/');

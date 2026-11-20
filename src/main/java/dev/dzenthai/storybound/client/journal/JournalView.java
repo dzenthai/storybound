@@ -24,7 +24,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
-/** The Journal tab: read documents, notes and the signed books kept (November 20, 2026), grouped by category. */
+/** The Journal tab: read documents, notes and the signed books kept, grouped by category. */
 public class JournalView extends ListDetailView<JournalView.Entry> {
     private static final ResourceLocation VIGNETTE = ResourceLocation.fromNamespaceAndPath(
             "storybound", "textures/gui/journal/traveler_corner.png");
@@ -41,9 +41,7 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // The author's drawing (November 19, 2026; before, AI art of 1254 x 1254 squeezed to 170 GUI pixels, its fake
-        // pixels 1.5 of the book's each, with three stars drawn by the code), on the book's pixels: one pixel of it is
-        // one of the book's, at the page's bottom right.
+        // The author's drawing, on the book's pixels: one pixel of it is one of the book's, at the page's bottom right.
         var layout = screen.bookLayout();
         double px = layout.bookPixel();
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
@@ -172,7 +170,7 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
             String hint = entry.book() != null ? "storybound.journal.book_hint" : "storybound.journal.document_hint";
             int hintLines = font.split(JournalSkin.text(Component.translatable(hint)), detailWidth()).size() + (entry.book() != null ? 1 : 0);
             int afterText = detailTop() + headingLines * 22 + hintLines * 13 + 33;
-            // Both within the text's width, clear of the corner drawing (November 20, 2026: two of 80 ran into it).
+            // Both within the text's width, clear of the corner drawing.
             int buttonWidth = entry.book() != null ? Math.min(80, (detailWidth() - 4) / 2) : 80;
             readButton.setWidth(buttonWidth);
             removeButton.setWidth(buttonWidth);

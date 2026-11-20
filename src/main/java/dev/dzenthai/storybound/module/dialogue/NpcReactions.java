@@ -32,13 +32,13 @@ import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * An NPC binding's {@code invulnerable} and {@code when_attacked} (November 5, 2026). The reaction: {@code ignore} (no
- * revenge), {@code flee} (runs from the player for a few seconds after each hit) or {@code fight}, which forgives its
+ * An NPC binding's {@code invulnerable} and {@code when_attacked}. The reaction: {@code ignore} (no revenge),
+ * {@code flee} (runs from the player for a few seconds after each hit) or {@code fight}, which forgives its
  * {@code patience} hits, each with the next of its {@code warning} phrases ("Careful!", "Once more and..."), and goes
- * for the player on the next. Every hit it reacts to says the next of its {@code phrases}. {@code calm_after} seconds without a hit forgive it all: the
- * reaction ends, the count and the phrases start over. Revenge is kept off by refusing the NPC the player as a target
- * ({@link LivingChangeTargetEvent}): a golem's anger never gets as far as a swing. Mobs' hits leave it to its kind; with
- * {@code by_mobs} it also says its phrases on them ({@link #mobHit}).
+ * for the player on the next. Every hit it reacts to says the next of its {@code phrases}. {@code calm_after} seconds
+ * without a hit forgive it all: the reaction ends, the count and the phrases start over. Revenge is kept off by
+ * refusing the NPC the player as a target ({@link LivingChangeTargetEvent}): a golem's anger never gets as far as a
+ * swing. Mobs' hits leave it to its kind; with {@code by_mobs} it also says its phrases on them ({@link #mobHit}).
  */
 public final class NpcReactions {
     /** How long a fleeing NPC keeps running from the player after a hit. */
@@ -109,9 +109,8 @@ public final class NpcReactions {
     }
 
     /**
-     * An NPC dying or discarded forgets its grudges (November 8, 2026): one that comes back with the same uuid
-     * ({@link NpcRespawns}) is whole and on its own, and talks at once; before, it kept running from its killer and
-     * refused to talk until {@code calm_after} had passed since the last hit.
+     * An NPC dying or discarded forgets its grudges: one that comes back with the same uuid ({@link NpcRespawns}) is
+     * whole and on its own, and talks at once.
      */
     static void onLeave(EntityLeaveLevelEvent event) {
         Entity npc = event.getEntity();
@@ -136,7 +135,7 @@ public final class NpcReactions {
             CALMING.entrySet().removeIf(entry -> !keepCalm(entry.getKey(), entry.getValue(), now));
         }
         if (now % 20 == 0) {
-            // Calmed down: a fight is given up (November 6, 2026; before, the grudge went and the mob kept chasing).
+            // Calmed down: a fight is given up.
             GRUDGES.values().forEach(byPlayer -> byPlayer.values().removeIf(grudge -> {
                 if (grudge.active(now)) {
                     return false;
@@ -158,9 +157,8 @@ public final class NpcReactions {
     }
 
     /**
-     * Whether the NPC is angry at anyone now, as {@link #angryAt} for one player: then it does not chatter (everyone near
-     * hears chatter). A hit it ignores or forgives does not keep it quiet (November 6, 2026; before, any hit did, and a
-     * golem chasing a player by its own anger chattered on).
+     * Whether the NPC is angry at anyone now, as {@link #angryAt} for one player: then it does not chatter (everyone
+     * near hears chatter). A hit it ignores or forgives does not keep it quiet.
      */
     static boolean angryAtAnyone(Entity npc, long now) {
         Map<UUID, Grudge> byPlayer = GRUDGES.get(npc.getUUID());
@@ -176,9 +174,9 @@ public final class NpcReactions {
     }
 
     /**
-     * Whether the NPC is angry at the player (November 6, 2026): fighting them or running from them since a hit, until
-     * it calms down, or going for them by its kind's own anger (a golem without a binding's reaction; not a hostile kind,
-     * which always does). It does not talk with them meanwhile; other players it talks with as ever.
+     * Whether the NPC is angry at the player: fighting them or running from them since a hit, until it calms down, or
+     * going for them by its kind's own anger (a golem without a binding's reaction; not a hostile kind, which always
+     * does). It does not talk with them meanwhile; other players it talks with as ever.
      */
     public static boolean angryAt(Entity npc, ServerPlayer player) {
         if (npc.level() instanceof ServerLevel level) {
@@ -187,9 +185,9 @@ public final class NpcReactions {
                 return true;
             }
         }
-        // A hostile kind (a vindicator, a zombie) goes for the player always: that is its nature, not anger at them, and
-        // an author who gives it dialogues wants it to talk (an enemy's taunts in a duel; November 6, 2026, before, it
-        // never did). Anger from a hit (above) still counts, and so does a friendly kind's own (a golem's).
+        // A hostile kind (a vindicator, a zombie) goes for the player always: that is its nature, not anger at them,
+        // and an author who gives it dialogues wants it to talk (an enemy's taunts in a duel). Anger from a hit (above)
+        // still counts, and so does a friendly kind's own (a golem's).
         if (npc instanceof Mob mob && !(npc instanceof Enemy)) {
             return mob.getTarget() == player || mob.getBrain().checkMemory(MemoryModuleType.ATTACK_TARGET, MemoryStatus.REGISTERED)
                     && mob.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET).orElse(null) == player;
@@ -220,9 +218,9 @@ public final class NpcReactions {
     }
 
     /**
-     * A mob's hit, with {@code by_mobs} (November 20, 2026): the next of its phrases, for all within earshot, each in
-     * their language; not while its last phrase still shows, so a mob's blows every second do not make it chatter; its
-     * own place in the phrases, apart from each player's. Nobody near enough to see it: nothing.
+     * A mob's hit, with {@code by_mobs}: the next of its phrases, for all within earshot, each in their language; not
+     * while its last phrase still shows, so a mob's blows every second do not make it chatter; its own place in the
+     * phrases, apart from each player's. Nobody near enough to see it: nothing.
      */
     private static void mobHit(ServerLevel level, LivingEntity npc, WhenAttacked rules) {
         long now = level.getServer().getTickCount();
@@ -299,8 +297,8 @@ public final class NpcReactions {
     }
 
     /**
-     * A hit's dialogue (November 6, 2026): started with the player after the one they are in; not again while it runs
-     * or waits, so every hit of a fight does not queue it once more.
+     * A hit's dialogue: started with the player after the one they are in; not again while it runs or waits, so every
+     * hit of a fight does not queue it once more.
      */
     private static void startScene(LivingEntity npc, ServerPlayer player, ResourceLocation dialogue) {
         boolean running = Dialogues.state(player).map(state -> state.dialogue().equals(dialogue)).orElse(false);
@@ -327,9 +325,8 @@ public final class NpcReactions {
 
     /**
      * Before the entities tick: the NPCs kept calm forget they were hurt, before a villager's brain reads it. The game
-     * writes the last damage after every damage event, and the brain reads it for two seconds and panics; so it is wiped
-     * here, ahead of the brain, as well as at the end of the tick (November 6, 2026; before, only at the end, and a
-     * villager panicked for a moment now and then).
+     * writes the last damage after every damage event, and the brain reads it for two seconds and panics; so it is
+     * wiped here, ahead of the brain, as well as at the end of the tick.
      */
     static void beforeTick() {
         CALMING.keySet().forEach(NpcReactions::forgetHurt);

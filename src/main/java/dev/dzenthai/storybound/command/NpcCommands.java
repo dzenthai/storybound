@@ -21,10 +21,9 @@ import net.minecraft.world.entity.Entity;
 
 /**
  * {@code /storybound debug npc <entity>}: the bindings it matches, closest first, and which of them each setting comes
- * from (November 7, 2026; before, the one binding that applied); {@code ... unbind} takes away a
- * binding stored on the entity by the old {@code /storybound npc bind} (removed November 7, 2026), which still works in
- * worlds that have one. {@code ... npc parts} lists the parts of "one" NPCs, who holds each, where, ended or not; {@code ... npc
- * part <npc> reset} frees one, to try a picking again (November 7, 2026).
+ * from; {@code ... unbind} takes away a binding stored on the entity by the old {@code /storybound npc bind}, which
+ * still works in worlds that have one. {@code ... npc parts} lists the parts of "one" NPCs, who holds each, where,
+ * ended or not; {@code ... npc part <npc> reset} frees one, to try a picking again.
  */
 final class NpcCommands {
 
@@ -79,7 +78,7 @@ final class NpcCommands {
     private static int info(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         Entity entity = EntityArgument.getEntity(context, "entity");
         NpcBindings.forget(entity);
-        // Bindings it fits but for its roll: "guards (30%)" (November 9, 2026), also when nothing else is for it.
+        // Bindings it fits but for its roll: "guards (30%)", also when nothing else is for it.
         List<String> outOfShare = NpcBindings.outOfShare(entity);
         if (!outOfShare.isEmpty()) {
             context.getSource().sendSuccess(() -> Component.translatable("commands.storybound.npc.out_of_share", String.join(", ", outOfShare)), false);

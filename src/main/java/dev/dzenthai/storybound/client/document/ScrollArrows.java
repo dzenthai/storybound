@@ -8,13 +8,11 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 
 /**
- * The arrows that scroll a long text, in documents and in the Adventure Menu (October 31, 2026, after Stardew Valley's;
- * before, scrollbars): a pixel arrow in the mod's colours, the ornaments' browns in an ink outline with a small light
- * on it and an ink shadow down and to the left. It sits in the middle above and below the text, bobs a pixel towards
- * where it scrolls and brightens under the mouse; it slides in from its edge, solid, as there is text that way. It lies
- * over the text's edge on a band of the paper's colour that fades the lines out there ({@link #veil}), so the text keeps
- * its place whether the arrows show or not (October 31, 2026; before, the same day, room was kept for them over and
- * under the text, which moved its first line down).
+ * The arrows that scroll a long text, in documents and in the Adventure Menu: a pixel arrow in the mod's colours, the
+ * ornaments' browns in an ink outline with a small light on it and an ink shadow down and to the left. It sits in the
+ * middle above and below the text, bobs a pixel towards where it scrolls and brightens under the mouse; it slides in
+ * from its edge, solid, as there is text that way. It lies over the text's edge on a band of the paper's colour that
+ * fades the lines out there ({@link #veil}), so the text keeps its place whether the arrows show or not.
  */
 public final class ScrollArrows {
     public static final int WIDTH = 10;
@@ -46,7 +44,7 @@ public final class ScrollArrows {
             "....bb...."};
     /**
      * The page arrow of a book, pointing left: the up arrow turned on its side, its light and shade swapped so the
-     * light still falls from above (November 4, 2026; before, a chevron drawn in two browns). {@link #RIGHT} mirrors it.
+     * light still falls from above. {@link #RIGHT} mirrors it.
      */
     private static final String[] LEFT = {
             "....bb.....",
@@ -87,8 +85,7 @@ public final class ScrollArrows {
         if (alpha <= 0.02f) {
             return;
         }
-        // A pixel towards where it scrolls and back, a whole pixel at a time, as the art's pixels stay whole (October 31,
-        // 2026; before, the same day, smoothly by parts of a pixel, which put it between the screen's pixels).
+        // A pixel towards where it scrolls and back, a whole pixel at a time, as the art's pixels stay whole.
         double phase = (Util.getMillis() % (long) BOB_MS) / BOB_MS;
         int bob = hover ? 0 : (int) Math.round(0.5 - 0.5 * Math.cos(phase * 2 * Math.PI)) * (up ? -1 : 1);
         // It comes in from its edge rather than through transparency (it stays solid): 3 pixels out while hidden, a
@@ -160,8 +157,7 @@ public final class ScrollArrows {
     private static long lastClick;
 
     /**
-     * The soft click of scrolling: an arrow clicked, and the wheel or a key when the text moved (October 31, 2026; before,
-     * the arrows only).
+     * The soft click of scrolling: an arrow clicked, and the wheel or a key when the text moved.
      */
     public static void click() {
         long now = Util.getMillis();

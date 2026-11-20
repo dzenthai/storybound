@@ -23,7 +23,7 @@ public record QuestRewardData(List<Pending> pending, List<Received> received) {
             Pending.CODEC.listOf().optionalFieldOf("pending", List.of()).forGetter(QuestRewardData::pending),
             Received.CODEC.listOf().optionalFieldOf("received", List.of()).forGetter(QuestRewardData::received)
     ).apply(instance, QuestRewardData::new));
-    /** Saves from before October 28, 2026 hold only the waiting list. */
+    /** Older saves hold only the waiting list. */
     public static final Codec<QuestRewardData> CODEC = Codec.withAlternative(OBJECT,
             Pending.CODEC.listOf().xmap(pending -> new QuestRewardData(pending, List.of()), QuestRewardData::pending));
 

@@ -14,10 +14,10 @@ import net.minecraft.tags.TagKey;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The world's map as the server sent it with the snapshot ({@link WorldPlaces#forEditor}; November 9, 2026): which
- * biomes each dimension makes and in which biomes each structure stands, so the editor lists only what can be (the
- * Nether's biomes after "Nether", its structures after a crimson forest). Nothing of vanilla is known here: a server
- * that sent no map (an older one) leaves every list whole.
+ * The world's map as the server sent it with the snapshot ({@link WorldPlaces#forEditor}): which biomes each dimension
+ * makes and in which biomes each structure stands, so the editor lists only what can be (the Nether's biomes after
+ * "Nether", its structures after a crimson forest). Nothing of vanilla is known here: a server that sent no map (an
+ * older one) leaves every list whole.
  */
 final class WorldMap {
     private WorldMap() {}

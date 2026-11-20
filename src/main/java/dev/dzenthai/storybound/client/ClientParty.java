@@ -7,7 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
 
-/** What the server last said about the player's party, for the party tab (November 19, 2026). */
+/** What the server last said about the player's party, for the party tab. */
 public final class ClientParty {
     private static volatile PartySyncPayload state = new PartySyncPayload(Optional.empty(), Optional.empty(), List.of());
     /** When the state came, to tell when its invite runs out. */

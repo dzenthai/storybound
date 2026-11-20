@@ -18,10 +18,10 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Renaming a story node in the dev mode (October 29, 2026; before, an id was fixed once the node was made): what may be
- * renamed, what a new id may be, and the rewriting of what names the old one: references in other definitions,
- * {@code {var:}} and {@code {flag:}} in texts, and the migrations that move players' saved progress. Pure, so the
- * editor checks a name as it is typed and the server does the rename with the same rules.
+ * Renaming a story node in the dev mode: what may be renamed, what a new id may be, and the rewriting of what names the
+ * old one: references in other definitions, {@code {var:}} and {@code {flag:}} in texts, and the migrations that move
+ * players' saved progress. Pure, so the editor checks a name as it is typed and the server does the rename with the
+ * same rules.
  */
 public final class StoryRenames {
     public static final ResourceLocation FLAG = Storybound.id("flag");
@@ -48,8 +48,7 @@ public final class StoryRenames {
 
     /**
      * The id the author typed: a name ({@code chelovek}), which stays in the node's namespace; the namespace written
-     * before it is taken only when it is that one (October 29, 2026; before, any namespace and folders could be typed,
-     * but the namespace is the story's, set once for the project). Empty when it is not a name.
+     * before it is taken only when it is that one. Empty when it is not a name.
      */
     public static Optional<ResourceLocation> parse(String typed, ResourceLocation current) {
         String text = typed.trim();
@@ -80,8 +79,7 @@ public final class StoryRenames {
      * @param exists whether a definition of the type has the id
      */
     public static Optional<Problem> problem(ResourceLocation type, ResourceLocation current, String typed, BiPredicate<ResourceLocation, ResourceLocation> exists) {
-        // Its own name, as it is: also one in a folder (scenario:campfire/brann), which a new name may not be; before
-        // (November 5, 2026), such a node's name showed as wrong the moment it was opened.
+        // Its own name, as it is: also one in a folder (scenario:campfire/brann), which a new name may not be.
         String own = typed.trim();
         if (own.equals(current.getPath()) || own.equals(current.toString())) {
             return Optional.of(Problem.SAME);
@@ -171,8 +169,7 @@ public final class StoryRenames {
         return out.toString();
     }
 
-    // --- inside a quest: its stages and objectives (October 29, 2026; before, their id was a plain text field, and
-    // changing it broke every "next", condition and waypoint naming the stage, and players' place in the quest)
+    // --- inside a quest: its stages and objectives
 
     /** A stage's or an objective's name: lowercase letters, digits, {@code _ - .}; {@code @} is for {@code @complete}. */
     private static final Pattern INSIDE_NAME = Pattern.compile("^[a-z0-9_.-]+$");
@@ -275,8 +272,7 @@ public final class StoryRenames {
         return changed;
     }
 
-    // --- inside a Codex entry: its sections (October 30, 2026; before, a section's id was a plain text field: changing it
-    // left its text file, the conditions and actions naming it and players' open sections behind)
+    // --- inside a Codex entry: its sections
 
     /** The entry's section of that id, or null. */
     public static @Nullable JsonObject codexSection(JsonObject entry, String id) {
@@ -335,7 +331,7 @@ public final class StoryRenames {
         return changed;
     }
 
-    // --- inside a dialogue: its nodes (October 29, 2026; before, a node kept the id it was made with, "line_3")
+    // --- inside a dialogue: its nodes
 
     public static Optional<Problem> nodeProblem(JsonObject dialogue, String current, String typed) {
         String to = typed.trim();
@@ -528,7 +524,7 @@ public final class StoryRenames {
             case "document" -> StoryLinks.DOCUMENT;
             case "boss" -> StoryLinks.BOSS;
             case "phrases", "warning", "busy" -> StoryLinks.PHRASES;
-            // A waypoint's target { "npc": ... } (November 9, 2026: before, a renamed NPC left its waypoints pointing at nothing).
+            // A waypoint's target { "npc"... }.
             case "npc" -> StoryLinks.NPC;
             case "entry" -> logic ? StoryLinks.CODEX : null;
             case "key" -> logic ? FLAG : null;

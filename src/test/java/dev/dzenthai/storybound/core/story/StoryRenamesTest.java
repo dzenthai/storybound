@@ -19,7 +19,7 @@ import java.util.function.BiPredicate;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;
 
-/** The rules of renaming a node, from the "what if" list of October 29, 2026. */
+/** The rules of renaming a node, from its "what if" list. */
 class StoryRenamesTest {
     private static final ResourceLocation ELDER = id("demo:elder");
     private static final ResourceLocation OLD_MAN = id("demo:old_man");

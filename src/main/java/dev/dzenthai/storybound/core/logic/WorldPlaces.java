@@ -17,10 +17,10 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.structure.Structure;
 
 /**
- * The base every mob and every player has, where it is: dimension → biome → structure (November 9, 2026). What fits
- * what is asked of the game itself, never written here: a dimension's biomes are those its biome source makes, a
- * structure's those it lists, mods' dimensions, biomes and structures alike. So the validator can say that the Nether
- * has no plains, and the editor lists only what can be.
+ * The base every mob and every player has, where it is: dimension → biome → structure. What fits what is asked of the
+ * game itself, never written here: a dimension's biomes are those its biome source makes, a structure's those it lists,
+ * mods' dimensions, biomes and structures alike. So the validator can say that the Nether has no plains, and the editor
+ * lists only what can be.
  */
 public final class WorldPlaces {
     private WorldPlaces() {}

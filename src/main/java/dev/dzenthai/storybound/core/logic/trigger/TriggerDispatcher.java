@@ -120,8 +120,8 @@ public final class TriggerDispatcher {
     /**
      * Fires what {@code fires} fires as one happening in the world: a kill shared with the killer's party, a boss's
      * victory for each credited player, a party quest's or flag's change for each member online fire one trigger for
-     * several players, and progress those players share (a party's, the world's) counts it once (October 29, 2026;
-     * see {@link #occurrence}). What those triggers set off in turn is a happening of its own.
+     * several players, and progress those players share (a party's, the world's) counts it once (see
+     * {@link #occurrence}). What those triggers set off in turn is a happening of its own.
      *
      * @param countedBefore owners of shared progress that already counted this happening (a victory credited late, on
      *                      joining, was counted for the party of a player who was there); {@link #WORLD} for the world's

@@ -18,10 +18,10 @@ import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 
 /**
- * What a mob's saved data must hold (November 9, 2026): an entity selector's {@code data}, a field to one value or a
- * list of them, any matching: {@code { "VillagerData/profession": ["minecraft:weaponsmith", "minecraft:armorer"],
- * "Stage": 2 }}. The path goes into a field with {@code /}. Nothing of any kind or mod is known here: the fields are
- * whatever the mob saves (a villager's data, a Born in Chaos zombie's stage), read as the game writes them.
+ * What a mob's saved data must hold: an entity selector's {@code data}, a field to one value or a list of them, any
+ * matching: {@code { "VillagerData/profession": ["minecraft:weaponsmith", "minecraft:armorer"], "Stage": 2 }}. The path
+ * goes into a field with {@code /}. Nothing of any kind or mod is known here: the fields are whatever the mob saves (a
+ * villager's data, a Born in Chaos zombie's stage), read as the game writes them.
  *
  * @param fields path → the values it may hold
  */

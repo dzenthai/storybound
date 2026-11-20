@@ -12,12 +12,11 @@ import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * The editor's stories (November 18, 2026; before, the top bar's "Story: storybound" only renamed the namespace): opened
- * by the top bar's 📁 with the edited story's title, or "Stories" in the ⚙ menu. A row per story with its title and
- * state ("in the editor", in the game or off), "Open" to edit it and ⚙ for its settings (its title, whether it is in the
- * game, and deleting it: its folder moves to {@code .deleted}, after a page that asks; November 19, 2026); "New story"
- * asks a title and its namespace (made from the title until the author types one) and opens it.
- * Every change goes to the server ({@code DevProjects}) and the screen waits for its answer.
+ * The editor's stories: opened by the top bar's 📁 with the edited story's title, or "Stories" in the ⚙ menu. A row per
+ * story with its title and state ("in the editor", in the game or off), "Open" to edit it and ⚙ for its settings (its
+ * title, whether it is in the game, and deleting it: its folder moves to {@code .deleted}, after a page that asks);
+ * "New story" asks a title and its namespace (made from the title until the author types one) and opens it. Every
+ * change goes to the server ({@code DevProjects}) and the screen waits for its answer.
  */
 final class ProjectsScreen extends Screen {
     private enum Page { LIST, CREATE, MANAGE, DELETE }
@@ -107,8 +106,7 @@ final class ProjectsScreen extends Screen {
         for (var project : visibleProjects) {
             button(DevUi.text("projects.open"), left + contentWidth - 105, y + 10, 70, () ->
                     request("select", project.id(), "", false, AfterRequest.EDITOR));
-            // Its settings at once, for any story, without opening it in the editor (November 18, 2026: before, another
-            // story was opened first and its whole snapshot awaited, a wait and a jump).
+            // Its settings at once, for any story, without opening it in the editor.
             Button manage = button(Component.literal("⛭"), left + contentWidth - 29, y + 10, 23, () -> {
                 showManagement(project);
                 rebuildWidgets();
@@ -155,14 +153,13 @@ final class ProjectsScreen extends Screen {
         addRenderableWidget(titleBox);
         EditBox idBox = null;
         if (view == Page.MANAGE) {
-            // In the game: a switch, its value in words (November 18, 2026; before, "In the game: on" inside the button).
+            // In the game: a switch, its value in words.
             button(DevUi.text(enabled ? "projects.enabled" : "projects.disabled"), left, formTop + ROW_STEP + LABEL_TO_CONTROL, contentWidth, () -> {
                 enabled = !enabled;
                 rebuildWidgets();
             }).setTooltip(Tooltip.create(DevUi.text("projects.enabled.tooltip")));
         } else {
-            // The new story's namespace, made from its title until the author types one of their own (November 18, 2026;
-            // before, a random story_1a2b3c4d that then stood in every id and translation key).
+            // The new story's namespace, made from its title until the author types one of their own.
             idBox = new EditBox(font, left, formTop + ROW_STEP + LABEL_TO_CONTROL, contentWidth, 20, DevUi.text("projects.id"));
             idBox.setMaxLength(64);
             idBox.setValue(draftId);
@@ -170,8 +167,7 @@ final class ProjectsScreen extends Screen {
             idBox.setTextColor(StoryProjects.validId(draftId) ? DevUi.TEXT : DevUi.ERROR);
             addRenderableWidget(idBox);
         }
-        // The bottom row: Cancel, then for a story's settings Delete in the middle, then Save (November 19, 2026: Delete in
-        // a row of its own above them ran into the hint under the form on a short window).
+        // The bottom row: Cancel, then for a story's settings Delete in the middle, then Save.
         boolean manage = view == Page.MANAGE;
         int cell = manage ? (contentWidth - 16) / 3 : (contentWidth - 8) / 2;
         int saveX = left + (manage ? 2 * (cell + 8) : cell + 8);
@@ -251,8 +247,7 @@ final class ProjectsScreen extends Screen {
     }
 
     /**
-     * The screen's own drawing, under its buttons (November 18, 2026: drawn in {@code render} before the buttons, it went
-     * under the menu blur Minecraft lays over what is drawn before them, and every text was blurred).
+     * The screen's own drawing, under its buttons.
      */
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {

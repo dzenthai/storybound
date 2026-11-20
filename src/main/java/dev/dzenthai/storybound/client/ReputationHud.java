@@ -12,13 +12,12 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A player's standing with an NPC (November 20, 2026): five slots, stars above 0, skulls below, one filled for every 10
- * of its relationship scale, in a corner of the HUD (top left by default, {@code reputationCorner}): icons alone, twice
- * the size, with no backing and no name, as in Villagers Reborn (the author, the same day; before, a box with the NPC's
- * name, and for a while over the dialogue's box). Shown for {@link #FLASH_MS} when the standing changes, the slot that
- * filled or emptied pulsing; and all the while the player talks with that NPC. The stars and skulls are stand-ins drawn by the code until the
- * author's {@code textures/gui/hud/rep_star.png} and {@code rep_skull.png} are there (18 x 9: the filled one, then the
- * empty slot), which then take over by themselves.
+ * A player's standing with an NPC: five slots, stars above 0, skulls below, one filled for every 10 of its relationship
+ * scale, in a corner of the HUD (top left by default, {@code reputationCorner}): icons alone, twice the size, with no
+ * backing and no name, as in Villagers Reborn. Shown for {@link #FLASH_MS} when the standing changes, the slot that
+ * filled or emptied pulsing; and all the while the player talks with that NPC. The stars and skulls are stand-ins drawn
+ * by the code until the author's {@code textures/gui/hud/rep_star.png} and {@code rep_skull.png} are there (18 x 9: the
+ * filled one, then the empty slot), which then take over by themselves.
  */
 public final class ReputationHud {
     private static final long FLASH_MS = 4000;

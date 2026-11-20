@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-/** Stars or skulls a relationship scale shows (November 20, 2026): one for every 10, toward zero, five at most. */
+/** Stars or skulls a relationship scale shows: one for every 10, toward zero, five at most. */
 class NpcReputationTest {
     @Test
     void tenPointsASymbolTowardZeroFiveAtMost() {

@@ -12,10 +12,10 @@ import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Whether a player in a dialogue is in a fight, for the dialogues a fight pauses (November 5, 2026). A fight is a hit
- * between the player (or the NPC they talk to) and a living thing within the last {@code quiet} seconds, or a mob near
- * the player that targets either of them. Vanilla's combat tracker counts only hits taken and lets go after 15 seconds,
- * so it is not used.
+ * Whether a player in a dialogue is in a fight, for the dialogues a fight pauses. A fight is a hit between the player
+ * (or the NPC they talk to) and a living thing within the last {@code quiet} seconds, or a mob near the player that
+ * targets either of them. Vanilla's combat tracker counts only hits taken and lets go after 15 seconds, so it is not
+ * used.
  */
 final class DialogueCombat {
     /** How far a mob targeting the player or the NPC may be to count as a fight. */

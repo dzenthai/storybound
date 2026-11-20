@@ -13,15 +13,13 @@ import net.minecraft.resources.ResourceLocation;
 /** The selected field-journal concept, with artwork separate from live text and controls. */
 public final class JournalSkin {
     /**
-     * The menu's own fonts (November 16, 2026; before, {@code minecraft:default} itself): both only reference the game's
-     * default font, so the menu looks the same, but a resource pack can give the menu a font of its own without changing
-     * the whole game's.
+     * The menu's own fonts: both only reference the game's default font, so the menu looks the same, but a resource
+     * pack can give the menu a font of its own without changing the whole game's.
      */
     public static final ResourceLocation FONT = Storybound.id("journal");
     public static final ResourceLocation HEADING_FONT = Storybound.id("journal_heading");
     /**
-     * The open book (October 30, 2026: the 384×256 pixel-art book, drawn a whole number of window pixels per its pixel;
-     * before, a 1536×1024 picture scaled down by any factor).
+     * The open book.
      */
     private static final ResourceLocation BOOK = Storybound.id("textures/gui/journal/adventure_book.png");
     /** The book texture's size in pixels. */
@@ -30,10 +28,8 @@ public final class JournalSkin {
     private JournalSkin() {}
 
     /**
-     * The world behind the Adventure Menu and the documents, a step dimmer than Minecraft's own blur and darkening, so a
-     * page reads the same over any world (November 5, 2026: the documents too, in the palette's charcoal; before, the
-     * menu alone, in a greenish black {@code #0E1713} left from its first, dark design, so the world behind a book read
-     * from the inventory looked brighter than behind the menu).
+     * The world behind the Adventure Menu and the documents, a step dimmer than Minecraft's own blur and darkening, so
+     * a page reads the same over any world.
      */
     public static void dimWorld(GuiGraphics graphics, int width, int height) {
         graphics.fill(0, 0, width, height, 0x45000000 | UiPalette.CHARCOAL);
@@ -65,7 +61,7 @@ public final class JournalSkin {
 
     /**
      * The menu's title over the left page, with its rule and diamond under it in the book's pixels, the diamond on the
-     * page's middle, under the frame's small square (October 30, 2026; before, in the canvas's units, a unit off it).
+     * page's middle, under the frame's small square.
      */
     public static void title(GuiGraphics graphics, Font font, Component title, JournalLayout layout, int color) {
         Component styled = title.copy().withStyle(style -> style.withFont(FONT).withBold(true));
@@ -170,7 +166,7 @@ public final class JournalSkin {
     }
 
     /**
-     * The author's sparks (November 7, 2026), when the resource pack has them: a strip of {@link #SPARK_FRAMES} frames of
+     * The author's sparks, when the resource pack has them: a strip of {@link #SPARK_FRAMES} frames of
      * {@link #SPARK_SIZE} × {@link #SPARK_SIZE}, smallest first, one per size a spark is drawn at (1 to 4); until then
      * the stand-in below, a diamond of the gold ramp.
      */
@@ -189,8 +185,7 @@ public final class JournalSkin {
             graphics.setColor(1f, 1f, 1f, 1f);
             return;
         }
-        // The stand-in: a diamond star, gold within a brown edge (the four-rayed sparks tried on November 7, 2026 could
-        // not be seen on the paper).
+        // The stand-in: a diamond star, gold within a brown edge.
         for (int sy = -radius; sy <= radius; sy++) {
             for (int sx = -radius; sx <= radius; sx++) {
                 if (Math.abs(sx) + Math.abs(sy) > radius && sx != 0 && sy != 0) continue;

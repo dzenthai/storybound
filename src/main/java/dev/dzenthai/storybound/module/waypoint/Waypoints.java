@@ -257,8 +257,7 @@ public final class Waypoints {
         Vec3 pos = place.pos();
         double y = pos.y;
         if (waypoint.target() instanceof WaypointTarget.Structure structure) {
-            // Loaded, so the structure's own middle is known; then a place to stand near it (November 9, 2026: before, the top
-            // block, the Nether's bedrock roof).
+            // Loaded, so the structure's own middle is known; then a place to stand near it.
             BlockPos bp = BlockPos.containing(pos.x, pos.y, pos.z);
             level.getChunk(bp);
             Vec3 middle = structure.structure().markerPos(level, bp);
@@ -271,8 +270,7 @@ public final class Waypoints {
 
     /**
      * A height to stand at near this block: the nearest, up then down within 64 blocks, with two blocks of room above
-     * something solid (November 9, 2026: a teleport to a structure put the player on the Nether's roof); the block's own
-     * height when there is none.
+     * something solid; the block's own height when there is none.
      */
     private static double standY(ServerLevel level, BlockPos near) {
         for (int d = 0; d <= 64; d++) {
@@ -388,7 +386,7 @@ public final class Waypoints {
         if (found == null || found.isEmpty() || level == null) {
             return null;
         }
-        // The structure's own middle once its chunk is loaded (November 9, 2026; before, the top block there).
+        // The structure's own middle once its chunk is loaded.
         return new Place(level.dimension().location(), target.structure().markerPos(level, found.get()), ClientWaypoint.NO_ENTITY);
     }
 

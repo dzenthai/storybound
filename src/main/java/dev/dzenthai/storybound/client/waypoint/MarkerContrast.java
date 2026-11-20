@@ -5,8 +5,8 @@ package dev.dzenthai.storybound.client.waypoint;
  * dark shadow, which stay the same for every colour. A colour darker than {@link #MIN_LIGHTNESS} (OKLab lightness,
  * which follows how bright a colour looks) is raised to it with its hue kept and as much of its chroma as the screen
  * can show at that lightness: black shows grey, dark red red, purple a lighter purple. Lighter colours are shown as
- * chosen; the maps always get the colour as chosen (October 29, 2026; a light shadow and rim under dark colours were
- * tried first and broke the markers' one look).
+ * chosen; the maps always get the colour as chosen (a light shadow and rim under dark colours were tried first and
+ * broke the markers' one look).
  */
 public final class MarkerContrast {
     /** The least lightness a marker's colour is shown with (OKLab, 0 black to 1 white). */

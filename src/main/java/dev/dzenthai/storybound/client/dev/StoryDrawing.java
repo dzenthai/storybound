@@ -26,7 +26,7 @@ import org.jetbrains.annotations.Nullable;
  * StoryCards &larr; StoryChapters &larr; StoryEditing &larr; StoryDrawing &larr; StoryView.
  */
 abstract class StoryDrawing extends StoryEditing {
-    /** Off, then each online player (the author first), then off again. */
+    /** Off, then each online player, then off again. */
     private void nextProgressPlayer(DevModeScreen screen) {
         List<String> names = new ArrayList<>();
         Minecraft minecraft = Minecraft.getInstance();
@@ -90,8 +90,8 @@ abstract class StoryDrawing extends StoryEditing {
 
     @Override
     void addWidgets(DevModeScreen screen) {
-        // The search, the progress and the problems are the top bar's (topLeft, topRight). In the middle of the top bar, in words (November 17, 2026, the author; before, a bare 🕸 among the signs at the
-        // right): what the map shows instead, the chapters or every link.
+        // The search, the progress and the problems are the top bar's (topLeft, topRight). In the middle of the top
+        // bar, in words: what the map shows instead, the chapters or every link.
         Component toggle = DevUi.text(tab == Tab.STORY ? "canvas.show_all_links" : "canvas.show_chapters");
         int toggleW = DevButton.oddWidth(screen.font(), toggle) + 8;
         screen.add(Button.builder(toggle, b -> {
@@ -143,8 +143,7 @@ abstract class StoryDrawing extends StoryEditing {
     }
 
     /**
-     * The chapter strip, only on the map (November 17, 2026, the author: it is for chapters, and in "all links" a click
-     * on it threw the author back to the map unasked): every link is shown on the whole width.
+     * The chapter strip, only on the map: every link is shown on the whole width.
      */
     boolean stripHolds(DevModeScreen screen, double mouseX, double mouseY) {
         return tab == Tab.STORY && panel.holds(screen, mouseX, mouseY);
@@ -161,7 +160,7 @@ abstract class StoryDrawing extends StoryEditing {
     /** The badges under a card of the map: its own nodes, "+N" for the rest; a quest starting by itself gets ⚡ first. */
     static List<Badge> badges(Card card, Font font) {
         List<Badge> list = new ArrayList<>();
-        // Under the node and its title, as large as the node is (November 19, 2026: the nodes grew).
+        // Under the node and its title, as large as the node is.
         int y = card.cy() + card.look().radius() + 18;
         // Centred under the node: their whole width first.
         int count = (card.selfStart() ? 1 : 0) + Math.min(card.own().size(), MAX_BADGES);
@@ -248,7 +247,7 @@ abstract class StoryDrawing extends StoryEditing {
                 int color = bright ? GOLD_LIGHT : focus != null ? DevUi.blend(OCHRE_DARK, DevUi.BACKGROUND, 0.35f) : 0x8C775025;
                 double[] a = from.towards(to.cx() + 0.5, to.cy() + 0.5, 4);
                 double[] b = to.towards(from.cx() + 0.5, from.cy() + 0.5, 4);
-                // Straight and quiet, always there; their words only while lit (November 18, 2026).
+                // Straight and quiet, always there; their words only while lit.
                 NodeShapes.link(graphics, a[0], a[1], b[0], b[1], color);
                 String label = bright ? arrow.litLabel() : "";
                 if (!label.isEmpty()) {
@@ -309,11 +308,11 @@ abstract class StoryDrawing extends StoryEditing {
     }
 
     /**
-     * A node (November 18, 2026, with the author, after the skill trees of their references): a dark shape in a thin
-     * bronze ring (a main quest's gold, red when it or one of its own nodes has a problem), its gold icon, its title
-     * under it on a patch of the ground, so links pass under the words. Hovered: a warm glow, the ring and the icon a
-     * step lighter, its link port. Selected: the shape gold, its icon dark. Dim (another node hovered and this one not
-     * linked with it, or a quest the player does not know yet): ring, icon and title faded.
+     * A node: a dark shape in a thin bronze ring (a main quest's gold, red when it or one of its own nodes has a
+     * problem), its gold icon, its title under it on a patch of the ground, so links pass under the words. Hovered: a
+     * warm glow, the ring and the icon a step lighter, its link port. Selected: the shape gold, its icon dark. Dim
+     * (another node hovered and this one not linked with it, or a quest the player does not know yet): ring, icon and
+     * title faded.
      */
     private void renderNode(GuiGraphics graphics, Font font, Card card, boolean primary, boolean multi, boolean hovered, boolean dim,
                             boolean problem) {
@@ -327,11 +326,10 @@ abstract class StoryDrawing extends StoryEditing {
     }
 
     /**
-     * A node as every canvas draws it (the story's, a quest's inside, a dialogue's; November 19, 2026, in the manner of
-     * FTB Quests): its shape centred on the pixel {@code cx, cy}, dark, in a thin bronze ring (gold when selected or
-     * hovered, red when it or one of its own nodes has a problem), its item in the middle, its title under it
-     * ({@code titleWidth} at most) on a patch of the ground. Hovered: a warm glow and the shape lit over its item.
-     * Dim: the shape shaded over its item, its title faded.
+     * A node as every canvas draws it (the story's, a quest's inside, a dialogue's): its shape centred on the pixel
+     * {@code cx, cy}, dark, in a thin bronze ring (gold when selected or hovered, red when it or one of its own nodes
+     * has a problem), its item in the middle, its title under it ({@code titleWidth} at most) on a patch of the ground.
+     * Hovered: a warm glow and the shape lit over its item. Dim: the shape shaded over its item, its title faded.
      */
     static void drawNode(GuiGraphics graphics, Font font, Look look, ItemStack item, int cx, int cy, String title, int titleWidth,
                          boolean primary, boolean multi, boolean hovered, boolean dim, boolean problem, boolean missingTranslation) {
@@ -408,8 +406,8 @@ abstract class StoryDrawing extends StoryEditing {
     }
 
     /**
-     * A link in the inspector's words (November 16, 2026; before, "→ quest_52 (stage)"): what it is to the selected
-     * node, as seen from it ({@code outgoing}: the selected node holds the link), else the link's own name.
+     * A link in the inspector's words: what it is to the selected node, as seen from it ({@code outgoing}: the selected
+     * node holds the link), else the link's own name.
      */
     static String linkPhrase(String kind, boolean outgoing) {
         String key = "storybound.dev.links.rel." + kind + (outgoing ? ".out" : ".in");

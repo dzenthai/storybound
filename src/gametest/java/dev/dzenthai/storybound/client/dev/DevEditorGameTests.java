@@ -77,10 +77,10 @@ public final class DevEditorGameTests {
             for (NodeTemplates.Created created : NodeTemplates.create(template, 7, place, (key, args) -> key)) {
                 DefinitionType<?> type = DefinitionTypes.all().stream().filter(t -> t.id().equals(created.key().type())).findFirst()
                         .orElseThrow(() -> new GameTestAssertException("no definition type " + created.key().type()));
-                // A node that asks its one question at once is a draft until answered (October 30, 2026); answered as
-                // the editor's question does, it loads.
+                // A node that asks its one question at once is a draft until answered; answered as the editor's
+                // question does, it loads.
                 NodeTemplates.Ask ask = NodeTemplates.ask(template);
-                // An NPC loads at once: its tag is its name, so an entity carrying it is the NPC (November 6, 2026).
+                // An NPC loads at once: its tag is its name, so an entity carrying it is the NPC.
                 if ((ask == NodeTemplates.Ask.ENTITY || ask == NodeTemplates.Ask.TRIGGER) && template != NodeTemplates.Template.NPC) {
                     helper.assertTrue(type.codec().parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()), created.json()).error().isPresent(),
                             template + " is a draft until its question is answered");
@@ -132,8 +132,7 @@ public final class DevEditorGameTests {
         DialogueGraph.connect(dialogue, DIALOGUE, choice, reply, "option 3");
         DialogueGraph.connect(dialogue, DIALOGUE, condition, action, "option");
         DialogueGraph.connect(dialogue, DIALOGUE, action, end, "option");
-        // The kinds the menu makes since October 29, 2026: a random answer drawn to two nodes, a jump, a call once its
-        // dialogue is picked.
+        // The kinds the menu makes: a random answer drawn to two nodes, a jump, a call once its dialogue is picked.
         String random = DialogueGraph.createNode(dialogue, DIALOGUE, "random", null, "line", "option");
         DialogueGraph.connect(dialogue, DIALOGUE, random, reply, "option");
         DialogueGraph.connect(dialogue, DIALOGUE, random, end, "option");

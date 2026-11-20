@@ -6,17 +6,17 @@ public record BookViewport(double scale, double x, double y, int width, int heig
     public static final int WIDTH = 640;
     public static final int HEIGHT = 400;
     /**
-     * The Adventure Menu's canvas (October 30, 2026; before, the documents' 640 x 400): the book fills 624 x 416 of it,
-     * 1.625 units per pixel of the 384 x 256 book instead of 1.5, so the text and everything on the pages is 7.7%
-     * smaller beside the book, which stays as large on the screen.
+     * The Adventure Menu's canvas: the book fills 624 x 416 of it, 1.625 units per pixel of the 384 x 256 book instead
+     * of 1.5, so the text and everything on the pages is 7.7% smaller beside the book, which stays as large on the
+     * screen.
      */
     public static final int MENU_WIDTH = 692;
     public static final int MENU_HEIGHT = 432;
     /**
-     * How much of the window the documents and the Adventure Menu's book take at most (October 31, 2026; before, 94% of
-     * it by any factor), so the world stays in sight around them: one scale for all of them. The menu was put back to
-     * "as large as fits" the same day over a misunderstanding (the trouble was the scroll arrows moving the lines, fixed
-     * by laying them over the text) and brought back to this rule.
+     * How much of the window the documents and the Adventure Menu's book take at most, so the world stays in sight
+     * around them: one scale for all of them. The menu was put back to "as large as fits" the same day over a
+     * misunderstanding (the trouble was the scroll arrows moving the lines, fixed by laying them over the text) and
+     * brought back to this rule.
      */
     public static final double FILL_HEIGHT = 0.8;
     public static final double FILL_WIDTH = 0.9;
@@ -34,9 +34,8 @@ public record BookViewport(double scale, double x, double y, int width, int heig
      * The documents' canvas for a sheet of {@code width × height} drawn at its middle, one texture pixel to a canvas
      * unit: each pixel of it is a whole number of window pixels (the largest with which the sheet takes at most
      * {@link #FILL_HEIGHT} of the window's height and {@link #FILL_WIDTH} of its width) and the sheet starts on a
-     * window pixel (October 31, 2026; before, it filled 94% of the window by any factor, so the drawn pixels came out
-     * unequal). Where that would be one window pixel to a texture pixel (a small window), the sheet fills that much by
-     * any factor instead, so its text stays readable.
+     * window pixel. Where that would be one window pixel to a texture pixel (a small window), the sheet fills that much
+     * by any factor instead, so its text stays readable.
      */
     public static BookViewport document(int framebufferWidth, int framebufferHeight, double guiScale, int width, int height) {
         double physicalScale = documentPixel(framebufferWidth, framebufferHeight, width, height);
@@ -57,8 +56,8 @@ public record BookViewport(double scale, double x, double y, int width, int heig
     /**
      * A unit of a book document's text in pixels of its {@code width × height} sheet, so the book read as an item has
      * the Adventure Menu's text: the menu's {@link #textUnit} for the window pixels {@link #document} gives a sheet
-     * pixel, 2/3 at 3 window pixels a pixel (November 5, 2026; before, a unit was a sheet pixel and the book's text 1.5
-     * to 2 times the menu's). 1 where the sheet's pixels are not whole or under 2 window pixels, or no unit fits.
+     * pixel, 2/3 at 3 window pixels a pixel. 1 where the sheet's pixels are not whole or under 2 window pixels, or no
+     * unit fits.
      */
     public static double bookText(int framebufferWidth, int framebufferHeight, int width, int height) {
         double perPixel = documentPixel(framebufferWidth, framebufferHeight, width, height);
@@ -80,10 +79,9 @@ public record BookViewport(double scale, double x, double y, int width, int heig
      * The journal's canvas: like {@link #fit}, but sized so that the book texture ({@code textureWidth} pixels wide,
      * drawn over {@code book} on the canvas) shows each of its pixels as a whole ratio of window pixels (2, 1, 1/2...),
      * the largest with which the canvas fits the window and the book takes at most {@link #FILL_HEIGHT} of its height
-     * and {@link #FILL_WIDTH} of its width, as the documents do (October 31, 2026), and so that the book starts on a
-     * window pixel. Stretched by any other factor, neighbouring texture pixels come out a window pixel wider or narrower than each other, which
-     * bends the drawn grid (October 29, 2026; before, the canvas filled 94% of the window by any factor). Text keeps
-     * the canvas: its size follows the book's, as before.
+     * and {@link #FILL_WIDTH} of its width, as the documents do, and so that the book starts on a window pixel.
+     * Stretched by any other factor, neighbouring texture pixels come out a window pixel wider or narrower than each
+     * other, which bends the drawn grid. Text keeps the canvas: its size follows the book's, as before.
      */
     public static BookViewport wholePixels(int framebufferWidth, int framebufferHeight, double guiScale, int textureWidth,
                                            JournalLayout book) {
@@ -115,11 +113,10 @@ public record BookViewport(double scale, double x, double y, int width, int heig
     }
 
     /**
-     * How many window pixels a unit of the menu's canvas is, so the text, drawn in units, has whole pixels too (October
-     * 31, 2026; before, the canvas was always {@link #MENU_WIDTH} × {@link #MENU_HEIGHT}, 1.625 units to a book pixel,
-     * and a pixel of the font came out about 1.85 window pixels at 1920 × 1080, unequal): the whole number nearest to
-     * 1.625 units a book pixel with which the book is a whole number of units. 2 at 3 window pixels a book pixel (1.5
-     * units to it), 2 at 4 (2), 4 at 6 (1.5). 0 where a book pixel is under 2 window pixels: there the canvas stays.
+     * How many window pixels a unit of the menu's canvas is, so the text, drawn in units, has whole pixels too: the
+     * whole number nearest to 1.625 units a book pixel with which the book is a whole number of units. 2 at 3 window
+     * pixels a book pixel (1.5 units to it), 2 at 4 (2), 4 at 6 (1.5). 0 where a book pixel is under 2 window pixels:
+     * there the canvas stays.
      */
     static int textUnit(int perTexturePixel, int textureWidth) {
         if (perTexturePixel < 2) {

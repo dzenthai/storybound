@@ -149,8 +149,8 @@ abstract class StoryChapters extends StoryCards {
 
     /** Selects the chapter itself, so the inspector edits its title. */
     /**
-     * The chapter's icon from the strip's menu (November 19, 2026): every item, "the title's first letter" first (no icon);
-     * the pick goes into the chapter's {@code icon} at once, and can be undone.
+     * The chapter's icon from the strip's menu: every item, "the title's first letter" first (no icon); the pick goes
+     * into the chapter's {@code icon} at once, and can be undone.
      */
     void pickChapterIcon(DevModeScreen screen, ResourceLocation id) {
         String before = ClientDevStore.getJson(ClientDevStore.TYPE_CHAPTER, id);

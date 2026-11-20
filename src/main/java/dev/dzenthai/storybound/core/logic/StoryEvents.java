@@ -130,7 +130,7 @@ public final class StoryEvents {
     /**
      * The actions among these (and inside their {@code schedule}s) whose effect is shared rather than the player's own,
      * so that running them once per member of a party repeats one thing: a spawn that is not {@code unique}, a sound in
-     * the world, a command, an addition to a party or world value. A warning names them (October 29, 2026).
+     * the world, a command, an addition to a party or world value. A warning names them.
      */
     public static List<String> sharedActions(List<Action> actions) {
         List<String> shared = new ArrayList<>();
