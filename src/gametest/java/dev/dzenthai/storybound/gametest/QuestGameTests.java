@@ -86,6 +86,28 @@ public final class QuestGameTests {
 
     private QuestGameTests() {}
 
+    /**
+     * {@code screen_text} (November 20, 2026): read, each one for its moment (none for an advance), written back; one
+     * written empty is there (the title alone); a quest without it has none and writes none.
+     */
+    @GameTest(template = "empty")
+    public static void screenTextIsReadForEachMoment(GameTestHelper helper) {
+        RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        QuestDefinition quest = QuestDefinition.CODEC.parse(ops, JsonParser.parseString(
+                "{ \"title\": \"Q\", \"screen_text\": { \"started\": \"Intro\", \"failed\": \"\" } }")).getOrThrow();
+        expect(helper, quest.screenText().on(dev.dzenthai.storybound.core.notify.NotifyKind.QUEST_STARTED).isPresent(), true, "started");
+        expect(helper, quest.screenText().on(dev.dzenthai.storybound.core.notify.NotifyKind.QUEST_COMPLETED).isPresent(), false, "completed not written");
+        expect(helper, quest.screenText().on(dev.dzenthai.storybound.core.notify.NotifyKind.QUEST_FAILED).isPresent(), true, "failed, written empty: the title alone");
+        expect(helper, quest.screenText().on(dev.dzenthai.storybound.core.notify.NotifyKind.QUEST_UPDATED).isPresent(), false, "none for an advance");
+        JsonElement written = QuestDefinition.CODEC.encodeStart(ops, quest).getOrThrow();
+        expect(helper, written.getAsJsonObject().has("screen_text"), true, "written back");
+        expect(helper, QuestDefinition.CODEC.parse(ops, written).getOrThrow().screenText(), quest.screenText(), "the same read again");
+        QuestDefinition plain = QuestDefinition.CODEC.parse(ops, JsonParser.parseString("{ \"title\": \"Q\" }")).getOrThrow();
+        expect(helper, plain.screenText(), QuestDefinition.ScreenText.EMPTY, "none without it");
+        expect(helper, QuestDefinition.CODEC.encodeStart(ops, plain).getOrThrow().getAsJsonObject().has("screen_text"), false, "and none written");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void questRunsFromStartToReward(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();

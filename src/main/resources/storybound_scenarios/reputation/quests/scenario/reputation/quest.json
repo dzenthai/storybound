@@ -6,6 +6,11 @@
     "completed": "scenario.reputation.quest.done",
     "failed": "scenario.reputation.quest.failed"
   },
+  "screen_text": {
+    "started": "scenario.reputation.quest.intro",
+    "completed": "scenario.reputation.quest.thanks_title",
+    "failed": "scenario.reputation.quest.failed_title"
+  },
   "difficulty": 1,
   "time_limit": 60,
   "stages": [
@@ -34,11 +39,6 @@
     {
       "type": "run_command",
       "command": "kill @e[tag=scenario_reputation_husk]"
-    },
-    {
-      "type": "title",
-      "subtitle": "scenario.reputation.quest.thanks_title",
-      "stay": 50
     }
   ],
   "on_failed": [
@@ -50,11 +50,6 @@
     {
       "type": "run_command",
       "command": "kill @e[tag=scenario_reputation_husk]"
-    },
-    {
-      "type": "title",
-      "subtitle": "scenario.reputation.quest.failed_title",
-      "stay": 50
     }
   ],
   "rewards": {

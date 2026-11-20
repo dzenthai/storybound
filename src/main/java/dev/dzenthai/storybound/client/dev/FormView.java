@@ -586,6 +586,8 @@ final class FormView {
                 objectPage(with(path, "journal"), property.getValue(), Set.of(), null);
             } else if ("document".equals(form) && name.equals("custom_model_data")) {
                 iconField(path, name, object);
+            } else if ("quest".equals(form) && name.equals("screen_text")) {
+                screenTextFields(path);
             } else if ("quest".equals(form) && name.equals("repeatable")) {
                 repeatField(path, property.getValue(), object);
             } else if ("quest".equals(form) && name.equals("category")) {
@@ -1499,7 +1501,7 @@ final class FormView {
             // A quest (October 30, 2026; before, the file's order: its group and scope before its title, its texts per
             // state, start, stages and rewards shown as counts): what it is; how it goes; what it gives and changes;
             // for whom. Then its stages and their objectives.
-            Map.entry("quest", List.of("title", "description", "text", "category", "difficulty", "start", "stages", "time_limit", "fail_when",
+            Map.entry("quest", List.of("title", "description", "text", "screen_text", "category", "difficulty", "start", "stages", "time_limit", "fail_when",
                     "rewards", "on_start", "on_complete", "on_failed", "scope", "repeatable", "map_visibility", "notify")),
             Map.entry("stage", List.of("id", "log", "objectives", "next", "waypoints", "on_enter")),
             Map.entry("objective", List.of("id", "text", "trigger", "conditions", "count", "items", "since_stage", "optional", "hidden", "hint", "hints")),
@@ -3128,6 +3130,61 @@ final class FormView {
         };
     }
 
+    /** The moments of a quest's {@code screen_text}, in the form's order. */
+    private static final List<String> SCREEN_MOMENTS = List.of("started", "completed", "failed");
+
+    /**
+     * A quest's text on the screen (November 20, 2026, the author: an empty box said nothing of what shows): a light
+     * heading, and for each moment a button "Show on the screen" while it is not written (nothing shows then); pressed,
+     * the moment is written empty, which shows the quest's title alone, and a box for the words under it takes its place,
+     * with ✕ that takes the moment out again. Emptied, the box writes the moment as {@code ""}, not a key with no text,
+     * which the game would show as the key.
+     */
+    private void screenTextFields(List<Object> path) {
+        List<Object> at = with(path, "screen_text");
+        subgroup(fieldLabel("screen_text", false));
+        for (String moment : SCREEN_MOMENTS) {
+            if (!row(LABEL_H + CONTROL_H)) {
+                continue;
+            }
+            labelRow(DevUi.text("field.screen_text." + moment));
+            int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+            JsonObject texts = objectAt(at);
+            if (texts == null || !texts.has(moment)) {
+                screen.add(Button.builder(DevUi.text("screen_text.show"), b -> {
+                    ensureObject(at).addProperty(moment, "");
+                    host.changed();
+                }).tooltip(Tooltip.create(DevUi.text("screen_text.show_tooltip"))).bounds(x, rowTop, w, CONTROL_H).build());
+                continue;
+            }
+            EditBox box = new EditBox(screen.font(), x, rowTop, w - 20, CONTROL_H - 2, Component.empty());
+            box.setMaxLength(1024);
+            box.setValue(ClientDevStore.readStoryText(texts, moment, "", ClientDevStore.activeLanguage()));
+            box.setHint(DevUi.text("screen_text.title_only"));
+            String key = host.textKey(keyPath(at), moment);
+            box.setResponder(value -> {
+                JsonObject owner = ensureObject(at);
+                if (value.isEmpty()) {
+                    owner.addProperty(moment, "");
+                } else {
+                    String existing = ClientDevStore.getKey(owner, moment);
+                    ClientDevStore.writeStoryText(owner, moment, value, existing != null && !existing.isBlank() ? existing : key);
+                }
+                host.edited();
+            });
+            box.setTooltip(Tooltip.create(DevUi.text("screen_text.box_tooltip")));
+            screen.add(box);
+            screen.add(Button.builder(Component.literal("✕"), b -> {
+                JsonObject owner = ensureObject(at);
+                owner.remove(moment);
+                if (owner.isEmpty()) {
+                    ensureObject(path).remove("screen_text");
+                }
+                host.changed();
+            }).tooltip(Tooltip.create(DevUi.text("screen_text.remove"))).bounds(x + w - 18, rowTop - 1, 18, CONTROL_H).build());
+        }
+    }
+
     private void textField(List<Object> path, String name, Component label, @Nullable Tooltip tooltip, boolean window) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
@@ -4459,6 +4516,9 @@ final class FormView {
         }
         if (properties.containsKey("stages") && properties.containsKey("fail_when")) {
             return "quest";
+        }
+        if (properties.containsKey("started") && properties.containsKey("completed") && properties.containsKey("failed")) {
+            return "screen_text";
         }
         if (properties.containsKey("since_stage")) {
             return "objective";

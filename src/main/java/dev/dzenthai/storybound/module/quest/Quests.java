@@ -15,6 +15,7 @@ import dev.dzenthai.storybound.core.logic.condition.WorldConditions;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.notify.Notifications;
 import dev.dzenthai.storybound.core.notify.NotifyKind;
+import dev.dzenthai.storybound.core.text.StoryText;
 import dev.dzenthai.storybound.core.state.PartyData;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
@@ -31,6 +32,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
@@ -715,12 +720,40 @@ public final class Quests {
     }
 
     private static void announce(ServerPlayer player, QuestDefinition definition, NotifyKind kind) {
-        if (!definition.announce()) {
+        Optional<StoryText> words = definition.screenText().on(kind);
+        if (!definition.announce() && words.isEmpty()) {
             return;
         }
         for (ServerPlayer member : sharing(player, definition)) {
-            Notifications.send(member, kind, definition.title().resolve(member), Optional.empty());
+            if (definition.announce()) {
+                Notifications.send(member, kind, definition.title().resolve(member), Optional.empty());
+            }
+            words.ifPresent(text -> onScreen(member, definition.title(), text, kind));
         }
+    }
+
+    /** Fade in, stay and fade out of the screen text, in ticks: as long as the demo's arrival title. */
+    private static final int SCREEN_FADE_IN = 15;
+    private static final int SCREEN_STAY = 70;
+    private static final int SCREEN_FADE_OUT = 25;
+
+    /** The title's colour on completion and failure: the toast's green and red. */
+    private static final int SCREEN_COMPLETED = 0x7ED957;
+    private static final int SCREEN_FAILED = 0xE05A47;
+
+    /**
+     * The quest's title big in the middle of the screen, the words under it (see {@link QuestDefinition.ScreenText}); the
+     * title green on completion, red on failure, as it is on a start (November 20, 2026, the author), the words as written.
+     */
+    private static void onScreen(ServerPlayer player, StoryText title, StoryText words, NotifyKind kind) {
+        Component shown = title.resolve(player).toComponent();
+        if (kind == NotifyKind.QUEST_COMPLETED || kind == NotifyKind.QUEST_FAILED) {
+            int color = kind == NotifyKind.QUEST_COMPLETED ? SCREEN_COMPLETED : SCREEN_FAILED;
+            shown = Component.empty().append(shown).withStyle(style -> style.withColor(color));
+        }
+        player.connection.send(new ClientboundSetTitlesAnimationPacket(SCREEN_FADE_IN, SCREEN_STAY, SCREEN_FADE_OUT));
+        player.connection.send(new ClientboundSetSubtitleTextPacket(words.resolve(player).toComponent()));
+        player.connection.send(new ClientboundSetTitleTextPacket(shown));
     }
 
     /** Online players who share this quest's progress with {@code player}, always including them. */

@@ -37,7 +37,8 @@ abstract class GraphView {
     /**
      * The landmark (November 19, 2026, the author: one got lost on the endless canvas): the canvas's origin, its axes
      * brighter than the grid and a compass rose on it; while it is off the canvas, the waypoints' arrow at the edge on its
-     * side, which (as Home) glides back to where a canvas starts, the origin at {@link #HOME_X}, {@link #HOME_Y}.
+     * side, which (as Home) glides back to the origin, the compass rose in the middle of the canvas as seen (November 20,
+     * 2026, the author; before, near its top left, at 40, 30, where a canvas starts, and the rose was found in a corner).
      */
     private static final double HOME_X = 40;
     private static final double HOME_Y = 30;
@@ -325,10 +326,18 @@ abstract class GraphView {
         }
     }
 
-    /** Glides back to where a canvas starts, the origin near its top left (Home, or the button at the edge). */
+    /**
+     * Glides back to the origin (Home, or the arrow at the edge): the compass rose, which sits half a cell into it, in the
+     * middle of the canvas as last drawn, at the zoom it has; before the canvas is first drawn, near its top left.
+     */
     void goHome() {
-        glideX = HOME_X;
-        glideY = HOME_Y;
+        if (drawnRight > canvasLeft() && drawnBottom > DevUi.TOP_BAR_H) {
+            glideX = Math.floor((drawnRight - canvasLeft()) / 2.0 - zoom * 0.5);
+            glideY = Math.floor((drawnBottom - DevUi.TOP_BAR_H) / 2.0 - zoom * 0.5);
+        } else {
+            glideX = HOME_X;
+            glideY = HOME_Y;
+        }
         lastGlideFrame = 0;
     }
 

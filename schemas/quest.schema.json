@@ -36,6 +36,16 @@
         "failed": { "$ref": "logic.schema.json#/definitions/story_text" }
       }
     },
+    "screen_text": {
+      "description": "The quest's title in the middle of the screen (green when completed, red when failed) with words under it (the game's own title and subtitle): when it starts (and is taken up again), is completed, fails. Each only if written; \"\" shows the title alone. Besides the toast, whatever notify says. Keep each to one short line: the game does not wrap them.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "started": { "$ref": "logic.schema.json#/definitions/story_text" },
+        "completed": { "$ref": "logic.schema.json#/definitions/story_text" },
+        "failed": { "$ref": "logic.schema.json#/definitions/story_text" }
+      }
+    },
     "start": {
       "description": "Starts the quest for the player when the trigger fires and the conditions pass. Without it, start the quest with set_quest_state or set_quest_stage.",
       "type": "object",

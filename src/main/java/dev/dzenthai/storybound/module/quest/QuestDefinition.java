@@ -10,6 +10,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.StoryIds;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.Condition;
+import dev.dzenthai.storybound.core.notify.NotifyKind;
 import dev.dzenthai.storybound.core.logic.ItemMatcher;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.core.logic.Trigger;
@@ -33,12 +34,13 @@ import net.minecraft.util.StringRepresentable;
  * @param difficulty shown in the Journal, on the scale the modpack picks in {@code project.json}
  * @param timeLimit  seconds of game time from the start; then the quest fails
  * @param visibility how the players' chapter map shows it before it is known
+ * @param screenText words on the screen when it starts, is completed and fails, under its title (see {@link ScreenText})
  */
 public record QuestDefinition(ResourceLocation category, StoryScope scope, StoryText title, Optional<StoryText> description,
                               Texts text, Optional<Start> start, List<Stage> stages, Optional<Condition> failWhen,
                               List<Action> onStart, List<Action> onComplete, List<Action> onFailed, QuestRewards.Rewards rewards,
                               boolean announce, Optional<Repeatable> repeatable, Optional<Difficulty> difficulty, Optional<Double> timeLimit,
-                              Visibility visibility) {
+                              Visibility visibility, ScreenText screenText) {
     public static final String COMPLETE = "@complete";
     public static final String FAIL = "@fail";
 
@@ -62,10 +64,13 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
             Codec.doubleRange(1, 10_000_000).optionalFieldOf("time_limit").forGetter(QuestDefinition::timeLimit)
     ).apply(instance, (category, scope, title, description, text, start, stages, failWhen, onStart, onComplete, onFailed, rewards,
             announce, repeatable, difficulty, timeLimit) -> new QuestDefinition(category, scope, title, description, text, start, stages,
-            failWhen, onStart, onComplete, onFailed, rewards, announce, repeatable, difficulty, timeLimit, Visibility.VISIBLE)));
+            failWhen, onStart, onComplete, onFailed, rewards, announce, repeatable, difficulty, timeLimit, Visibility.VISIBLE, ScreenText.EMPTY)));
 
-    public static final Codec<QuestDefinition> CODEC = Codec.mapPair(FIELDS, Visibility.CODEC.optionalFieldOf("map_visibility", Visibility.VISIBLE))
-            .xmap(pair -> pair.getFirst().withVisibility(pair.getSecond()), quest -> Pair.of(quest, quest.visibility())).codec();
+    public static final Codec<QuestDefinition> CODEC = Codec.mapPair(FIELDS, Codec.mapPair(
+                    Visibility.CODEC.optionalFieldOf("map_visibility", Visibility.VISIBLE),
+                    ScreenText.CODEC.optionalFieldOf("screen_text", ScreenText.EMPTY)))
+            .xmap(pair -> pair.getFirst().with(pair.getSecond().getFirst(), pair.getSecond().getSecond()),
+                    quest -> Pair.of(quest, Pair.of(quest.visibility(), quest.screenText()))).codec();
 
     public Optional<Stage> stage(String id) {
         return stages.stream().filter(stage -> stage.id().equals(id)).findFirst();
@@ -88,12 +93,38 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
     QuestDefinition clientView() {
         return new QuestDefinition(category, scope, title, description, text, Optional.empty(),
                 stages.stream().map(Stage::clientView).toList(), Optional.empty(), List.of(), List.of(), List.of(), rewards.clientView(), announce,
-                repeatable, difficulty, timeLimit, visibility);
+                repeatable, difficulty, timeLimit, visibility, screenText);
     }
 
-    QuestDefinition withVisibility(Visibility visibility) {
+    QuestDefinition with(Visibility visibility, ScreenText screenText) {
         return new QuestDefinition(category, scope, title, description, text, start, stages, failWhen, onStart, onComplete, onFailed, rewards,
-                announce, repeatable, difficulty, timeLimit, visibility);
+                announce, repeatable, difficulty, timeLimit, visibility, screenText);
+    }
+
+    /**
+     * {@code screen_text} (November 20, 2026, the author, as in The Witcher and Dungeon Difficulty): words in the middle of
+     * the screen, the game's own title and subtitle, the quest's title big and these under it, when it starts (and is
+     * taken up again), is completed and fails; each only where written, and written empty ({@code ""}) the title alone
+     * (November 20, 2026, the author: a quest may want only its name, or only "failed"). They are besides the toast, which
+     * says what happened, and shown whatever {@code notify} says, to every player sharing the quest.
+     */
+    public record ScreenText(Optional<StoryText> started, Optional<StoryText> completed, Optional<StoryText> failed) {
+        public static final ScreenText EMPTY = new ScreenText(Optional.empty(), Optional.empty(), Optional.empty());
+        public static final Codec<ScreenText> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                StoryText.CODEC.optionalFieldOf("started").forGetter(ScreenText::started),
+                StoryText.CODEC.optionalFieldOf("completed").forGetter(ScreenText::completed),
+                StoryText.CODEC.optionalFieldOf("failed").forGetter(ScreenText::failed)
+        ).apply(instance, ScreenText::new));
+
+        /** The words for what happened: started, completed or failed; none for an advance. */
+        public Optional<StoryText> on(NotifyKind kind) {
+            return switch (kind) {
+                case QUEST_STARTED -> started;
+                case QUEST_COMPLETED -> completed;
+                case QUEST_FAILED -> failed;
+                default -> Optional.empty();
+            };
+        }
     }
 
     /**
