@@ -75,6 +75,7 @@ public final class Storybound {
         CodexEvents.register(NeoForge.EVENT_BUS);
         BossEvents.register(NeoForge.EVENT_BUS);
         WaypointEvents.register(NeoForge.EVENT_BUS);
+        dev.dzenthai.storybound.module.music.MusicRegistries.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(StoryboundCommands::register);
     }
 

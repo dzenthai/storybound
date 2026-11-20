@@ -1,0 +1,10 @@
+{
+  "name": "vanilla.npc.ratmir",
+  "target": {
+    "nearest": {
+      "type": "minecraft:zombie_villager",
+      "tag": "vanilla_ratmir"
+    },
+    "range": 128
+  }
+}

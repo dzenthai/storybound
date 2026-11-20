@@ -41,8 +41,9 @@ class DevGridTest {
         }
         org.junit.jupiter.api.Assertions.assertFalse(NodeShapes.contains(NodeShapes.Shape.DIAMOND, 15, 9, 9), "the empty corner by a diamond");
         org.junit.jupiter.api.Assertions.assertTrue(NodeShapes.contains(NodeShapes.Shape.CIRCLE, 13, 8, 8));
-        org.junit.jupiter.api.Assertions.assertTrue(NodeShapes.contains(NodeShapes.Shape.TRIANGLE, 12, -9, -8), "a waypoint's triangle is wide at the top");
-        org.junit.jupiter.api.Assertions.assertFalse(NodeShapes.contains(NodeShapes.Shape.TRIANGLE, 12, -9, 8), "and narrow at the bottom");
+        org.junit.jupiter.api.Assertions.assertTrue(NodeShapes.contains(NodeShapes.Shape.PIN, 12, -6, -5), "a waypoint's pin is round at the top");
+        org.junit.jupiter.api.Assertions.assertFalse(NodeShapes.contains(NodeShapes.Shape.PIN, 12, -6, 8), "and narrow at the bottom");
+        org.junit.jupiter.api.Assertions.assertTrue(NodeShapes.contains(NodeShapes.Shape.PIN, 12, 0, 12), "down to its point");
     }
 
     @Test

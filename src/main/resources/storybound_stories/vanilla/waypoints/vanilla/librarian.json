@@ -1,0 +1,6 @@
+{
+  "name": "vanilla.npc.librarian",
+  "target": {
+    "npc": "vanilla:librarian"
+  }
+}

@@ -54,7 +54,7 @@ public final class NpcPhrases {
         if (phrases == null || phrases.lines().isEmpty() || tooSoon) {
             return false;
         }
-        List<StoryText> lines = phrases.lines();
+        List<PhrasesDefinition.Line> lines = phrases.lines();
         int index;
         if (phrases.order() == PhrasesDefinition.Order.SEQUENCE) {
             int next = POSITION.getOrDefault(counter, 0);
@@ -73,7 +73,12 @@ public final class NpcPhrases {
             POSITION.put(counter, index);
         }
         USED.put(counter, now);
-        StoryText text = lines.get(index);
+        StoryText text = lines.get(index).text();
+        // Its own voice-over if it has one, else the NPC's voice.
+        lines.get(index).sound().ifPresentOrElse(
+                sound -> npc.level().playSound(null, npc.getX(), npc.getEyeY(), npc.getZ(), net.minecraft.sounds.SoundEvent.createVariableRangeEvent(sound),
+                        net.minecraft.sounds.SoundSource.VOICE, 1.0f, 1.0f),
+                () -> NpcVoice.speak(npc, null));
         for (ServerPlayer viewer : ((ServerLevel) npc.level()).players()) {
             if (viewer.distanceToSqr(npc) <= Dialogues.BUBBLE_RANGE * Dialogues.BUBBLE_RANGE) {
                 StoryboundNetwork.sendToPlayer(viewer, new SpeechBubblePayload(npc.getId(), text.resolve(viewer), -1, ThinkTime.NONE));

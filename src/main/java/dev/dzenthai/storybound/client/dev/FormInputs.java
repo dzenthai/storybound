@@ -308,14 +308,21 @@ abstract class FormInputs extends FormPickers {
         });
         check.run();
         screen.add(box);
-        screen.add(Button.builder(Component.literal("…"), b -> screen.catalog().open(DevUi.text("sound.pick"), Catalog.Kind.SOUND, (kind, entry) -> {
+        // A track (a dialogue's, a stage's, a place's) is picked from the music only.
+        boolean music = name.equals("music") || name.equals("track");
+        screen.add(Button.builder(Component.literal("…"), b -> screen.catalog().open(DevUi.text(music ? "music.pick" : "sound.pick"),
+                music ? Catalog.Kind.MUSIC : Catalog.Kind.SOUND, box.getValue(), (kind, entry) -> {
             if (entry.id().startsWith(Catalog.PROBLEM)) {
                 screen.status(DevUi.text("sound.problem." + entry.id().substring(Catalog.PROBLEM.length())), DevUi.BAD);
                 return;
             }
-            ensureObject(path).addProperty(name, entry.id());
+            if (entry.id().equals(Catalog.CLEAR)) {
+                ensureObject(path).remove(name);
+            } else {
+                ensureObject(path).addProperty(name, entry.id());
+            }
             host.changed();
-        })).tooltip(Tooltip.create(DevUi.text("sound.pick"))).bounds(x + w - 38, rowTop, 18, CONTROL_H).build());
+        })).tooltip(Tooltip.create(DevUi.text(music ? "music.pick" : "sound.pick"))).bounds(x + w - 38, rowTop, 18, CONTROL_H).build());
         screen.add(Button.builder(Component.literal("▶"), b -> {
             ResourceLocation id = ResourceLocation.tryParse(box.getValue().trim());
             if (id != null) {
@@ -378,14 +385,48 @@ abstract class FormInputs extends FormPickers {
         };
     }
 
+    /**
+     * 🎤 beside a text that is spoken: its voice-over ({@code sound} of {@code holder}), picked from the story's sounds as a
+     * sound field picks one. While it has one: 🎙 (a microphone with a tick), gold, its id in the tooltip; the picker marks
+     * it and offers "No sound" to take it away.
+     *
+     * @param holder the object holding {@code sound}, made when missing
+     * @param picked after it is set or taken away
+     */
+    void voiceOverButton(@Nullable JsonObject current, java.util.function.Supplier<JsonObject> holder, Runnable picked, int buttonX, int rowY) {
+        String sound = current != null && current.get("sound") instanceof JsonPrimitive id ? id.getAsString() : null;
+        // A microphone with a tick while it has one.
+        Button button = Button.builder(Component.literal(sound != null ? "🎙" : "🎤").withColor(sound != null ? DevUi.ACCENT : DevUi.MUTED), b ->
+            screen.catalog().open(DevUi.text("sound.pick"), Catalog.Kind.SOUND, sound, (kind, entry) -> {
+                if (entry.id().startsWith(Catalog.PROBLEM)) {
+                    screen.status(DevUi.text("sound.problem." + entry.id().substring(Catalog.PROBLEM.length())), DevUi.BAD);
+                    return;
+                }
+                if (entry.id().equals(Catalog.CLEAR)) {
+                    holder.get().remove("sound");
+                } else {
+                    holder.get().addProperty("sound", entry.id());
+                }
+                picked.run();
+            })).tooltip(Tooltip.create(sound != null ? DevUi.text("voiceover.set", sound) : DevUi.text("voiceover.empty")))
+                .bounds(buttonX, rowY, 18, CONTROL_H).build();
+        screen.add(button);
+    }
+
     void textField(List<Object> path, String name, Component label, @Nullable Tooltip tooltip, boolean window) {
+        textField(path, name, label, tooltip, window, false);
+    }
+
+    /** With {@code voiceOver}, a 🎤 beside the text for the voice-over of the object holding it (a dialogue's line). */
+    void textField(List<Object> path, String name, Component label, @Nullable Tooltip tooltip, boolean window, boolean voiceOver) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
         }
         labelRow(label);
         JsonObject object = objectAt(path);
         int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
-        EditBox box = new EditBox(screen.font(), x, rowTop, window ? w - 20 : w, CONTROL_H - 2, label);
+        int buttons = (window ? 20 : 0) + (voiceOver ? 20 : 0);
+        EditBox box = new EditBox(screen.font(), x, rowTop, w - buttons, CONTROL_H - 2, label);
         box.setMaxLength(1024);
         box.setValue(object != null ? ClientDevStore.readStoryText(object, name, "", ClientDevStore.activeLanguage()) : "");
         if (!ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage()) && object != null) {
@@ -405,6 +446,9 @@ abstract class FormInputs extends FormPickers {
             box.setTooltip(tooltip);
         }
         screen.add(box);
+        if (voiceOver) {
+            voiceOverButton(object, () -> ensureObject(path), host::changed, x + w - (window ? 38 : 18), rowTop - 1);
+        }
         if (!window) {
             return;
         }

@@ -1,0 +1,9 @@
+{
+  "order": "sequence",
+  "lines": [
+    "vanilla.phrases.villager.hit.0",
+    "vanilla.phrases.villager.hit.1",
+    "vanilla.phrases.villager.hit.2",
+    "vanilla.phrases.villager.hit.3"
+  ]
+}

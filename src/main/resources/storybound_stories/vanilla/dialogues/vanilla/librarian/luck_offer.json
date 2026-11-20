@@ -1,0 +1,117 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "lib": {
+      "type": "bound",
+      "name": "vanilla.npc.librarian"
+    }
+  },
+  "nodes": {
+    "ahem": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_offer.ahem",
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "yes",
+          "text": "vanilla.dialogue.librarian.luck_offer.ask.yes",
+          "next": "sea"
+        },
+        {
+          "id": "no",
+          "text": "vanilla.dialogue.librarian.luck_offer.ask.no",
+          "next": "sea"
+        }
+      ]
+    },
+    "sea": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_offer.sea",
+      "next": "why"
+    },
+    "why": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "why",
+          "text": "vanilla.dialogue.librarian.luck_offer.why.why",
+          "next": "love"
+        },
+        {
+          "id": "ok",
+          "text": "vanilla.dialogue.librarian.luck_offer.why.ok",
+          "next": "go",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:side/librarian_luck",
+              "state": "active"
+            }
+          ]
+        }
+      ]
+    },
+    "love": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_offer.love",
+      "next": "who"
+    },
+    "who": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "who",
+          "text": "vanilla.dialogue.librarian.luck_offer.who.who",
+          "next": "iva"
+        },
+        {
+          "id": "ok",
+          "text": "vanilla.dialogue.librarian.luck_offer.who.ok",
+          "next": "go",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:side/librarian_luck",
+              "state": "active"
+            }
+          ]
+        }
+      ]
+    },
+    "iva": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_offer.iva",
+      "next": "go2"
+    },
+    "go2": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "ok",
+          "text": "vanilla.dialogue.librarian.luck_offer.go2.ok",
+          "next": "go",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:side/librarian_luck",
+              "state": "active"
+            }
+          ]
+        }
+      ]
+    },
+    "go": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_offer.go"
+    }
+  },
+  "start": "ahem"
+}

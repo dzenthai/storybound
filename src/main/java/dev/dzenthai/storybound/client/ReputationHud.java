@@ -56,6 +56,9 @@ public final class ReputationHud {
             focus = payload.scale().map(scale -> new Shown(scale, payload.name(), payload.value(), 0, now)).orElse(null);
             return;
         }
+        if (payload.delta() != 0) {
+            dev.dzenthai.storybound.client.sound.UiSounds.play(payload.delta() > 0 ? "reputation_up" : "reputation_down");
+        }
         payload.scale().ifPresent(scale -> {
             flash = new Shown(scale, payload.name(), payload.value(), payload.delta(), now);
             if (focus != null && focus.scale().equals(scale)) {

@@ -1,9 +1,11 @@
 package dev.dzenthai.storybound.client.dev;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
 /**
@@ -244,8 +246,7 @@ abstract class GraphView {
         animateHome();
         if (homePending) {
             homePending = false;
-            // The rose sits half a unit into the origin.
-            centerOn(screen, 0.5, 0.5);
+            centerOn(screen, 0, 0);
         }
         int right = screen.canvasRight();
         drawnRight = right;
@@ -280,66 +281,45 @@ abstract class GraphView {
     }
 
     /**
-     * The origin's compass rose: four faceted points shaded as a pinwheel, a glint in the middle, gold ticks on the
-     * diagonals, no edge; on the screen's own pixels, the same
-     * size and sharp at every zoom.
+     * The origin's compass rose ({@code textures/gui/dev/compass.png}, a 19 x 19 drawing at 4 texels a pixel, smoothed):
+     * four faceted points shaded as a pinwheel, a glint in the middle, gold ticks on the diagonals, no edge. Part of the
+     * canvas: {@link #COMPASS_UNITS} wide, growing and shrinking with the zoom as smoothly as it glides, its middle on the
+     * crossing of the origin's axes, worked out on the screen's pixels as the grid does.
      */
-    private static final String[] COMPASS = {
-            "...................",
-            ".........l.........",
-            ".........l.........",
-            ".........l.........",
-            "....g...oll...g....",
-            ".....g..oll..g.....",
-            "........oll........",
-            ".......lolll.......",
-            "....llllllloooo....",
-            ".llllllllwllllllll.",
-            "....oooolllllll....",
-            ".......lllol.......",
-            "........llo........",
-            ".....g..llo..g.....",
-            "....g...llo...g....",
-            ".........l.........",
-            ".........l.........",
-            ".........l.........",
-            "..................."
-    };
+    private static final ResourceLocation COMPASS = dev.dzenthai.storybound.Storybound.id("textures/gui/dev/compass.png");
+    private static final int COMPASS_TEXELS = 76;
+    /** The compass rose's width on the canvas, in its units: a grid layout cell and a half. */
+    private static final double COMPASS_UNITS = 1.5 * DevUi.GRID;
 
     private void renderCompass(GuiGraphics graphics) {
-        int size = COMPASS.length;
-        int cx = (int) Math.floor(canvasLeft() + panX + zoom * 0.5);
-        int cy = (int) Math.floor(DevUi.TOP_BAR_H + panY + zoom * 0.5);
-        int left = cx - size / 2;
-        int top = cy - size / 2;
-        if (left >= drawnRight || top >= drawnBottom || left + size <= canvasLeft() || top + size <= DevUi.TOP_BAR_H) {
+        double guiScale = Minecraft.getInstance().getWindow().getGuiScale();
+        double size = COMPASS_UNITS * zoom * guiScale;
+        // The axes' two pixels meet at this corner of the screen's pixels: the drawing's middle goes there.
+        double cx = Math.floor((canvasLeft() + panX) * guiScale) + 1;
+        double cy = Math.floor((DevUi.TOP_BAR_H + panY) * guiScale) + 1;
+        if (cx - size / 2 >= drawnRight * guiScale || cy - size / 2 >= drawnBottom * guiScale || cx + size / 2 <= canvasLeft() * guiScale
+                || cy + size / 2 <= DevUi.TOP_BAR_H * guiScale) {
             return;
         }
-        for (int row = 0; row < size; row++) {
-            String line = COMPASS[row];
-            for (int column = 0; column < line.length(); column++) {
-                int color = switch (line.charAt(column)) {
-                    case 'o' -> 0xFFB08031;
-                    case 'g' -> StoryView.GOLD;
-                    case 'l' -> StoryView.GOLD_LIGHT;
-                    case 'w' -> 0xFFFFF4C4;
-                    default -> 0;
-                };
-                if (color != 0) {
-                    graphics.fill(left + column, top + row, left + column + 1, top + row + 1, color);
-                }
-            }
-        }
+        graphics.pose().pushPose();
+        graphics.pose().scale((float) (1 / guiScale), (float) (1 / guiScale), 1);
+        graphics.pose().translate(cx, cy, 0);
+        float texel = (float) (size / COMPASS_TEXELS);
+        graphics.pose().scale(texel, texel, 1);
+        RenderSystem.enableBlend();
+        graphics.blit(COMPASS, -COMPASS_TEXELS / 2, -COMPASS_TEXELS / 2, 0, 0, COMPASS_TEXELS, COMPASS_TEXELS, COMPASS_TEXELS, COMPASS_TEXELS);
+        RenderSystem.disableBlend();
+        graphics.pose().popPose();
     }
 
     /**
-     * Glides back to the origin (Home, or the arrow at the edge): the compass rose, which sits half a cell into it, in the
-     * middle of the canvas as last drawn, at the zoom it has; before the canvas is first drawn, near its top left.
+     * Glides back to the origin (Home, or the arrow at the edge): the compass rose on it in the middle of the canvas as
+     * last drawn, at the zoom it has; before the canvas is first drawn, near its top left.
      */
     void goHome() {
         if (drawnRight > canvasLeft() && drawnBottom > DevUi.TOP_BAR_H) {
-            glideX = Math.floor((drawnRight - canvasLeft()) / 2.0 - zoom * 0.5);
-            glideY = Math.floor((drawnBottom - DevUi.TOP_BAR_H) / 2.0 - zoom * 0.5);
+            glideX = Math.floor((drawnRight - canvasLeft()) / 2.0);
+            glideY = Math.floor((drawnBottom - DevUi.TOP_BAR_H) / 2.0);
         } else {
             glideX = HOME_X;
             glideY = HOME_Y;

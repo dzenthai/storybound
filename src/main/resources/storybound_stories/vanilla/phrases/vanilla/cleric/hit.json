@@ -1,0 +1,8 @@
+{
+  "order": "sequence",
+  "lines": [
+    "vanilla.phrases.cleric.hit.0",
+    "vanilla.phrases.cleric.hit.1",
+    "vanilla.phrases.cleric.hit.2"
+  ]
+}

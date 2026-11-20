@@ -287,11 +287,13 @@ final class FormView extends FormStory {
             }
         }
         switch (kind) {
-            case TEXT -> textField(path, name, label, tooltip, longText(name, owner));
+            // A dialogue line's text carries its voice-over beside it (its sound has no row of its own).
+            case TEXT -> textField(path, name, label, tooltip, longText(name, owner),
+                    name.equals("text") && Schemas.properties(owner).containsKey("speaker") && Schemas.properties(owner).containsKey("sound"));
             case ENUM -> enumField(path, name, node, required, value, label, tooltip);
             case BOOLEAN -> booleanField(path, name, node, value, needsKubeJs(path, name) ? DevUi.text("form.needs_kubejs", label) : label, tooltip);
             case ID -> {
-                if (name.equals("sound")) {
+                if (name.equals("sound") || name.equals("music") || name.equals("track")) {
                     soundField(path, name, value, label);
                 } else {
                     inputField(path, name, node, kind, value, label, tooltip, owner);

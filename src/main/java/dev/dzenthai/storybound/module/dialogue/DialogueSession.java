@@ -47,6 +47,8 @@ final class DialogueSession {
     @Nullable String thenChoice;
     /** A {@link ThinkTime} code for the next line, set when an option is chosen: the NPC pauses before answering. */
     int replyThink = ThinkTime.NONE;
+    /** The voice-over of the line on screen while it may still be playing; stopped when the player moves on. */
+    @Nullable ResourceLocation voiceOver;
     /** The camera cue sent with what is on screen. */
     CameraCue camera = CameraCue.OFF;
     boolean closed;

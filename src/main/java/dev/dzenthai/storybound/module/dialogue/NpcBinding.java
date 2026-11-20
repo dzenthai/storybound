@@ -56,6 +56,8 @@ import org.jetbrains.annotations.Nullable;
  * @param share        on a binding for every entity of a kind, all such (no tag, not {@code one}): only this per cent
  *                     of them, each entity rolled once for good by its uuid and the binding (see {@link #inShare});
  *                     absent or 100: all
+ * @param voice        how it sounds when it speaks (see {@link NpcVoice}): a sound and a pitch; absent: the creature's
+ *                     own sound
  * @param movement     how it walks (see {@link NpcMovement}): {@code free} as its kind does, {@code stay} where it
  *                     stands, turning its head to players near, {@code home} within {@code home_radius} blocks of its
  *                     place; absent: from the binding below, free when none writes it
@@ -68,7 +70,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                          Optional<Boolean> custom, Optional<Boolean> overrideInteract, Optional<Boolean> exclusive, Optional<PhrasesRef> busy,
                          Optional<Boolean> respawn, Optional<Boolean> invulnerable, Optional<WhenAttacked> whenAttacked, Optional<Chatter> chatter,
                          Optional<Boolean> showName, Optional<StoryText> displayName, List<StoryText> names, boolean one,
-                         Optional<Integer> share, Optional<Movement> movement) {
+                         Optional<Integer> share, Optional<Movement> movement, Optional<Voice> voice) {
     /** One selector, or a non-empty list of them; one is written back as an object, as files had it before lists. */
     private static final Codec<List<EntitySelector>> ENTITIES = Codec.either(EntitySelector.CODEC, ExtraCodecs.nonEmptyList(EntitySelector.CODEC.listOf()))
             .xmap(either -> either.map(List::of, Function.identity()),
@@ -114,12 +116,24 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
             Codec.BOOL.optionalFieldOf("show_name").forGetter(NpcBinding::showName),
             StoryText.CODEC.optionalFieldOf("display_name").forGetter(NpcBinding::displayName),
             StoryText.CODEC.listOf().optionalFieldOf("names", List.of()).forGetter(NpcBinding::names),
-            // Four fields as one: a record codec takes at most 16.
-            Codec.mapPair(CROWD, MOVEMENT).forGetter(binding -> Pair.of(Pair.of(binding.one(), binding.share()), binding.movement()))
+            // Five fields as one: a record codec takes at most 16.
+            Codec.mapPair(CROWD, Codec.mapPair(MOVEMENT, Voice.CODEC.optionalFieldOf("voice"))).forGetter(binding -> Pair.of(
+                    Pair.of(binding.one(), binding.share()), Pair.of(binding.movement(), binding.voice())))
     ).apply(instance, (entities, dialogues, interact, proximity, custom, overrideInteract, exclusive, busy, respawn, invulnerable,
                        whenAttacked, chatter, showName, displayName, names, rest) -> new NpcBinding(entities, dialogues, interact, proximity, custom,
             overrideInteract, exclusive, busy, respawn, invulnerable, whenAttacked, chatter, showName, displayName, names, rest.getFirst().getFirst(),
-            rest.getFirst().getSecond(), rest.getSecond())));
+            rest.getFirst().getSecond(), rest.getSecond().getFirst(), rest.getSecond().getSecond())));
+
+    /**
+     * How the NPC sounds when it speaks (see {@link NpcVoice}): a sound of its own, else the creature's own sound; and the
+     * pitch, 0.5 to 2 (1 as written).
+     */
+    public record Voice(Optional<ResourceLocation> sound, float pitch) {
+        public static final Codec<Voice> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                ResourceLocation.CODEC.optionalFieldOf("sound").forGetter(Voice::sound),
+                Codec.floatRange(0.5f, 2.0f).optionalFieldOf("pitch", 1.0f).forGetter(Voice::pitch)
+        ).apply(instance, Voice::new));
+    }
 
     /**
      * How the NPC walks.
@@ -457,7 +471,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                     List.of(Entry.of(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue))), Optional.of(interact),
                     proximity ? Optional.of(Proximity.DEFAULT) : Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of(), false, Optional.empty(),
-                    Optional.empty());
+                    Optional.empty(), Optional.empty());
         }
     }
 }

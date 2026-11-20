@@ -257,7 +257,7 @@ public final class DialogueEvents {
             // walks.
             if (binding.dialogues().isEmpty() && binding.custom().isEmpty() && binding.chatter().isEmpty() && binding.whenAttacked().isEmpty()
                     && binding.invulnerable().isEmpty() && binding.respawn().isEmpty() && binding.displayName().isEmpty() && binding.names().isEmpty()
-                    && binding.movement().isEmpty()) {
+                    && binding.movement().isEmpty() && binding.voice().isEmpty()) {
                 sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "Binds no dialogue and sets nothing else; it does nothing"));
             }
             Consumer<String> bindingError = message -> sink.accept(ValidationIssue.error(DialogueRegistries.NPC_BINDINGS.id(), id, message));

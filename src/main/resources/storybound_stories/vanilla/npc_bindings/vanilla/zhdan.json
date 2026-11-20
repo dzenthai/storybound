@@ -1,0 +1,48 @@
+{
+  "display_name": "vanilla.npc.zhdan",
+  "entity": {
+    "type": "minecraft:villager",
+    "tag": "vanilla_zhdan"
+  },
+  "respawn": true,
+  "invulnerable": true,
+  "movement": "home",
+  "home_radius": 12,
+  "dialogues": [
+    {
+      "dialogue": "vanilla:zhdan/confess",
+      "priority": 10,
+      "conditions": {
+        "type": "quest",
+        "quest": "vanilla:side/farmer_cow",
+        "state": "active",
+        "stage": "son"
+      }
+    },
+    {
+      "phrases": "vanilla:zhdan/chatter"
+    }
+  ],
+  "chatter": {
+    "phrases": "vanilla:zhdan/chatter",
+    "variants": [
+      {
+        "phrases": "vanilla:zhdan/chatter_kept",
+        "conditions": {
+          "type": "flag",
+          "key": "vanilla:farmer_lied"
+        }
+      },
+      {
+        "phrases": "vanilla:zhdan/chatter_told",
+        "conditions": {
+          "type": "flag",
+          "key": "vanilla:farmer_told"
+        }
+      }
+    ],
+    "min_interval": 30,
+    "max_interval": 60,
+    "radius": 8
+  }
+}

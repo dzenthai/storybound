@@ -1,0 +1,6 @@
+{
+  "name": "vanilla.npc.farmer",
+  "target": {
+    "npc": "vanilla:farmer"
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "lib": {
+      "type": "bound",
+      "name": "vanilla.npc.librarian"
+    }
+  },
+  "nodes": {
+    "shh": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.shelves_offer.shh",
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "help",
+          "text": "vanilla.dialogue.librarian.shelves_offer.ask.help",
+          "next": "task"
+        },
+        {
+          "id": "read",
+          "text": "vanilla.dialogue.librarian.shelves_offer.ask.read",
+          "next": "read",
+          "once": true
+        },
+        {
+          "id": "bye",
+          "text": "vanilla.dialogue.librarian.shelves_offer.ask.bye"
+        }
+      ]
+    },
+    "read": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.shelves_offer.read",
+      "next": "ask"
+    },
+    "task": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.shelves_offer.task",
+      "next": "why"
+    },
+    "why": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "why",
+          "text": "vanilla.dialogue.librarian.shelves_offer.why.why",
+          "next": "secret"
+        },
+        {
+          "id": "ok",
+          "text": "vanilla.dialogue.librarian.shelves_offer.why.ok",
+          "next": "yes",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:side/librarian_shelves",
+              "state": "active"
+            }
+          ]
+        }
+      ]
+    },
+    "secret": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.shelves_offer.secret",
+      "next": "why"
+    },
+    "yes": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.shelves_offer.yes"
+    }
+  },
+  "start": "shh"
+}

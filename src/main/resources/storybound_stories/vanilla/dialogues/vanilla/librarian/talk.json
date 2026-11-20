@@ -1,0 +1,44 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "lib": {
+      "type": "bound",
+      "name": "vanilla.npc.librarian"
+    }
+  },
+  "nodes": {
+    "hi": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.talk.hi",
+      "next": "menu"
+    },
+    "menu": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "tip",
+          "text": "vanilla.dialogue.librarian.talk.menu.tip",
+          "next": "tip"
+        },
+        {
+          "id": "bye",
+          "text": "vanilla.dialogue.librarian.talk.menu.bye",
+          "next": "bye"
+        }
+      ]
+    },
+    "tip": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.talk.tip",
+      "next": "menu"
+    },
+    "bye": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.talk.bye"
+    }
+  },
+  "start": "hi"
+}

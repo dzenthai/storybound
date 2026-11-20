@@ -1,0 +1,144 @@
+{
+  "quest_started": {
+    "subtitle": "subtitles.storybound.quest_started",
+    "sounds": [
+      {
+        "name": "minecraft:item.book.page_turn",
+        "type": "event"
+      }
+    ]
+  },
+  "quest_updated": {
+    "subtitle": "subtitles.storybound.quest_updated",
+    "sounds": [
+      {
+        "name": "minecraft:entity.experience_orb.pickup",
+        "type": "event",
+        "volume": 0.5
+      }
+    ]
+  },
+  "quest_completed": {
+    "subtitle": "subtitles.storybound.quest_completed",
+    "sounds": [
+      {
+        "name": "minecraft:ui.toast.challenge_complete",
+        "type": "event"
+      }
+    ]
+  },
+  "quest_failed": {
+    "subtitle": "subtitles.storybound.quest_failed",
+    "sounds": [
+      {
+        "name": "minecraft:block.beacon.deactivate",
+        "type": "event"
+      }
+    ]
+  },
+  "codex_new": {
+    "subtitle": "subtitles.storybound.codex_new",
+    "sounds": [
+      {
+        "name": "minecraft:entity.villager.work_cartographer",
+        "type": "event"
+      }
+    ]
+  },
+  "codex_updated": {
+    "subtitle": "subtitles.storybound.codex_updated",
+    "sounds": [
+      {
+        "name": "minecraft:item.book.page_turn",
+        "type": "event",
+        "pitch": 1.2
+      }
+    ]
+  },
+  "boss_encountered": {
+    "subtitle": "subtitles.storybound.boss_encountered",
+    "sounds": [
+      {
+        "name": "minecraft:block.bell.resonate",
+        "type": "event"
+      }
+    ]
+  },
+  "boss_defeated": {
+    "subtitle": "subtitles.storybound.boss_defeated",
+    "sounds": [
+      {
+        "name": "minecraft:entity.player.levelup",
+        "type": "event"
+      }
+    ]
+  },
+  "info": {
+    "subtitle": "subtitles.storybound.info",
+    "sounds": [
+      {
+        "name": "minecraft:block.note_block.bell",
+        "type": "event",
+        "volume": 0.5
+      }
+    ]
+  },
+  "reputation_up": {
+    "subtitle": "subtitles.storybound.reputation_up",
+    "sounds": [
+      {
+        "name": "minecraft:entity.villager.yes",
+        "type": "event"
+      }
+    ]
+  },
+  "reputation_down": {
+    "subtitle": "subtitles.storybound.reputation_down",
+    "sounds": [
+      {
+        "name": "minecraft:entity.villager.no",
+        "type": "event"
+      }
+    ]
+  },
+  "journal_open": {
+    "subtitle": "subtitles.storybound.journal_open",
+    "sounds": [
+      {
+        "name": "minecraft:item.book.page_turn",
+        "type": "event",
+        "pitch": 0.9
+      }
+    ]
+  },
+  "journal_close": {
+    "subtitle": "subtitles.storybound.journal_close",
+    "sounds": [
+      {
+        "name": "minecraft:item.book.put",
+        "type": "event"
+      }
+    ]
+  },
+  "journal_tab": {
+    "subtitle": "subtitles.storybound.journal_tab",
+    "sounds": [
+      {
+        "name": "minecraft:item.book.page_turn",
+        "type": "event",
+        "volume": 0.7,
+        "pitch": 1.3
+      }
+    ]
+  },
+  "dialogue_choice": {
+    "subtitle": "subtitles.storybound.dialogue_choice",
+    "sounds": [
+      {
+        "name": "minecraft:ui.button.click",
+        "type": "event",
+        "volume": 0.4
+      }
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "category": "main",
+  "scope": "party",
+  "title": "vanilla.quest.letter.title",
+  "text": {
+    "active": "vanilla.quest.letter.text",
+    "completed": "vanilla.quest.letter.done"
+  },
+  "screen_text": {
+    "started": "vanilla.quest.letter.screen"
+  },
+  "start": {
+    "trigger": {
+      "type": "logged_in"
+    }
+  },
+  "on_start": [
+    {
+      "type": "give_document",
+      "document": "vanilla:iva_letter"
+    },
+    {
+      "type": "track_quest",
+      "quest": "vanilla:ch1/letter"
+    }
+  ],
+  "stages": [
+    {
+      "id": "road",
+      "log": "vanilla.quest.letter.road.log",
+      "objectives": [
+        {
+          "id": "village",
+          "text": "vanilla.quest.letter.road.village",
+          "trigger": {
+            "type": "structure_entered",
+            "structure": "#minecraft:village"
+          },
+          "hints": [
+            {
+              "text": "vanilla.quest.letter.road.hint",
+              "after": 300
+            }
+          ]
+        }
+      ],
+      "waypoints": [
+        "vanilla:village"
+      ]
+    },
+    {
+      "id": "meet",
+      "log": "vanilla.quest.letter.meet.log",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.letter.meet.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:iva/meet"
+          },
+          "hints": [
+            {
+              "text": "vanilla.quest.letter.meet.hint",
+              "after": 40
+            }
+          ]
+        }
+      ],
+      "waypoints": [
+        "vanilla:iva"
+      ]
+    }
+  ]
+}

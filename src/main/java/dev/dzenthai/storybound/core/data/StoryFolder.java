@@ -18,8 +18,9 @@ import net.neoforged.fml.ModList;
 
 /**
  * Sets up the story folder ({@link ConfigStorySource}) from the starter files bundled in the mod
- * ({@code storybound_starter/}, in the story folder's own layout) on first run, and puts the debug scenarios
- * ({@code storybound_scenarios/<name>/}) in and out of it on request.
+ * ({@code storybound_starter/}, in the story folder's own layout) on first run, puts the debug scenarios
+ * ({@code storybound_scenarios/<name>/}) in and out of it on request, and installs the stories bundled in the mod
+ * ({@code storybound_stories/<id>/}, each a whole story) as stories of their own.
  */
 public final class StoryFolder {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -29,6 +30,7 @@ public final class StoryFolder {
      */
     public static final String SCENARIO = "scenario";
     private static final String SCENARIOS = "storybound_scenarios";
+    private static final String STORIES = "storybound_stories";
 
     private StoryFolder() {}
 
@@ -276,6 +278,60 @@ public final class StoryFolder {
             }
         }
         Files.writeString(destination, GSON.toJson(merged) + "\n", StandardCharsets.UTF_8);
+    }
+
+    /** The stories bundled in the mod, by id (their folder's name). */
+    public static List<String> bundledStories() {
+        Optional<Path> source = bundled(STORIES);
+        if (source.isEmpty()) {
+            return List.of();
+        }
+        try (Stream<Path> names = Files.list(source.get())) {
+            return names.filter(path -> Files.isRegularFile(path.resolve(ProjectSettings.FILE_NAME)))
+                    .map(path -> path.getFileName().toString().replace("/", "")).sorted().toList();
+        } catch (IOException e) {
+            Storybound.LOGGER.warn("Storybound: could not list the bundled stories: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /** A bundled story's title, as its {@code project.json} gives it; its id when it gives none. */
+    public static String bundledTitle(String id) {
+        return bundled(STORIES).map(folder -> folder.resolve(id).resolve(ProjectSettings.FILE_NAME)).filter(Files::isRegularFile).map(file -> {
+            try {
+                JsonObject json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+                return json.has("title") ? json.get("title").getAsString() : id;
+            } catch (IOException | JsonParseException | IllegalStateException e) {
+                return id;
+            }
+        }).orElse(id);
+    }
+
+    /**
+     * Copies a bundled story into the story folder as the story {@code id}, every file as it is: to play, to open in the
+     * editor and change. A story of that id already there stays, unless {@code replace}: then its folder goes to
+     * {@code .deleted} first, nothing erased. Returns how many files were written.
+     *
+     * @throws IllegalStateException when the story is there and {@code replace} is false
+     */
+    public static int installStory(Path workspace, String id, boolean replace) throws IOException {
+        Path source = bundled(STORIES).map(folder -> folder.resolve(id)).filter(Files::isDirectory)
+                .orElseThrow(() -> new IOException("No story '" + id + "' in this build"));
+        Path target = StoryProjects.resolve(workspace, id);
+        if (Files.exists(target)) {
+            if (!replace) {
+                throw new IllegalStateException("The story " + id + " is already in the story folder");
+            }
+            StoryProjects.trash(workspace, target, id);
+        }
+        int written = 0;
+        for (Path file : files(source)) {
+            Path destination = target.resolve(relative(source, file));
+            Files.createDirectories(destination.getParent());
+            Files.copy(file, destination);
+            written++;
+        }
+        return written;
     }
 
     /** A folder bundled in the mod's jar (or the build's resources in a dev run). */

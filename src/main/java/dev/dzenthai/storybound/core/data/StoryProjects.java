@@ -286,6 +286,11 @@ public final class StoryProjects {
         if (list(workspace).size() <= 1) {
             throw new IllegalArgumentException("The last story cannot be deleted: make another first");
         }
+        return trash(workspace, project.root(), id);
+    }
+
+    /** Moves a story's folder into {@value #DELETED}{@code /<id>-<date and time>/}; returns where it went. */
+    public static Path trash(Path workspace, Path folder, String id) throws IOException {
         Path trash = workspace.toAbsolutePath().normalize().resolve(DELETED);
         Files.createDirectories(trash);
         String stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
@@ -293,7 +298,7 @@ public final class StoryProjects {
         for (int n = 2; Files.exists(target); n++) {
             target = trash.resolve(id + "-" + stamp + "-" + n);
         }
-        Files.move(project.root(), target);
+        Files.move(folder, target);
         return target;
     }
 

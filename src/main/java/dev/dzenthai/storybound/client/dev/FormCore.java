@@ -31,11 +31,16 @@ import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The base of the form ({@link FormView}): what it edits, the frames it shows, the scroll, the JSON paths, the rows
- * and labels a page is laid out with, and the words fields and values are named with.
+ * The base of the form ({@link FormView}): what it edits, the frames it shows,
+ * the scroll, the JSON paths, the rows
+ * and labels a page is laid out with, and the words fields and values are named
+ * with.
  * <p>
- * One layer of the form, split by topic, each seeing the ones below it; the rest of the editor uses FormView:
- * FormCore &larr; FormPickers &larr; FormInputs &larr; FormEntities &larr; FormNpc &larr; FormWaypoints &larr; FormDialogues &larr; FormStory &larr; FormView.
+ * One layer of the form, split by topic, each seeing the ones below it; the
+ * rest of the editor uses FormView:
+ * FormCore &larr; FormPickers &larr; FormInputs &larr; FormEntities &larr;
+ * FormNpc &larr; FormWaypoints &larr; FormDialogues &larr; FormStory &larr;
+ * FormView.
  */
 abstract class FormCore {
     static final int LABEL_H = 10;
@@ -51,45 +56,77 @@ abstract class FormCore {
         /** The object edited now; read again on every build, as saving replaces it. */
         JsonObject root();
 
-        /** The translation key of a text field at that path ({@code stages.hunt.}) of the object. */
+        /**
+         * The translation key of a text field at that path ({@code stages.hunt.}) of
+         * the object.
+         */
         String textKey(String path, String field);
 
-        /** A text box changed the JSON: saved later (Enter, another selection, closing). */
+        /**
+         * A text box changed the JSON: saved later (Enter, another selection, closing).
+         */
         void edited();
 
         /** A button changed the JSON: saved now. */
         void changed();
 
-        /** The NPC binding the form edits, for the fields that belong to the NPC rather than its file; null otherwise. */
+        /**
+         * The NPC binding the form edits, for the fields that belong to the NPC rather
+         * than its file; null otherwise.
+         */
         default @Nullable ResourceLocation npcBinding() {
             return null;
         }
 
-        /** The dialogue whose node the form edits (its presentation and camera decide what a line shows); null otherwise. */
+        /**
+         * The dialogue whose node the form edits (its presentation and camera decide
+         * what a line shows); null otherwise.
+         */
         default @Nullable JsonObject dialogue() {
             return null;
         }
 
-        /** Shows the dialogue's node on its graph, selected (an arrow's target, clicked in the form). */
-        default void revealNode(String node) {}
+        /**
+         * Shows the dialogue's node on its graph, selected (an arrow's target, clicked
+         * in the form).
+         */
+        default void revealNode(String node) {
+        }
 
-        /** The quest the form edits, for its stages' and objectives' names; null otherwise. */
+        /**
+         * The quest the form edits, for its stages' and objectives' names; null
+         * otherwise.
+         */
         default @Nullable ResourceLocation quest() {
             return null;
         }
 
-        /** Renames a stage of the quest ({@code objective} empty) or an objective of a stage, with what names it. */
-        default void renameInQuest(String stage, String objective, String to) {}
+        /**
+         * Renames a stage of the quest ({@code objective} empty) or an objective of a
+         * stage, with what names it.
+         */
+        default void renameInQuest(String stage, String objective, String to) {
+        }
 
-        /** Renames a section of the Codex entry the form edits, with its text and what names it. */
-        default void renameCodexSection(String from, String to) {}
+        /**
+         * Renames a section of the Codex entry the form edits, with its text and what
+         * names it.
+         */
+        default void renameCodexSection(String from, String to) {
+        }
 
-        /** The story node the form edits (a boss's and a Codex entry's long texts are named after it); null otherwise. */
+        /**
+         * The story node the form edits (a boss's and a Codex entry's long texts are
+         * named after it); null otherwise.
+         */
         default @Nullable StoryLinks.NodeKey node() {
             return null;
         }
 
-        /** Values for a field that names something inside the definition (a dialogue's nodes, its speakers); usually none. */
+        /**
+         * Values for a field that names something inside the definition (a dialogue's
+         * nodes, its speakers); usually none.
+         */
         default List<String> choices(String field) {
             return List.of();
         }
@@ -100,9 +137,13 @@ abstract class FormCore {
      *
      * @param removable an optional field: the page offers to remove it
      */
-    record Frame(List<Object> path, Node schema, String label, boolean removable) {}
+    record Frame(List<Object> path, Node schema, String label, boolean removable) {
+    }
 
-    /** A line of text on the form: a label (cut to the width) or a line of wrapped help. */
+    /**
+     * A line of text on the form: a label (cut to the width) or a line of wrapped
+     * help.
+     */
     record Label(@Nullable Component text, @Nullable FormattedCharSequence line, int x, int y, int color) {
         Label(Component text, int x, int y, int color) {
             this(text, null, x, y, color);
@@ -115,14 +156,20 @@ abstract class FormCore {
     private String rootLabel = "";
     final Deque<Frame> frames = new ArrayDeque<>();
     final List<Label> labels = new ArrayList<>();
-    /** The rows' shift as laid out now: the glide's position, rounded (see {@link #animateScroll}). */
+    /**
+     * The rows' shift as laid out now: the glide's position, rounded (see
+     * {@link #animateScroll}).
+     */
     int scroll;
     int contentHeight;
     /** Where the wheel sends the form, and where its glide there is. */
     private double scrollTarget;
     double scrollShown;
     private long scrollFrame;
-    /** The scroll bar, when the rows do not fit: the area it runs along (set when laid out). */
+    /**
+     * The scroll bar, when the rows do not fit: the area it runs along (set when
+     * laid out).
+     */
     int barX = -1;
     int barTop;
     int barBottom;
@@ -146,14 +193,16 @@ abstract class FormCore {
         hidden = hiddenFields;
         frames.clear();
         resetScroll();
-        // A switch's way chosen for a field not written yet belongs to this node, not to the next one shown at the same
+        // A switch's way chosen for a field not written yet belongs to this node, not
+        // to the next one shown at the same
         // path.
         entityModes.clear();
         switchedAway.clear();
     }
 
     /**
-     * The wheel moves where the form goes; the rows glide there: see {@link #animateScroll}.
+     * The wheel moves where the form goes; the rows glide there: see
+     * {@link #animateScroll}.
      */
     void scroll(double amount) {
         scrollTarget = Math.max(0, scrollTarget - amount * 28);
@@ -167,7 +216,8 @@ abstract class FormCore {
     }
 
     /**
-     * One frame of the glide to where the wheel sent the form, about a seventh of a second, frame-rate independent;
+     * One frame of the glide to where the wheel sent the form, about a seventh of a
+     * second, frame-rate independent;
      * whether the rows moved by a pixel, so the form must be laid out again.
      */
     boolean animateScroll() {
@@ -189,17 +239,21 @@ abstract class FormCore {
         return true;
     }
 
-    // --- JSON access by path, so pages survive the object being replaced by a fresh copy after saving
+    // --- JSON access by path, so pages survive the object being replaced by a
+    // fresh copy after saving
 
-    @Nullable JsonElement get(List<Object> path) {
+    @Nullable
+    JsonElement get(List<Object> path) {
         JsonElement current = host.root();
         for (Object step : path) {
             if (step instanceof String key) {
                 current = current.isJsonObject() ? current.getAsJsonObject().get(key) : null;
             } else {
                 int index = (Integer) step;
-                // One thing written alone where a list may stand (an action, an NPC binding's entity) is its first element.
-                current = current.isJsonArray() && index < current.getAsJsonArray().size() ? current.getAsJsonArray().get(index)
+                // One thing written alone where a list may stand (an action, an NPC binding's
+                // entity) is its first element.
+                current = current.isJsonArray() && index < current.getAsJsonArray().size()
+                        ? current.getAsJsonArray().get(index)
                         : current.isJsonObject() && index == 0 ? current : null;
             }
             if (current == null) {
@@ -209,14 +263,17 @@ abstract class FormCore {
         return current;
     }
 
-    @Nullable JsonObject objectAt(List<Object> path) {
+    @Nullable
+    JsonObject objectAt(List<Object> path) {
         JsonElement element = get(path);
         return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
     }
 
     /**
-     * The object at the path, made (with the containers above it) when missing. A step into a list keeps the list;
-     * a single object where a list is expected (one action written alone) becomes its first element.
+     * The object at the path, made (with the containers above it) when missing. A
+     * step into a list keeps the list;
+     * a single object where a list is expected (one action written alone) becomes
+     * its first element.
      */
     JsonObject ensureObject(List<Object> path) {
         JsonElement current = host.root();
@@ -237,7 +294,10 @@ abstract class FormCore {
         return current.getAsJsonObject();
     }
 
-    /** The array at the path, made when missing; a single object (one action written alone) becomes its element. */
+    /**
+     * The array at the path, made when missing; a single object (one action written
+     * alone) becomes its element.
+     */
     JsonArray ensureArray(List<Object> path) {
         JsonObject parent = ensureObject(path.subList(0, path.size() - 1));
         JsonElement value = child(parent, path, path.size() - 1);
@@ -253,8 +313,10 @@ abstract class FormCore {
     }
 
     /**
-     * What holds the element at the path: the list it is an element of, or the object it is a field of, made when
-     * missing. Never the object in place of a list, so replacing one action of a list keeps the others.
+     * What holds the element at the path: the list it is an element of, or the
+     * object it is a field of, made when
+     * missing. Never the object in place of a list, so replacing one action of a
+     * list keeps the others.
      */
     JsonElement ensureParent(List<Object> path) {
         List<Object> parent = path.subList(0, path.size() - 1);
@@ -270,7 +332,8 @@ abstract class FormCore {
             return parent.isJsonObject() ? parent.getAsJsonObject().get(key) : null;
         }
         int index = (Integer) step;
-        return parent.isJsonArray() && index < parent.getAsJsonArray().size() ? parent.getAsJsonArray().get(index) : null;
+        return parent.isJsonArray() && index < parent.getAsJsonArray().size() ? parent.getAsJsonArray().get(index)
+                : null;
     }
 
     static void put(JsonElement parent, List<Object> path, int i, JsonElement value) {
@@ -290,9 +353,13 @@ abstract class FormCore {
         return List.copyOf(longer);
     }
 
-    /** {@code stages.hunt.objectives.wolves.}: list elements by their id when they have one, for stable text keys. */
     /**
-     * The key of a list's texts, before the item's index: the list's path already ends with its field, named once
+     * {@code stages.hunt.objectives.wolves.}: list elements by their id when they
+     * have one, for stable text keys.
+     */
+    /**
+     * The key of a list's texts, before the item's index: the list's path already
+     * ends with its field, named once
      * ("npc_50.names.0"; keys already written stay as they are).
      */
     String listKey(List<Object> path, String field) {
@@ -306,7 +373,9 @@ abstract class FormCore {
             Object step = path.get(i);
             if (step instanceof Integer index) {
                 JsonObject element = objectAt(path.subList(0, i + 1));
-                out.append(element != null && element.has("id") && element.get("id").isJsonPrimitive() ? element.get("id").getAsString() : index);
+                out.append(element != null && element.has("id") && element.get("id").isJsonPrimitive()
+                        ? element.get("id").getAsString()
+                        : index);
             } else {
                 out.append(step);
             }
@@ -353,12 +422,15 @@ abstract class FormCore {
             }).tooltip(Tooltip.create(DevUi.text("form.back"))).bounds(x, y0, 16, 14).build());
             if (frame.removable()) {
                 screen.add(Button.builder(Component.literal("✕"), b -> remove(frame))
-                        .tooltip(Tooltip.create(DevUi.text("form.remove_field"))).bounds(x + width - 16, y0, 16, 14).build());
+                        .tooltip(Tooltip.create(DevUi.text("form.remove_field"))).bounds(x + width - 16, y0, 16, 14)
+                        .build());
             }
-            // Where the page is (greyed), then what it is, as a heading: every page goes on under one, as the node's
+            // Where the page is (greyed), then what it is, as a heading: every page goes on
+            // under one, as the node's
             // form under its name.
             labels.add(new Label(Component.literal(crumbs(screen.font(), width - 40)), x + 20, y0 + 3, DevUi.MUTED));
-            labels.add(new Label(Component.literal(screen.font().plainSubstrByWidth(frame.label(), width)), x, y0 + 18, DevUi.ACCENT));
+            labels.add(new Label(Component.literal(screen.font().plainSubstrByWidth(frame.label(), width)), x, y0 + 18,
+                    DevUi.ACCENT));
             y0 += 32;
         }
         this.top = y0;
@@ -381,7 +453,10 @@ abstract class FormCore {
         barBottom = bottom;
     }
 
-    /** The way to the page from the node: the node and the pages above this one (its own name is its heading). */
+    /**
+     * The way to the page from the node: the node and the pages above this one (its
+     * own name is its heading).
+     */
     private String crumbs(Font font, int width) {
         StringBuilder out = new StringBuilder(rootLabel);
         List<Frame> list = new ArrayList<>(frames);
@@ -396,7 +471,10 @@ abstract class FormCore {
         return text;
     }
 
-    /** Opens a field of the node on its own page at once: a new node's first question ("Who is this NPC?"). */
+    /**
+     * Opens a field of the node on its own page at once: a new node's first
+     * question ("Who is this NPC?").
+     */
     void openRoot(String name, String label) {
         Node node = rootSchema == null ? null : Schemas.properties(rootSchema).get(name);
         if (node == null) {
@@ -408,7 +486,10 @@ abstract class FormCore {
         resetScroll();
     }
 
-    /** Lists the triggers at once for the node's trigger: a new story event's first question. */
+    /**
+     * Lists the triggers at once for the node's trigger: a new story event's first
+     * question.
+     */
     void askTrigger(String name) {
         if (screen == null) {
             return;
@@ -436,7 +517,10 @@ abstract class FormCore {
         host.changed();
     }
 
-    /** Is the next row of that height inside the visible part? Moves past it either way. */
+    /**
+     * Is the next row of that height inside the visible part? Moves past it either
+     * way.
+     */
     boolean row(int height) {
         boolean visible = y >= top && y + height <= bottom;
         y += height + ROW_GAP;
@@ -466,14 +550,22 @@ abstract class FormCore {
     /** Until when the button asks "Sure?"; 0 when it does not. */
     long resetArmedUntil;
 
-    /** The choice "Other value..." in a field's list, and the fields being typed into ("selector path#field path"). */
+    /**
+     * The choice "Other value..." in a field's list, and the fields being typed
+     * into ("selector path#field path").
+     */
     static final String OTHER_VALUE = "\u0000other";
-    /** A value written that no mob met has, in a field's list: this prefix and its place among the values written. */
+    /**
+     * A value written that no mob met has, in a field's list: this prefix and its
+     * place among the values written.
+     */
     static final String WRITTEN_VALUE = "\u0000written:";
     final Set<String> typingOther = new java.util.HashSet<>();
 
     static boolean flag(@Nullable JsonObject object, String name, boolean byDefault) {
-        return object != null && object.get(name) instanceof JsonPrimitive value && value.isBoolean() ? value.getAsBoolean() : byDefault;
+        return object != null && object.get(name) instanceof JsonPrimitive value && value.isBoolean()
+                ? value.getAsBoolean()
+                : byDefault;
     }
 
     static List<String> stringsOf(@Nullable JsonElement value) {
@@ -498,7 +590,10 @@ abstract class FormCore {
         return list;
     }
 
-    /** The properties with {@code first} in front, in that order; the others after, as the schema has them. */
+    /**
+     * The properties with {@code first} in front, in that order; the others after,
+     * as the schema has them.
+     */
     static List<Map.Entry<String, Node>> ordered(Map<String, Node> properties, List<String> first) {
         List<Map.Entry<String, Node>> entries = new ArrayList<>();
         for (String name : first) {
@@ -510,7 +605,10 @@ abstract class FormCore {
         return entries;
     }
 
-    /** A choice from a list in words where it has some: "@end" is "the end of the dialogue"; a style or a section by its name. */
+    /**
+     * A choice from a list in words where it has some: "@end" is "the end of the
+     * dialogue"; a style or a section by its name.
+     */
     static String choiceLabel(String choice) {
         String key = "storybound.dev.value." + choice;
         if (Language.getInstance().has(key)) {
@@ -522,12 +620,15 @@ abstract class FormCore {
         if (id != null && Language.getInstance().has(section)) {
             return Language.getInstance().getOrDefault(section) + " (" + choice + ")";
         }
-        return id != null && Language.getInstance().has(questSection) ? Language.getInstance().getOrDefault(questSection) + " (" + choice + ")" : choice;
+        return id != null && Language.getInstance().has(questSection)
+                ? Language.getInstance().getOrDefault(questSection) + " (" + choice + ")"
+                : choice;
     }
 
     /** The ✕ at a row's right end, which takes out what the row shows. */
     Button removeButton(int top, Component tooltip, Button.OnPress action) {
-        return Button.builder(Component.literal("✕"), action).tooltip(Tooltip.create(tooltip)).bounds(x + w - 18, top, 18, CONTROL_H).build();
+        return Button.builder(Component.literal("✕"), action).tooltip(Tooltip.create(tooltip))
+                .bounds(x + w - 18, top, 18, CONTROL_H).build();
     }
 
     /** A heading over a group of fields. */
@@ -537,7 +638,8 @@ abstract class FormCore {
     }
 
     /**
-     * A lighter heading within a group, over the fields of one question: golden sections, light questions in them, grey
+     * A lighter heading within a group, over the fields of one question: golden
+     * sections, light questions in them, grey
      * labels over each field.
      */
     void subgroup(Component title) {
@@ -553,7 +655,10 @@ abstract class FormCore {
         return "entity_selector".equals(Schemas.resolve(node).ref());
     }
 
-    /** The selector of a field written as one entity selector or a list of them (an NPC binding's); null for others. */
+    /**
+     * The selector of a field written as one entity selector or a list of them (an
+     * NPC binding's); null for others.
+     */
     static @Nullable Node entityListItems(Node node) {
         List<Node> variants = Schemas.variants(node);
         if (variants.size() != 2 || !isEntitySelector(variants.get(0))) {
@@ -563,7 +668,10 @@ abstract class FormCore {
         return items != null && isEntitySelector(items) ? variants.get(0) : null;
     }
 
-    /** "Villager · tag demo_elder", "Cat · name «Murka»", "entity …a1b2"; "—" when nothing is set. */
+    /**
+     * "Villager · tag demo_elder", "Cat · name «Murka»", "entity …a1b2"; "—" when
+     * nothing is set.
+     */
     static String entitySummary(@Nullable JsonObject selector) {
         if (selector == null || selector.isEmpty()) {
             return "—";
@@ -587,7 +695,9 @@ abstract class FormCore {
                     names.add(listed != null ? listed : tag != null ? DevUi.humanize(tag.getPath()) : id);
                     continue;
                 }
-                names.add(key != null && BuiltInRegistries.ENTITY_TYPE.containsKey(key) ? BuiltInRegistries.ENTITY_TYPE.get(key).getDescription().getString() : id);
+                names.add(key != null && BuiltInRegistries.ENTITY_TYPE.containsKey(key)
+                        ? BuiltInRegistries.ENTITY_TYPE.get(key).getDescription().getString()
+                        : id);
             }
             parts.add(String.join(", ", names));
         }
@@ -597,10 +707,14 @@ abstract class FormCore {
         return String.join(" · ", parts);
     }
 
-    /** The way an entity is known by, chosen on its page before its field is filled (per path; the form's own state). */
+    /**
+     * The way an entity is known by, chosen on its page before its field is filled
+     * (per path; the form's own state).
+     */
     final Map<String, String> entityModes = new java.util.HashMap<>();
     /**
-     * What a switch cleared, per path and field, given back when it is switched to that way again. For this node only.
+     * What a switch cleared, per path and field, given back when it is switched to
+     * that way again. For this node only.
      */
     final Map<String, JsonElement> switchedAway = new java.util.HashMap<>();
 
@@ -620,19 +734,28 @@ abstract class FormCore {
         }
     }
 
-    /** "stage" for a quest stage's page ({@code stages/<i>}), "objective" for an objective's, null elsewhere. */
+    /**
+     * "stage" for a quest stage's page ({@code stages/<i>}), "objective" for an
+     * objective's, null elsewhere.
+     */
     static @Nullable String insideQuest(List<Object> path) {
         boolean stage = path.size() >= 2 && "stages".equals(path.get(0)) && path.get(1) instanceof Integer;
         if (stage && path.size() == 2) {
             return "stage";
         }
-        return stage && path.size() == 4 && "objectives".equals(path.get(2)) && path.get(3) instanceof Integer ? "objective" : null;
+        return stage && path.size() == 4 && "objectives".equals(path.get(2)) && path.get(3) instanceof Integer
+                ? "objective"
+                : null;
     }
 
-    /** The names being typed for stages and objectives, by path, so rebuilding the form loses nothing. */
+    /**
+     * The names being typed for stages and objectives, by path, so rebuilding the
+     * form loses nothing.
+     */
     final Map<String, String> insideNames = new java.util.HashMap<>();
 
-    static Optional<StoryRenames.Problem> problem(JsonObject quest, boolean objective, String stage, String current, String typed) {
+    static Optional<StoryRenames.Problem> problem(JsonObject quest, boolean objective, String stage, String current,
+            String typed) {
         return objective ? StoryRenames.objectiveProblem(quest, stage, current, typed)
                 : StoryRenames.stageProblem(quest, current, typed);
     }
@@ -642,8 +765,10 @@ abstract class FormCore {
     }
 
     /**
-     * The choice after the current one. Unset counts as its default: the server saves definitions in canonical form,
-     * which leaves a default value out, so writing the default would come back unset and the button would never get
+     * The choice after the current one. Unset counts as its default: the server
+     * saves definitions in canonical form,
+     * which leaves a default value out, so writing the default would come back
+     * unset and the button would never get
      * past it (a dialogue's presentation stuck on "screen").
      *
      * @param values  the choices, "" (unset) first when the field is optional
@@ -667,21 +792,26 @@ abstract class FormCore {
         }
         ResourceLocation id = ResourceLocation.tryParse(type);
         return id != null && !id.getNamespace().equals(Storybound.MOD_ID) && type.contains(":")
-                ? DevUi.humanize(id.getPath()) + " (" + id.getNamespace() + ")" : DevUi.humanize(shortType);
+                ? DevUi.humanize(id.getPath()) + " (" + id.getNamespace() + ")"
+                : DevUi.humanize(shortType);
     }
 
-    /** A schema description in the game's language (see {@link Schemas#localized}). */
+    /**
+     * A schema description in the game's language (see {@link Schemas#localized}).
+     */
     static String described(String english) {
         return Schemas.localized(english, Minecraft.getInstance().getLanguageManager().getSelected());
     }
 
     static String typeHelp(Logic logic, String type, Node variant) {
         String key = "storybound.dev.help." + logic.name + "." + DevUi.shortId(type);
-        return Language.getInstance().has(key) ? Component.translatable(key).getString() : described(variant.description());
+        return Language.getInstance().has(key) ? Component.translatable(key).getString()
+                : described(variant.description());
     }
 
     /**
-     * A field's label where the form says more than the field's own name: {@code storybound.dev.field.<context>.<name>}
+     * A field's label where the form says more than the field's own name:
+     * {@code storybound.dev.field.<context>.<name>}
      * (on a waypoint, "conditions" is "show only if"), else the field's own.
      */
     static Component fieldLabel(String name, boolean required, Node owner) {
@@ -700,7 +830,10 @@ abstract class FormCore {
         return required ? Component.empty().append(label).append(" *") : label;
     }
 
-    /** Which form this is, where it needs its own words: a waypoint (or add_waypoint), or null. */
+    /**
+     * Which form this is, where it needs its own words: a waypoint (or
+     * add_waypoint), or null.
+     */
     static @Nullable String context(Node owner) {
         Map<String, Node> properties = Schemas.properties(owner);
         if (properties.containsKey("show_ring")) {
@@ -727,7 +860,8 @@ abstract class FormCore {
         if (properties.containsKey("stages") && properties.containsKey("fail_when")) {
             return "quest";
         }
-        if (properties.containsKey("started") && properties.containsKey("completed") && properties.containsKey("failed")) {
+        if (properties.containsKey("started") && properties.containsKey("completed")
+                && properties.containsKey("failed")) {
             return "screen_text";
         }
         if (properties.containsKey("since_stage")) {
@@ -742,20 +876,26 @@ abstract class FormCore {
         if (properties.containsKey("variants") && properties.containsKey("min_interval")) {
             return CHATTER;
         }
-        // The story's settings and their difficulty scale: "style" is how quests show it, not a document's look.
+        // The story's settings and their difficulty scale: "style" is how quests show
+        // it, not a document's look.
         if (properties.containsKey("track_given_quests")) {
             return "project";
         }
         if (properties.containsKey("style") && properties.containsKey("levels")) {
             return "difficulty";
         }
-        // A dialogue node's own words, by its type: "storybound.dev.field.node.call.next".
+        // A dialogue node's own words, by its type:
+        // "storybound.dev.field.node.call.next".
         Node type = properties.get("type");
         JsonObject typeJson = type != null ? Schemas.resolve(type).json() : null;
-        return typeJson != null && typeJson.get("const") instanceof JsonPrimitive constant && owner.file().startsWith("dialogue") ? "node." + constant.getAsString() : null;
+        return typeJson != null && typeJson.get("const") instanceof JsonPrimitive constant
+                && owner.file().startsWith("dialogue") ? "node." + constant.getAsString() : null;
     }
 
-    /** The stages of the quest the form names, for a waypoint's {@code stage}; none until a quest is chosen. */
+    /**
+     * The stages of the quest the form names, for a waypoint's {@code stage}; none
+     * until a quest is chosen.
+     */
     static List<String> stagesOf(@Nullable JsonObject object) {
         if (object == null || !(object.get("quest") instanceof JsonPrimitive quest)) {
             return List.of();
@@ -775,11 +915,15 @@ abstract class FormCore {
 
     static Component fieldLabel(String name, boolean required) {
         String key = "storybound.dev.field." + name;
-        Component label = Language.getInstance().has(key) ? Component.translatable(key) : Component.literal(DevUi.humanize(name));
+        Component label = Language.getInstance().has(key) ? Component.translatable(key)
+                : Component.literal(DevUi.humanize(name));
         return required ? Component.empty().append(label).append(" *") : label;
     }
 
-    /** A value in the words of its field where it has some ("scope": "each player's own"), else in general ones. */
+    /**
+     * A value in the words of its field where it has some ("scope": "each player's
+     * own"), else in general ones.
+     */
     static Component enumLabel(String field, String value) {
         String key = "storybound.dev.value." + field + "." + value;
         return Language.getInstance().has(key) ? Component.translatable(key) : valueLabel(value);
@@ -791,14 +935,18 @@ abstract class FormCore {
     }
 
     /**
-     * A part's value in words, for the button under its label: a list by its elements ("Quest: demo:hunt · Flag set"),
-     * a map by its keys, an object by how many of its fields are set; "None" when empty.
+     * A part's value in words, for the button under its label: a list by its
+     * elements ("Quest: demo:hunt · Flag set"),
+     * a map by its keys, an object by how many of its fields are set; "None" when
+     * empty.
      */
     Component summary(Kind kind, Node node, @Nullable JsonElement value) {
         return switch (kind) {
             case CONDITIONS, ACTIONS, LIST -> {
-                Node items = kind == Kind.CONDITIONS ? Schemas.logic("condition") : kind == Kind.ACTIONS ? Schemas.logic("action") : Schemas.items(node);
-                List<JsonElement> elements = value == null ? List.of() : value.isJsonArray() ? value.getAsJsonArray().asList() : List.of(value);
+                Node items = kind == Kind.CONDITIONS ? Schemas.logic("condition")
+                        : kind == Kind.ACTIONS ? Schemas.logic("action") : Schemas.items(node);
+                List<JsonElement> elements = value == null ? List.of()
+                        : value.isJsonArray() ? value.getAsJsonArray().asList() : List.of(value);
                 if (elements.isEmpty()) {
                     yield DevUi.text("none");
                 }
@@ -812,19 +960,27 @@ abstract class FormCore {
                 yield Component.literal(String.join(" · ", parts));
             }
             case MAP -> value != null && value.isJsonObject() && !value.getAsJsonObject().isEmpty()
-                    ? Component.literal(String.join(" · ", value.getAsJsonObject().keySet())) : DevUi.text("none");
+                    ? Component.literal(String.join(" · ", value.getAsJsonObject().keySet()))
+                    : DevUi.text("none");
             case TRIGGER, CONDITION, ACTION -> {
-                Logic logic = kind == Kind.TRIGGER ? Logic.TRIGGER : kind == Kind.CONDITION ? Logic.CONDITION : Logic.ACTION;
+                Logic logic = kind == Kind.TRIGGER ? Logic.TRIGGER
+                        : kind == Kind.CONDITION ? Logic.CONDITION : Logic.ACTION;
                 yield value != null && value.isJsonObject() && value.getAsJsonObject().has("type")
-                        ? Component.literal(typeName(logic, value.getAsJsonObject().get("type").getAsString())) : DevUi.text("none");
+                        ? Component.literal(typeName(logic, value.getAsJsonObject().get("type").getAsString()))
+                        : DevUi.text("none");
             }
-            case VARIANTS -> value != null ? variantLabel(Schemas.variants(node).get(Schemas.variantOf(node, value))) : DevUi.text("none");
+            case VARIANTS -> value != null ? variantLabel(Schemas.variants(node).get(Schemas.variantOf(node, value)))
+                    : DevUi.text("none");
             default -> value != null && value.isJsonObject() && !value.getAsJsonObject().isEmpty()
-                    ? DevUi.text("form.fields_set", value.getAsJsonObject().size()) : DevUi.text("none");
+                    ? DevUi.text("form.fields_set", value.getAsJsonObject().size())
+                    : DevUi.text("none");
         };
     }
 
-    /** A list element in one line: a logic element by its type and main value, an object by its id or text. */
+    /**
+     * A list element in one line: a logic element by its type and main value, an
+     * object by its id or text.
+     */
     static String itemSummary(JsonElement element, Node items, int index) {
         Kind kind = Schemas.kind(items);
         if (element.isJsonPrimitive()) {
@@ -846,11 +1002,16 @@ abstract class FormCore {
             String main = mainValue(object);
             return typeName(logic, object.get("type").getAsString()) + (main.isEmpty() ? "" : ": " + main);
         }
-        if (Schemas.properties(items).containsKey("count") && (object.get("item") instanceof JsonPrimitive || object.get("id") instanceof JsonPrimitive)) {
-            String item = (object.get("item") instanceof JsonPrimitive named ? named : object.get("id").getAsJsonPrimitive()).getAsString();
+        if (Schemas.properties(items).containsKey("count")
+                && (object.get("item") instanceof JsonPrimitive || object.get("id") instanceof JsonPrimitive)) {
+            String item = (object.get("item") instanceof JsonPrimitive named ? named
+                    : object.get("id").getAsJsonPrimitive()).getAsString();
             ResourceLocation id = ResourceLocation.tryParse(item);
-            String name = id != null && BuiltInRegistries.ITEM.containsKey(id) ? BuiltInRegistries.ITEM.get(id).getDescription().getString() : item;
-            int count = object.get("count") instanceof JsonPrimitive written && written.isNumber() ? written.getAsInt() : 1;
+            String name = id != null && BuiltInRegistries.ITEM.containsKey(id)
+                    ? BuiltInRegistries.ITEM.get(id).getDescription().getString()
+                    : item;
+            int count = object.get("count") instanceof JsonPrimitive written && written.isNumber() ? written.getAsInt()
+                    : 1;
             return count > 1 ? name + " × " + count : name;
         }
         if (Schemas.properties(items).containsKey("unlock") && object.get("id") instanceof JsonPrimitive id) {
@@ -860,7 +1021,8 @@ abstract class FormCore {
         if (object.has("id") && object.get("id").isJsonPrimitive()) {
             return object.get("id").getAsString();
         }
-        // A click entry or a chatter variant of phrases: the node, or its own text in quotes.
+        // A click entry or a chatter variant of phrases: the node, or its own text in
+        // quotes.
         if (Schemas.properties(items).containsKey("priority") && object.has("phrases")) {
             JsonElement phrases = object.get("phrases");
             if (phrases instanceof JsonPrimitive node) {
@@ -889,7 +1051,8 @@ abstract class FormCore {
         return "";
     }
 
-    // Drawn by FormView, which knows every kind of page and field; the layers below call them.
+    // Drawn by FormView, which knows every kind of page and field; the layers below
+    // call them.
 
     abstract void page(List<Object> path, Node schema);
 

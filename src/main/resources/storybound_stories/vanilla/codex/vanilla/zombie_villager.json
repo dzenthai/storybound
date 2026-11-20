@@ -1,0 +1,26 @@
+{
+  "category": "monsters",
+  "entity": "minecraft:zombie_villager",
+  "title": "vanilla.codex.zombie_villager.title",
+  "sections": [
+    {
+      "id": "base",
+      "unlock": {
+        "on": [
+          "seen"
+        ]
+      }
+    },
+    {
+      "id": "weak",
+      "unlock": {
+        "on": [
+          "observed:4",
+          "killed"
+        ]
+      },
+      "title": "vanilla.codex.section.weak"
+    }
+  ],
+  "show_kills": true
+}

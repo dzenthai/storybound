@@ -1,0 +1,112 @@
+{
+  "category": "main",
+  "scope": "party",
+  "title": "vanilla.quest.night_watch.title",
+  "text": {
+    "active": "vanilla.quest.night_watch.text",
+    "completed": "vanilla.quest.night_watch.done"
+  },
+  "screen_text": {
+    "started": "vanilla.quest.night_watch.screen.start",
+    "completed": "vanilla.quest.night_watch.screen.done"
+  },
+  "stages": [
+    {
+      "id": "night",
+      "log": "vanilla.quest.night_watch.night.log",
+      "objectives": [
+        {
+          "id": "undead",
+          "count": 10,
+          "since_stage": true,
+          "text": "vanilla.quest.night_watch.night.undead",
+          "trigger": {
+            "type": "entity_killed",
+            "entity": [
+              "minecraft:zombie",
+              "minecraft:zombie_villager",
+              "minecraft:husk",
+              "minecraft:drowned",
+              "minecraft:skeleton",
+              "minecraft:stray",
+              "minecraft:spider",
+              "minecraft:creeper"
+            ]
+          },
+          "conditions": {
+            "type": "all",
+            "conditions": [
+              {
+                "type": "time",
+                "period": "night"
+              },
+              {
+                "type": "location",
+                "structure": "#minecraft:village"
+              }
+            ]
+          },
+          "hints": [
+            {
+              "text": "vanilla.quest.night_watch.night.hint_day",
+              "conditions": {
+                "type": "time",
+                "period": "day"
+              }
+            },
+            {
+              "text": "vanilla.quest.night_watch.night.hint_far",
+              "after": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "report",
+      "log": "vanilla.quest.night_watch.report.log",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.night_watch.report.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:iva/after_night"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:iva"
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "give_document",
+      "document": "vanilla:arden_diary_1"
+    },
+    {
+      "type": "add_var",
+      "key": "vanilla:rep/iva",
+      "amount": 10
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "vanilla:ch1/outpost",
+      "state": "active"
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:bread",
+        "count": 8
+      },
+      {
+        "item": "minecraft:iron_ingot",
+        "count": 4
+      }
+    ],
+    "claim": false
+  }
+}

@@ -11,6 +11,7 @@
       "type": "string",
       "description": "Dev mode only: the item this node shows on the editor's canvases (an item id, e.g. minecraft:compass). The game does not read it; without it, the kind's own item."
     },
+    "music": { "description": "A track played while the dialogue runs: an .ogg of the story's sounds/ folder or any sound the game knows. It fades in over the music there was and out when the dialogue ends; over a stage's music and a place's.", "$ref": "logic.schema.json#/definitions/id" },
     "presentation": {
       "description": "screen: a blocking dialogue screen. hud: subtitles, the player keeps moving (a choice still opens the screen). bubble: speech bubble above the speaker's head.",
       "enum": ["screen", "hud", "bubble"],
@@ -112,7 +113,7 @@
             "speaker": { "description": "'player' or a participant id.", "type": "string" },
             "text": { "$ref": "logic.schema.json#/definitions/story_text" },
             "next": { "$ref": "#/definitions/target", "default": "@end" },
-            "sound": { "description": "Played with the line, e.g. a voice clip: an .ogg (Ogg Vorbis, mono) in config/storybound/sounds/<namespace>/ is the sound <namespace>:<name>, or any sound the game knows.", "$ref": "logic.schema.json#/definitions/id" },
+            "sound": { "description": "The line's voice-over, played instead of the speaker's voice: an .ogg (Ogg Vorbis, mono) in config/storybound/sounds/<namespace>/ is the sound <namespace>:<name>, or any sound the game knows.", "$ref": "logic.schema.json#/definitions/id" },
             "duration": { "description": "Seconds after which the line moves on by itself (a click still moves on sooner). Empty: it waits for the player.", "type": "number", "minimum": 0.1, "maximum": 600 },
             "shot": {
               "description": "The camera for this line. auto: over the listener's shoulder at the speaker. two_shot: both from the side. close_up: the speaker's face. first_person: no camera movement.",

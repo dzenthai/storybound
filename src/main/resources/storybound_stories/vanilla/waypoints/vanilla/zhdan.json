@@ -1,0 +1,10 @@
+{
+  "name": "vanilla.npc.zhdan",
+  "target": {
+    "nearest": {
+      "type": "minecraft:villager",
+      "tag": "vanilla_zhdan"
+    },
+    "range": 96
+  }
+}

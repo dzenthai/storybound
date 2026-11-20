@@ -150,6 +150,7 @@
           "type": "string"
         },
         "on_enter": { "$ref": "logic.schema.json#/definitions/actions" },
+        "music": { "description": "A track played while this is the stage of the player's tracked quest; over a place's music, under a dialogue's.", "$ref": "logic.schema.json#/definitions/id" },
         "waypoints": {
           "description": "Static waypoints shown while the quest is at this stage.",
           "type": "array",

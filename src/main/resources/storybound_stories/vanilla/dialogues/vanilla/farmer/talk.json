@@ -1,0 +1,61 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "farmer": {
+      "type": "bound",
+      "name": "vanilla.npc.farmer"
+    }
+  },
+  "nodes": {
+    "mood": {
+      "type": "condition",
+      "conditions": {
+        "type": "var",
+        "key": "vanilla:rep/farmer",
+        "op": ">=",
+        "value": 25
+      },
+      "then": "warm",
+      "else": "plain"
+    },
+    "warm": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.talk.warm",
+      "next": "menu"
+    },
+    "plain": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.talk.plain",
+      "next": "menu"
+    },
+    "menu": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "advice",
+          "text": "vanilla.dialogue.farmer.talk.menu.advice",
+          "next": "advice"
+        },
+        {
+          "id": "bye",
+          "text": "vanilla.dialogue.farmer.talk.menu.bye",
+          "next": "bye"
+        }
+      ]
+    },
+    "advice": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.talk.advice",
+      "next": "menu"
+    },
+    "bye": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.talk.bye"
+    }
+  },
+  "start": "mood"
+}

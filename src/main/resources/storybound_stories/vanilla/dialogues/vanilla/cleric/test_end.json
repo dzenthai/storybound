@@ -1,0 +1,51 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "cleric": {
+      "type": "bound",
+      "name": "vanilla.npc.cleric"
+    }
+  },
+  "nodes": {
+    "mix": {
+      "type": "line",
+      "speaker": "cleric",
+      "text": "vanilla.dialogue.cleric.test_end.mix",
+      "next": "after"
+    },
+    "after": {
+      "type": "line",
+      "speaker": "cleric",
+      "text": "vanilla.dialogue.cleric.test_end.after",
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "ok",
+          "text": "vanilla.dialogue.cleric.test_end.ask.ok",
+          "next": "ok"
+        },
+        {
+          "id": "write",
+          "text": "vanilla.dialogue.cleric.test_end.ask.write",
+          "next": "write",
+          "once": true
+        }
+      ]
+    },
+    "write": {
+      "type": "line",
+      "speaker": "cleric",
+      "text": "vanilla.dialogue.cleric.test_end.write",
+      "next": "ask"
+    },
+    "ok": {
+      "type": "line",
+      "speaker": "cleric",
+      "text": "vanilla.dialogue.cleric.test_end.ok"
+    }
+  },
+  "start": "mix"
+}

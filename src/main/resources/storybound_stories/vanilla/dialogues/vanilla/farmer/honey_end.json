@@ -1,0 +1,23 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "farmer": {
+      "type": "bound",
+      "name": "vanilla.npc.farmer"
+    }
+  },
+  "nodes": {
+    "wow": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.honey_end.wow",
+      "next": "wife"
+    },
+    "wife": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.honey_end.wife"
+    }
+  },
+  "start": "wow"
+}

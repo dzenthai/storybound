@@ -49,7 +49,7 @@ abstract class FormNpc extends FormEntities {
             "exclusive", "npc.group.players");
     /** The NPC form's order after "Who it is", as the schema lists it. */
     static final List<String> NPC_ORDER = List.of("dialogues", "interact", "override_interact", "proximity", "exclusive", "busy",
-            "chatter", "movement", "home_radius", "when_attacked", "invulnerable", "respawn", "custom");
+            "chatter", "voice", "movement", "home_radius", "when_attacked", "invulnerable", "respawn", "custom");
 
     /**
      * What depends on a switch shows only while it is on, unless the file still sets it: "instead of trading" with

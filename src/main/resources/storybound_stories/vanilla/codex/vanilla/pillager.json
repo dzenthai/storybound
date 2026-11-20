@@ -1,0 +1,35 @@
+{
+  "category": "monsters",
+  "entity": "minecraft:pillager",
+  "title": "vanilla.codex.pillager.title",
+  "sections": [
+    {
+      "id": "base",
+      "unlock": {
+        "on": [
+          "seen"
+        ]
+      }
+    },
+    {
+      "id": "weak",
+      "unlock": {
+        "on": [
+          "killed"
+        ],
+        "count": 3
+      },
+      "title": "vanilla.codex.section.weak"
+    },
+    {
+      "id": "notes",
+      "unlock": {
+        "on": [
+          "read:vanilla:arden_diary_1"
+        ]
+      },
+      "title": "vanilla.codex.section.notes"
+    }
+  ],
+  "show_kills": true
+}

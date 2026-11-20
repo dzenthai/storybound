@@ -1360,6 +1360,15 @@ public final class NpcReactionGameTests {
                 .getOrThrow().movement(), Optional.of(new NpcBinding.Movement(NpcBinding.Movement.Mode.HOME, 12)), "home with its radius");
         expect(helper, NpcBinding.CODEC.parse(ops, JsonParser.parseString("{ \"entity\": { \"tag\": \"x\" }, \"home_radius\": 12 }"))
                 .getOrThrow().movement(), Optional.empty(), "a radius alone is no movement");
+        PhrasesDefinition voiced = PhrasesDefinition.CODEC.parse(ops, JsonParser.parseString(
+                "{ \"lines\": [ \"gametest.plain\", { \"text\": \"gametest.voiced\", \"sound\": \"minecraft:entity.villager.yes\" } ] }")).getOrThrow();
+        expect(helper, voiced.lines().get(0).sound(), Optional.empty(), "a phrase of text alone");
+        expect(helper, voiced.lines().get(1).sound(), Optional.of(ResourceLocation.parse("minecraft:entity.villager.yes")), "a phrase with its voice-over");
+        JsonElement written = PhrasesDefinition.CODEC.encodeStart(ops, voiced).getOrThrow();
+        helper.assertTrue(written.getAsJsonObject().getAsJsonArray("lines").get(0).isJsonPrimitive()
+                && written.getAsJsonObject().getAsJsonArray("lines").get(1).isJsonObject(), "written back as it was: " + written);
+        expect(helper, NpcBinding.CODEC.parse(ops, JsonParser.parseString("{ \"entity\": { \"tag\": \"x\" }, \"voice\": { \"pitch\": 1.5 } }"))
+                .getOrThrow().voice(), Optional.of(new NpcBinding.Voice(Optional.empty(), 1.5f)), "a voice: the creature's own sound, higher");
         Villager npc = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
         npc.addTag("gt_move_home");
         BlockPos home = helper.absolutePos(new BlockPos(1, 1, 1));

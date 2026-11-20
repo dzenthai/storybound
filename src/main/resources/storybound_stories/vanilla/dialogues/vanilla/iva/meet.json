@@ -1,0 +1,187 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "iva": {
+      "type": "bound",
+      "name": "vanilla.npc.iva"
+    }
+  },
+  "nodes": {
+    "hello": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.hello",
+      "next": "first"
+    },
+    "first": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "story",
+          "text": "vanilla.dialogue.iva.meet.first.story",
+          "next": "story1"
+        },
+        {
+          "id": "share",
+          "text": "vanilla.dialogue.iva.meet.first.share",
+          "next": "share",
+          "once": true
+        },
+        {
+          "id": "cold",
+          "text": "vanilla.dialogue.iva.meet.first.cold",
+          "next": "cold",
+          "actions": [
+            {
+              "type": "add_var",
+              "key": "vanilla:rep/iva",
+              "amount": -5
+            }
+          ]
+        }
+      ]
+    },
+    "share": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.share",
+      "next": "first"
+    },
+    "cold": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.cold",
+      "next": "story1"
+    },
+    "story1": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.story1",
+      "next": "story2"
+    },
+    "story2": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.story2",
+      "next": "second"
+    },
+    "second": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "eyes",
+          "text": "vanilla.dialogue.iva.meet.second.eyes",
+          "next": "eyes1"
+        },
+        {
+          "id": "joke",
+          "text": "vanilla.dialogue.iva.meet.second.joke",
+          "next": "joke",
+          "once": true
+        }
+      ]
+    },
+    "joke": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.joke",
+      "next": "second"
+    },
+    "eyes1": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.eyes1",
+      "next": "eyes2"
+    },
+    "eyes2": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.eyes2",
+      "next": "third"
+    },
+    "third": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "dragon",
+          "text": "vanilla.dialogue.iva.meet.third.dragon",
+          "next": "dragon"
+        },
+        {
+          "id": "task",
+          "text": "vanilla.dialogue.iva.meet.third.task",
+          "next": "task"
+        }
+      ]
+    },
+    "dragon": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.dragon",
+      "next": "task"
+    },
+    "task": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.task",
+      "next": "fourth"
+    },
+    "fourth": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "accept",
+          "text": "vanilla.dialogue.iva.meet.fourth.accept",
+          "next": "accept",
+          "actions": [
+            {
+              "type": "add_var",
+              "key": "vanilla:rep/iva",
+              "amount": 5
+            },
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:ch1/night_watch",
+              "state": "active"
+            }
+          ]
+        },
+        {
+          "id": "refuse",
+          "text": "vanilla.dialogue.iva.meet.fourth.refuse",
+          "next": "refuse",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:ch1/night_watch",
+              "state": "active"
+            }
+          ]
+        }
+      ]
+    },
+    "refuse": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.refuse"
+    },
+    "accept": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.accept",
+      "next": "accept2"
+    },
+    "accept2": {
+      "type": "line",
+      "speaker": "player",
+      "text": "vanilla.dialogue.iva.meet.accept2",
+      "next": "accept3"
+    },
+    "accept3": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.meet.accept3"
+    }
+  },
+  "start": "hello"
+}

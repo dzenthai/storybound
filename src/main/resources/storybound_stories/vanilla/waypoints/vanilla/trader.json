@@ -1,0 +1,10 @@
+{
+  "name": "vanilla.npc.trader",
+  "target": {
+    "nearest": {
+      "type": "minecraft:wandering_trader",
+      "tag": "vanilla_trader"
+    },
+    "range": 128
+  }
+}

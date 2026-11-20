@@ -1,0 +1,9 @@
+{
+  "type": "int",
+  "default": 0,
+  "scope": "player",
+  "sync": true,
+  "min": -50,
+  "max": 50,
+  "description": "Отношение Ивы к игроку"
+}

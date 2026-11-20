@@ -142,11 +142,6 @@ abstract class StoryCards extends GraphView {
     }
 
     /**
-     * A node's look by its kind: a quest a diamond, the main ones larger, a contract a triangle; a boss a triangle; a
-     * story event a circle, and in "all links" every other kind a smaller circle. The rune is the kind's icon (a
-     * quest's by its category).
-     */
-    /**
      * A node's shape and size: {@code base} the radius its textures are named by, {@link #radius} the radius drawn,
      * {@link NodeShapes#SCALE} times it.
      */
@@ -159,14 +154,14 @@ abstract class StoryCards extends GraphView {
     /**
      * A node's shape by its kind: a quest or a contract a diamond (a main quest larger), a story event or a script a
      * circle, an NPC or a boss a hexagon, a dialogue, phrases, a document or a Codex entry a square, a waypoint a
-     * triangle, apex down.
+     * map pin.
      */
     static Look look(ResourceLocation type, JsonObject json) {
         if (type.equals(ClientDevStore.TYPE_QUEST)) {
             return new Look(NodeShapes.Shape.DIAMOND, "main".equals(category(json)) ? 18 : 15);
         }
         if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
-            return new Look(NodeShapes.Shape.TRIANGLE, 15);
+            return new Look(NodeShapes.Shape.PIN, 15);
         }
         if (type.equals(ClientDevStore.TYPE_NPC) || type.equals(ClientDevStore.TYPE_BOSS)) {
             return new Look(NodeShapes.Shape.HEXAGON, 13);

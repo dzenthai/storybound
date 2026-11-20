@@ -88,6 +88,7 @@ public final class StoryboundClient {
         dev.dzenthai.storybound.client.sound.StoryAssets.register(modBus);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onClientTick);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.sound.ClientStoryMusic::onSelectMusic);
         NeoForge.EVENT_BUS.addListener(SpeechBubbles::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
         NeoForge.EVENT_BUS.addListener(AreaRings::onRenderLevel);
@@ -218,6 +219,7 @@ public final class StoryboundClient {
         ClientBosses.clear();
         ClientParty.clear();
         ReputationHud.clear();
+        dev.dzenthai.storybound.client.sound.ClientStoryMusic.clear();
         ClientWaypoints.clear();
         ClientModules.clear();
         ClientDialogue.clear();

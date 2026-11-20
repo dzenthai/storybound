@@ -1,0 +1,82 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "farmer": {
+      "type": "bound",
+      "name": "vanilla.npc.farmer"
+    }
+  },
+  "nodes": {
+    "hello": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.sowing_offer.hello",
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "talk",
+          "text": "vanilla.dialogue.farmer.sowing_offer.ask.talk",
+          "next": "pumpkins",
+          "once": true
+        },
+        {
+          "id": "help",
+          "text": "vanilla.dialogue.farmer.sowing_offer.ask.help",
+          "next": "task"
+        },
+        {
+          "id": "bye",
+          "text": "vanilla.dialogue.farmer.sowing_offer.ask.bye"
+        }
+      ]
+    },
+    "pumpkins": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.sowing_offer.pumpkins",
+      "next": "ask"
+    },
+    "task": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.sowing_offer.task",
+      "next": "deal"
+    },
+    "deal": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "yes",
+          "text": "vanilla.dialogue.farmer.sowing_offer.deal.yes",
+          "next": "yes",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:side/farmer_sowing",
+              "state": "active"
+            }
+          ]
+        },
+        {
+          "id": "no",
+          "text": "vanilla.dialogue.farmer.sowing_offer.deal.no",
+          "next": "no"
+        }
+      ]
+    },
+    "yes": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.sowing_offer.yes"
+    },
+    "no": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.sowing_offer.no"
+    }
+  },
+  "start": "hello"
+}

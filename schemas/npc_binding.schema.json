@@ -57,6 +57,15 @@
     },
     "exclusive": { "description": "While the NPC talks with one player, others cannot start its dialogues (they get busy_dialogue, or nothing). Off: several players talk with it at once.", "type": "boolean", "default": false },
     "busy": { "description": "What others hear while an exclusive NPC talks with one player: a line said in a bubble over it (\"Wait, I am busy\"), the next of its phrases each time; a phrases node, or { \"text\": ... } of its own. Without it, nothing.", "oneOf": [ { "$ref": "logic.schema.json#/definitions/id" }, { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "$ref": "logic.schema.json#/definitions/story_text" } } } ] },
+    "voice": {
+      "description": "How the NPC sounds when it speaks (a line of a dialogue with no sound of its own, a phrase in a bubble). Without it, the creature's own sound (a villager's hum, a piglin's grunt); a creature with none speaks in silence.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sound": { "description": "A sound of its own: an .ogg in the story's sounds/ folder (sounds/<namespace>/<name>.ogg is <namespace>:<name>) or any sound the game knows. Without it, the creature's own sound.", "$ref": "logic.schema.json#/definitions/id" },
+        "pitch": { "description": "Higher or lower: 0.5 to 2.", "type": "number", "minimum": 0.5, "maximum": 2, "default": 1 }
+      }
+    },
     "movement": { "description": "How it walks. free: as its kind does. stay: where it stands, turning its head to the nearest player; pushed away, it comes back. home: within home_radius blocks of its place; led away, it comes back. Its place is where it stood when this first held it (where it was spawned, or where an NPC living in the world was then); a teleport moves it. It still sleeps, flees, fights and talks as before, and walks back after.", "enum": ["free", "stay", "home"], "default": "free" },
     "home_radius": { "description": "For home: how far from its place it may walk, in blocks.", "type": "integer", "minimum": 1, "maximum": 64, "default": 8 },
     "chatter": {

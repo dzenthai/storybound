@@ -181,14 +181,16 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
      * @param waypoints static waypoints shown while the quest is at this stage
      */
     public record Stage(String id, Optional<StoryText> log, List<Objective> objectives, Optional<String> next, List<Action> onEnter,
-                        List<ResourceLocation> waypoints) {
+                        List<ResourceLocation> waypoints, Optional<ResourceLocation> music) {
         public static final Codec<Stage> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.fieldOf("id").forGetter(Stage::id),
                 StoryText.CODEC.optionalFieldOf("log").forGetter(Stage::log),
                 Objective.CODEC.listOf().optionalFieldOf("objectives", List.of()).forGetter(Stage::objectives),
                 Codec.STRING.optionalFieldOf("next").forGetter(Stage::next),
                 LogicCodecs.ACTIONS.optionalFieldOf("on_enter", List.of()).forGetter(Stage::onEnter),
-                ResourceLocation.CODEC.listOf().optionalFieldOf("waypoints", List.of()).forGetter(Stage::waypoints)
+                ResourceLocation.CODEC.listOf().optionalFieldOf("waypoints", List.of()).forGetter(Stage::waypoints),
+                // Played while this is the stage of the player's tracked quest (see StoryMusic).
+                ResourceLocation.CODEC.optionalFieldOf("music").forGetter(Stage::music)
         ).apply(instance, Stage::new));
 
         /** An objective's id, or its position when it has none. */
@@ -213,7 +215,7 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
         }
 
         Stage clientView() {
-            return new Stage(id, log, objectives.stream().map(Objective::clientView).toList(), next, List.of(), waypoints);
+            return new Stage(id, log, objectives.stream().map(Objective::clientView).toList(), next, List.of(), waypoints, music);
         }
     }
 

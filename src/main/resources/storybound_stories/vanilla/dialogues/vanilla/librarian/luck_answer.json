@@ -1,0 +1,35 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "lib": {
+      "type": "bound",
+      "name": "vanilla.npc.librarian"
+    }
+  },
+  "nodes": {
+    "wait": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_answer.wait",
+      "next": "tell"
+    },
+    "tell": {
+      "type": "line",
+      "speaker": "player",
+      "text": "vanilla.dialogue.librarian.luck_answer.tell",
+      "next": "faint"
+    },
+    "faint": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_answer.faint",
+      "next": "calm"
+    },
+    "calm": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_answer.calm"
+    }
+  },
+  "start": "wait"
+}

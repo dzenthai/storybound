@@ -1,0 +1,66 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "farmer": {
+      "type": "bound",
+      "name": "vanilla.npc.farmer"
+    }
+  },
+  "nodes": {
+    "secret": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.honey_offer.secret",
+      "next": "why"
+    },
+    "why": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "why",
+          "text": "vanilla.dialogue.farmer.honey_offer.why.why",
+          "next": "look"
+        },
+        {
+          "id": "laugh",
+          "text": "vanilla.dialogue.farmer.honey_offer.why.laugh",
+          "next": "look",
+          "once": true
+        }
+      ]
+    },
+    "look": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.honey_offer.look",
+      "next": "deal"
+    },
+    "deal": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "yes",
+          "text": "vanilla.dialogue.farmer.honey_offer.deal.yes",
+          "next": "yes",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:side/farmer_honey",
+              "state": "active"
+            }
+          ]
+        },
+        {
+          "id": "no",
+          "text": "vanilla.dialogue.farmer.honey_offer.deal.no"
+        }
+      ]
+    },
+    "yes": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.honey_offer.yes"
+    }
+  },
+  "start": "secret"
+}

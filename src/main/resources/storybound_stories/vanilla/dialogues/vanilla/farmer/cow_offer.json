@@ -1,0 +1,58 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "farmer": {
+      "type": "bound",
+      "name": "vanilla.npc.farmer"
+    }
+  },
+  "nodes": {
+    "sad": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.cow_offer.sad",
+      "next": "wolves"
+    },
+    "wolves": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.cow_offer.wolves",
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "help",
+          "text": "vanilla.dialogue.farmer.cow_offer.ask.help",
+          "next": "yes",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:side/farmer_cow",
+              "state": "active"
+            }
+          ]
+        },
+        {
+          "id": "cow",
+          "text": "vanilla.dialogue.farmer.cow_offer.ask.cow",
+          "next": "just",
+          "once": true
+        }
+      ]
+    },
+    "just": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.cow_offer.just",
+      "next": "ask"
+    },
+    "yes": {
+      "type": "line",
+      "speaker": "farmer",
+      "text": "vanilla.dialogue.farmer.cow_offer.yes"
+    }
+  },
+  "start": "sad"
+}

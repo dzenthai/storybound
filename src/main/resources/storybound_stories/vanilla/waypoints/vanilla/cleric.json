@@ -1,0 +1,6 @@
+{
+  "name": "vanilla.npc.cleric",
+  "target": {
+    "npc": "vanilla:cleric"
+  }
+}

@@ -946,6 +946,41 @@ public final class DialogueGameTests {
         helper.succeed();
     }
 
+    /**
+     * A line's voice-over plays until the player moves on: the next line's replaces it, a line without one leaves
+     * nothing playing, and closing the dialogue stops it.
+     */
+    @GameTest(template = "empty")
+    public static void aVoiceOverStopsWhenThePlayerMovesOn(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation voiced = key("voiced");
+        ResourceLocation first = ResourceLocation.fromNamespaceAndPath("gametest", "voice_first");
+        ResourceLocation second = ResourceLocation.fromNamespaceAndPath("gametest", "voice_second");
+        DefinitionStore<DialogueDefinition> store = DialogueRegistries.DIALOGUES.serverStore();
+        Map<ResourceLocation, DialogueDefinition> previous = store.all();
+        installAll(helper, store, DialogueDefinition.CODEC, Map.of(voiced, "{ \"start\": \"a\", \"participants\": {}, \"nodes\": {"
+                + " \"a\": { \"type\": \"line\", \"speaker\": \"player\", \"text\": \"gametest.voice.a\", \"sound\": \"gametest:voice_first\", \"next\": \"b\" },"
+                + " \"b\": { \"type\": \"line\", \"speaker\": \"player\", \"text\": \"gametest.voice.b\", \"sound\": \"gametest:voice_second\", \"next\": \"c\" },"
+                + " \"c\": { \"type\": \"line\", \"speaker\": \"player\", \"text\": \"gametest.voice.c\" } } }"));
+        try {
+            Dialogues.start(player, voiced, null);
+            helper.assertValueEqual(Dialogues.voiceOver(player), Optional.of(first), "the first line's voice-over plays");
+            advance(player);
+            helper.assertValueEqual(Dialogues.voiceOver(player), Optional.of(second), "the next line's replaces it");
+            advance(player);
+            helper.assertValueEqual(Dialogues.voiceOver(player), Optional.empty(), "a line without one: nothing plays");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            Dialogues.start(player, voiced, null);
+            helper.assertValueEqual(Dialogues.voiceOver(player), Optional.of(first), "it plays again");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            helper.assertValueEqual(Dialogues.voiceOver(player), Optional.empty(), "closing the dialogue stops it");
+        } finally {
+            store.replace(previous);
+        }
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
     private static void withDialogues(GameTestHelper helper, String prefix, boolean closable, Runnable body) {
         Map<ResourceLocation, DialogueDefinition> previous = install(helper, prefix, closable);
         try {

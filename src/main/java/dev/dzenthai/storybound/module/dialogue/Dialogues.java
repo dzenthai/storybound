@@ -63,6 +63,8 @@ public final class Dialogues {
     public static final double BUBBLE_RANGE = 16;
     /** Invisible nodes in a row before the server gives up; stops condition and jump loops. */
     private static final int MAX_STEPS = 64;
+    /** How far a broadcast voice-over is heard, so stopped: a sound at full volume carries 16 blocks. */
+    private static final double VOICE_OVER_RANGE = 32;
     static final String ONCE_PREFIX = "dialogue_once/";
 
     private static final Map<UUID, DialogueSession> SESSIONS = new HashMap<>();
@@ -251,6 +253,8 @@ public final class Dialogues {
         if (session == null) {
             return false;
         }
+        // Clicked past: its voice-over stops with it. A timed line moving on by itself lets it finish.
+        hush(session);
         moveOn(session);
         return true;
     }
@@ -399,6 +403,7 @@ public final class Dialogues {
             // Another one paused already: only one waits, this one goes on.
             return;
         }
+        hush(session);
         SESSIONS.remove(session.player.getUUID(), session);
         PAUSED.put(session.player.getUUID(), session);
         session.pausedAt = now;
@@ -580,6 +585,15 @@ public final class Dialogues {
     }
 
     /** Whether the entity is the NPC of anyone's dialogue now, a paused one too: then it does not chatter. */
+    /** The music of the dialogue the player is in, while it runs (a paused one too); empty when it has none. */
+    public static Optional<ResourceLocation> music(ServerPlayer player) {
+        DialogueSession session = SESSIONS.get(player.getUUID());
+        if (session == null || session.closed) {
+            return Optional.empty();
+        }
+        return session.base().music();
+    }
+
     static boolean inDialogue(Entity entity) {
         for (Map<UUID, DialogueSession> sessions : List.of(SESSIONS, PAUSED)) {
             for (DialogueSession session : sessions.values()) {
@@ -751,7 +765,14 @@ public final class Dialogues {
         StoryboundNetwork.sendToPlayer(player, new DialogueLinePayload(session.id, session.step, session.dialogue.presentation(),
                 session.dialogue.closable(), speaker, text, line.duration().isPresent(), think, session.camera));
         Entity source = entity;
+        // A new line is never said over the last one's voice-over.
+        hush(session);
         line.sound().ifPresent(sound -> playSound(session, source, sound));
+        session.voiceOver = line.sound().orElse(null);
+        if (line.sound().isEmpty() && entity != null && entity != player) {
+            // A line with no sound of its own is said in the speaker's voice.
+            NpcVoice.speak(entity, session.dialogue.broadcast() ? null : player);
+        }
         if (entity != null && entity != player) {
             ADDRESSED.put(entity.getUUID(), player.getUUID());
         }
@@ -849,6 +870,7 @@ public final class Dialogues {
     }
 
     private static void close(DialogueSession session) {
+        hush(session);
         session.closed = true;
         session.waiting = Waiting.NONE;
         session.deadline = -1;
@@ -952,6 +974,34 @@ public final class Dialogues {
         } else {
             session.player.playNotifySound(event, SoundSource.VOICE, 1f, 1f);
         }
+    }
+
+    /**
+     * Stops the voice-over still playing from the last line, for whoever hears it: the player, or everyone near them
+     * when the dialogue is broadcast.
+     */
+    private static void hush(DialogueSession session) {
+        ResourceLocation sound = session.voiceOver;
+        if (sound == null) {
+            return;
+        }
+        session.voiceOver = null;
+        net.minecraft.network.protocol.game.ClientboundStopSoundPacket stop = new net.minecraft.network.protocol.game.ClientboundStopSoundPacket(sound, SoundSource.VOICE);
+        if (session.dialogue.broadcast()) {
+            for (ServerPlayer near : session.player.serverLevel().players()) {
+                if (near.distanceToSqr(session.player) <= VOICE_OVER_RANGE * VOICE_OVER_RANGE) {
+                    near.connection.send(stop);
+                }
+            }
+        } else {
+            session.player.connection.send(stop);
+        }
+    }
+
+    /** The voice-over being played now in the player's dialogue; for the tests. */
+    public static Optional<ResourceLocation> voiceOver(ServerPlayer player) {
+        DialogueSession session = SESSIONS.get(player.getUUID());
+        return session != null ? Optional.ofNullable(session.voiceOver) : Optional.empty();
     }
 
     private static String pick(ServerPlayer player, DialogueDefinition.RandomNode random) {

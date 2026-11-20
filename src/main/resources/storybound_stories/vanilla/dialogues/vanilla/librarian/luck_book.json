@@ -1,0 +1,59 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "lib": {
+      "type": "bound",
+      "name": "vanilla.npc.librarian"
+    }
+  },
+  "nodes": {
+    "book": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_book.book",
+      "next": "note"
+    },
+    "note": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_book.note",
+      "next": "give"
+    },
+    "give": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "give_document",
+          "document": "vanilla:librarian_note"
+        }
+      ],
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "carry",
+          "text": "vanilla.dialogue.librarian.luck_book.ask.carry",
+          "next": "carry"
+        },
+        {
+          "id": "fix",
+          "text": "vanilla.dialogue.librarian.luck_book.ask.fix",
+          "next": "fix"
+        }
+      ]
+    },
+    "carry": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_book.carry"
+    },
+    "fix": {
+      "type": "line",
+      "speaker": "lib",
+      "text": "vanilla.dialogue.librarian.luck_book.fix"
+    }
+  },
+  "start": "book"
+}

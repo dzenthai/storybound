@@ -1,0 +1,35 @@
+{
+  "entity": {
+    "type": "minecraft:ravager",
+    "tag": "vanilla_indrik"
+  },
+  "title": "vanilla.boss.indrik.title",
+  "lore": {},
+  "tactics": {
+    "unlock": {
+      "on": [
+        "killed",
+        "read:vanilla:arden_diary_1"
+      ]
+    }
+  },
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:emerald",
+        "count": 10
+      }
+    ]
+  },
+  "on_first_kill": [
+    {
+      "type": "title",
+      "title": "vanilla.boss.indrik.killed.title",
+      "subtitle": "vanilla.boss.indrik.killed.subtitle"
+    },
+    {
+      "type": "play_sound",
+      "sound": "minecraft:ui.toast.challenge_complete"
+    }
+  ]
+}

@@ -41,8 +41,11 @@ final class Catalog {
     static final int HEIGHT = 224;
     private static final int ROW_H = 19;
 
-    /** What is picked; {@code LIST} is a list given by the caller (types, story nodes, dialogue nodes). */
-    enum Kind { STRUCTURE, BIOME, POI, MOB, ITEM, SOUND, ICON, LIST }
+    /**
+     * What is picked; {@code LIST} is a list given by the caller (types, story nodes, dialogue nodes). {@code MUSIC} is
+     * the sound list with only the game's music: its streamed sounds named as music ({@link #music}).
+     */
+    enum Kind { STRUCTURE, BIOME, POI, MOB, ITEM, SOUND, MUSIC, ICON, LIST }
 
     /** A file of the sounds folder that is not a sound, shown with why: picking it says how to fix it. */
     static final String PROBLEM = "@problem:";
@@ -52,6 +55,8 @@ final class Catalog {
      */
     static final String SECTION = "@section:";
     static final String NOTE = "@note:";
+    /** The first row while something is chosen: picking it takes the choice away ("No sound"). */
+    static final String CLEAR = "@clear";
 
     private static boolean pickable(Entry entry) {
         return !entry.id().startsWith(SECTION) && !entry.id().startsWith(NOTE);
@@ -76,14 +81,46 @@ final class Catalog {
     private int scroll;
     private List<Entry> entries = List.of();
     private @Nullable Callback callback;
+    /** What the field holds now: marked in the list, and {@link #CLEAR} offered over it. */
+    private @Nullable String selected;
 
     boolean isOpen() {
         return open;
     }
 
     void open(Component title, Kind kind, Callback callback) {
+        open(title, kind, null, callback);
+    }
+
+    /**
+     * With what is chosen now ({@code selected}, null or blank for nothing): it is lit and scrolled to, and a first
+     * row {@link #CLEAR} takes it away; one not in the list (a sound the game does not know) is shown on top.
+     */
+    void open(Component title, Kind kind, @Nullable String selected, Callback callback) {
         show(title, kind, callback);
-        this.entries = entries(kind, Minecraft.getInstance().level);
+        this.selected = selected == null || selected.isBlank() ? null : selected.trim();
+        this.entries = withSelection(entries(kind, Minecraft.getInstance().level));
+        if (this.selected != null) {
+            for (int i = 0; i < entries.size(); i++) {
+                if (entries.get(i).id().equals(this.selected) && i >= rows()) {
+                    scroll = i - rows() / 2;
+                    break;
+                }
+            }
+        }
+    }
+
+    private List<Entry> withSelection(List<Entry> list) {
+        if (selected == null) {
+            return list;
+        }
+        List<Entry> out = new ArrayList<>();
+        out.add(new Entry(CLEAR, DevUi.str("catalog.clear"), new ItemStack(Items.BARRIER)));
+        if (list.stream().noneMatch(entry -> entry.id().equals(selected))) {
+            out.add(new Entry(selected, selected, new ItemStack(Items.NOTE_BLOCK)));
+        }
+        out.addAll(list);
+        return out;
     }
 
     /** A list made by the caller: logic types, story nodes, a dialogue's nodes. */
@@ -99,6 +136,7 @@ final class Catalog {
         this.callback = callback;
         this.kind = kind;
         this.scroll = 0;
+        this.selected = null;
     }
 
     void close() {
@@ -128,7 +166,7 @@ final class Catalog {
             close();
             screen.rebuild();
         }).bounds(left + WIDTH - 22, top + 4, 18, 16).build());
-        if (kind == Kind.SOUND || kind == Kind.ICON) {
+        if (kind == Kind.SOUND || kind == Kind.MUSIC || kind == Kind.ICON) {
             soundButtons(screen, left, top);
         }
 
@@ -174,8 +212,8 @@ final class Catalog {
             screen.status(DevUi.text("sound.reloading"), DevUi.NEUTRAL);
             Minecraft minecraft = Minecraft.getInstance();
             minecraft.reloadResourcePacks().thenRun(() -> minecraft.execute(() -> {
-                if (open && (kind == Kind.SOUND || kind == Kind.ICON)) {
-                    entries = entries(kind, minecraft.level);
+                if (open && (kind == Kind.SOUND || kind == Kind.MUSIC || kind == Kind.ICON)) {
+                    entries = withSelection(entries(kind, minecraft.level));
                     scroll = 0;
                 }
                 screen.status(kind == Kind.ICON ? DevUi.text("icon.reloaded", StoryAssets.icons().icons().size())
@@ -203,7 +241,9 @@ final class Catalog {
         List<Entry> out = new ArrayList<>();
         Entry heading = null;
         for (Entry entry : entries) {
-            if (entry.id().startsWith(SECTION)) {
+            if (entry.id().equals(CLEAR)) {
+                out.add(entry);
+            } else if (entry.id().startsWith(SECTION)) {
                 heading = entry;
             } else if (pickable(entry) && (entry.label().toLowerCase(Locale.ROOT).contains(query) || entry.id().toLowerCase(Locale.ROOT).contains(query))) {
                 if (heading != null) {
@@ -248,11 +288,16 @@ final class Catalog {
                 continue;
             }
             boolean hover = DevUi.inside(mouseX, mouseY, left + 8, y, WIDTH - 16, ROW_H);
-            if (hover) {
+            boolean chosen = entry.id().equals(selected);
+            if (hover || chosen) {
                 graphics.fill(left + 7, y, left + WIDTH - 7, y + ROW_H - 1, DevUi.ROW_SELECTED);
             }
+            if (chosen) {
+                graphics.fill(left + 7, y, left + 9, y + ROW_H - 1, DevUi.ACCENT);
+            }
             graphics.renderItem(entry.icon(), left + 10, y + 1);
-            graphics.drawString(font, font.plainSubstrByWidth(entry.label(), 155), left + 30, y + 5, hover ? DevUi.WARN : DevUi.TEXT, false);
+            String label = font.plainSubstrByWidth(entry.label(), 155);
+            graphics.drawString(font, label, left + 30, y + 5, hover ? DevUi.WARN : chosen ? DevUi.ACCENT : entry.id().equals(CLEAR) ? DevUi.MUTED : DevUi.TEXT, false);
             String id = font.plainSubstrByWidth(entry.id(), 118);
             graphics.drawString(font, id, left + WIDTH - 12 - font.width(id), y + 5, DevUi.MUTED, false);
         }
@@ -288,13 +333,28 @@ final class Catalog {
             return true;
         }
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-            Entry first = filtered().stream().filter(Catalog::pickable).findFirst().orElse(null);
+            Entry first = filtered().stream().filter(entry -> pickable(entry) && !entry.id().equals(CLEAR)).findFirst().orElse(null);
             if (first != null) {
                 pick(screen, first);
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * A sound of the game that is music: streamed, as long tracks are (read while they play rather than loaded whole),
+     * and named so ({@code music} or {@code disc} in its id: vanilla's {@code music.*} and {@code music_disc.*}, a mod's
+     * {@code music.boss}); a mod's streamed ambience loops are left out. One named otherwise is still taken as an id.
+     */
+    private static boolean music(ResourceLocation id) {
+        return (id.getPath().contains("music") || id.getPath().contains("disc")) && streamed(id);
+    }
+
+    /** A sound whose file is streamed: read while it plays rather than loaded whole. */
+    private static boolean streamed(ResourceLocation id) {
+        net.minecraft.client.sounds.WeighedSoundEvents events = Minecraft.getInstance().getSoundManager().getSoundEvent(id);
+        return events != null && events.getSound(net.minecraft.util.RandomSource.create()).shouldStream();
     }
 
     void scroll(double amount) {
@@ -455,8 +515,10 @@ final class Catalog {
                         .forEach(entry -> list.add(new Entry(entry.getKey().location().toString(),
                                 entry.getValue().getDescription().getString(), new ItemStack(entry.getValue()))));
             }
-            case SOUND -> {
-                // The story's own sounds first (config/storybound/sounds), then every sound the game knows.
+            case SOUND, MUSIC -> {
+                // The story's own sounds first (config/storybound/sounds), then every sound the game knows; for music
+                // only its music (Minecraft's music and discs, a mod's music).
+                boolean music = kind == Kind.MUSIC;
                 // The files that did not make it, and why, so a file dropped in is never just missing.
                 for (StorySoundFiles.Problem problem : StoryAssets.last().problems()) {
                     if (!problem.kind().equals("stereo")) {
@@ -465,18 +527,18 @@ final class Catalog {
                     }
                 }
                 Set<String> listed = new LinkedHashSet<>();
-                list.add(new Entry(SECTION + "story", DevUi.str("sound.section.story"), ItemStack.EMPTY));
+                list.add(new Entry(SECTION + "story", DevUi.str(music ? "music.section.story" : "sound.section.story"), ItemStack.EMPTY));
                 for (StorySoundFiles.Sound sound : StoryAssets.last().sounds()) {
                     if (listed.add(sound.id())) {
-                        list.add(new Entry(sound.id(), sound.name(), new ItemStack(Items.NOTE_BLOCK)));
+                        list.add(new Entry(sound.id(), sound.label(), new ItemStack(Items.NOTE_BLOCK)));
                     }
                 }
                 if (listed.isEmpty()) {
                     list.add(new Entry(NOTE + "story", DevUi.str("sound.section.story_empty"), ItemStack.EMPTY));
                 }
-                list.add(new Entry(SECTION + "game", DevUi.str("sound.section.game"), ItemStack.EMPTY));
+                list.add(new Entry(SECTION + "game", DevUi.str(music ? "music.section.game" : "sound.section.game"), ItemStack.EMPTY));
                 sortedIds(new java.util.HashSet<>(Minecraft.getInstance().getSoundManager().getAvailableSounds())).forEach(id -> {
-                    if (listed.add(id.toString())) {
+                    if ((!music || music(id)) && listed.add(id.toString())) {
                         list.add(new Entry(id.toString(), id.getPath(), new ItemStack(Items.JUKEBOX)));
                     }
                 });

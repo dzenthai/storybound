@@ -16,9 +16,14 @@
       "default": "random"
     },
     "lines": {
-      "description": "Each line is a text said in a bubble over the NPC.",
+      "description": "Each line is a text said in a bubble over the NPC, or { \"text\": ..., \"sound\": ... } with its voice-over, played instead of the NPC's voice.",
       "type": "array",
-      "items": { "$ref": "logic.schema.json#/definitions/story_text" }
+      "items": { "oneOf": [
+        { "$ref": "logic.schema.json#/definitions/story_text" },
+        { "type": "object", "required": ["text"], "additionalProperties": false, "properties": {
+          "text": { "$ref": "logic.schema.json#/definitions/story_text" },
+          "sound": { "description": "The phrase's voice-over: an .ogg of the story's sounds/ folder or any sound the game knows.", "$ref": "logic.schema.json#/definitions/id" } } }
+      ] }
     }
   }
 }

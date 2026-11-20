@@ -8,6 +8,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
+import dev.dzenthai.storybound.core.data.StoryFolder;
 import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
@@ -103,6 +104,14 @@ public final class DevProjects {
                     String language = ProjectSettings.load(DevModeServer.root(player)).sourceLanguage();
                     StoryProjects.create(ConfigStorySource.root(), id, title, language);
                     choose(player, id);
+                }
+                case "install" -> {
+                    // A story bundled in the mod, as a story of its own; one already there is never replaced from here.
+                    int written = StoryFolder.installStory(ConfigStorySource.root(), id, false);
+                    player.sendSystemMessage(Component.translatable("commands.storybound.story.installed", StoryFolder.bundledTitle(id), written)
+                            .withStyle(ChatFormatting.GOLD));
+                    reload(player, () -> Storybound.LOGGER.error("Storybound: the data did not reload after installing the story {}", id));
+                    return;
                 }
                 case "delete" -> {
                     // Its folder goes to .deleted, nothing erased (StoryProjects.delete); one in the game leaves it, so the

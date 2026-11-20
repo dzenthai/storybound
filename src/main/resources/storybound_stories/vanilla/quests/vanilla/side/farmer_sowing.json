@@ -1,0 +1,75 @@
+{
+  "category": "side",
+  "title": "vanilla.quest.farmer_sowing.title",
+  "text": {
+    "active": "vanilla.quest.farmer_sowing.text",
+    "completed": "vanilla.quest.farmer_sowing.done"
+  },
+  "stages": [
+    {
+      "id": "work",
+      "objectives": [
+        {
+          "id": "plant",
+          "text": "vanilla.quest.farmer_sowing.plant",
+          "trigger": {
+            "type": "advancement_earned",
+            "advancement": "minecraft:husbandry/plant_seed"
+          }
+        },
+        {
+          "id": "composter",
+          "text": "vanilla.quest.farmer_sowing.composter",
+          "trigger": {
+            "type": "item_obtained",
+            "item": "minecraft:composter"
+          }
+        }
+      ]
+    },
+    {
+      "id": "harvest",
+      "objectives": [
+        {
+          "id": "wheat",
+          "count": 16,
+          "items": {
+            "item": "minecraft:wheat",
+            "consume": true
+          },
+          "text": "vanilla.quest.farmer_sowing.wheat",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:farmer/sowing_end"
+          },
+          "hints": [
+            {
+              "text": "vanilla.quest.farmer_sowing.wheat_hint",
+              "after": 300
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "add_var",
+      "key": "vanilla:rep/farmer",
+      "amount": 10
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:bread",
+        "count": 6
+      },
+      {
+        "item": "minecraft:pumpkin_seeds",
+        "count": 4
+      }
+    ],
+    "claim": false
+  }
+}

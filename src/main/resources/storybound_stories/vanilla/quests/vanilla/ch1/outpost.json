@@ -1,0 +1,99 @@
+{
+  "category": "main",
+  "scope": "party",
+  "title": "vanilla.quest.outpost.title",
+  "text": {
+    "active": "vanilla.quest.outpost.text",
+    "completed": "vanilla.quest.outpost.done"
+  },
+  "screen_text": {
+    "started": "vanilla.quest.outpost.screen.start",
+    "completed": "vanilla.quest.outpost.screen.done"
+  },
+  "stages": [
+    {
+      "id": "find",
+      "log": "vanilla.quest.outpost.find.log",
+      "objectives": [
+        {
+          "id": "outpost",
+          "text": "vanilla.quest.outpost.find.outpost",
+          "trigger": {
+            "type": "structure_entered",
+            "structure": "minecraft:pillager_outpost"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:outpost"
+      ]
+    },
+    {
+      "id": "indrik",
+      "log": "vanilla.quest.outpost.indrik.log",
+      "on_enter": [
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:ravager",
+          "tag": "vanilla_indrik",
+          "unique": true,
+          "offset": [
+            8,
+            0,
+            8
+          ],
+          "name": "vanilla.boss.indrik.title"
+        },
+        {
+          "type": "title",
+          "subtitle": "vanilla.quest.outpost.indrik.subtitle",
+          "stay": 50
+        }
+      ],
+      "objectives": [
+        {
+          "id": "indrik",
+          "text": "vanilla.quest.outpost.indrik.boss",
+          "trigger": {
+            "type": "boss_killed",
+            "boss": "vanilla:indrik"
+          }
+        },
+        {
+          "id": "pillagers",
+          "count": 5,
+          "optional": true,
+          "since_stage": true,
+          "text": "vanilla.quest.outpost.indrik.pillagers",
+          "trigger": {
+            "type": "entity_killed",
+            "entity": "minecraft:pillager"
+          }
+        }
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "give_document",
+      "document": "vanilla:arden_diary_2"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "vanilla:ch1/return",
+      "state": "active"
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 8
+      },
+      {
+        "item": "minecraft:saddle"
+      }
+    ],
+    "claim": false
+  }
+}

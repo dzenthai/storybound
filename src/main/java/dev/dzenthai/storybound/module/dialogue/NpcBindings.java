@@ -591,7 +591,8 @@ public final class NpcBindings {
                     first(byHand(chain), sources, "display_name", NpcBinding::displayName),
                     first(dynamic(chain), sources, "names", binding -> binding.names().isEmpty() ? Optional.empty() : Optional.of(binding.names()))
                             .orElse(List.of()), false, Optional.empty(),
-                    first(chain, sources, "movement", NpcBinding::movement));
+                    first(chain, sources, "movement", NpcBinding::movement),
+                    first(chain, sources, "voice", NpcBinding::voice));
             return new Found(List.copyOf(chain), merged, Collections.unmodifiableMap(sources));
         }
 

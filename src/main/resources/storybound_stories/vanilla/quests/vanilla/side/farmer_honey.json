@@ -1,0 +1,81 @@
+{
+  "category": "side",
+  "title": "vanilla.quest.farmer_honey.title",
+  "text": {
+    "active": "vanilla.quest.farmer_honey.text",
+    "completed": "vanilla.quest.farmer_honey.done"
+  },
+  "stages": [
+    {
+      "id": "bees",
+      "objectives": [
+        {
+          "id": "honey",
+          "text": "vanilla.quest.farmer_honey.honey",
+          "trigger": {
+            "type": "advancement_earned",
+            "advancement": "minecraft:husbandry/safely_harvest_honey"
+          }
+        },
+        {
+          "id": "nest",
+          "text": "vanilla.quest.farmer_honey.nest",
+          "trigger": {
+            "type": "advancement_earned",
+            "advancement": "minecraft:husbandry/silk_touch_nest"
+          }
+        },
+        {
+          "id": "slide",
+          "optional": true,
+          "text": "vanilla.quest.farmer_honey.slide",
+          "trigger": {
+            "type": "advancement_earned",
+            "advancement": "minecraft:adventure/honey_block_slide"
+          }
+        }
+      ]
+    },
+    {
+      "id": "gift",
+      "objectives": [
+        {
+          "id": "bottles",
+          "count": 3,
+          "items": {
+            "item": "minecraft:honey_bottle",
+            "consume": true
+          },
+          "text": "vanilla.quest.farmer_honey.bottles",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:farmer/honey_end"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:farmer"
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "add_var",
+      "key": "vanilla:rep/farmer",
+      "amount": 10
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 6
+      },
+      {
+        "item": "minecraft:honey_block",
+        "count": 2
+      }
+    ],
+    "claim": false
+  }
+}

@@ -19,6 +19,7 @@ public final class ClientPayloads {
     }
 
     public static void notify(NotifyKind kind, ResolvedText title, Optional<ResolvedText> text) {
+        dev.dzenthai.storybound.client.sound.UiSounds.play(kind.getSerializedName());
         Minecraft.getInstance().getToasts().addToast(new StoryToast(kind, title.toComponent(), text.map(ResolvedText::toComponent).orElse(null)));
     }
 }

@@ -1,0 +1,10 @@
+{
+  "title": "Погасшие глаза Края",
+  "namespace": "vanilla",
+  "enabled": true,
+  "source_language": "ru_ru",
+  "languages": [
+    "ru_ru",
+    "en_us"
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "category": "side",
+  "title": "vanilla.quest.farmer_cow.title",
+  "text": {
+    "active": "vanilla.quest.farmer_cow.text",
+    "completed": "vanilla.quest.farmer_cow.done"
+  },
+  "stages": [
+    {
+      "id": "ask",
+      "log": "vanilla.quest.farmer_cow.ask.log",
+      "objectives": [
+        {
+          "id": "villagers",
+          "count": 3,
+          "since_stage": true,
+          "text": "vanilla.quest.farmer_cow.ask.villagers",
+          "trigger": {
+            "type": "entity_interacted",
+            "entity": "minecraft:villager"
+          }
+        }
+      ]
+    },
+    {
+      "id": "son",
+      "log": "vanilla.quest.farmer_cow.son.log",
+      "on_enter": [
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:villager",
+          "tag": "vanilla_zhdan",
+          "unique": true,
+          "offset": [
+            3,
+            0,
+            3
+          ],
+          "nbt": {
+            "Age": -2000000
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "zhdan",
+          "text": "vanilla.quest.farmer_cow.son.zhdan",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:zhdan/confess"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:zhdan"
+      ]
+    },
+    {
+      "id": "trader",
+      "log": "vanilla.quest.farmer_cow.trader.log",
+      "on_enter": [
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:wandering_trader",
+          "tag": "vanilla_trader",
+          "unique": true,
+          "offset": [
+            24,
+            0,
+            16
+          ]
+        }
+      ],
+      "objectives": [
+        {
+          "id": "trader",
+          "text": "vanilla.quest.farmer_cow.trader.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:trader/cow"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:trader"
+      ]
+    },
+    {
+      "id": "tell",
+      "objectives": [
+        {
+          "id": "farmer",
+          "text": "vanilla.quest.farmer_cow.tell.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:farmer/cow_end"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:farmer"
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "add_var",
+      "key": "vanilla:rep/farmer",
+      "amount": 15
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:milk_bucket"
+      },
+      {
+        "item": "minecraft:emerald",
+        "count": 4
+      }
+    ],
+    "choice": [
+      {
+        "item": "minecraft:golden_carrot",
+        "count": 6
+      },
+      {
+        "item": "minecraft:cake"
+      }
+    ],
+    "claim": true
+  }
+}

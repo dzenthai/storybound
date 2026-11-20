@@ -1,0 +1,34 @@
+{
+  "category": "monsters",
+  "entity": "minecraft:ravager",
+  "title": "vanilla.codex.ravager.title",
+  "sections": [
+    {
+      "id": "base",
+      "unlock": {
+        "on": [
+          "seen"
+        ]
+      }
+    },
+    {
+      "id": "weak",
+      "unlock": {
+        "on": [
+          "killed"
+        ]
+      },
+      "title": "vanilla.codex.section.weak"
+    },
+    {
+      "id": "notes",
+      "unlock": {
+        "on": [
+          "read:vanilla:arden_diary_1"
+        ]
+      },
+      "title": "vanilla.codex.section.notes"
+    }
+  ],
+  "show_kills": true
+}

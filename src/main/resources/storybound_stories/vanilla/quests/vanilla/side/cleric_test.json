@@ -1,0 +1,62 @@
+{
+  "category": "side",
+  "title": "vanilla.quest.cleric_test.title",
+  "text": {
+    "active": "vanilla.quest.cleric_test.text",
+    "completed": "vanilla.quest.cleric_test.done"
+  },
+  "stages": [
+    {
+      "id": "bring",
+      "objectives": [
+        {
+          "id": "eyes",
+          "count": 3,
+          "items": {
+            "item": "minecraft:spider_eye",
+            "consume": true
+          },
+          "text": "vanilla.quest.cleric_test.eyes",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:cleric/test_end"
+          }
+        },
+        {
+          "id": "sugar",
+          "count": 1,
+          "items": {
+            "item": "minecraft:sugar",
+            "consume": true
+          },
+          "text": "vanilla.quest.cleric_test.sugar",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:cleric/test_end"
+          }
+        }
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "add_var",
+      "key": "vanilla:rep/cleric",
+      "amount": 10
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:potion",
+        "count": 2,
+        "components": {
+          "minecraft:potion_contents": {
+            "potion": "minecraft:healing"
+          }
+        }
+      }
+    ],
+    "claim": false
+  }
+}

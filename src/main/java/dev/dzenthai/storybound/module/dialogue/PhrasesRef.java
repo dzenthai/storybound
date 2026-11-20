@@ -32,7 +32,7 @@ public record PhrasesRef(Optional<ResourceLocation> node, Optional<StoryText> te
     /** The phrases to say: the node's, or the own text as a list of one; null for a node that is not there. */
     @Nullable PhrasesDefinition resolve() {
         if (text.isPresent()) {
-            return new PhrasesDefinition(PhrasesDefinition.Order.SEQUENCE, List.of(text.get()));
+            return new PhrasesDefinition(PhrasesDefinition.Order.SEQUENCE, List.of(PhrasesDefinition.Line.of(text.get())));
         }
         return DialogueRegistries.PHRASES.serverStore().getOrNull(node.orElseThrow());
     }

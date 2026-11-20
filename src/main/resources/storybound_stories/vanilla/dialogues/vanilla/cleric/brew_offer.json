@@ -1,0 +1,50 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "cleric": {
+      "type": "bound",
+      "name": "vanilla.npc.cleric"
+    }
+  },
+  "nodes": {
+    "rod": {
+      "type": "line",
+      "speaker": "cleric",
+      "text": "vanilla.dialogue.cleric.brew_offer.rod",
+      "next": "stand"
+    },
+    "stand": {
+      "type": "line",
+      "speaker": "cleric",
+      "text": "vanilla.dialogue.cleric.brew_offer.stand",
+      "next": "deal"
+    },
+    "deal": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "yes",
+          "text": "vanilla.dialogue.cleric.brew_offer.deal.yes",
+          "next": "yes",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:side/cleric_brew",
+              "state": "active"
+            }
+          ]
+        },
+        {
+          "id": "later",
+          "text": "vanilla.dialogue.cleric.brew_offer.deal.later"
+        }
+      ]
+    },
+    "yes": {
+      "type": "line",
+      "speaker": "cleric",
+      "text": "vanilla.dialogue.cleric.brew_offer.yes"
+    }
+  },
+  "start": "rod"
+}

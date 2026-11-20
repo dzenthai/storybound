@@ -39,17 +39,27 @@ class StorySoundFilesTest {
         file("demo/song.ogg", "ID3 an mp3 renamed".getBytes());
         file("demo/bell.wav", "RIFF".getBytes());
         file("demo/Thunder.ogg", vorbis(1));
+        file("demo/Ragnar Meets-the.Naked!.OGG", vorbis(2));
+        file("demo/Hello_World.ogg", vorbis(1));
+        file("demo/hello world.ogg", vorbis(1));
+        file("demo/Тема.ogg", vorbis(1));
         file("loose.ogg", vorbis(1));
 
         StorySoundFiles.Scan scan = StorySoundFiles.scan(folder);
-        assertEquals(List.of("demo:elder/greeting", "demo:hello", "demo:rain", "storybound:loose"), scan.sounds().stream().map(StorySoundFiles.Sound::id).sorted().toList(),
-                "a subfolder goes into the name; stereo still plays; right in sounds/ is storybound's");
+        assertEquals(List.of("demo:elder/greeting", "demo:hello", "demo:hello_world", "demo:ragnar_meets-the.naked_", "demo:rain", "demo:thunder", "storybound:loose"),
+                scan.sounds().stream().map(StorySoundFiles.Sound::id).sorted().toList(),
+                "a subfolder goes into the name; stereo still plays; right in sounds/ is storybound's; capitals, spaces and signs make an id");
+        assertEquals("Ragnar Meets-the.Naked!", scan.sounds().stream().filter(sound -> sound.id().equals("demo:ragnar_meets-the.naked_")).findFirst().orElseThrow().label(),
+                "listed by the file's own name");
+        assertTrue(scan.problems().contains(new StorySoundFiles.Problem("demo/hello world.ogg", "same_name")), "the second file making one id");
+        assertTrue(scan.problems().contains(new StorySoundFiles.Problem("demo/Тема.ogg", "bad_name")), "letters other than Latin");
         assertEquals("stereo", scan.problemOf("demo:rain").kind(), "but it does not fade with distance");
         assertEquals("not_vorbis", scan.problemOf("demo:song").kind(), "renamed, it is still an mp3");
         assertTrue(scan.problems().contains(new StorySoundFiles.Problem("demo/bell.wav", "not_vorbis")), "a wav is said to need converting");
-        assertTrue(scan.problems().contains(new StorySoundFiles.Problem("demo/Thunder.ogg", "bad_name")), "capitals");
         file("faaah.ogg", "ID3 an m4a renamed".getBytes());
         assertEquals("not_vorbis", StorySoundFiles.scan(folder).problemOf("storybound:faaah").kind(), "right in sounds/, and not a sound");
+        file("Bad Song.ogg", "ID3 an mp3 renamed".getBytes());
+        assertEquals("not_vorbis", StorySoundFiles.scan(folder).problemOf("storybound:bad_song").kind(), "found by the id its name makes");
         assertEquals(StorySoundFiles.Scan.EMPTY, StorySoundFiles.scan(folder.resolve("missing")), "no folder, no sounds");
     }
 
@@ -57,7 +67,8 @@ class StorySoundFilesTest {
     void eachSoundIsAnEventOfItsName() throws IOException {
         file("demo/hello.ogg", vorbis(1));
         StorySoundFiles.Scan scan = StorySoundFiles.scan(folder);
-        assertEquals("{\"hello\":{\"sounds\":[{\"name\":\"demo:hello\"}]}}", StorySoundFiles.soundsJson(scan.in("demo")));
+        // In place of a sound of that name: the mod's own interface sounds are replaced by a story's file, not mixed with it.
+        assertEquals("{\"hello\":{\"replace\":true,\"sounds\":[{\"name\":\"demo:hello\"}]}}", StorySoundFiles.soundsJson(scan.in("demo")));
         assertEquals(1, StorySoundFiles.vorbisChannels(vorbis(1)));
         assertEquals(-1, StorySoundFiles.vorbisChannels("OggS but opus".getBytes()), "an Ogg that is not Vorbis");
     }

@@ -210,6 +210,7 @@ public final class ClientDialogue {
             Component text = choices.options().get(index).text();
             choiceLength = text.getString().length();
             chosen = new Chosen(index + 1, text, choseAt, x, y, width);
+            dev.dzenthai.storybound.client.sound.UiSounds.play("dialogue_choice");
             PacketDistributor.sendToServer(new DialogueReplyPayload(session, choices.step(), index));
         }
     }

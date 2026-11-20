@@ -1,0 +1,111 @@
+{
+  "display_name": "vanilla.npc.cleric",
+  "entity": {
+    "type": "minecraft:villager",
+    "baby": false,
+    "in_village": true,
+    "data": {
+      "VillagerData/profession": [
+        "minecraft:cleric"
+      ]
+    }
+  },
+  "one": true,
+  "dialogues": [
+    {
+      "dialogue": "vanilla:cleric/test_offer",
+      "priority": 10,
+      "conditions": {
+        "type": "quest",
+        "quest": "vanilla:side/cleric_test",
+        "state": "unknown"
+      }
+    },
+    {
+      "dialogue": "vanilla:cleric/test_end",
+      "priority": 20,
+      "conditions": {
+        "type": "quest",
+        "quest": "vanilla:side/cleric_test",
+        "state": "active",
+        "stage": "bring"
+      }
+    },
+    {
+      "dialogue": "vanilla:cleric/brother_offer",
+      "priority": 10,
+      "conditions": {
+        "type": "all",
+        "conditions": [
+          {
+            "type": "quest",
+            "quest": "vanilla:side/cleric_test",
+            "state": "completed"
+          },
+          {
+            "type": "quest",
+            "quest": "vanilla:side/cleric_brother",
+            "state": "unknown"
+          }
+        ]
+      }
+    },
+    {
+      "dialogue": "vanilla:cleric/brother_end",
+      "priority": 20,
+      "conditions": {
+        "type": "quest",
+        "quest": "vanilla:side/cleric_brother",
+        "state": "active",
+        "stage": "tell"
+      }
+    },
+    {
+      "dialogue": "vanilla:cleric/brew_offer",
+      "priority": 10,
+      "conditions": {
+        "type": "all",
+        "conditions": [
+          {
+            "type": "quest",
+            "quest": "vanilla:side/cleric_brother",
+            "state": "completed"
+          },
+          {
+            "type": "quest",
+            "quest": "vanilla:side/cleric_brew",
+            "state": "unknown"
+          },
+          {
+            "type": "has_item",
+            "item": "minecraft:blaze_rod"
+          }
+        ]
+      }
+    },
+    {
+      "dialogue": "vanilla:cleric/talk"
+    }
+  ],
+  "chatter": {
+    "phrases": "vanilla:cleric/chatter",
+    "variants": [
+      {
+        "phrases": "vanilla:cleric/chatter_brother",
+        "conditions": {
+          "type": "quest",
+          "quest": "vanilla:side/cleric_brother",
+          "state": "completed"
+        }
+      }
+    ],
+    "min_interval": 30,
+    "max_interval": 60,
+    "radius": 8
+  },
+  "when_attacked": {
+    "reaction": "flee",
+    "phrases": "vanilla:cleric/hit",
+    "by_mobs": true
+  }
+}

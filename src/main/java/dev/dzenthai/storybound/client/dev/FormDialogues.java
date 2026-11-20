@@ -118,7 +118,7 @@ abstract class FormDialogues extends FormWaypoints {
     static final Map<String, Map<String, String>> NODE_GROUPS = Map.ofEntries(
             Map.entry("boss", Map.of("title", "boss.group.who", "participation", "boss.group.victory")),
             Map.entry("codex", Map.of("title", "codex.group.entry")),
-            Map.entry("node.line", Map.of("speaker", "node.group.line", "sound", "node.group.sound_time", "shot", "node.group.camera")),
+            Map.entry("node.line", Map.of("speaker", "node.group.line", "duration", "node.group.time", "shot", "node.group.camera")),
             // A dialogue's other nodes: under the name, a heading with what the node is.
             Map.entry("node.choice", Map.of("options", "node.group.choice")),
             Map.entry("node.condition", Map.of("conditions", "node.group.condition")),
@@ -139,6 +139,10 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("chapter", Map.of("title", "chapter.group.chapter")));
 
     static boolean nodeFieldShown(String form, String name, @Nullable JsonObject object, @Nullable JsonObject dialogue) {
+        if (form.equals("node.line") && name.equals("sound")) {
+            // The voice-over is the 🎤 beside the line's text.
+            return false;
+        }
         if (form.equals("node.line") && (name.equals("shot") || name.equals("transition"))) {
             boolean screen = !(dialogue != null && dialogue.get("presentation") instanceof JsonPrimitive shown) || shown.getAsString().equals("screen");
             boolean camera = !(dialogue != null && dialogue.get("camera") instanceof JsonPrimitive mode) || !mode.getAsString().equals("off");
@@ -187,14 +191,52 @@ abstract class FormDialogues extends FormWaypoints {
     /**
      * One line of a phrases node: its text, with \u270E for the text window. Text only: an NPC starts a dialogue itself.
      */
+    /** A phrase's text: the line itself, or its {@code text} when the line has a voice-over. */
+    private static String readPhrase(JsonArray array, int index, String language) {
+        if (array.get(index) instanceof JsonObject voiced && voiced.has("text")) {
+            return ClientDevStore.readStoryText(voiced, "text", "", language);
+        }
+        return ClientDevStore.readStoryTextAt(array, index, language);
+    }
+
+    private static void writePhrase(JsonArray array, int index, String text, String key) {
+        if (array.get(index) instanceof JsonObject voiced && voiced.has("text")) {
+            String existing = ClientDevStore.getKey(voiced, "text");
+            ClientDevStore.writeStoryText(voiced, "text", text, existing != null && !existing.isBlank() ? existing : key);
+        } else {
+            ClientDevStore.writeStoryTextAt(array, index, text, key);
+        }
+    }
+
+    /** The phrase as an object holding its voice-over: the line becomes {@code { "text": ... }} if it is a text alone. */
+    private JsonObject phraseHolder(List<Object> path, int index) {
+        JsonArray list = ensureArray(path);
+        if (list.get(index) instanceof JsonObject object && object.has("text")) {
+            return object;
+        }
+        JsonObject voiced = new JsonObject();
+        voiced.add("text", list.get(index));
+        list.set(index, voiced);
+        return voiced;
+    }
+
+    /** A phrase whose voice-over went is its text alone again. */
+    private void unvoiceIfBare(List<Object> path, int index) {
+        JsonArray list = ensureArray(path);
+        if (index < list.size() && list.get(index) instanceof JsonObject object && object.has("text") && !object.has("sound") && object.size() == 1) {
+            list.set(index, object.get("text"));
+        }
+    }
+
     void phraseRow(List<Object> path, String field, JsonArray array, int index, int rowY, int width) {
         int right = x;
         int rightW = width;
         String key = listKey(path, field) + "." + index;
-        EditBox box = new EditBox(screen.font(), right, rowY + 1, rightW - 20, CONTROL_H - 2, Component.empty());
+        JsonObject voiced = array.get(index) instanceof JsonObject object && object.has("text") ? object : null;
+        EditBox box = new EditBox(screen.font(), right, rowY + 1, rightW - 40, CONTROL_H - 2, Component.empty());
         box.setMaxLength(1024);
-        box.setValue(ClientDevStore.readStoryTextAt(array, index, ClientDevStore.activeLanguage()));
-        String source = ClientDevStore.readStoryTextAt(array, index, ClientDevStore.sourceLanguage());
+        box.setValue(readPhrase(array, index, ClientDevStore.activeLanguage()));
+        String source = readPhrase(array, index, ClientDevStore.sourceLanguage());
         boolean translating = !ClientDevStore.activeLanguage().equalsIgnoreCase(ClientDevStore.sourceLanguage());
         if (translating) {
             box.setHint(Component.literal(source));
@@ -202,19 +244,24 @@ abstract class FormDialogues extends FormWaypoints {
         box.setResponder(text -> {
             JsonArray list = ensureArray(path);
             if (index < list.size()) {
-                ClientDevStore.writeStoryTextAt(list, index, text, key);
+                writePhrase(list, index, text, key);
                 host.edited();
             }
         });
         screen.add(box);
+        voiceOverButton(voiced, () -> phraseHolder(path, index),
+                () -> {
+                    unvoiceIfBare(path, index);
+                    host.changed();
+                }, right + rightW - 38, rowY);
         screen.add(Button.builder(Component.literal("\u270E"), b -> {
             JsonArray list = ensureArray(path);
-            String current = index < list.size() ? ClientDevStore.readStoryTextAt(list, index, ClientDevStore.activeLanguage()) : "";
+            String current = index < list.size() ? readPhrase(list, index, ClientDevStore.activeLanguage()) : "";
             screen.textEditor().openPlain(fieldLabel(field, false), current,
                     translating && !source.isBlank() ? Component.literal(source) : DevUi.text("text.hint_plain"), edited -> {
                         JsonArray target = ensureArray(path);
                         if (index < target.size()) {
-                            ClientDevStore.writeStoryTextAt(target, index, edited, key);
+                            writePhrase(target, index, edited, key);
                             host.changed();
                         }
                     });

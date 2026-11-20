@@ -878,6 +878,45 @@ public final class QuestGameTests {
     }
 
     /** Installs the test quest under {@link #QUEST} and subscribes it, then restores the loaded quests. */
+    /**
+     * The story's music: of the places whose conditions hold the highest priority plays; the tracked quest's stage has its
+     * own over it; a dialogue's over both; when the dialogue ends the stage's comes back.
+     */
+    @GameTest(template = "empty")
+    public static void storyMusicPlaysTheDialoguesThenTheStagesThenThePlaces(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation quest = key("music_quest");
+        ResourceLocation talk = key("music_talk");
+        with(helper, dev.dzenthai.storybound.module.music.MusicRegistries.MUSIC.serverStore(), dev.dzenthai.storybound.module.music.MusicDefinition.CODEC, Map.of(
+                key("music_low"), "{ \"track\": \"gametest:low\" }",
+                key("music_high"), "{ \"track\": \"gametest:high\", \"priority\": 5 }",
+                key("music_never"), "{ \"track\": \"gametest:never\", \"priority\": 9, \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:music_no_such_flag\" } }"
+        ), () -> with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(quest,
+                "{ \"title\": \"q\", \"stages\": [ { \"id\": \"a\", \"music\": \"gametest:stage\","
+                        + " \"objectives\": [ { \"id\": \"o\", \"trigger\": { \"type\": \"custom\", \"id\": \"gametest:music_never\" } } ] } ] }"
+        ), () -> with(helper, dev.dzenthai.storybound.module.dialogue.DialogueRegistries.DIALOGUES.serverStore(),
+                dev.dzenthai.storybound.module.dialogue.DialogueDefinition.CODEC, Map.of(talk,
+                        "{ \"start\": \"l\", \"music\": \"gametest:talk\", \"participants\": {},"
+                                + " \"nodes\": { \"l\": { \"type\": \"line\", \"speaker\": \"player\", \"text\": \"gametest.music.line\" } } }"
+        ), () -> {
+            expect(helper, dev.dzenthai.storybound.module.music.StoryMusic.track(player), Optional.of(ResourceLocation.fromNamespaceAndPath("gametest", "high")),
+                    "the place of the highest priority whose conditions hold");
+            // Started with nothing pinned, the quest is pinned by itself: its stage's music plays as it starts.
+            Quests.setStatus(player, quest, QuestStatus.ACTIVE);
+            expect(helper, dev.dzenthai.storybound.module.music.StoryMusic.track(player), Optional.of(ResourceLocation.fromNamespaceAndPath("gametest", "stage")),
+                    "the just started quest's stage over the places");
+            dev.dzenthai.storybound.module.dialogue.Dialogues.start(player, talk, null);
+            expect(helper, dev.dzenthai.storybound.module.music.StoryMusic.track(player), Optional.of(ResourceLocation.fromNamespaceAndPath("gametest", "talk")),
+                    "a dialogue's over the stage");
+            dev.dzenthai.storybound.module.dialogue.Dialogues.interrupt(player, dev.dzenthai.storybound.core.event.DialogueEvent.EndReason.STOPPED);
+            expect(helper, dev.dzenthai.storybound.module.music.StoryMusic.track(player), Optional.of(ResourceLocation.fromNamespaceAndPath("gametest", "stage")),
+                    "the dialogue over, the stage's again");
+            Quests.setStatus(player, quest, null);
+        })));
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
     private static void withQuest(GameTestHelper helper, String json, Runnable body) {
         with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(QUEST, json), () -> {
             QuestEvents.rebuild();

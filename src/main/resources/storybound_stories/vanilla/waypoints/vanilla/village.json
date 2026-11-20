@@ -1,0 +1,6 @@
+{
+  "name": "vanilla.waypoint.village",
+  "target": {
+    "structure": "#minecraft:village"
+  }
+}

@@ -27,11 +27,12 @@ import net.minecraft.util.StringRepresentable;
  * @param onAbort      run when the dialogue is interrupted (walked away, ESC, damage, the NPC died)
  * @param camera       {@code off} keeps the player's own view for the whole dialogue
  * @param combat       what a fight does to it in subtitles or bubbles: nothing, a pause until it is over, or an interruption
+ * @param music        a track played while the dialogue runs (see {@code StoryMusic}); over a stage's and a place's
  * @param npcStops     the NPC talked to stands still and faces the player; false lets a companion walk on while talking
  */
 public record DialogueDefinition(Map<String, Participant> participants, String start, Map<String, Node> nodes,
                                  Presentation presentation, boolean closable, boolean broadcast, List<Action> onAbort, Camera camera,
-                                 Combat combat, boolean npcStops) {
+                                 Combat combat, boolean npcStops, Optional<ResourceLocation> music) {
     /** Ends the current dialogue; inside a {@code call} it returns to the caller. */
     public static final String END = "@end";
     /** Ends the whole conversation, even inside a {@code call}. */
@@ -51,7 +52,8 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
             LogicCodecs.ACTIONS.optionalFieldOf("on_abort", List.of()).forGetter(DialogueDefinition::onAbort),
             Camera.CODEC.optionalFieldOf("camera", Camera.AUTO).forGetter(DialogueDefinition::camera),
             Combat.CODEC.optionalFieldOf("combat", Combat.DEFAULT).forGetter(DialogueDefinition::combat),
-            Codec.BOOL.optionalFieldOf("npc_stops", true).forGetter(DialogueDefinition::npcStops)
+            Codec.BOOL.optionalFieldOf("npc_stops", true).forGetter(DialogueDefinition::npcStops),
+            ResourceLocation.CODEC.optionalFieldOf("music").forGetter(DialogueDefinition::music)
     ).apply(instance, DialogueDefinition::new));
 
     public static boolean isSentinel(String target) {

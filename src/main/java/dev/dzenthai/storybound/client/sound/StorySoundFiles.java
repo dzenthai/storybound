@@ -19,8 +19,10 @@ import org.jetbrains.annotations.Nullable;
  * What the story folder's {@code sounds/} holds: {@code sounds/<namespace>/<name>.ogg} is the sound
  * {@code <namespace>:<name>} (a subfolder goes into the name: {@code sounds/demo/elder/hello.ogg} is
  * {@code demo:elder/hello}); a file right in {@code sounds/} is {@code storybound:<name>}, as a story file without a
- * folder is. Only Ogg Vorbis plays in Minecraft; a file that is not, or is wrongly named, is left out
- * and said why. Pure, for {@link StoryAssets} and tests.
+ * folder is. The id is made from the file's name: lowercase, a space or a sign other than {@code _ - .} becoming
+ * {@code _} ({@code Ragnar Meets.ogg} is {@code ragnar_meets}); the file itself is served under that id. Only Ogg Vorbis
+ * plays in Minecraft; a file that is not, a name in letters other than Latin, or a second file making the same id, is
+ * left out and said why. Pure, for {@link StoryAssets} and tests.
  */
 public final class StorySoundFiles {
     /** Above this a sound is streamed, as Minecraft does with music: a long voice line does not load at once. */
@@ -43,6 +45,12 @@ public final class StorySoundFiles {
         public String id() {
             return namespace + ":" + name;
         }
+
+        /** The file's own name, without {@code .ogg}, as the author wrote it. */
+        public String label() {
+            String file = this.file.getFileName().toString();
+            return file.substring(0, file.length() - ".ogg".length());
+        }
     }
 
     public record Scan(List<Sound> sounds, List<Problem> problems) {
@@ -61,7 +69,7 @@ public final class StorySoundFiles {
             String name = id.substring(colon + 1);
             // A file in its namespace's folder, or a default one right in sounds/.
             List<String> files = namespace.equals(DEFAULT_NAMESPACE) ? List.of(namespace + "/" + name, name) : List.of(namespace + "/" + name);
-            return problems.stream().filter(problem -> files.stream().anyMatch(file -> problem.file().startsWith(file + "."))).findFirst().orElse(null);
+            return problems.stream().filter(problem -> files.stream().anyMatch(file -> idPart(problem.file(), true).startsWith(file + "."))).findFirst().orElse(null);
         }
     }
 
@@ -71,21 +79,32 @@ public final class StorySoundFiles {
         }
         List<Sound> sounds = new ArrayList<>();
         List<Problem> problems = new ArrayList<>();
+        java.util.Set<String> ids = new java.util.HashSet<>();
         try (Stream<Path> files = Files.walk(folder)) {
-            for (Path file : files.filter(Files::isRegularFile).sorted().toList()) {
+            for (Path file : files.filter(Files::isRegularFile).sorted(java.util.Comparator.comparing(Path::toString)).toList()) {
                 String relative = folder.relativize(file).toString().replace('\\', '/');
                 int slash = relative.indexOf('/');
-                if (!relative.endsWith(".ogg")) {
+                if (!relative.toLowerCase(java.util.Locale.ROOT).endsWith(".ogg")) {
                     if (relative.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(mp3|wav|flac|m4a|opus)")) {
                         problems.add(new Problem(relative, "not_vorbis"));
                     }
                     continue;
                 }
                 // Right in sounds/: the default namespace.
-                String namespace = slash < 0 ? DEFAULT_NAMESPACE : relative.substring(0, slash);
-                String name = relative.substring(slash + 1, relative.length() - ".ogg".length());
+                if (!relative.chars().allMatch(c -> c < 128)) {
+                    // Letters other than Latin would all become _: two names would make one id.
+                    problems.add(new Problem(relative, "bad_name"));
+                    continue;
+                }
+                String namespace = slash < 0 ? DEFAULT_NAMESPACE : idPart(relative.substring(0, slash), false);
+                String name = idPart(relative.substring(slash + 1, relative.length() - ".ogg".length()), true);
                 if (!NAMESPACE.matcher(namespace).matches() || !NAME.matcher(name).matches() || name.startsWith("/") || name.contains("//")) {
                     problems.add(new Problem(relative, "bad_name"));
+                    continue;
+                }
+                if (!ids.add(namespace + ":" + name)) {
+                    // "Song.ogg" beside "song.ogg": the first (in the folder's order) keeps the id.
+                    problems.add(new Problem(relative, "same_name"));
                     continue;
                 }
                 int channels = vorbisChannels(file);
@@ -102,6 +121,16 @@ public final class StorySoundFiles {
             problems.add(new Problem("", "unreadable"));
         }
         return new Scan(List.copyOf(sounds), List.copyOf(problems));
+    }
+
+    /** A part of an id from a file's name: lowercase, every sign but {@code _ - .} (and {@code /} between folders) as {@code _}. */
+    static String idPart(String raw, boolean folders) {
+        StringBuilder out = new StringBuilder();
+        for (char c : raw.toLowerCase(java.util.Locale.ROOT).toCharArray()) {
+            boolean kept = c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' || c == '-' || c == '.' || folders && c == '/';
+            out.append(kept ? c : '_');
+        }
+        return out.toString();
     }
 
     /** The channels of an Ogg Vorbis file (1 mono, 2 stereo), from its first page; -1 when it is not one. */
@@ -142,6 +171,8 @@ public final class StorySoundFiles {
             JsonArray list = new JsonArray();
             list.add(file);
             JsonObject event = new JsonObject();
+            // In place of a sound of that name, not beside it: an interface sound of the mod is replaced by the story's file.
+            event.addProperty("replace", true);
             event.add("sounds", list);
             json.add(name, event);
         });

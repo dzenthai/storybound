@@ -88,8 +88,21 @@ public class AdventureMenuScreen extends Screen {
     }
 
     public void showTab(ResourceLocation tab) {
+        dev.dzenthai.storybound.client.sound.UiSounds.play("journal_tab");
         requested = tab;
         rebuildWidgets();
+    }
+
+    @Override
+    public void onClose() {
+        dev.dzenthai.storybound.client.sound.UiSounds.play("journal_close");
+        super.onClose();
+    }
+
+    @Override
+    public void added() {
+        super.added();
+        dev.dzenthai.storybound.client.sound.UiSounds.play("journal_open");
     }
 
     public JournalLayout bookLayout() {

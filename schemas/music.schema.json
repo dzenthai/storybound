@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/music.schema.json",
+  "title": "Storybound place music",
+  "description": "data/<namespace>/storybound/music/<path>.json \u2014 a place's music: a track played while its conditions hold for the player (a structure, a biome, a dimension; a quest's state, a flag), when no dialogue and no stage of the tracked quest has music of its own. Vanilla's music keeps quiet while it plays; tracks fade into each other.",
+  "type": "object",
+  "required": [
+    "track"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "icon": {
+      "type": "string",
+      "description": "Dev mode only: the item this node shows on the editor's canvases."
+    },
+    "track": {
+      "description": "The track: an .ogg of the story's sounds/ folder (sounds/<namespace>/<name>.ogg is <namespace>:<name>; a long one is streamed) or any sound the game knows.",
+      "$ref": "logic.schema.json#/definitions/id"
+    },
+    "conditions": {
+      "description": "When it plays (where the player is, the story's state); always without them.",
+      "$ref": "logic.schema.json#/definitions/conditions"
+    },
+    "priority": {
+      "description": "Of several whose conditions hold, the highest plays; equal ones: the first by id.",
+      "type": "integer",
+      "default": 0
+    }
+  }
+}
