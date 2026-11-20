@@ -82,11 +82,11 @@ abstract class FormInputs extends FormPickers {
                 next.set(index, entry.id());
                 writeIds(path, name, next);
             })).tooltip(Tooltip.create(tip)).bounds(x, rowTop, w - 20, CONTROL_H).build());
-            screen.add(Button.builder(Component.literal("✕"), b -> {
+            screen.add(removeButton(rowTop, DevUi.text("form.remove"), b -> {
                 List<String> next = new ArrayList<>(ids);
                 next.remove(index);
                 writeIds(path, name, next);
-            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
+            }));
         }
         if ((max == 0 || ids.size() < max) && row(CONTROL_H)) {
             screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> pick(picker, entry -> {
@@ -240,7 +240,7 @@ abstract class FormInputs extends FormPickers {
                 host.changed();
             });
         }).tooltip(Tooltip.create(DevUi.text("target.pick"))).bounds(x + w - 38, rowTop, 18, CONTROL_H).build());
-        Button unlink = Button.builder(Component.literal("✕"), b -> {
+        Button unlink = removeButton(rowTop, DevUi.text("target.unlink"), b -> {
             // A required arrow (a condition's yes and no, the timer's) ends the dialogue explicitly; another one is left out.
             if (required) {
                 ensureObject(path).addProperty(name, DialogueGraph.END);
@@ -248,7 +248,7 @@ abstract class FormInputs extends FormPickers {
                 ensureObject(path).remove(name);
             }
             host.changed();
-        }).tooltip(Tooltip.create(DevUi.text("target.unlink"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build();
+        });
         unlink.active = !target.equals(DialogueGraph.END);
         screen.add(unlink);
     }
@@ -354,10 +354,10 @@ abstract class FormInputs extends FormPickers {
         })).tooltip(Tooltip.create(DevUi.text("document.icon_tooltip", dev.dzenthai.storybound.client.sound.StoryAssets.iconFolder().toString())))
                 .bounds(x, rowTop, w - 20, CONTROL_H).build();
         screen.add(button);
-        Button clear = Button.builder(Component.literal("✕"), b -> {
+        Button clear = removeButton(rowTop, DevUi.text("document.icon_clear"), b -> {
             ensureObject(path).remove(name);
             host.changed();
-        }).tooltip(Tooltip.create(DevUi.text("document.icon_clear"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build();
+        });
         clear.active = number != null;
         screen.add(clear);
     }

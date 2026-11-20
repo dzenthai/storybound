@@ -63,7 +63,7 @@ abstract class FormEntities extends FormInputs {
                     push(at, selectorNode, DevUi.str("npc.variant"), false);
                 }
             }).tooltip(Tooltip.create(Component.literal(line))).bounds(x, rowTop, w - 20, CONTROL_H).build());
-            screen.add(Button.builder(Component.literal("✕"), b -> {
+            screen.add(removeButton(rowTop, DevUi.text("form.remove"), b -> {
                 JsonElement next = SelectorEdits.withoutVariant(host.root().get("entity"), index);
                 if (next == null) {
                     host.root().remove("entity");
@@ -71,7 +71,7 @@ abstract class FormEntities extends FormInputs {
                     host.root().add("entity", next);
                 }
                 host.changed();
-            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
+            }));
         }
         if (variants.isEmpty()) {
             text(DevUi.text("npc.variants.none"), DevUi.MUTED);
@@ -299,10 +299,10 @@ abstract class FormEntities extends FormInputs {
                 String line = MobFields.label(written, "") + " = " + values + " · " + DevUi.str("mobdata.not_seen");
                 screen.add(Button.builder(Component.literal(screen.font().plainSubstrByWidth(line, w - 30)).withColor(DevUi.ERROR), b -> { })
                         .tooltip(Tooltip.create(Component.literal(written + " = " + values))).bounds(x, top, w - 20, CONTROL_H).build());
-                screen.add(Button.builder(Component.literal("✕"), b -> {
+                screen.add(removeButton(top, DevUi.text("form.remove"), b -> {
                     SelectorEdits.clearData(ensureObject(path), written);
                     host.changed();
-                }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, top, 18, CONTROL_H).build());
+                }));
             }
         }
         if (fields.isEmpty() && !young) {
@@ -404,10 +404,10 @@ abstract class FormEntities extends FormInputs {
                 }
                 host.changed();
             }).tooltip(Tooltip.create(DevUi.text("mobdata.add_typed"))).bounds(x + w - 40, top, 18, CONTROL_H).build());
-            screen.add(Button.builder(Component.literal("✕"), b -> {
+            screen.add(removeButton(top, DevUi.text("mobdata.other_cancel"), b -> {
                 typingOther.remove(typingKey);
                 screen.rebuild();
-            }).tooltip(Tooltip.create(DevUi.text("mobdata.other_cancel"))).bounds(x + w - 18, top, 18, CONTROL_H).build());
+            }));
         }
     }
 
@@ -430,10 +430,10 @@ abstract class FormEntities extends FormInputs {
             int top = rowY(CONTROL_H);
             screen.add(Button.builder(Component.literal(screen.font().plainSubstrByWidth(line, w - 30)), b -> { })
                     .tooltip(Tooltip.create(Component.literal(line).append("\n").append(DevUi.text("mobdata.older.tooltip")))).bounds(x, top, w - 20, CONTROL_H).build());
-            screen.add(Button.builder(Component.literal("✕"), b -> {
+            screen.add(removeButton(top, DevUi.text("form.remove"), b -> {
                 ensureObject(path).remove(part);
                 host.changed();
-            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, top, 18, CONTROL_H).build());
+            }));
         }
     }
 

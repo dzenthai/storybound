@@ -490,10 +490,10 @@ final class FormView extends FormStory {
                     host.changed();
                 }).tooltip(Tooltip.create(DevUi.text("form.move_up"))).bounds(x + w - 36, rowY, 18, CONTROL_H).build());
             }
-            screen.add(Button.builder(Component.literal("✕"), b -> {
+            screen.add(removeButton(rowY, DevUi.text("form.remove"), b -> {
                 ensureArray(path).remove(index);
                 host.changed();
-            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowY, 18, CONTROL_H).build());
+            }));
         }
         if (array.isEmpty() && row(LABEL_H)) {
             labels.add(new Label(DevUi.text("form.empty"), x, rowY(LABEL_H), DevUi.MUTED));
@@ -579,10 +579,10 @@ final class FormView extends FormStory {
                         ? participantSummary(key, map.get(key)) : key;
                 screen.add(Button.builder(Component.literal(shown + " ▸"), b -> push(with(path, key), values, key, false))
                         .bounds(x, rowY, w - 20, CONTROL_H).build());
-                screen.add(Button.builder(Component.literal("✕"), b -> {
+                screen.add(removeButton(rowY, DevUi.text("form.remove"), b -> {
                     ensureObject(path).remove(key);
                     host.changed();
-                }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowY, 18, CONTROL_H).build());
+                }));
             }
         }
         if (!row(CONTROL_H)) {

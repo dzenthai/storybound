@@ -525,6 +525,11 @@ abstract class FormCore {
         return id != null && Language.getInstance().has(questSection) ? Language.getInstance().getOrDefault(questSection) + " (" + choice + ")" : choice;
     }
 
+    /** The ✕ at a row's right end, which takes out what the row shows. */
+    Button removeButton(int top, Component tooltip, Button.OnPress action) {
+        return Button.builder(Component.literal("✕"), action).tooltip(Tooltip.create(tooltip)).bounds(x + w - 18, top, 18, CONTROL_H).build();
+    }
+
     /** A heading over a group of fields. */
     void group(Component title) {
         y += 4;

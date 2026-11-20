@@ -433,11 +433,11 @@ abstract class FormStory extends FormDialogues {
                     screen.status(DevUi.text("unlock.document_is", document.toString()), DevUi.LABEL);
                 }
             }).bounds(x, rowTop, w - 20, CONTROL_H).build());
-            screen.add(Button.builder(Component.literal("✕"), b -> {
+            screen.add(removeButton(rowTop, DevUi.text("form.remove"), b -> {
                 List<String> next = new ArrayList<>(sources);
                 next.remove(source);
                 writeSources(path, next);
-            }).tooltip(Tooltip.create(DevUi.text("form.remove"))).bounds(x + w - 18, rowTop, 18, CONTROL_H).build());
+            }));
         }
         if (!row(CONTROL_H)) {
             return;
@@ -784,14 +784,14 @@ abstract class FormStory extends FormDialogues {
             });
             box.setTooltip(Tooltip.create(DevUi.text("screen_text.box_tooltip")));
             screen.add(box);
-            screen.add(Button.builder(Component.literal("✕"), b -> {
+            screen.add(removeButton(rowTop - 1, DevUi.text("screen_text.remove"), b -> {
                 JsonObject owner = ensureObject(at);
                 owner.remove(moment);
                 if (owner.isEmpty()) {
                     ensureObject(path).remove("screen_text");
                 }
                 host.changed();
-            }).tooltip(Tooltip.create(DevUi.text("screen_text.remove"))).bounds(x + w - 18, rowTop - 1, 18, CONTROL_H).build());
+            }));
         }
     }
 }
