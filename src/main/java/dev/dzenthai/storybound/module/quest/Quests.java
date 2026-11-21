@@ -151,7 +151,7 @@ public final class Quests {
     /**
      * Whether {@code project.json} tracks every quest when it is given, set on each load of the story.
      */
-    private static volatile boolean trackGiven;
+    private static volatile boolean trackGiven = true;
 
     private static Map<ResourceLocation, Boolean> projectTracking = Map.of();
 

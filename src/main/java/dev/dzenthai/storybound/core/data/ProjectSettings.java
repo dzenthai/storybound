@@ -65,6 +65,15 @@ public record ProjectSettings(String sourceLanguage, List<String> languages, Str
         return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && value.getAsBoolean();
     }
 
+    /**
+     * Whether a quest given goes to the top of the tracker of everyone who shares it ({@code track_given_quests}): yes
+     * unless the file says no.
+     */
+    public static boolean trackGivenQuests(Path root) {
+        JsonElement value = raw(root).get("track_given_quests");
+        return !(value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && !value.getAsBoolean());
+    }
+
     /** The {@link #OPTIONS} the file writes, as written. */
     public static JsonObject options(Path root) {
         JsonObject json = raw(root);

@@ -285,6 +285,40 @@ public final class CameraShots {
         return new Framing(Pose.looking(pos, focus, lensFor(pos.distanceTo(focus), CLOSE_UP_FRAME_HEIGHT)), side);
     }
 
+    /** Nearer than this, a target is not framed on its own: the camera would sit in it. */
+    static final double MIN_LOOK = 1.5;
+    /** Up to this far, a target is framed close, from the player's side of it; further, from over the player's shoulder. */
+    static final double NEAR_LOOK = 12;
+    /** Beyond this, a narrower lens: the far thing is the subject, not the hills around it. */
+    static final double FAR_LOOK = 24;
+    static final float FAR_FOV = 45f;
+
+    /**
+     * A shot of something other than the speakers ({@code look_at}). A near target (within {@link #NEAR_LOOK}) is framed
+     * close, the camera a few blocks from it on the player's side; a far one from over the player's shoulder, like a
+     * gesture towards it, with a narrower lens past {@link #FAR_LOOK}. Null for a target too close to frame.
+     *
+     * @param player the player's eyes
+     * @param side   1 or -1, the shoulder (as the conversation's shots use)
+     */
+    public static @Nullable Pose lookAt(Vec3 player, Vec3 target, int side, Obstacles obstacles) {
+        double distance = player.distanceTo(target);
+        if (distance < MIN_LOOK) {
+            return null;
+        }
+        Vec3 direction = target.subtract(player).scale(1 / distance);
+        Vec3 aside = right(player, target).scale(side);
+        Vec3 pos;
+        if (distance <= NEAR_LOOK) {
+            Vec3 ideal = target.subtract(direction.scale(Math.min(3.0, distance * 0.6))).add(aside.scale(0.6)).add(0, 0.4, 0);
+            pos = reach(target, ideal, obstacles);
+        } else {
+            Vec3 ideal = player.subtract(direction.scale(0.9)).add(aside.scale(0.7)).add(0, 0.3, 0);
+            pos = reach(player, ideal, obstacles);
+        }
+        return Pose.looking(pos, target, distance > FAR_LOOK ? FAR_FOV : 0f);
+    }
+
     /**
      * How far towards {@code ideal} the camera may go from {@code from}: the nearest hit of a few rays around the
      * line, minus a margin. Like the vanilla third-person camera, so the near plane does not cut into walls.

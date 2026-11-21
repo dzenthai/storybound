@@ -777,8 +777,8 @@ public final class QuestGameTests {
     }
 
     /**
-     * project.json's track_given_quests: off, a quest given is tracked only while none is; on, each quest given is
-     * tracked, the newest the main one, until five are; the sixth leaves the five the player has.
+     * project.json's track_given_quests (on unless it says no): off, a quest given is tracked only while none is; on, each
+     * quest given is tracked, the newest the main one, until five are; the sixth leaves the five the player has.
      */
     @GameTest(template = "empty")
     public static void aQuestGivenIsTrackedWhenTheStorySaysSo(GameTestHelper helper) {
@@ -794,6 +794,8 @@ public final class QuestGameTests {
         List<ResourceLocation> ids = List.copyOf(definitions.keySet());
         with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, definitions, () -> {
             QuestEvents.rebuild();
+            // On unless a project.json says no: turned off here for the first half.
+            Quests.setTrackGiven(false);
             Quests.start(player, ids.get(0));
             Quests.start(player, ids.get(1));
             expect(helper, Quests.pinned(player), List.of(ids.get(0)), "off: only the quest given while none was tracked");
@@ -808,7 +810,8 @@ public final class QuestGameTests {
                 expect(helper, Quests.pinned(player), List.of(ids.get(5), ids.get(4), ids.get(3), ids.get(2), ids.get(0)),
                         "five tracked: the player keeps them");
             } finally {
-                Quests.setTrackGiven(false);
+                // Back to what the stories say.
+                QuestEvents.rebuild();
             }
         });
         remove(helper, player);

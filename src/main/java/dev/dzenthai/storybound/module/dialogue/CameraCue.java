@@ -12,15 +12,39 @@ import net.minecraft.util.StringRepresentable;
  *
  * @param enabled the server config, the dialogue and its presentation all allow the camera
  * @param partner the entity the player talks to (the bound participant), or -1; the camera needs both sides
+ * @param look    what the line looks at instead of the speakers ({@code look_at}), or {@link Look#NONE}
  */
-public record CameraCue(boolean enabled, Shot shot, Transition transition, int partner) {
-    public static final CameraCue OFF = new CameraCue(false, Shot.AUTO, Transition.CUT, -1);
+public record CameraCue(boolean enabled, Shot shot, Transition transition, int partner, Look look) {
+    public static final CameraCue OFF = new CameraCue(false, Shot.AUTO, Transition.CUT, -1, Look.NONE);
+
+    /**
+     * A line's {@code look_at} as found on the server: an entity the camera follows, or a fixed point.
+     *
+     * @param entity the entity's network id, or -1
+     */
+    public record Look(int entity, java.util.Optional<net.minecraft.world.phys.Vec3> pos) {
+        public static final Look NONE = new Look(-1, java.util.Optional.empty());
+        private static final StreamCodec<ByteBuf, net.minecraft.world.phys.Vec3> VEC = StreamCodec.composite(
+                ByteBufCodecs.DOUBLE, net.minecraft.world.phys.Vec3::x,
+                ByteBufCodecs.DOUBLE, net.minecraft.world.phys.Vec3::y,
+                ByteBufCodecs.DOUBLE, net.minecraft.world.phys.Vec3::z,
+                net.minecraft.world.phys.Vec3::new);
+        public static final StreamCodec<ByteBuf, Look> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, Look::entity,
+                ByteBufCodecs.optional(VEC), Look::pos,
+                Look::new);
+
+        public boolean any() {
+            return entity >= 0 || pos.isPresent();
+        }
+    }
 
     public static final StreamCodec<ByteBuf, CameraCue> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.BOOL, CameraCue::enabled,
             ByteBufCodecs.idMapper(index -> Shot.values()[index], Shot::ordinal), CameraCue::shot,
             ByteBufCodecs.idMapper(index -> Transition.values()[index], Transition::ordinal), CameraCue::transition,
             ByteBufCodecs.VAR_INT, CameraCue::partner,
+            Look.STREAM_CODEC, CameraCue::look,
             CameraCue::new);
 
     public enum Shot implements StringRepresentable {

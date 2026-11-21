@@ -95,7 +95,8 @@
         }
       ],
       "waypoints": [
-        "vanilla:sbyslav"
+        "vanilla:sbyslav",
+        "vanilla:village"
       ]
     },
     {

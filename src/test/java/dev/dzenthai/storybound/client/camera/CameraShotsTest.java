@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client.camera;
 
+import net.minecraft.util.Mth;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -209,5 +210,36 @@ class CameraShotsTest {
             }
             return to;
         }
+    }
+
+    private static final CameraShots.Obstacles OPEN = (from, to) -> to;
+
+    @Test
+    void aLookAtSomethingTooCloseIsNotFramed() {
+        Vec3 player = new Vec3(0, 64 + EYES, 0);
+        assertNull(CameraShots.lookAt(player, player.add(1, 0, 0), 1, OPEN), "the camera would sit in it");
+    }
+
+    @Test
+    void aNearTargetIsFramedCloseFromThePlayersSide() {
+        Vec3 player = new Vec3(0, 64 + EYES, 0);
+        Vec3 target = new Vec3(0, 65, 8);
+        CameraShots.Pose pose = CameraShots.lookAt(player, target, 1, OPEN);
+        assertNotNull(pose);
+        assertTrue(pose.pos().distanceTo(target) < player.distanceTo(target), "closer to the target than the player is");
+        assertTrue(pose.pos().z < target.z, "on the player's side of it");
+        assertEquals(0f, pose.fov(), "the player's own lens");
+    }
+
+    @Test
+    void aFarTargetIsSeenFromOverTheShoulderWithANarrowerLens() {
+        Vec3 player = new Vec3(0, 64 + EYES, 0);
+        Vec3 target = new Vec3(0, 70, 60);
+        CameraShots.Pose pose = CameraShots.lookAt(player, target, 1, OPEN);
+        assertNotNull(pose);
+        assertTrue(pose.pos().distanceTo(player) < 1.5, "at the player's shoulder");
+        assertTrue(pose.pos().z < player.z, "a little behind the player");
+        assertEquals(CameraShots.FAR_FOV, pose.fov());
+        assertEquals(0f, Mth.wrapDegrees(pose.yaw()), 3f, "facing the target (south, yaw 0)");
     }
 }

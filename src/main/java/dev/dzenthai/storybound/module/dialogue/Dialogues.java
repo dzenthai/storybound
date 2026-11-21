@@ -761,7 +761,7 @@ public final class Dialogues {
         session.shown = List.of();
         session.deadline = line.duration().map(seconds -> player.server.getTickCount() + thinkTicks + Math.max(1, Math.round(seconds * 20))).orElse(-1L);
         DialogueLinePayload.Speaker speaker = new DialogueLinePayload.Speaker(name, entityName, entity != null ? entity.getId() : -1, portrait);
-        session.camera = cameraCue(session, line.shot(), line.transition());
+        session.camera = cameraCue(session, line.shot(), line.transition(), line.lookAt(), entity);
         StoryboundNetwork.sendToPlayer(player, new DialogueLinePayload(session.id, session.step, session.dialogue.presentation(),
                 session.dialogue.closable(), speaker, text, line.duration().isPresent(), think, session.camera));
         Entity source = entity;
@@ -821,20 +821,26 @@ public final class Dialogues {
         boolean asks = session.dialogue.presentation() != DialogueDefinition.Presentation.SCREEN;
         session.choiceOpen = !asks;
         session.choiceLeft = -1;
-        session.camera = cameraCue(session, CameraCue.Shot.AUTO, CameraCue.Transition.CUT);
+        session.camera = cameraCue(session, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, Optional.empty(), null);
         StoryboundNetwork.sendToPlayer(player, new DialogueChoicesPayload(session.id, session.step,
                 DialogueChoicesPayload.flags(session.dialogue.closable(), asks), options, timeoutTicks, session.camera));
         return true;
     }
 
     /** The camera needs the server's permission, a dialogue that allows it, the dialogue screen and someone to talk to. */
-    private static CameraCue cameraCue(DialogueSession session, CameraCue.Shot shot, CameraCue.Transition transition) {
+    /** @param speaker the line's speaker entity, which a {@code look_at} offset may be beside */
+    private static CameraCue cameraCue(DialogueSession session, CameraCue.Shot shot, CameraCue.Transition transition, Optional<LookAt> look,
+                                       @Nullable Entity speaker) {
         Entity partner = session.bound;
         boolean enabled = StoryboundConfig.COMMON.cameraAllowed.get()
                 && session.dialogue.camera() == DialogueDefinition.Camera.AUTO
                 && session.dialogue.presentation() == DialogueDefinition.Presentation.SCREEN
                 && partner != null && partner != session.player;
-        return enabled ? new CameraCue(true, shot, transition, partner.getId()) : CameraCue.OFF;
+        if (!enabled) {
+            return CameraCue.OFF;
+        }
+        return new CameraCue(true, shot, transition, partner.getId(),
+                look.map(target -> target.resolve(session.player, speaker)).orElse(CameraCue.Look.NONE));
     }
 
     private static void finish(DialogueSession session) {

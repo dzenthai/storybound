@@ -73,7 +73,7 @@ public final class QuestEvents {
     public static void rebuild() {
         // The game's own default: the primary story's; each story's quests use their own below.
         DifficultyScale.set(DifficultyScale.load(StoryProjects.primaryRoot()));
-        Quests.setTrackGiven(ProjectSettings.flag(StoryProjects.primaryRoot(), "track_given_quests"));
+        Quests.setTrackGiven(ProjectSettings.trackGivenQuests(StoryProjects.primaryRoot()));
         Map<Path, DifficultyScale> scales = new HashMap<>();
         Map<ResourceLocation, DifficultyScale> questScales = new HashMap<>();
         Map<Path, Boolean> tracking = new HashMap<>();
@@ -81,7 +81,7 @@ public final class QuestEvents {
         QuestRegistries.QUESTS.serverStore().all().keySet().forEach(id -> {
             var root = StoryProjects.owner(QuestRegistries.QUESTS, id);
             questScales.put(id, scales.computeIfAbsent(root, DifficultyScale::load));
-            questTracking.put(id, tracking.computeIfAbsent(root, path -> ProjectSettings.flag(path, "track_given_quests")));
+            questTracking.put(id, tracking.computeIfAbsent(root, ProjectSettings::trackGivenQuests));
         });
         DifficultyScale.setQuestScales(questScales);
         Quests.setProjectTracking(questTracking);

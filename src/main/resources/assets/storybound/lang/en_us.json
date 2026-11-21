@@ -1471,6 +1471,7 @@
   "storybound.dev.type.action.fade": "Screen fade",
   "storybound.dev.help.action.fade": "The screen fades to a colour and back: a time cut, waking up, the start of a scene.",
   "storybound.dev.field.fade": "Screen fade",
+  "storybound.dev.field.look_at": "Camera looks at",
   "storybound.dev.field.in": "Rise, s",
   "storybound.dev.field.out": "Clear, s",
   "storybound.dev.type.trigger.poi_entered": "Comes near a POI",

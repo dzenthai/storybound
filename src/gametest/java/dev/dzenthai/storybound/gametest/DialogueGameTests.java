@@ -254,12 +254,47 @@ public final class DialogueGameTests {
             expect(helper, state(player).dialogue(), talk, "the jump goes on in the other dialogue");
             expect(helper, state(player).session(), session, "the same conversation");
             helper.assertTrue(Dialogues.holdsTheScreen(player), "now on the screen");
-            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, npc.getId()), "the camera frames the NPC");
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, npc.getId(), CameraCue.Look.NONE), "the camera frames the NPC");
             advance(player);
             helper.assertTrue(state(player).waitingForChoice(), "its answers");
             Dialogues.interrupt(player, EndReason.STOPPED);
             expect(helper, Dialogues.state(player), Optional.empty(), "ended");
         });
+        helper.succeed();
+    }
+
+    /**
+     * A line's look_at: the nearest entity the selector matches (by its id, for the client to follow), nothing when none
+     * is near, a point beside the speaker turned with where it faces; the next line without it, the speakers again.
+     */
+    @GameTest(template = "empty")
+    public static void aLineLooksAtATaggedEntityOrAPointAndBack(GameTestHelper helper) {
+        Villager npc = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 0, 2, 0);
+        npc.setYRot(0);
+        net.minecraft.world.entity.LivingEntity pig = helper.spawnWithNoFreeWill(EntityType.PIG, 4, 2, 4);
+        pig.addTag("gametest_look");
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 0.5, 2, 1.5);
+        ResourceLocation scene = key("look_scene");
+        with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(scene, """
+                { "start": "a", "nodes": {
+                    "a": { "type": "line", "speaker": "npc", "text": "gametest.a", "look_at": { "entity": { "type": "minecraft:pig", "tag": "gametest_look" } }, "next": "b" },
+                    "b": { "type": "line", "speaker": "npc", "text": "gametest.b", "look_at": { "entity": { "type": "minecraft:pig", "tag": "gametest_nobody" } }, "next": "c" },
+                    "c": { "type": "line", "speaker": "npc", "text": "gametest.c", "look_at": { "offset": [0, 1, 2] }, "next": "d" },
+                    "d": { "type": "line", "speaker": "npc", "text": "gametest.d" } } }
+                """), () -> {
+            Dialogues.start(player, scene, npc);
+            expect(helper, state(player).camera().look(), new CameraCue.Look(pig.getId(), Optional.empty()), "the tagged pig, followed by its id");
+            advance(player);
+            expect(helper, state(player).camera().look(), CameraCue.Look.NONE, "nobody with that tag near: the usual shot");
+            advance(player);
+            net.minecraft.world.phys.Vec3 point = state(player).camera().look().pos().orElseThrow(() -> new GameTestAssertException("a point"));
+            net.minecraft.world.phys.Vec3 expected = npc.position().add(0, 1, 2);
+            helper.assertTrue(point.distanceTo(expected) < 0.01, "two blocks in front of the speaker facing south, one up: " + point + " for " + expected);
+            advance(player);
+            expect(helper, state(player).camera().look(), CameraCue.Look.NONE, "a line without it: the speakers again");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+        });
+        remove(helper, player);
         helper.succeed();
     }
 
@@ -281,9 +316,9 @@ public final class DialogueGameTests {
                 hud, "{ \"presentation\": \"hud\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }"
         ), () -> {
             Dialogues.start(player, scene, npc);
-            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.CLOSE_UP, CameraCue.Transition.EASE, npc.getId()), "the line's own shot");
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.CLOSE_UP, CameraCue.Transition.EASE, npc.getId(), CameraCue.Look.NONE), "the line's own shot");
             advance(player);
-            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, npc.getId()), "defaults");
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, npc.getId(), CameraCue.Look.NONE), "defaults");
             advance(player);
             helper.assertTrue(state(player).waitingForChoice() && state(player).camera().enabled(), "a choice is framed too");
             Dialogues.interrupt(player, EndReason.STOPPED);

@@ -65,4 +65,13 @@ class ProjectSettingsTest {
         assertEquals("storybound", ProjectSettings.load(root, problems::add).namespace(), "the debug scenarios' own namespace is not a story's");
         assertTrue(problems.size() == 1 && problems.getFirst().contains("namespace \"scenario\""), problems.toString());
     }
+
+    @Test
+    void givenQuestsAreTrackedUnlessTheFileSaysNo(@org.junit.jupiter.api.io.TempDir Path root) throws IOException {
+        assertTrue(ProjectSettings.trackGivenQuests(root), "no file: yes");
+        Files.writeString(root.resolve(ProjectSettings.FILE_NAME), "{ \"source_language\": \"en_us\" }");
+        assertTrue(ProjectSettings.trackGivenQuests(root), "not written: yes");
+        Files.writeString(root.resolve(ProjectSettings.FILE_NAME), "{ \"track_given_quests\": false }");
+        assertTrue(!ProjectSettings.trackGivenQuests(root), "written no: no");
+    }
 }

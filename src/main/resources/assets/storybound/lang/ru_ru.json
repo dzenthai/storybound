@@ -1471,6 +1471,7 @@
   "storybound.dev.type.action.fade": "Затухание экрана",
   "storybound.dev.help.action.fade": "Экран затухает в цвет и обратно: монтаж времени, пробуждение, начало сцены.",
   "storybound.dev.field.fade": "Затухание экрана",
+  "storybound.dev.field.look_at": "Камера смотрит на",
   "storybound.dev.field.in": "Появление, с",
   "storybound.dev.field.out": "Исчезновение, с",
   "storybound.dev.type.trigger.poi_entered": "Подходит к POI",

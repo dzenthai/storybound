@@ -185,13 +185,16 @@
       "speaker": "sbyslav",
       "text": "vanilla.dialogue.sbyslav.roadside.road",
       "next": "road2",
-      "shot": "two_shot",
-      "transition": "ease"
+      "transition": "ease",
+      "look_at": {
+        "waypoint": "vanilla:village"
+      }
     },
     "road2": {
       "type": "line",
       "speaker": "sbyslav",
-      "text": "vanilla.dialogue.sbyslav.roadside.road2"
+      "text": "vanilla.dialogue.sbyslav.roadside.road2",
+      "transition": "ease"
     }
   },
   "start": "hello"

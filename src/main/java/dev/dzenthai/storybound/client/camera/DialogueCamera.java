@@ -67,7 +67,8 @@ public final class DialogueCamera {
     private DialogueCamera() {}
 
     /** @param pose null when the shot is played in first person */
-    private record Shot(int focus, int listener, CameraCue.Shot type, @Nullable Pose pose) {}
+    /** @param look what the shot looks at instead of the speakers, or {@link CameraCue.Look#NONE} */
+    private record Shot(int focus, int listener, CameraCue.Shot type, @Nullable Pose pose, CameraCue.Look look) {}
 
     /** A shot is on screen: the HUD, the hand and the block outline are hidden. */
     public static boolean isFraming() {
@@ -266,6 +267,9 @@ public final class DialogueCamera {
             stop();
             return;
         }
+        if (cue.look().any() && lookCue(cue, player, level)) {
+            return;
+        }
         Entity focus;
         Entity listener;
         CameraCue.Shot type = cue.shot();
@@ -285,7 +289,7 @@ public final class DialogueCamera {
                 type = CameraCue.Shot.TWO_SHOT;
             }
         }
-        if (shot != null && shot.focus() == focus.getId() && shot.listener() == listener.getId() && shot.type() == type) {
+        if (shot != null && !shot.look().any() && shot.focus() == focus.getId() && shot.listener() == listener.getId() && shot.type() == type) {
             return;
         }
         Pose previous = pose();
@@ -312,7 +316,55 @@ public final class DialogueCamera {
         }
         easeFrom = cue.transition() == CameraCue.Transition.EASE && previous != null && pose != null ? previous : null;
         easeStart = Util.getMillis();
-        shot = new Shot(focus.getId(), listener.getId(), type, pose);
+        shot = new Shot(focus.getId(), listener.getId(), type, pose, CameraCue.Look.NONE);
+    }
+
+    /**
+     * A line that looks at something else ({@code look_at}): framed by {@link CameraShots#lookAt}, an entity followed
+     * frame by frame. False when it cannot be framed (gone, too close): the line gets its usual shot.
+     */
+    private static boolean lookCue(CameraCue cue, LocalPlayer player, ClientLevel level) {
+        Vec3 target = lookTarget(cue.look(), level);
+        if (target == null) {
+            return false;
+        }
+        Pose pose = CameraShots.lookAt(player.getEyePosition(), target, side == 0 ? 1 : side, obstacles(level));
+        if (pose == null) {
+            return false;
+        }
+        if (shot != null && shot.look().equals(cue.look())) {
+            return true;
+        }
+        Pose previous = pose();
+        if (!running) {
+            running = true;
+            framedAt = Util.getMillis();
+            CameraIntegrations.pause();
+        }
+        easeFrom = cue.transition() == CameraCue.Transition.EASE && previous != null ? previous : null;
+        easeStart = Util.getMillis();
+        shot = new Shot(-1, -1, cue.shot(), pose, cue.look());
+        return true;
+    }
+
+    /** The point a look aims at: an entity's upper body, or the point as sent; null when the entity is not here. */
+    private static @Nullable Vec3 lookTarget(CameraCue.Look look, ClientLevel level) {
+        if (look.entity() >= 0) {
+            Entity entity = level.getEntity(look.entity());
+            return entity != null && entity.isAlive() ? entity.position().add(0, entity.getBbHeight() * 0.7, 0) : null;
+        }
+        return look.pos().orElse(null);
+    }
+
+    /** A look at an entity, framed again for where it is now; the shot as framed when the entity is gone. */
+    private static Pose followed(Shot current) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (current.look().entity() < 0 || minecraft.player == null || minecraft.level == null) {
+            return current.pose();
+        }
+        Vec3 target = lookTarget(current.look(), minecraft.level);
+        Pose pose = target != null ? CameraShots.lookAt(minecraft.player.getEyePosition(), target, side == 0 ? 1 : side, obstacles(minecraft.level)) : null;
+        return pose != null ? pose : current.pose();
     }
 
     private static boolean allowed(CameraCue cue) {
@@ -330,16 +382,16 @@ public final class DialogueCamera {
             return null;
         }
         Pose from = easeFrom;
+        Pose to = followed(current);
         if (from == null) {
-            return current.pose();
+            return to;
         }
         float t = (Util.getMillis() - easeStart) / (float) EASE_MILLIS;
         if (t >= 1f) {
             easeFrom = null;
-            return current.pose();
+            return to;
         }
         float s = t * t * (3f - 2f * t);
-        Pose to = current.pose();
         Vec3 pos = from.pos().lerp(to.pos(), s);
         float playerFov = Minecraft.getInstance().options.fov().get();
         float fov = Mth.lerp(s, from.fov() > 0 ? from.fov() : playerFov, to.fov() > 0 ? to.fov() : playerFov);
