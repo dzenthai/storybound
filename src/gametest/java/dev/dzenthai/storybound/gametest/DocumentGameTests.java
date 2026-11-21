@@ -128,7 +128,7 @@ public final class DocumentGameTests {
             Files.writeString(root.resolve("lang/en_us.json"), "{ \"mypack.quest.hunt.title\": \"Hunt\" }");
             Files.createDirectories(root.resolve("quests/mypack"));
             Files.writeString(root.resolve("quests/mypack/hunt.json"), "{}");
-            helper.assertTrue(StoryFolder.scenarios().containsAll(List.of("ambush", "campfire", "last_stand")), "the scenarios are bundled: " + StoryFolder.scenarios());
+            helper.assertTrue(StoryFolder.scenarios().containsAll(List.of("campfire", "reputation", "village")), "the scenarios are bundled: " + StoryFolder.scenarios());
             int written = StoryFolder.installScenario(root, "campfire");
             helper.assertTrue(written == 8, "the scenario's eight files are written, got " + written);
             helper.assertTrue(Files.isRegularFile(root.resolve("dialogues/scenario/campfire/story.json")), "a dialogue under dialogues/scenario/");

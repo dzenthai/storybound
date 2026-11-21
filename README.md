@@ -5,7 +5,7 @@ dialogues with a cinematic camera, readable documents, a Codex, bosses and serve
 in-game editor. Required on both client and server.
 
 **For modpack authors:** JSON schemas for VS Code are in [`schemas/`](schemas)
-(copy `schemas/vscode-settings.example.json` into your workspace settings). The [guide](guide/README.md) covers
+(copy `schemas/vscode-settings.example.json` into your workspace settings). The [guide](https://dzenthai.github.io/storybound/) (also in [`guide/`](guide/README.md)) covers
 writing a story; [resource packs](guide/resource-packs.md) restyle the menu, documents and markers. What changed in
 each version is in the [changelog](CHANGELOG.md).
 

@@ -9,6 +9,9 @@ version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
 displayURL = "${mod_url}"
+logoFile = "storybound_logo.png"
+# Pixel art: drawn sharp, not smoothed.
+logoBlur = false
 description = '''${mod_description}'''
 
 [[mixins]]

@@ -2,7 +2,6 @@
 *.iml
 idea/
 /docs/
-/guide/
 /ui-kit/
 out/
 !**/src/main/**/out/
@@ -37,3 +36,4 @@ run/
 runs/
 repo/
 *.log
+/site/

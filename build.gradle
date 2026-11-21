@@ -197,6 +197,10 @@ def prepareGameTestStory = tasks.register('prepareGameTestStory', Sync) {
         exclude 'village/**'
         eachFile { relativePath = new RelativePath(true, 'gametest', *relativePath.segments.drop(1)) }
     }
+    // Scenarios kept only as the GameTests' fixtures (their texts in src/gametest/story/lang), in the same layout.
+    from('src/gametest/scenarios') {
+        eachFile { relativePath = new RelativePath(true, 'gametest', *relativePath.segments.drop(1)) }
+    }
     includeEmptyDirs = false
     into 'build/gametest-story'
 }

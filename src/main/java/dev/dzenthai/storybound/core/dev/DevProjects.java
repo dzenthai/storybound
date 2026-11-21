@@ -8,7 +8,6 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
-import dev.dzenthai.storybound.core.data.StoryFolder;
 import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
@@ -105,14 +104,6 @@ public final class DevProjects {
                     StoryProjects.create(ConfigStorySource.root(), id, title, language);
                     choose(player, id);
                 }
-                case "install" -> {
-                    // A story bundled in the mod, as a story of its own; one already there is never replaced from here.
-                    int written = StoryFolder.installStory(ConfigStorySource.root(), id, false);
-                    player.sendSystemMessage(Component.translatable("commands.storybound.story.installed", StoryFolder.bundledTitle(id), written)
-                            .withStyle(ChatFormatting.GOLD));
-                    reload(player, () -> Storybound.LOGGER.error("Storybound: the data did not reload after installing the story {}", id));
-                    return;
-                }
                 case "delete" -> {
                     // Its folder goes to .deleted, nothing erased (StoryProjects.delete); one in the game leaves it, so the
                     // server's data reloads; an operator who edited it is moved to the primary story (selected).
@@ -135,13 +126,6 @@ public final class DevProjects {
                     var before = StoryProjects.get(ConfigStorySource.root(), id);
                     if (enabled && !before.enabled()) {
                         validateForEnable(player.server, before);
-                    }
-                    if (dev.dzenthai.storybound.core.data.WorldStory.isBundled(id) && before.enabled() != enabled) {
-                        // The bundled story is the world's setting: the switch sets the world's rule.
-                        StoryProjects.update(ConfigStorySource.root(), id, title, enabled);
-                        dev.dzenthai.storybound.core.data.WorldStory.setQuietly(player.server, enabled);
-                        reload(player, () -> dev.dzenthai.storybound.core.data.WorldStory.setQuietly(player.server, before.enabled()));
-                        return;
                     }
                     StoryProjects.update(ConfigStorySource.root(), id, title, enabled);
                     if (before.enabled() != enabled) {

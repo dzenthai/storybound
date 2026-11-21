@@ -44,70 +44,6 @@ public final class ScenarioGameTests {
 
     private ScenarioGameTests() {}
 
-    /**
-     * A story bundled in the mod installs as a story of its own, every file as it is; again it leaves the one there, and
-     * with replace that one goes to .deleted first.
-     */
-    @GameTest(template = "empty")
-    public static void theVanillaStoryInstallsAsAStoryOfItsOwn(GameTestHelper helper) {
-        try {
-            java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("storybound-install");
-            helper.assertTrue(dev.dzenthai.storybound.core.data.StoryFolder.bundledStories().contains("vanilla"), "the vanilla story is bundled");
-            int written = dev.dzenthai.storybound.core.data.StoryFolder.installStory(workspace, "vanilla", false);
-            helper.assertTrue(written > 0, "files written");
-            var story = dev.dzenthai.storybound.core.data.StoryProjects.get(workspace, "vanilla");
-            helper.assertTrue(story.title().equals(dev.dzenthai.storybound.core.data.StoryFolder.bundledTitle("vanilla")), "its title: " + story.title());
-            helper.assertTrue(dev.dzenthai.storybound.core.data.ProjectSettings.load(story.root()).namespace().equals("vanilla"), "its namespace");
-            java.nio.file.Path mark = story.root().resolve("mine.txt");
-            java.nio.file.Files.writeString(mark, "the author's change");
-            boolean refused = false;
-            try {
-                dev.dzenthai.storybound.core.data.StoryFolder.installStory(workspace, "vanilla", false);
-            } catch (IllegalStateException e) {
-                refused = true;
-            }
-            helper.assertTrue(refused && java.nio.file.Files.exists(mark), "installed again, the story there stays");
-            dev.dzenthai.storybound.core.data.StoryFolder.installStory(workspace, "vanilla", true);
-            helper.assertTrue(!java.nio.file.Files.exists(mark), "replaced: the mod's copy is there");
-            try (var trashed = java.nio.file.Files.list(workspace.resolve(dev.dzenthai.storybound.core.data.StoryProjects.DELETED))) {
-                helper.assertTrue(trashed.anyMatch(folder -> java.nio.file.Files.exists(folder.resolve("mine.txt"))), "the old one is in .deleted");
-            }
-        } catch (java.io.IOException e) {
-            throw new GameTestAssertException(e.toString());
-        }
-        helper.succeed();
-    }
-
-    /**
-     * The world's rule decides on the bundled story: off, it does not load (not even a copy in the story folder whose
-     * project.json says enabled); on, it loads from the mod itself, or from the copy once one is installed.
-     */
-    @GameTest(template = "empty")
-    public static void theVanillaStoryLoadsWhenTheWorldsRuleSaysSo(GameTestHelper helper) {
-        net.minecraft.server.MinecraftServer server = helper.getLevel().getServer();
-        boolean before = server.getGameRules().getBoolean(dev.dzenthai.storybound.core.data.WorldStory.rule());
-        try {
-            java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("storybound-world-story");
-            java.util.function.Supplier<java.util.Optional<dev.dzenthai.storybound.core.data.StoryProjects.Project>> vanilla = () ->
-                    dev.dzenthai.storybound.core.data.StoryProjects.loaded(workspace).stream().filter(project -> project.id().equals("vanilla")).findFirst();
-            dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, false);
-            helper.assertTrue(vanilla.get().isEmpty(), "off: the story is not in the game");
-            dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, true);
-            helper.assertTrue(vanilla.get().filter(project -> !project.root().startsWith(workspace.toAbsolutePath().normalize())).isPresent(),
-                    "on: it loads from the mod, nothing installed");
-            dev.dzenthai.storybound.core.data.StoryFolder.installStory(workspace, "vanilla", false);
-            helper.assertTrue(vanilla.get().filter(project -> project.root().startsWith(workspace.toAbsolutePath().normalize())).isPresent(),
-                    "on, installed: from the copy");
-            dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, false);
-            helper.assertTrue(vanilla.get().isEmpty(), "off: not the copy either, though its project.json says enabled");
-        } catch (java.io.IOException e) {
-            throw new GameTestAssertException(e.toString());
-        } finally {
-            dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, before);
-        }
-        helper.succeed();
-    }
-
     @GameTest(template = "open", batch = "scenario_scenes", timeoutTicks = 200)
     public static void eachScenarioSetsItsScene(GameTestHelper helper) {
         ServerPlayer player = player(helper);
@@ -199,32 +135,6 @@ public final class ScenarioGameTests {
         }
         villagers.forEach(dev.dzenthai.storybound.module.dialogue.NpcNames::apply);
         helper.assertTrue(villagers.stream().allMatch(villager -> villager.getCustomName() == null), "the village gone, the names it gave go");
-        helper.succeed();
-    }
-
-    /**
-     * The vanilla story, from the mod's own files as {@code /storybound story install vanilla} copies them, loaded here
-     * alone (its NPCs are every villager): every file loads, and the validator has nothing to say of it.
-     */
-    @GameTest(template = "empty", batch = "vanilla_story")
-    public static void theVanillaStoryLoadsCleanly(GameTestHelper helper) {
-        java.nio.file.Path folder = net.neoforged.fml.ModList.get().getModFileById(Storybound.MOD_ID).getFile().findResource("storybound_stories", "vanilla");
-        net.minecraft.resources.RegistryOps<com.google.gson.JsonElement> ops = net.minecraft.resources.RegistryOps.create(
-                com.mojang.serialization.JsonOps.INSTANCE, helper.getLevel().registryAccess());
-        java.util.Map<dev.dzenthai.storybound.core.data.DefinitionType<?>, java.util.Map<ResourceLocation, ?>> before = new java.util.LinkedHashMap<>();
-        List<dev.dzenthai.storybound.core.data.ValidationIssue> loading = new java.util.ArrayList<>();
-        dev.dzenthai.storybound.core.data.DefinitionTypes.all().forEach(type -> install(type, folder, ops, before, loading));
-        NpcBindings.rebuild();
-        try {
-            expect(helper, loading.stream().map(Object::toString).toList(), List.of(), "every file of the vanilla story loads");
-            List<String> said = dev.dzenthai.storybound.core.data.ValidationService.validate().issues().stream()
-                    .filter(issue -> issue.entry() != null && issue.entry().getNamespace().equals("vanilla"))
-                    .map(issue -> issue.entry() + ": " + issue.message()).toList();
-            expect(helper, said, List.of(), "the validator has nothing to say of the vanilla story");
-        } finally {
-            before.forEach((type, definitions) -> restore(type, definitions));
-            NpcBindings.rebuild();
-        }
         helper.succeed();
     }
 

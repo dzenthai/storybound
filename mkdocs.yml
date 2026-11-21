@@ -1,0 +1,53 @@
+# The guide as a website (GitHub Pages), built from guide/ by .github/workflows/guide.yml.
+site_name: Storybound guide
+site_description: Writing stories for Minecraft modpacks with Storybound
+site_url: https://dzenthai.github.io/storybound/
+repo_url: https://github.com/dzenthai/storybound
+repo_name: dzenthai/storybound
+edit_uri: edit/main/guide/
+docs_dir: guide
+
+theme:
+  name: material
+  logo: images/logo.png
+  favicon: images/logo.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: brown
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Dark theme
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: brown
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Light theme
+  features:
+    - navigation.instant
+    - navigation.top
+    - toc.follow
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: README.md
+  - Logic: logic.md
+  - Quests: quests.md
+  - Dialogues and NPCs: dialogues.md
+  - Documents, Codex and bosses: documents-codex.md
+  - Waypoints: waypoints.md
+  - Texts and languages: languages.md
+  - Tools: tools.md
+  - Integrations: integrations.md
+  - Resource packs: resource-packs.md
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences

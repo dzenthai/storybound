@@ -13,6 +13,13 @@ Required on both client and server.
   teleport, effects, titles, sounds, waypoints, documents...).
 - Story events, delays and schedules that survive a restart, KubeJS handlers with arguments (`ctx.args`).
 - `logged_in` trigger: when a player joins (or only on their first visit).
+- `observed` trigger: the player looks at an entity, a block or an item (on the ground, in an item frame) for a
+  while; a bar under the crosshair fills meanwhile, only while it would do something.
+- `time` trigger: night falls, day breaks (and at once when the stage begins at that time of day).
+- Scripts of vanilla commands (`scripts/`, like an `.mcfunction`) run by `run_script` at the player, an NPC or a mob
+  the selector finds; `wait 2` pauses, even across a restart. Every command is checked when the story loads, with the
+  permission level scripts run at, so a typo is an error naming its line.
+- `fade` action: the screen fades to a colour and back (waking up, a time cut, the start of a scene).
 
 ### Quests
 - Stages, objectives (triggers or items to have or hand in), a Witcher-style log, failure conditions and time limits.
@@ -37,8 +44,7 @@ Required on both client and server.
   counter once per member.
 - Repeatable quests with a cooldown, difficulty (stars 1–5 or coloured levels), objective hints that appear when the
   player is stuck, up to five quests pinned on the HUD; optionally every quest given is pinned by itself.
-- Chapter map for players (opt-in): the editor's chapters with arrows from quest to quest, coloured by progress,
-  with secret and invisible quests.
+- A quest's title on the screen when it starts, is completed or fails, with a subtitle of your own.
 
 ### Dialogues
 - Monologues in subtitles let the player fight and talk: a hit does not cut them, talking to an NPC takes over. A
@@ -56,11 +62,23 @@ Required on both client and server.
 - Phrases: chatter nearby, answers to a hit or a click, at random or in order. A story paused by a fight picks up
   again ("Where was I"), or the talk goes on through the fight.
 - NPCs that come back (`"respawn": true`): the same NPC returns where it died or disappeared, and drops nothing.
+- How an NPC moves: its kind's own walk, staying where it stands (its head turned to the nearest player), or walking
+  around its home. It stands still and looks at the player while it talks.
+- Relationships: an NPC's scale from -50 to 50 shows on the HUD as stars and skulls when it changes.
+- A line's camera can look at an entity or a place (`look_at`) and fade the screen (`fade`).
+- Music of the story: a dialogue's, a quest stage's, a place's; it pauses Minecraft's own music. Voice-over: a line's
+  sound, an NPC's voice, which stops when the player moves on.
 - Sounds of your own: `.ogg` files in `config/storybound/sounds/<namespace>/` play as `<namespace>:<name>`, picked
   and heard in the editor; files that would not play are named with the reason.
 
 ### Journal, Codex, bosses, waypoints
-- Readable documents (books, letters, notes, contracts) in their own markup, kept in the Journal.
+- Readable documents (books, letters, notes, contracts) in their own markup, kept in the Journal; a book can be put
+  on a lectern and read there.
+- Signed books a player reads are kept in their Journal under "Your books".
+- A "Companions" tab of the Adventure Menu on servers and LAN worlds: the party, invites, the players online.
+- Sounds of the interface: a quest started, updated, completed or failed, a Codex entry, a boss met and defeated,
+  reputation up or down, each with a subtitle.
+- A hint under the quest tracker which key opens the Adventure Menu, until it has been opened once.
 - Codex entries that open on sight, kills and reading; bosses with fight records. A book read before the entry (or
   the section) existed opens it on the next join; a player who fought a boss and left before the end gets the victory
   when they come back.
@@ -70,18 +88,22 @@ Required on both client and server.
 - A waypoint's colour paints its marker, name, edge arrow and search ring, and its place on the maps; the editor offers the
   10 colours that look the same in the world and on every map, and a dark colour reads in the world too.
 - Server waypoints shown in Xaero's Minimap, JourneyMap and as in-world markers, pointing at places, structures, an
-  NPC or the nearest matching entity (which stays where it was last seen when the player goes far away); a waypoint
+  NPC, a boss or the nearest matching entity (which stays where it was last seen when the player goes far away); a waypoint
   in another dimension shows in the tracker with the dimension's name. Players choose which markers get an arrow at
   the screen edge while they look away (the tracked quest's, all, none).
 
 ### For authors
 - In-game editor (the "Dev Mode" button of the Adventure Menu, for operators): a quest map like FTB Quests, a
   library, dialogue graphs, forms built from the schemas; files are written as the author wrote them.
+- Several stories in one story folder, each turned on and off, made and deleted in the editor (a deleted one goes to
+  `.deleted`, nothing erased).
+- A script node in the editor says when it runs, makes a quest, a talk or a story event run it, runs it at you and
+  shows how its commands parsed. KubeJS script blocks show only where KubeJS is installed.
 - Working without the game: `/storybound debug trace`, `dump`, `export`; a headless check for CI
   (`-Dstorybound.validate`, JSON report, exit code); `/storybound debug lang extract` to move texts written in JSON
   into language files.
-- Debug scenarios: `/storybound debug scenario <name>` installs a small story that shows one mechanic (fights, a
-  village of NPCs, waypoints in other dimensions); `clear` removes them.
+- Debug scenarios: `/storybound debug scenario <name>` installs a small story that shows one mechanic (a companion's
+  story paused by a fight, a village of NPCs, an NPC's reputation); `clear` removes them.
 - The validator says when a place can never be: a biome that is not in the chosen dimension, a structure that is in
   neither.
 - Migrations (`migrations/*.json`) that carry players' progress over when a quest, flag or dialogue is renamed.
@@ -89,8 +111,8 @@ Required on both client and server.
   follow it (the migration is written for you).
 - Editor: places and entities picked in the world, long texts (documents with a preview, Codex sections, boss lore)
   in a text window, a view inside each quest, a player's progress on the quest map, relationship scales and NPC
-  schedules, field tooltips in the game's language; the story's settings (chapter map, difficulty scale, tracking a
-  quest when given) in one window.
+  schedules, field tooltips in the game's language; the story's settings (difficulty scale, tracking a quest when
+  given) in one window.
 - `/storybound debug [player]`: a live panel of a player's story — dialogue, quests, and why the last conditions failed.
 - `/storybound_client validate`: missing translations, long texts and document styles in the game's language.
 
