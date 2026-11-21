@@ -26,6 +26,9 @@ public final class BuiltinTriggers {
             REGISTER.register("area_entered", () -> new TriggerType<>(CoreTriggers.AreaEntered.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.StructureEntered, Unit>> STRUCTURE_ENTERED =
             REGISTER.register("structure_entered", () -> new TriggerType<>(CoreTriggers.StructureEntered.CODEC));
+    public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.TimeReached,
+            dev.dzenthai.storybound.core.logic.condition.WorldConditions.Time.Period>> TIME =
+            REGISTER.register("time", () -> new TriggerType<>(CoreTriggers.TimeReached.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.BiomeEntered, Unit>> BIOME_ENTERED =
             REGISTER.register("biome_entered", () -> new TriggerType<>(CoreTriggers.BiomeEntered.CODEC));
     public static final DeferredHolder<TriggerType<?, ?>, TriggerType<CoreTriggers.PoiEntered, Unit>> POI_ENTERED =

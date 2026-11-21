@@ -1,0 +1,57 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "tihomir": {
+      "type": "bound",
+      "name": "vanilla.npc.tihomir"
+    }
+  },
+  "nodes": {
+    "hello": {
+      "type": "line",
+      "speaker": "tihomir",
+      "text": "vanilla.dialogue.tihomir.bread_offer.hello",
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "joke",
+          "text": "vanilla.dialogue.tihomir.bread_offer.ask.joke",
+          "next": "joke",
+          "once": true
+        },
+        {
+          "id": "work",
+          "text": "vanilla.dialogue.tihomir.bread_offer.ask.work",
+          "next": "work"
+        }
+      ]
+    },
+    "joke": {
+      "type": "line",
+      "speaker": "tihomir",
+      "text": "vanilla.dialogue.tihomir.bread_offer.joke",
+      "next": "joke2"
+    },
+    "joke2": {
+      "type": "line",
+      "speaker": "tihomir",
+      "text": "vanilla.dialogue.tihomir.bread_offer.joke2",
+      "next": "ask"
+    },
+    "work": {
+      "type": "line",
+      "speaker": "tihomir",
+      "text": "vanilla.dialogue.tihomir.bread_offer.work",
+      "next": "work2"
+    },
+    "work2": {
+      "type": "line",
+      "speaker": "tihomir",
+      "text": "vanilla.dialogue.tihomir.bread_offer.work2"
+    }
+  },
+  "start": "hello"
+}

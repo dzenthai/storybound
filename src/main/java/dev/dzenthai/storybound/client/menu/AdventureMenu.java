@@ -49,6 +49,12 @@ public final class AdventureMenu {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null) {
             minecraft.setScreen(new AdventureMenuScreen(tab != null ? tab : lastTab));
+            // The tracker's key hint has done its job, in every world from now on.
+            var opened = dev.dzenthai.storybound.client.StoryboundClientConfig.INSTANCE.menuOpened;
+            if (!opened.get()) {
+                opened.set(true);
+                opened.save();
+            }
         }
     }
 

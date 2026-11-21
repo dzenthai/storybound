@@ -1,0 +1,34 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "gorazd": {
+      "type": "bound",
+      "name": "vanilla.npc.gorazd"
+    }
+  },
+  "nodes": {
+    "hello": {
+      "type": "line",
+      "speaker": "gorazd",
+      "text": "vanilla.dialogue.gorazd.stone_end.hello",
+      "next": "next"
+    },
+    "next": {
+      "type": "line",
+      "speaker": "gorazd",
+      "text": "vanilla.dialogue.gorazd.stone_end.next",
+      "next": "go"
+    },
+    "go": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "set_quest_state",
+          "quest": "vanilla:prologue/iron",
+          "state": "active"
+        }
+      ]
+    }
+  },
+  "start": "hello"
+}

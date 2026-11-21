@@ -86,6 +86,7 @@ public final class TriggerEvents {
     private static void onServerTick(ServerTickEvent.Post event) {
         if (event.getServer().getTickCount() % AREA_CHECK_INTERVAL == 0) {
             TriggerDispatcher.tickAreas(event.getServer());
+            DayTimeTracker.tick(event.getServer());
         }
         int tick = event.getServer().getTickCount();
         for (ServerPlayer player : List.copyOf(event.getServer().getPlayerList().getPlayers())) {
@@ -141,6 +142,7 @@ public final class TriggerEvents {
 
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         TriggerDispatcher.forget(event.getEntity().getUUID());
+        DayTimeTracker.forget(event.getEntity().getUUID());
         SeenTracker.forget(event.getEntity().getUUID());
         ObservationTracker.forget(event.getEntity().getUUID());
         StoryEvents.forget(event.getEntity().getUUID());
@@ -149,6 +151,7 @@ public final class TriggerEvents {
     private static void onServerStopped(ServerStoppedEvent event) {
         StoryTrace.stop();
         TriggerDispatcher.reset();
+        DayTimeTracker.reset();
         SeenTracker.reset();
         ObservationTracker.reset();
         StoryEvents.reset();

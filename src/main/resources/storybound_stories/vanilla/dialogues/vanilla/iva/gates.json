@@ -1,0 +1,96 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "iva": {
+      "type": "bound",
+      "name": "vanilla.npc.iva"
+    }
+  },
+  "nodes": {
+    "hello": {
+      "type": "condition",
+      "conditions": {
+        "type": "flag",
+        "key": "vanilla:yaropolk_exposed",
+        "value": true
+      },
+      "then": "exposed",
+      "else": "check_secret"
+    },
+    "exposed": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.gates.exposed",
+      "next": "ratmir_q"
+    },
+    "check_secret": {
+      "type": "condition",
+      "conditions": {
+        "type": "flag",
+        "key": "vanilla:yaropolk_confessed",
+        "value": true
+      },
+      "then": "confessed",
+      "else": "secret"
+    },
+    "confessed": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.gates.confessed",
+      "next": "ratmir_q"
+    },
+    "secret": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.gates.secret",
+      "next": "ratmir_q"
+    },
+    "ratmir_q": {
+      "type": "condition",
+      "conditions": {
+        "type": "flag",
+        "key": "vanilla:ratmir_turned",
+        "value": true
+      },
+      "then": "ratmir",
+      "else": "gates"
+    },
+    "ratmir": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.gates.ratmir",
+      "next": "gates"
+    },
+    "gates": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.gates.gates",
+      "next": "gates2",
+      "shot": "two_shot",
+      "transition": "ease"
+    },
+    "gates2": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.gates.gates2",
+      "next": "go",
+      "shot": "close_up"
+    },
+    "go": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "ok",
+          "text": "vanilla.dialogue.iva.gates.go.ok",
+          "next": "end"
+        }
+      ]
+    },
+    "end": {
+      "type": "line",
+      "speaker": "iva",
+      "text": "vanilla.dialogue.iva.gates.end"
+    }
+  },
+  "start": "hello"
+}

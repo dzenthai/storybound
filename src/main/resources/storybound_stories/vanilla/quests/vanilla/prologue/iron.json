@@ -1,0 +1,95 @@
+{
+  "category": "main",
+  "scope": "party",
+  "title": "vanilla.quest.iron.title",
+  "text": {
+    "active": "vanilla.quest.iron.text",
+    "completed": "vanilla.quest.iron.done"
+  },
+  "on_start": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "vanilla_yaropolk",
+      "unique": true,
+      "name": "vanilla.npc.yaropolk",
+      "offset": [
+        -3,
+        0,
+        -2
+      ],
+      "nbt": {
+        "VillagerData": {
+          "profession": "minecraft:armorer",
+          "level": 2,
+          "type": "minecraft:plains"
+        },
+        "Xp": 10
+      }
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:iron_ingot",
+        "count": 4
+      }
+    ]
+  },
+  "stages": [
+    {
+      "id": "talk",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.iron.talk.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:yaropolk/iron_offer"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:yaropolk"
+      ]
+    },
+    {
+      "id": "work",
+      "log": "vanilla.quest.iron.work.log",
+      "objectives": [
+        {
+          "id": "armor",
+          "text": "vanilla.quest.iron.work.armor",
+          "trigger": {
+            "type": "advancement_earned",
+            "advancement": "minecraft:story/obtain_armor"
+          }
+        },
+        {
+          "id": "shield",
+          "text": "vanilla.quest.iron.work.shield",
+          "items": {
+            "item": "minecraft:shield",
+            "consume": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "report",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.iron.report.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:yaropolk/iron_end"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:yaropolk"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "category": "main",
+  "scope": "party",
+  "title": "vanilla.quest.stone.title",
+  "text": {
+    "active": "vanilla.quest.stone.text",
+    "completed": "vanilla.quest.stone.done"
+  },
+  "on_start": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "vanilla_gorazd",
+      "unique": true,
+      "name": "vanilla.npc.gorazd",
+      "offset": [
+        3,
+        0,
+        -2
+      ],
+      "nbt": {
+        "VillagerData": {
+          "profession": "minecraft:toolsmith",
+          "level": 2,
+          "type": "minecraft:plains"
+        },
+        "Xp": 10
+      }
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:coal",
+        "count": 8
+      },
+      {
+        "item": "minecraft:torch",
+        "count": 16
+      }
+    ]
+  },
+  "stages": [
+    {
+      "id": "talk",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.stone.talk.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:gorazd/stone_offer"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:gorazd"
+      ]
+    },
+    {
+      "id": "work",
+      "log": "vanilla.quest.stone.work.log",
+      "objectives": [
+        {
+          "id": "sword",
+          "text": "vanilla.quest.stone.work.sword",
+          "items": {
+            "item": "minecraft:stone_sword",
+            "consume": false
+          }
+        },
+        {
+          "id": "axe",
+          "text": "vanilla.quest.stone.work.axe",
+          "items": {
+            "item": "minecraft:stone_axe",
+            "consume": false
+          }
+        },
+        {
+          "id": "furnace",
+          "text": "vanilla.quest.stone.work.furnace",
+          "items": {
+            "item": "minecraft:furnace",
+            "consume": false
+          }
+        },
+        {
+          "id": "iron",
+          "text": "vanilla.quest.stone.work.iron",
+          "trigger": {
+            "type": "advancement_earned",
+            "advancement": "minecraft:story/smelt_iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "report",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.stone.report.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:gorazd/stone_end"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:gorazd"
+      ]
+    }
+  ]
+}

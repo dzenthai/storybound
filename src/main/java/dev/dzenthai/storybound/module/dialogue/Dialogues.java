@@ -768,6 +768,7 @@ public final class Dialogues {
         // A new line is never said over the last one's voice-over.
         hush(session);
         line.sound().ifPresent(sound -> playSound(session, source, sound));
+        line.fade().ifPresent(fade -> fade.send(player));
         session.voiceOver = line.sound().orElse(null);
         if (line.sound().isEmpty() && entity != null && entity != player) {
             // A line with no sound of its own is said in the speaker's voice.

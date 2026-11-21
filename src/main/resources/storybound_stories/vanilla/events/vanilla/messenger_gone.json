@@ -1,0 +1,18 @@
+{
+  "trigger": {
+    "type": "time",
+    "period": "day"
+  },
+  "conditions": {
+    "type": "quest",
+    "quest": "vanilla:prologue/night_watch",
+    "state": "completed"
+  },
+  "actions": [
+    {
+      "type": "run_command",
+      "command": "kill @e[type=minecraft:villager,tag=vanilla_messenger]"
+    }
+  ],
+  "once": "world"
+}

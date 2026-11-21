@@ -237,9 +237,11 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
      * @param shot    the camera shot for this line; {@code auto} is shot-reverse-shot
      * @param resume  the node played before this line comes back after a fight paused it, instead of the dialogue's
      *                {@code combat.resume}: a story about the war and one about the family go on differently
+     * @param fade    a fade of the screen begun as the line shows (see {@link dev.dzenthai.storybound.core.logic.action.ScreenFade})
      */
     public record Line(String speaker, StoryText text, String next, Optional<ResourceLocation> sound, Optional<Float> duration,
-                       CameraCue.Shot shot, CameraCue.Transition transition, Optional<String> resume) implements Node {
+                       CameraCue.Shot shot, CameraCue.Transition transition, Optional<String> resume,
+                       Optional<dev.dzenthai.storybound.core.logic.action.ScreenFade> fade) implements Node {
         public static final MapCodec<Line> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Codec.STRING.fieldOf("speaker").forGetter(Line::speaker),
                 StoryText.CODEC.fieldOf("text").forGetter(Line::text),
@@ -248,7 +250,8 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
                 Codec.floatRange(0.1f, 600f).optionalFieldOf("duration").forGetter(Line::duration),
                 CameraCue.Shot.CODEC.optionalFieldOf("shot", CameraCue.Shot.AUTO).forGetter(Line::shot),
                 CameraCue.Transition.CODEC.optionalFieldOf("transition", CameraCue.Transition.CUT).forGetter(Line::transition),
-                Codec.STRING.optionalFieldOf("resume").forGetter(Line::resume)
+                Codec.STRING.optionalFieldOf("resume").forGetter(Line::resume),
+                dev.dzenthai.storybound.core.logic.action.ScreenFade.CODEC.optionalFieldOf("fade").forGetter(Line::fade)
         ).apply(instance, Line::new));
 
         @Override

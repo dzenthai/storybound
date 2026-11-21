@@ -11,6 +11,8 @@ public final class StoryboundClientConfig {
 
     public final ModConfigSpec.IntValue hudSize;
     public final ModConfigSpec.BooleanValue questTracker;
+    /** Whether the player has opened the Adventure Menu once: until then the quest tracker says which key opens it. */
+    public final ModConfigSpec.BooleanValue menuOpened;
     public final ModConfigSpec.EnumValue<Corner> questTrackerCorner;
     public final ModConfigSpec.EnumValue<Corner> reputationCorner;
     public final ModConfigSpec.IntValue questTrackerOffsetY;
@@ -42,6 +44,9 @@ public final class StoryboundClientConfig {
         questTracker =builder.comment("Show the tracked quest and its objectives on the screen.")
                 .translation("storybound.configuration.questTracker")
                 .define("questTracker", true);
+        menuOpened = builder.comment("Set once the Adventure Menu has been opened; until then the quest tracker shows which key opens it.")
+                .translation("storybound.configuration.menuOpened")
+                .define("menuOpened", false);
         questTrackerCorner = builder.comment("Screen corner the quest tracker is anchored to.")
                 .translation("storybound.configuration.questTrackerCorner")
                 .defineEnum("questTrackerCorner", Corner.TOP_RIGHT);

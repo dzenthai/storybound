@@ -54,6 +54,16 @@ public final class QuestHud {
         if (lines.isEmpty()) {
             return;
         }
+        if (!config.menuOpened.get()) {
+            // Which key opens the Adventure Menu, until the player has opened it once.
+            var key = dev.dzenthai.storybound.client.StoryboundClient.OPEN_MENU;
+            Component hint = key.isUnbound() ? Component.translatable("storybound.hud.menu_hint_unbound")
+                    : Component.translatable("storybound.hud.menu_hint", key.getTranslatedKeyMessage());
+            lines.add(Line.GAP);
+            for (FormattedCharSequence line : font.split(hint, MAX_WIDTH)) {
+                lines.add(new Line(line, theme.hudText() & 0x00FFFFFF | 0xA0000000));
+            }
+        }
         render(graphics, config, font, theme, lines);
     }
 

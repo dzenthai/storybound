@@ -1,0 +1,130 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "yaropolk": {
+      "type": "bound",
+      "name": "vanilla.npc.yaropolk"
+    }
+  },
+  "nodes": {
+    "hello": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.mark.hello",
+      "next": "show",
+      "shot": "two_shot",
+      "transition": "ease"
+    },
+    "show": {
+      "type": "line",
+      "speaker": "player",
+      "text": "vanilla.dialogue.yaropolk.mark.show",
+      "next": "silent",
+      "shot": "close_up"
+    },
+    "silent": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.mark.silent",
+      "next": "confess",
+      "shot": "close_up",
+      "duration": 2
+    },
+    "confess": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.mark.confess",
+      "next": "confess2"
+    },
+    "confess2": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.mark.confess2",
+      "next": "choose"
+    },
+    "choose": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "expose",
+          "text": "vanilla.dialogue.yaropolk.mark.choose.expose",
+          "next": "expose",
+          "actions": [
+            {
+              "type": "set_flag",
+              "key": "vanilla:yaropolk_exposed",
+              "value": true
+            },
+            {
+              "type": "add_var",
+              "key": "vanilla:trust",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "id": "secret",
+          "text": "vanilla.dialogue.yaropolk.mark.choose.secret",
+          "next": "secret",
+          "actions": [
+            {
+              "type": "set_flag",
+              "key": "vanilla:yaropolk_secret",
+              "value": true
+            }
+          ]
+        },
+        {
+          "id": "himself",
+          "text": "vanilla.dialogue.yaropolk.mark.choose.himself",
+          "next": "himself",
+          "conditions": {
+            "type": "var",
+            "key": "vanilla:trust",
+            "op": ">=",
+            "value": 2
+          },
+          "locked": "hide",
+          "actions": [
+            {
+              "type": "set_flag",
+              "key": "vanilla:yaropolk_confessed",
+              "value": true
+            },
+            {
+              "type": "add_var",
+              "key": "vanilla:trust",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    },
+    "expose": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.mark.expose",
+      "next": "end"
+    },
+    "secret": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.mark.secret",
+      "next": "end",
+      "shot": "close_up"
+    },
+    "himself": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.mark.himself",
+      "next": "end",
+      "shot": "close_up"
+    },
+    "end": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.mark.end"
+    }
+  },
+  "start": "hello"
+}

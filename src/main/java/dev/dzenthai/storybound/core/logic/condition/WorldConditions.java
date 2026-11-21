@@ -155,6 +155,16 @@ public final class WorldConditions {
 
             public static final Codec<Period> CODEC = StringRepresentable.fromEnum(Period::values);
 
+            /** The period a tick of the day (0 to 23999) falls in. */
+            public static Period of(long tick) {
+                for (Period period : values()) {
+                    if (period.contains(tick)) {
+                        return period;
+                    }
+                }
+                return DAY;
+            }
+
             private final String name;
             private final int startTick;
             private final int endTick;

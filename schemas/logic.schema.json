@@ -449,6 +449,17 @@
           "additionalProperties": false
         },
         {
+          "description": "The player's screen fades to a colour and back, in seconds: it rises from where it is (no flash over another fade), holds, and clears. in 0 is black at once; stay and out 0 clear it at once. Drawn over the world and the HUD, under titles and subtitles. A time cut, waking up, the start of a scene.",
+          "properties": {
+            "type": { "enum": ["fade", "storybound:fade"] },
+            "in": { "type": "number", "minimum": 0, "maximum": 10, "default": 0.5 },
+            "stay": { "description": "At most 60: a scene that never comes does not leave the screen black.", "type": "number", "minimum": 0, "maximum": 60, "default": 1 },
+            "out": { "type": "number", "minimum": 0, "maximum": 10, "default": 0.5 },
+            "color": { "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", "default": "#000000" }
+          },
+          "additionalProperties": false
+        },
+        {
           "description": "A sound at the place, heard by everyone near it (play_sound is heard by the player alone).",
           "properties": {
             "type": { "enum": ["sound_at", "storybound:sound_at"] },
@@ -728,6 +739,15 @@
             "fire_on_login": { "type": "boolean", "default": false }
           },
           "required": ["structure"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The time of day reaches this period in the player's level (checked every 10 ticks; never in the Nether or the End, where the time stands still). A stage that begins already in that period counts at once.",
+          "properties": {
+            "type": { "enum": ["time", "storybound:time"] },
+            "period": { "enum": ["day", "sunset", "night", "sunrise"] }
+          },
+          "required": ["period"],
           "additionalProperties": false
         },
         {

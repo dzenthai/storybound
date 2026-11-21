@@ -1,0 +1,60 @@
+{
+  "presentation": "hud",
+  "participants": {
+    "sbyslav": {
+      "type": "bound",
+      "name": "vanilla.npc.sbyslav"
+    }
+  },
+  "nodes": {
+    "mark": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "set_flag",
+          "key": "vanilla:woke",
+          "value": true
+        }
+      ],
+      "next": "l1"
+    },
+    "l1": {
+      "type": "line",
+      "speaker": "sbyslav",
+      "text": "vanilla.dialogue.sbyslav.wake.l1",
+      "next": "l2",
+      "duration": 2
+    },
+    "l2": {
+      "type": "line",
+      "speaker": "sbyslav",
+      "text": "vanilla.dialogue.sbyslav.wake.l2",
+      "next": "l3",
+      "duration": 2.5
+    },
+    "l3": {
+      "type": "line",
+      "speaker": "sbyslav",
+      "text": "vanilla.dialogue.sbyslav.wake.l3",
+      "next": "eyes",
+      "duration": 3.5
+    },
+    "eyes": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "fade",
+          "in": 0,
+          "stay": 0,
+          "out": 2
+        }
+      ],
+      "next": "go"
+    },
+    "go": {
+      "type": "jump",
+      "dialogue": "vanilla:sbyslav/roadside"
+    }
+  },
+  "start": "mark"
+}

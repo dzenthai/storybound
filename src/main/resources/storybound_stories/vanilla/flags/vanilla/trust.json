@@ -1,0 +1,9 @@
+{
+  "type": "int",
+  "default": 0,
+  "scope": "player",
+  "sync": false,
+  "min": -20,
+  "max": 20,
+  "description": "Доверие деревни к игроку: растёт от честных поступков"
+}

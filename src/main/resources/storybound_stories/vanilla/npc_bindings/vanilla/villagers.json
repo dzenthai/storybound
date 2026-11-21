@@ -43,11 +43,11 @@
     "phrases": "vanilla:villager/chatter",
     "variants": [
       {
-        "phrases": "vanilla:villager/chatter_calm",
+        "phrases": "vanilla:villager/chatter_ratmir",
         "conditions": {
-          "type": "quest",
-          "quest": "vanilla:ch1/night_watch",
-          "state": "completed"
+          "type": "flag",
+          "key": "vanilla:ratmir_turned",
+          "value": true
         }
       }
     ],

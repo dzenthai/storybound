@@ -1,0 +1,152 @@
+{
+  "category": "main",
+  "scope": "party",
+  "title": "vanilla.quest.night_watch.title",
+  "text": {
+    "active": "vanilla.quest.night_watch.text",
+    "completed": "vanilla.quest.night_watch.done"
+  },
+  "on_start": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "vanilla_mstislav",
+      "unique": true,
+      "name": "vanilla.npc.mstislav",
+      "offset": [
+        2,
+        0,
+        -3
+      ],
+      "nbt": {
+        "VillagerData": {
+          "profession": "minecraft:weaponsmith",
+          "level": 2,
+          "type": "minecraft:plains"
+        },
+        "Xp": 10
+      }
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 5
+      }
+    ]
+  },
+  "stages": [
+    {
+      "id": "captain",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.night_watch.captain.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:mstislav/watch_brief"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:mstislav"
+      ]
+    },
+    {
+      "id": "dusk",
+      "log": "vanilla.quest.night_watch.dusk.log",
+      "objectives": [
+        {
+          "id": "dark",
+          "text": "vanilla.quest.night_watch.dusk.dark",
+          "trigger": {
+            "type": "time",
+            "period": "night"
+          }
+        }
+      ]
+    },
+    {
+      "id": "night",
+      "log": "vanilla.quest.night_watch.night.log",
+      "on_enter": [
+        {
+          "type": "title",
+          "subtitle": "vanilla.quest.night_watch.night.subtitle",
+          "stay": 50
+        },
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:zombie",
+          "count": 3,
+          "offset": [
+            14,
+            0,
+            0
+          ],
+          "tag": "vanilla_watch"
+        },
+        {
+          "type": "spawn_entity",
+          "entity": "minecraft:skeleton",
+          "offset": [
+            14,
+            0,
+            4
+          ],
+          "tag": "vanilla_watch"
+        }
+      ],
+      "objectives": [
+        {
+          "id": "undead",
+          "text": "vanilla.quest.night_watch.night.undead",
+          "trigger": {
+            "type": "entity_killed",
+            "entity": [
+              "minecraft:zombie",
+              "minecraft:skeleton",
+              "minecraft:spider",
+              "minecraft:zombie_villager",
+              "minecraft:husk",
+              "minecraft:stray",
+              "minecraft:creeper"
+            ]
+          },
+          "hints": [
+            {
+              "text": "vanilla.quest.night_watch.night.undead.hint0",
+              "conditions": {
+                "type": "time",
+                "period": "day"
+              }
+            }
+          ],
+          "count": 6,
+          "since_stage": true,
+          "conditions": {
+            "type": "location",
+            "structure": "#minecraft:village"
+          }
+        }
+      ]
+    },
+    {
+      "id": "report",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.night_watch.report.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:mstislav/watch_end"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:mstislav"
+      ]
+    }
+  ]
+}

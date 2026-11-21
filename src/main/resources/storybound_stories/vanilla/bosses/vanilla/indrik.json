@@ -9,7 +9,7 @@
     "unlock": {
       "on": [
         "killed",
-        "read:vanilla:arden_diary_1"
+        "read:vanilla:indrik_contract"
       ]
     }
   },

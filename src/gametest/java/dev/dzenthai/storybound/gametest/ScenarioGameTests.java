@@ -87,7 +87,7 @@ public final class ScenarioGameTests {
         net.minecraft.server.MinecraftServer server = helper.getLevel().getServer();
         boolean before = server.getGameRules().getBoolean(dev.dzenthai.storybound.core.data.WorldStory.rule());
         var type = dev.dzenthai.storybound.module.quest.QuestRegistries.QUESTS;
-        ResourceLocation outpost = ResourceLocation.fromNamespaceAndPath("vanilla", "ch1/outpost");
+        ResourceLocation outpost = ResourceLocation.fromNamespaceAndPath("vanilla", "prologue/outpost");
         try {
             java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("storybound-world-story");
             java.util.function.Supplier<java.util.Map<ResourceLocation, com.google.gson.JsonElement>> scan = () -> {

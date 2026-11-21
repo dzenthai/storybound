@@ -1,0 +1,6 @@
+{
+  "name": "vanilla.npc.tihomir",
+  "target": {
+    "npc": "vanilla:tihomir"
+  }
+}

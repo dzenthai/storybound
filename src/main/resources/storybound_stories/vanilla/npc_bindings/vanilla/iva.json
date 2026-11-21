@@ -2,57 +2,51 @@
   "display_name": "vanilla.npc.iva",
   "entity": {
     "type": "minecraft:villager",
-    "baby": false,
-    "in_village": true
+    "tag": "vanilla_iva"
   },
-  "one": true,
   "invulnerable": true,
   "movement": "home",
-  "home_radius": 16,
+  "home_radius": 12,
   "dialogues": [
     {
       "dialogue": "vanilla:iva/meet",
       "priority": 30,
       "conditions": {
         "type": "quest",
-        "quest": "vanilla:ch1/letter",
+        "quest": "vanilla:prologue/robbed",
         "state": "active",
         "stage": "meet"
       }
     },
     {
-      "dialogue": "vanilla:iva/after_night",
-      "priority": 20,
+      "dialogue": "vanilla:iva/contract",
+      "priority": 30,
       "conditions": {
         "type": "quest",
-        "quest": "vanilla:ch1/night_watch",
+        "quest": "vanilla:prologue/outpost",
         "state": "active",
-        "stage": "report"
+        "stage": "return"
       }
     },
     {
-      "dialogue": "vanilla:iva/after_outpost",
-      "priority": 20,
+      "dialogue": "vanilla:iva/gates",
+      "priority": 30,
       "conditions": {
         "type": "quest",
-        "quest": "vanilla:ch1/return",
-        "state": "active"
-      }
-    },
-    {
-      "dialogue": "vanilla:iva/note",
-      "priority": 25,
-      "conditions": {
-        "type": "quest",
-        "quest": "vanilla:side/librarian_luck",
+        "quest": "vanilla:prologue/mark",
         "state": "active",
-        "stage": "note"
+        "stage": "iva"
       }
     },
     {
-      "dialogue": "vanilla:iva/talk"
+      "phrases": "vanilla:iva/talk"
     }
   ],
+  "when_attacked": {
+    "reaction": "ignore",
+    "phrases": "vanilla:iva/hit",
+    "by_mobs": true
+  },
   "chatter": {
     "phrases": "vanilla:iva/chatter",
     "variants": [
@@ -67,10 +61,5 @@
     "min_interval": 30,
     "max_interval": 60,
     "radius": 10
-  },
-  "when_attacked": {
-    "reaction": "ignore",
-    "phrases": "vanilla:iva/hit",
-    "by_mobs": true
   }
 }

@@ -385,6 +385,46 @@ public final class QuestGameTests {
     }
 
     /**
+     * The time of day: a stage that begins at night counts "night" at once (the state holds), and day breaking fires
+     * for an objective that waits for the change itself (since_stage).
+     */
+    @GameTest(template = "empty")
+    public static void nightCountsWhenItFallsAndWhenItAlreadyHolds(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        net.minecraft.server.level.ServerLevel level = helper.getLevel();
+        long before = level.getDayTime();
+        withQuest(helper, """
+                { "title": "gametest.quest.night",
+                  "stages": [
+                    { "id": "dusk", "objectives": [ { "id": "dark", "trigger": { "type": "time", "period": "night" } } ] },
+                    { "id": "dawn", "objectives": [ { "id": "light", "trigger": { "type": "time", "period": "day" }, "since_stage": true } ] },
+                    { "id": "end", "objectives": [ { "id": "never", "trigger": { "type": "custom", "id": "gametest:never" } } ] } ] }
+                """, () -> {
+            try {
+                level.setDayTime(1000);
+                dev.dzenthai.storybound.core.logic.trigger.DayTimeTracker.tick(level.getServer());
+                Quests.start(player, QUEST);
+                Quests.checkStates(player);
+                expect(helper, progress(player).stage(), Optional.of("dusk"), "by day: not yet");
+                level.setDayTime(14000);
+                Quests.checkStates(player);
+                expect(helper, progress(player).stage(), Optional.of("dawn"), "night already holds: counted");
+                Quests.checkStates(player);
+                expect(helper, progress(player).stage(), Optional.of("dawn"), "since_stage: the state alone does not count");
+                dev.dzenthai.storybound.core.logic.trigger.DayTimeTracker.tick(level.getServer());
+                level.setDayTime(24000 + 1000);
+                dev.dzenthai.storybound.core.logic.trigger.DayTimeTracker.tick(level.getServer());
+                expect(helper, progress(player).stage(), Optional.of("end"), "the day breaking fires");
+            } finally {
+                level.setDayTime(before);
+            }
+        });
+        QuestEvents.rebuild();
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
      * A trigger's state that already holds counts: a past event ("history") in a quest that is not repeatable, unless
      * the objective says since_stage; a quest added after what starts it happened starts.
      */

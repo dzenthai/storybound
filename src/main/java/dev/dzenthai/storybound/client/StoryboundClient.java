@@ -161,6 +161,8 @@ public final class StoryboundClient {
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, Storybound.id("quest_tracker"), QuestHud::render);
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, Storybound.id("reputation"), ReputationHud::render);
         event.registerBelow(VanillaGuiLayers.CHAT, Storybound.id("dialogue_subtitles"), DialogueHud::render);
+        // Over the world and the HUD, under the titles and the subtitles: text stands on the black.
+        event.registerBelow(VanillaGuiLayers.TITLE, Storybound.id("screen_fade"), ScreenFadeOverlay::render);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("dev_world_picker"), dev.dzenthai.storybound.client.dev.DevWorldPicker::renderHud);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("story_debug"), DebugOverlay::render);
     }
@@ -221,6 +223,7 @@ public final class StoryboundClient {
         ClientParty.clear();
         ReputationHud.clear();
         dev.dzenthai.storybound.client.sound.ClientStoryMusic.clear();
+        ScreenFadeOverlay.clear();
         ClientWaypoints.clear();
         ClientModules.clear();
         ClientDialogue.clear();

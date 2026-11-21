@@ -39,6 +39,8 @@ public final class BuiltinActions {
             REGISTER.register("effect", () -> new ActionType<>(SceneActions.Effect.CODEC));
     public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.Title>> TITLE =
             REGISTER.register("title", () -> new ActionType<>(SceneActions.Title.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.Fade>> FADE =
+            REGISTER.register("fade", () -> new ActionType<>(SceneActions.Fade.CODEC));
     public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.SoundAt>> SOUND_AT =
             REGISTER.register("sound_at", () -> new ActionType<>(SceneActions.SoundAt.CODEC));
     public static final DeferredHolder<ActionType<?>, ActionType<FlowActions.Wait>> WAIT =

@@ -38,6 +38,8 @@ import org.lwjgl.glfw.GLFW;
 public final class DialogueCamera {
     /** The reputation HUD layer (see {@code StoryboundClient}), shown through a shot. */
     private static final net.minecraft.resources.ResourceLocation REPUTATION_LAYER = Storybound.id("reputation");
+    /** The screen fade goes on over a shot: a scene opens out of the black as the camera frames it. */
+    private static final net.minecraft.resources.ResourceLocation FADE_LAYER = Storybound.id("screen_fade");
     private static final long EASE_MILLIS = 400;
     /** How long a framed shot may wait for the render hook before the camera gives up. */
     private static final long HOOK_GRACE_MILLIS = 2000;
@@ -219,7 +221,7 @@ public final class DialogueCamera {
      * very talk.
      */
     public static void onRenderGuiLayer(RenderGuiLayerEvent.Pre event) {
-        if (isFraming() && !event.getName().equals(REPUTATION_LAYER)) {
+        if (isFraming() && !event.getName().equals(REPUTATION_LAYER) && !event.getName().equals(FADE_LAYER)) {
             event.setCanceled(true);
         }
     }

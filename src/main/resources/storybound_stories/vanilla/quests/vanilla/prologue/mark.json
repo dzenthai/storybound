@@ -1,0 +1,55 @@
+{
+  "category": "main",
+  "scope": "party",
+  "title": "vanilla.quest.mark.title",
+  "text": {
+    "active": "vanilla.quest.mark.text",
+    "completed": "vanilla.quest.mark.done"
+  },
+  "screen_text": {
+    "completed": "vanilla.quest.mark.screen_done"
+  },
+  "on_complete": [
+    {
+      "type": "set_flag",
+      "key": "vanilla:prologue_done",
+      "value": true
+    }
+  ],
+  "stages": [
+    {
+      "id": "talk",
+      "log": "vanilla.quest.mark.talk.log",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.mark.talk.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:yaropolk/mark"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:yaropolk"
+      ]
+    },
+    {
+      "id": "iva",
+      "log": "vanilla.quest.mark.iva.log",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "vanilla.quest.mark.iva.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "vanilla:iva/gates"
+          }
+        }
+      ],
+      "waypoints": [
+        "vanilla:iva"
+      ]
+    }
+  ]
+}

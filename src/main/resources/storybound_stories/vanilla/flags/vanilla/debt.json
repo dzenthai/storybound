@@ -1,0 +1,9 @@
+{
+  "type": "int",
+  "default": 0,
+  "scope": "player",
+  "sync": false,
+  "min": -20,
+  "max": 20,
+  "description": "Долг игрока Сбыславу: +1 за сделку, −1 за отданную услугу"
+}

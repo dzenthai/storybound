@@ -1,0 +1,73 @@
+{
+  "presentation": "screen",
+  "participants": {
+    "yaropolk": {
+      "type": "bound",
+      "name": "vanilla.npc.yaropolk"
+    }
+  },
+  "nodes": {
+    "hello": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.iron_offer.hello",
+      "next": "ask"
+    },
+    "ask": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "where",
+          "text": "vanilla.dialogue.yaropolk.iron_offer.ask.where",
+          "next": "where",
+          "once": true
+        },
+        {
+          "id": "armor",
+          "text": "vanilla.dialogue.yaropolk.iron_offer.ask.armor",
+          "next": "teach"
+        }
+      ]
+    },
+    "where": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.iron_offer.where",
+      "next": "where_choice"
+    },
+    "where_choice": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "price",
+          "text": "vanilla.dialogue.yaropolk.iron_offer.where_choice.price",
+          "next": "price"
+        },
+        {
+          "id": "armor",
+          "text": "vanilla.dialogue.yaropolk.iron_offer.where_choice.armor",
+          "next": "teach"
+        }
+      ]
+    },
+    "price": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.iron_offer.price",
+      "next": "teach",
+      "shot": "close_up"
+    },
+    "teach": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.iron_offer.teach",
+      "next": "teach2"
+    },
+    "teach2": {
+      "type": "line",
+      "speaker": "yaropolk",
+      "text": "vanilla.dialogue.yaropolk.iron_offer.teach2"
+    }
+  },
+  "start": "hello"
+}

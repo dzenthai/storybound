@@ -251,6 +251,37 @@ public final class CoreTriggers {
         }
     }
 
+    /**
+     * The time of day reaches a period in the player's level: {@code { "type": "time", "period": "night" }}. Checked
+     * with the areas ({@link DayTimeTracker}); never in a level whose time stands still (the Nether, the End). Being in
+     * that period is the state it announces, so a stage that begins at night counts at once.
+     */
+    public record TimeReached(dev.dzenthai.storybound.core.logic.condition.WorldConditions.Time.Period period)
+            implements Trigger<dev.dzenthai.storybound.core.logic.condition.WorldConditions.Time.Period> {
+        public static final MapCodec<TimeReached> CODEC = dev.dzenthai.storybound.core.logic.condition.WorldConditions.Time.Period.CODEC
+                .fieldOf("period").xmap(TimeReached::new, TimeReached::period);
+
+        @Override
+        public TriggerType<?, dev.dzenthai.storybound.core.logic.condition.WorldConditions.Time.Period> type() {
+            return BuiltinTriggers.TIME.get();
+        }
+
+        @Override
+        public boolean matches(StoryContext context, dev.dzenthai.storybound.core.logic.condition.WorldConditions.Time.Period event) {
+            return event == period;
+        }
+
+        @Override
+        public StateKind stateKind() {
+            return StateKind.CURRENT;
+        }
+
+        @Override
+        public boolean holdsNow(StoryContext context) {
+            return DayTimeTracker.periodOf(context.player()) == period;
+        }
+    }
+
     /** A place the player walks into: checked for every player every 10 ticks, fired on crossing in. */
     public interface Entered extends Trigger<Unit> {
         /** Also fires when the player logs in already inside. */

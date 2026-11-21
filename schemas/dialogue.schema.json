@@ -110,6 +110,7 @@
           "description": "A spoken line; with duration (seconds) it also moves on by itself.",
           "properties": {
             "type": { "const": "line" },
+            "fade": { "description": "A fade of the screen begun as the line shows, as the fade action: in, stay, out (seconds), color.", "type": "object", "additionalProperties": false, "properties": { "in": { "type": "number", "minimum": 0, "maximum": 10, "default": 0.5 }, "stay": { "type": "number", "minimum": 0, "maximum": 60, "default": 1 }, "out": { "type": "number", "minimum": 0, "maximum": 10, "default": 0.5 }, "color": { "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", "default": "#000000" } } },
             "speaker": { "description": "'player' or a participant id.", "type": "string" },
             "text": { "$ref": "logic.schema.json#/definitions/story_text" },
             "next": { "$ref": "#/definitions/target", "default": "@end" },

@@ -1,0 +1,15 @@
+{
+  "trigger": {
+    "type": "quest_stage_changed",
+    "quest": "vanilla:prologue/robbed",
+    "stage": "meet"
+  },
+  "actions": [
+    {
+      "type": "title",
+      "subtitle": "vanilla.event.robbed.village",
+      "stay": 50
+    }
+  ],
+  "once": "player"
+}

@@ -351,6 +351,24 @@ public final class SceneActions {
     }
 
     /**
+     * {@code { "type": "fade", "in": 0.5, "stay": 1, "out": 0.5, "color": "#000000" }}: the player's screen fades to the
+     * colour and back (see {@link ScreenFade}): a time cut ("three hours later"), waking up, the start of a scene.
+     */
+    public record Fade(ScreenFade fade) implements Action {
+        public static final MapCodec<Fade> CODEC = ScreenFade.MAP_CODEC.xmap(Fade::new, Fade::fade);
+
+        @Override
+        public ActionType<?> type() {
+            return BuiltinActions.FADE.get();
+        }
+
+        @Override
+        public void run(StoryContext context) {
+            fade.send(context.player());
+        }
+    }
+
+    /**
      * {@code { "type": "sound_at", "sound": "minecraft:entity.wither.spawn", "pos": [10, 64, 20] }}: a sound at a place,
      * heard by everyone near it (unlike {@code play_sound}, which only the player hears).
      */

@@ -1,0 +1,44 @@
+{
+  "trigger": {
+    "type": "quest_stage_changed",
+    "quest": "vanilla:prologue/night_watch",
+    "stage": "night"
+  },
+  "conditions": {
+    "type": "all",
+    "conditions": [
+      {
+        "type": "flag",
+        "key": "vanilla:deal_pick",
+        "value": true
+      },
+      {
+        "type": "flag",
+        "key": "vanilla:gate_done",
+        "value": false
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "vanilla_messenger",
+      "unique": true,
+      "name": "vanilla.npc.messenger",
+      "offset": [
+        3,
+        0,
+        -3
+      ],
+      "nbt": {
+        "VillagerData": {
+          "profession": "minecraft:nitwit",
+          "level": 1,
+          "type": "minecraft:swamp"
+        }
+      }
+    }
+  ],
+  "once": "player"
+}
