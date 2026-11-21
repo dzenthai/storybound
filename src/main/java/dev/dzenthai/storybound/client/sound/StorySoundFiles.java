@@ -17,8 +17,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * What the story folder's {@code sounds/} holds: {@code sounds/<namespace>/<name>.ogg} is the sound
- * {@code <namespace>:<name>} (a subfolder goes into the name: {@code sounds/demo/elder/hello.ogg} is
- * {@code demo:elder/hello}); a file right in {@code sounds/} is {@code storybound:<name>}, as a story file without a
+ * {@code <namespace>:<name>} (a subfolder goes into the name: {@code sounds/mypack/elder/hello.ogg} is
+ * {@code mypack:elder/hello}); a file right in {@code sounds/} is {@code storybound:<name>}, as a story file without a
  * folder is. The id is made from the file's name: lowercase, a space or a sign other than {@code _ - .} becoming
  * {@code _} ({@code Ragnar Meets.ogg} is {@code ragnar_meets}); the file itself is served under that id. Only Ogg Vorbis
  * plays in Minecraft; a file that is not, a name in letters other than Latin, or a second file making the same id, is
@@ -35,7 +35,7 @@ public final class StorySoundFiles {
     private StorySoundFiles() {}
 
     /**
-     * A file's trouble, by its path in the folder ("demo/hello.ogg"): {@code not_vorbis} (left out),
+     * A file's trouble, by its path in the folder ("mypack/hello.ogg"): {@code not_vorbis} (left out),
      * {@code bad_name} (left out), {@code stereo} (played, but it does not fade with distance).
      */
     public record Problem(String file, String kind) {}

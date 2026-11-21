@@ -14,12 +14,12 @@ import net.minecraft.resources.ResourceLocation;
 /**
  * Parses the {@code .sbt} long-text markup:
  * <ul>
- *     <li>{@code **bold**}, {@code *italic*} — toggles</li>
- *     <li>{@code {color:#7a1f1f}…{/}}, {@code {font:mypack:runes}…{/}} — {@code {/}} closes the latest one</li>
- *     <li>{@code {key:some.translation.key}} — inserts a translated string</li>
- *     <li>{@code {img:mypack:textures/doc/seal.png 32x32}} — an image, alone on its line</li>
- *     <li>{@code ---page---} — a page break, alone on its line</li>
- *     <li>{@code \*}, {@code \{}, {@code \\} — literal characters</li>
+ *     <li>{@code **bold**}, {@code *italic*}: toggles</li>
+ *     <li>{@code {color:#7a1f1f}…{/}}, {@code {font:mypack:runes}…{/}}: {@code {/}} closes the latest one</li>
+ *     <li>{@code {key:some.translation.key}}: inserts a translated string</li>
+ *     <li>{@code {img:mypack:textures/doc/seal.png 32x32}}: an image, alone on its line</li>
+ *     <li>{@code ---page---}: a page break, alone on its line</li>
+ *     <li>{@code \*}, {@code \{}, {@code \\}: literal characters</li>
  * </ul>
  * Styles carry over line breaks until closed. Unknown or malformed tags are kept as plain text.
  */

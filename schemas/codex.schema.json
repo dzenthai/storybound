@@ -12,7 +12,7 @@
       "description": "Dev mode only: the item this node shows on the editor's canvases (an item id, e.g. minecraft:compass). The game does not read it; without it, the kind's own item."
     },
     "category": {
-      "description": "Group in the Codex tab; a missing namespace means storybound. Name: <ns>.codex.category.<path>. Built in: monsters, animals, characters, places, lore.",
+      "description": "Group in the Codex tab; a missing namespace means storybound. Name: <ns>.codex.category.<path>. Built in: monsters, animals, characters, companions, places, lore.",
       "$ref": "logic.schema.json#/definitions/id",
       "default": "monsters"
     },

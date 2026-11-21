@@ -724,11 +724,12 @@
           "additionalProperties": false
         },
         {
-          "description": "The player dealt the killing blow; with shared, also a party member of the killer nearby.",
+          "description": "The player dealt the killing blow; with shared, also a party member of the killer nearby; with by_anyone, every player nearby, whoever or whatever killed it.",
           "properties": {
             "type": { "enum": ["entity_killed", "storybound:entity_killed"] },
             "entity": { "$ref": "#/definitions/id_list" },
-            "shared": { "type": "boolean", "default": false }
+            "shared": { "type": "boolean", "default": false },
+            "by_anyone": { "description": "Counts for every player near the victim (detection.killCreditRadius), whoever or whatever killed it: an iron golem, another mob, a fall, lava. For \"drive them off\" rather than \"kill them yourself\".", "type": "boolean", "default": false }
           },
           "additionalProperties": false
         },

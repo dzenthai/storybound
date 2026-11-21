@@ -1,4 +1,4 @@
-"""Validates the starter story folder (with the demo story) and good/bad cases against the Storybound JSON schemas.
+"""Validates the starter story folder and good/bad cases against the Storybound JSON schemas.
 
 Usage: python check_schemas.py <repository root>   (needs: pip install jsonschema)
 """
@@ -159,7 +159,8 @@ expect(event, {"trigger": {"type": "quest_stage_changed"}, "actions": [{"type": 
 expect(event, {"trigger": custom, "actions": [], "conditions": {"type": "quest", "quest": "a:b"}}, False, "event: quest condition without state or stage")
 expect(event, {"trigger": custom, "actions": {"type": "set_quest_state", "quest": "a:b", "state": "done"}}, False, "event: bad quest state")
 expect(theme, {"ink": "#12345"}, False, "theme: bad colour")
-expect(theme, {"hud_background": "#80000000", "panel": "mypack:gui/panel"}, True, "theme: alpha colour and own sprite")
+expect(theme, {"hud_background": "#80000000"}, True, "theme: alpha colour")
+expect(theme, {"panel": "mypack:gui/panel"}, False, "theme: no panel sprite (the book is a texture)")
 
 for path in (STARTER / "dialogues").rglob("*.json"):
     expect(dialogue, json.loads(path.read_text(encoding="utf-8")), True, f"starter {path.relative_to(STARTER).as_posix()}")
@@ -219,7 +220,7 @@ expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "beam": True}, Fals
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2]}}, False, "waypoint: two coordinates")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3], "entity": "123e4567-e89b-12d3-a456-426614174000"}}, False, "waypoint: pos and entity together")
 expect(waypoint, {"target": {"pos": [1, 2, 3]}}, False, "waypoint: no name")
-expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "icon": "a:b"}, False, "waypoint: icon is gone")
+expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "icon": "minecraft:compass"}, True, "waypoint: the editor's node icon")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "color": "red"}, False, "waypoint: bad colour")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "style": "storybound:npc"}, False, "waypoint: no style (one look for every marker)")
 expect(waypoint, {"name": "w", "target": {"structure": "#minecraft:village", "search_radius": 64}}, True, "waypoint: nearest structure of a tag")

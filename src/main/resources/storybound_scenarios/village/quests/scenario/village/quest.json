@@ -6,6 +6,22 @@
   },
   "stages": [
     {
+      "id": "reach",
+      "objectives": [
+        {
+          "id": "village",
+          "text": "scenario.village.quest.reach",
+          "trigger": {
+            "type": "structure_entered",
+            "structure": "#minecraft:village"
+          }
+        }
+      ],
+      "waypoints": [
+        "scenario:village/village"
+      ]
+    },
+    {
       "id": "find",
       "objectives": [
         {

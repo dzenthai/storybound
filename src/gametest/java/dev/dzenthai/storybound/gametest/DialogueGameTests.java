@@ -30,7 +30,6 @@ import dev.dzenthai.storybound.module.dialogue.DialogueRegistries;
 import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
-import dev.dzenthai.storybound.module.dialogue.NpcRespawns;
 import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import java.util.LinkedHashMap;

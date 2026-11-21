@@ -25,7 +25,6 @@ import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.module.quest.Quests;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
-import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
 import dev.dzenthai.storybound.module.waypoint.Waypoints;
 import java.util.LinkedHashMap;
 import java.util.List;

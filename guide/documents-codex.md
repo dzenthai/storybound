@@ -83,7 +83,7 @@ description, kill it and you learn its weaknesses, read a treatise about it and 
 
 | Field | Default | What it does |
 | --- | --- | --- |
-| `category` | `monsters` | `monsters`, `animals`, `characters`, `places`, `lore` or one of your own. A category of your own takes its name from the key `<namespace>.codex.category.<name>`. |
+| `category` | `monsters` | `monsters`, `animals`, `characters`, `companions`, `places`, `lore` or one of your own. A category of your own takes its name from the key `<namespace>.codex.category.<name>`. |
 | `entity` | none | Which creatures `seen` and `killed` refer to: an id, a `#tag` or a list. A single id also gives the entry its portrait. |
 | `title` | required | The entry's title. |
 | `sections` | required | The sections, in order. Each has an `id`, an optional `title`, an optional `text` and an `unlock` rule. Without `text`, the section's text is `<namespace>:codex/<entry>/<section>`. |

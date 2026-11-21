@@ -217,8 +217,19 @@ A binding says which mobs are NPCs and which dialogues they start. Bindings live
 
 For a mob of any kind, vanilla or modded, you can narrow it down further: `dimension`, `biome`, `structure`,
 `in_village`, `baby`, a villager's `profession` and `outfit`, a mob's `variant` (a wolf's coat, a cat's breed), and its
-saved data (`nbt`). This works with modded mobs, biomes and structures without any setup, because the choices are read
-from the world and from the mob itself.
+saved data. This works with modded mobs, biomes and structures without any setup, because the choices are read from
+the world and from the mob itself.
+
+There are two ways to match a mob's saved data. `data` matches single fields, and is what the editor writes for you:
+
+```json
+"data": { "VillagerData/profession": ["minecraft:weaponsmith", "minecraft:armorer"], "Stage": 2 }
+```
+
+A `/` goes into a field inside another field. Each field can match one value or any value from a list. A number
+matches any number of that value, and `true` and `false` match 1 and 0.
+
+`nbt` is written by hand, the same way as in `/execute if entity @e[nbt=...]`, for example `{Rank:"elite"}`.
 
 `entity` can also be a list of selectors. The binding then applies to any mob that matches one of them.
 
@@ -243,6 +254,8 @@ one with more filters wins. Each setting comes from the closest binding that set
 every villager an NPC, a second can give the smiths their own chatter, and a third can pick the elder.
 
 To see which bindings apply to a mob and what they give it, run `/storybound debug npc <entity>`.
+`/storybound debug npc parts` lists the NPCs picked with `one`: which mob holds each one and where.
+`/storybound debug npc part <npc> reset` frees one, so that the mod picks it again, which is handy while testing.
 
 ### Which dialogue
 

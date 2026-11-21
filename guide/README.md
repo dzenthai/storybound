@@ -46,8 +46,10 @@ Play the fights in survival mode. In creative, hostile mobs ignore you.
 | Scenario | What you will see |
 | --- | --- |
 | `campfire` | Brann the golem tells you a story in subtitles. When monsters attack, he stops to fight and then picks the story up again ("So. Where was I..."). He comments on your kills, and if a fight starts while you are choosing an answer, he asks the question again afterwards. |
+| `dimensions` | Reach a Nether fortress and come back. The pinned quest has waypoints in the Overworld, the Nether and the End. Each one shows only in its own dimension, and the quest tracker names the dimensions where the others are. |
+| `duel` | Ataman Grom comes for you and taunts you in subtitles all through the fight, and you answer him. Your hits don't stop the talk, and when he falls he has last words. |
 | `reputation` | Hilda the baker remembers how you treat her. Praise raises her opinion of you and rudeness lowers it. Help her fight off the husks within a minute and it goes up even more; fail and it drops. You see it change as stars and skulls on the HUD. |
-| `village` | Every villager in a village becomes an NPC with a name from a list. Smiths chat about their work, about three in ten grown-ups become guards, and the mod picks one villager as the elder. A waypoint follows him around. |
+| `village` | A waypoint leads you to the nearest village. There every villager becomes an NPC with a name from a list. Smiths chat about their work, about three in ten grown-ups become guards, and the mod picks one villager as the elder. The waypoint then follows him around. |
 
 ## Where files go
 

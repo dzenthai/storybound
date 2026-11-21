@@ -54,7 +54,7 @@ public final class SeenMarks {
         Path root = FMLPaths.GAMEDIR.get().resolve("storybound");
         String name = worldKey() + ".txt";
         file = root.resolve("seen").resolve(name);
-        // Before stage 4 only the Journal had markers, stored under journal_seen/.
+        // Saves of older versions keep only the Journal's markers, under journal_seen/.
         Path source = Files.exists(file) ? file : root.resolve("journal_seen").resolve(name);
         if (Files.exists(source)) {
             try {

@@ -16,7 +16,7 @@ import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import org.jetbrains.annotations.Nullable;
 
 /** Gives printed reading surfaces a solid pixel contour without translucent cutout fringe. */
-@EventBusSubscriber(modid = Storybound.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = Storybound.MOD_ID, value = Dist.CLIENT)
 public final class BookTextureRendering {
     private static @Nullable ShaderInstance cutout;
 

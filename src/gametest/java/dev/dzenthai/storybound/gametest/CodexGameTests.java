@@ -219,6 +219,52 @@ public final class CodexGameTests {
     }
 
     /**
+     * "by_anyone": a mob that dies near the player counts whoever or whatever killed it (an iron golem, a fall: no
+     * player in its death), and when another player kills it; a plain objective counts only the player's own kills; a
+     * player far away gets nothing; a party quest counts one death once, however many members stand near.
+     */
+    @GameTest(template = "empty")
+    public static void aKillByAnyoneCountsForPlayersNearWhoeverKilledIt(GameTestHelper helper) {
+        ServerPlayer near = at(helper, helper.makeMockServerPlayerInLevel(), 1.5, 2, 3);
+        ServerPlayer friend = at(helper, helper.makeMockServerPlayerInLevel(), 2.5, 2, 3);
+        ServerPlayer stranger = at(helper, helper.makeMockServerPlayerInLevel(), 3.5, 2, 3);
+        ServerPlayer distant = at(helper, helper.makeMockServerPlayerInLevel(), 1.5, 2, 3);
+        distant.teleportTo(distant.getX() + 500, distant.getY(), distant.getZ());
+        ok(() -> PartyManager.create(near, "Hunters"));
+        ok(() -> PartyManager.invite(near, friend));
+        ok(() -> PartyManager.accept(friend));
+        ResourceLocation anyone = key("drive_off"), own = key("own_kills"), together = key("drive_off_party");
+        String quest = "{ \"title\": \"gametest.q\", \"scope\": \"%s\", \"stages\": [ { \"id\": \"a\", \"objectives\": [ { \"id\": \"o\","
+                + " \"trigger\": %s, \"count\": 10 } ] } ] }";
+        with(helper, QuestRegistries.QUESTS.serverStore(), QuestDefinition.CODEC, Map.of(
+                anyone, quest.formatted("player", "{ \"type\": \"entity_killed\", \"entity\": \"minecraft:husk\", \"by_anyone\": true }"),
+                own, quest.formatted("player", "{ \"type\": \"entity_killed\", \"entity\": \"minecraft:husk\" }"),
+                together, quest.formatted("party", "{ \"type\": \"entity_killed\", \"entity\": \"minecraft:husk\", \"by_anyone\": true }")), () -> {
+            QuestEvents.rebuild();
+            for (ResourceLocation id : List.of(anyone, own, together)) {
+                for (ServerPlayer player : List.of(near, friend, stranger, distant)) {
+                    run(helper, player, "{ \"type\": \"set_quest_state\", \"quest\": \"" + id + "\", \"state\": \"active\" }");
+                }
+            }
+            helper.spawnWithNoFreeWill(EntityType.HUSK, 1, 2, 1).hurt(helper.getLevel().damageSources().fall(), 1000f);
+            expect(helper, count(near, anyone), 1, "a fall: counts for the player near");
+            expect(helper, count(stranger, anyone), 1, "and for any other player near");
+            expect(helper, count(near, own), 0, "but not as the player's own kill");
+            expect(helper, count(distant, anyone), 0, "a player far away gets nothing");
+            expect(helper, count(near, together), 1, "two members near: the party counts it once");
+
+            kill(helper.spawnWithNoFreeWill(EntityType.HUSK, 1, 2, 1), stranger);
+            expect(helper, count(near, anyone), 2, "killed by another player: counts for the player near");
+            expect(helper, count(stranger, own), 1, "and as the killer's own kill");
+            expect(helper, count(near, own), 0, "not as anyone else's own");
+            expect(helper, count(near, together), 2, "the party once again");
+        });
+        ok(() -> PartyManager.disband(near));
+        List.of(near, friend, stranger, distant).forEach(player -> remove(helper, player));
+        helper.succeed();
+    }
+
+    /**
      * One happening counts once for progress players share: a boss's victory credited to two party members, a kill
      * shared with the party, counts one for a party quest (a personal quest of each still counts for each). A player
      * who fought and left before the end gets the victory on joining, without counting it again for their party.

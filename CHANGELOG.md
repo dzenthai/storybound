@@ -16,6 +16,8 @@ Required on both client and server.
 - `observed` trigger: the player looks at an entity, a block or an item (on the ground, in an item frame) for a
   while; a bar under the crosshair fills meanwhile, only while it would do something.
 - `time` trigger: night falls, day breaks (and at once when the stage begins at that time of day).
+- `entity_killed` with `by_anyone`: a mob that dies near the player counts whoever or whatever killed it (a village's
+  iron golem, a fall), for objectives like "drive them off".
 - Scripts of vanilla commands (`scripts/`, like an `.mcfunction`) run by `run_script` at the player, an NPC or a mob
   the selector finds; `wait 2` pauses, even across a restart. Every command is checked when the story loads, with the
   permission level scripts run at, so a typo is an error naming its line.
@@ -103,7 +105,8 @@ Required on both client and server.
   (`-Dstorybound.validate`, JSON report, exit code); `/storybound debug lang extract` to move texts written in JSON
   into language files.
 - Debug scenarios: `/storybound debug scenario <name>` installs a small story that shows one mechanic (a companion's
-  story paused by a fight, a village of NPCs, an NPC's reputation); `clear` removes them.
+  story paused by a fight, an enemy who talks all through a duel, a village of NPCs, an NPC's reputation, waypoints in other dimensions); `clear`
+  removes them.
 - The validator says when a place can never be: a biome that is not in the chosen dimension, a structure that is in
   neither.
 - Migrations (`migrations/*.json`) that carry players' progress over when a quest, flag or dialogue is renamed.

@@ -22,7 +22,6 @@ import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.StringRepresentable;
 
 /**
  * {@code data/<ns>/storybound/quests/<path>.json}: a story record with a status and stages.

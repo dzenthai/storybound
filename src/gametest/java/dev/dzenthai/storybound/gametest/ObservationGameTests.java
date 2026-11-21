@@ -390,7 +390,7 @@ public final class ObservationGameTests {
         AtomicInteger fired = new AtomicInteger();
         // A kind of block, not a position: a position has its own look past entities, a kind only the one in front.
         with(List.of(new Subscription<CoreTriggers.Observation>("gametest lectern behind", new CoreTriggers.Observed(Optional.empty(),
-                Optional.of(net.minecraft.core.HolderSet.direct(Blocks.LECTERN.builtInRegistryHolder())), Optional.empty(), Optional.empty(),
+                Optional.of(net.minecraft.core.HolderSet.direct(net.minecraft.core.registries.BuiltInRegistries.BLOCK.wrapAsHolder(Blocks.LECTERN))), Optional.empty(), Optional.empty(),
                 0.25f, 16, Optional.empty()), context -> fired.incrementAndGet())), () -> {
             watch(player, 0, 6);
             expect(helper, fired.get(), 1, "the lectern behind the emerald is still observed");
@@ -402,7 +402,7 @@ public final class ObservationGameTests {
 
     private static Subscription<CoreTriggers.Observation> observeItem(net.minecraft.world.item.Item item, AtomicInteger fired) {
         return new Subscription<>("gametest observe " + item, new CoreTriggers.Observed(Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), 0.25f, 16, Optional.empty(), Optional.of(net.minecraft.core.HolderSet.direct(item.builtInRegistryHolder()))),
+                Optional.empty(), 0.25f, 16, Optional.empty(), Optional.of(net.minecraft.core.HolderSet.direct(net.minecraft.core.registries.BuiltInRegistries.ITEM.wrapAsHolder(item)))),
                 context -> fired.incrementAndGet(), context -> true);
     }
 

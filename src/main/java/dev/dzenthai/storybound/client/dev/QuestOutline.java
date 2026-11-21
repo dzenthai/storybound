@@ -22,9 +22,9 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * What a quest is made of, stage by stage, and what each stage touches: what starts the quest, then each stage with
- * its objectives and what belongs to it — the dialogues, documents and scripts its {@code on_enter} runs, its waypoints,
+ * its objectives and what belongs to it: the dialogues, documents and scripts its {@code on_enter} runs, its waypoints,
  * what its objectives wait for, and what elsewhere asks for this very stage (an NPC's dialogue entry, a story event on
- * reaching it, a dialogue with a condition on it) — then what follows the quest. Read from the definitions' JSON
+ * reaching it, a dialogue with a condition on it). Then what follows the quest. Read from the definitions' JSON
  * only, without any GUI, for the editor's "inside the quest" view.
  */
 final class QuestOutline {

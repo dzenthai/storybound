@@ -24,7 +24,8 @@
           "since_stage": true,
           "trigger": {
             "type": "entity_killed",
-            "entity": "minecraft:husk"
+            "entity": "minecraft:husk",
+            "by_anyone": true
           }
         }
       ]

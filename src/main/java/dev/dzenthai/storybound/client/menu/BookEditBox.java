@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
  * its frame and without the drop shadow that doubled the letters on the paper; a thin blinking stroke for the cursor.
  * For short texts that fit the line (it does not scroll).
  */
-public class BookEditBox extends EditBox {
+public final class BookEditBox extends EditBox {
     private final Font font;
     private final int ink;
     private @Nullable Component placeholder;

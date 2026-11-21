@@ -74,7 +74,7 @@ public final class StoryRenames {
 
     /**
      * What keeps the typed name from being the node's new id; empty when it can be. Ids are unique within a type, so a
-     * quest and an NPC may both be {@code demo:elder}.
+     * quest and an NPC may both be {@code mypack:elder}.
      *
      * @param exists whether a definition of the type has the id
      */

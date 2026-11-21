@@ -1,0 +1,6 @@
+{
+  "name": "scenario.village.village",
+  "target": {
+    "structure": "#minecraft:village"
+  }
+}

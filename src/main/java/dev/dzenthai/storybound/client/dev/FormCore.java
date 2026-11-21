@@ -936,7 +936,7 @@ abstract class FormCore {
 
     /**
      * A part's value in words, for the button under its label: a list by its
-     * elements ("Quest: demo:hunt · Flag set"),
+     * elements ("Quest: mypack:hunt · Flag set"),
      * a map by its keys, an object by how many of its fields are set; "None" when
      * empty.
      */

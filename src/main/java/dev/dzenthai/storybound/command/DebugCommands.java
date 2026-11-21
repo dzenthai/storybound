@@ -22,8 +22,7 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * {@code /storybound debug [player] | off}: a live panel of a player's story on the operator's own screen (see
  * {@link StoryDebug}). {@code /storybound debug scenario <name> | clear}: a small scenario showing one mechanic, put in
- * the story folder and started next to the operator, or all of them taken out again (it replaced the demo story, which
- * started for every player who joined).
+ * the story folder and started next to the operator, or all of them taken out again.
  */
 final class DebugCommands {
     private DebugCommands() {}

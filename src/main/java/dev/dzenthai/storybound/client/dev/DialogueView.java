@@ -840,19 +840,6 @@ final class DialogueView extends GraphView {
         };
     }
 
-    private static int edgeColor(DialogueGraph.EdgeKind kind) {
-        return switch (kind) {
-            case NEXT -> 0xFFA5B574;
-            case ACTION -> 0xFFE1B34D;
-            case OPTION -> DevUi.WARN;
-            case TIMEOUT, ELSE -> 0xFFD9785A;
-            case THEN -> 0xFF708B34;
-            case RANDOM -> 0xFFBE96D0;
-            case RETURN -> 0xFF92AACC;
-            case JUMP -> 0xFF6480AE;
-        };
-    }
-
     private void renderNodeList(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
         DevUi.sidePanel(graphics, 0, DevUi.LEFT_PANEL_W, screen.height, true);

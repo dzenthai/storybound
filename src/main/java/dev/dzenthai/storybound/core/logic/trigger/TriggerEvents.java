@@ -69,16 +69,28 @@ public final class TriggerEvents {
         });
     }
 
-    // The killer first, then party members nearby, whom only "shared" triggers count.
+    // The killer first, then party members nearby, whom "shared" triggers count, then every other player nearby, whom
+    // only "by_anyone" triggers count (all of them when no player killed it).
     private static void onLivingDeath(LivingDeathEvent event) {
-        if (!(event.getSource().getEntity() instanceof ServerPlayer killer) || !TriggerDispatcher.hasSubscribers(BuiltinTriggers.ENTITY_KILLED.get())) {
+        if (!TriggerDispatcher.hasSubscribers(BuiltinTriggers.ENTITY_KILLED.get())) {
             return;
         }
         LivingEntity victim = event.getEntity();
+        ServerPlayer killer = event.getSource().getEntity() instanceof ServerPlayer player ? player : null;
         TriggerDispatcher.asOne(() -> {
-            TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(killer, victim), new CoreTriggers.Kill(victim, true));
-            for (ServerPlayer member : KillCredit.partyNear(killer, victim)) {
-                TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(member, victim), new CoreTriggers.Kill(victim, false));
+            List<ServerPlayer> credited = new java.util.ArrayList<>();
+            if (killer != null) {
+                credited.add(killer);
+                TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(killer, victim), new CoreTriggers.Kill(victim, true, false));
+                for (ServerPlayer member : KillCredit.partyNear(killer, victim)) {
+                    credited.add(member);
+                    TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(member, victim), new CoreTriggers.Kill(victim, false, false));
+                }
+            }
+            for (ServerPlayer near : KillCredit.playersNear(victim)) {
+                if (!credited.contains(near) && near != victim) {
+                    TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(near, victim), new CoreTriggers.Kill(victim, false, true));
+                }
             }
         });
     }

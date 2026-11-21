@@ -7,7 +7,7 @@ import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 
-/** Who else gets credit for a kill: the killer's party members near the victim. */
+/** Who else gets credit for a kill: the killer's party members near the victim, or anyone near it. */
 public final class KillCredit {
     private KillCredit() {}
 
@@ -17,6 +17,17 @@ public final class KillCredit {
         return StoryState.onlinePlayersOf(player.server, StoryScope.PARTY, StoryState.owner(player, StoryScope.PARTY)).stream()
                 .filter(member -> member != player && member.isAlive() && member.level() == victim.level()
                         && member.distanceToSqr(victim) <= radius * radius)
+                .toList();
+    }
+
+    /** Online living players within {@code detection.killCreditRadius} of the victim, in its level. */
+    public static List<ServerPlayer> playersNear(Entity victim) {
+        double radius = StoryboundConfig.COMMON.killCreditRadius.get();
+        if (victim.getServer() == null) {
+            return List.of();
+        }
+        return victim.getServer().getPlayerList().getPlayers().stream()
+                .filter(player -> player.isAlive() && player.level() == victim.level() && player.distanceToSqr(victim) <= radius * radius)
                 .toList();
     }
 }

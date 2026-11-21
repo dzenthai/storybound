@@ -24,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Picking a place or an entity in the world for a field of the editor: the editor steps aside, the author aims and
- * clicks (either mouse button), and the editor comes back — the same screen, so nothing typed is lost — with the value
+ * clicks (either mouse button), and the editor comes back (the same screen, so nothing typed is lost) with the value
  * written into the field. ESC gives up and returns. The pick happens on the client, from what it sees: an entity's
  * type, uuid and name, a block's position and the dimension.
  */

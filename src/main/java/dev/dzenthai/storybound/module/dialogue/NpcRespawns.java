@@ -36,8 +36,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
  * NPCs that come back ({@code "respawn": true} in a binding file that matches them): when such an entity dies or
- * disappears (despawned, discarded by a command or a mod, turned into another mob), a copy of it as it was — name,
- * look, equipment, trades, tags, uuid — comes back where it was, {@link #DELAY_TICKS} later, whole and unhurt.
+ * disappears (despawned, discarded by a command or a mod, turned into another mob), a copy of it as it was (name,
+ * look, equipment, trades, tags, uuid) comes back where it was, {@link #DELAY_TICKS} later, whole and unhurt.
  * Leaving with its chunk, for another dimension or because the server stops is not disappearing. Waiting NPCs are kept
  * in SavedData {@code storybound_npc_respawns} of the overworld, so a restart only pauses them; one whose place is not
  * loaded waits until it is, and one whose binding no longer says {@code respawn} when its time comes stays gone. A

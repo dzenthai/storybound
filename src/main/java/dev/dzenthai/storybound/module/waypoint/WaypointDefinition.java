@@ -2,7 +2,6 @@ package dev.dzenthai.storybound.module.waypoint;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.ColorCodec;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;

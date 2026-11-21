@@ -9,7 +9,6 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.compat.jei.QuestRecipe;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
-import dev.dzenthai.storybound.core.data.ChapterDefinition;
 import dev.dzenthai.storybound.core.data.DefinitionStore;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;

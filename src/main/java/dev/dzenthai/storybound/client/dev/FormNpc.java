@@ -98,7 +98,7 @@ abstract class FormNpc extends FormEntities {
         if (byHand) {
             idListRows(ENTITY, "type", kinds, DevUi.text("npc.kind_optional"));
             if (selector.has("uuid") || selector.has("name")) {
-                // An old or hand-written file: shown as it is, the form no longer offers these ways.
+                // A hand-written file: shown as it is, the form does not offer these ways.
                 String known = selector.has("uuid") ? DevUi.str("entity.summary.uuid", tail(selector.get("uuid").getAsString()))
                         : DevUi.str("entity.summary.name", selector.get("name").getAsString());
                 text(DevUi.text("npc.known_from_file", known), DevUi.MUTED);

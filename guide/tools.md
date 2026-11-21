@@ -103,13 +103,15 @@ All commands need permission level 2, except `party`.
 /storybound dialogue start <players> <dialogue> [speaker]
 /storybound dialogue stop <players>
 /storybound debug npc <entity> [unbind]
+/storybound debug npc parts
+/storybound debug npc part <npc> reset
 /storybound codex unlock|lock <players> <entry> [section]
 /storybound codex list <player>
 /storybound boss unlock <players> <boss> <lore|tactics|rewards>
 /storybound boss reset <players> <boss>
 /storybound boss info <player> <boss>
 /storybound waypoint add <id> <pos> <name> | remove <id> | list <player>
-/storybound party create [name]|invite <player>|accept|leave|kick <player>|disband|info
+/storybound party create [name]|invite <player>|accept|decline|leave|kick <player>|disband|info
 /storybound debug validate
 /storybound debug trace on [players] | off | status
 /storybound debug [player] | off
@@ -186,8 +188,8 @@ a migrations file, `migrations/<name>.json`. Progress is moved to the new ids wh
 ```
 
 You can rename `flags`, `quests`, `events`, `dialogues`, `npc_bindings`, `documents` (including document items in
-inventories), `notes`, `codex`, `bosses` and `waypoints`. `stages` and `objectives` are renamed inside a quest, which
-you name by its new id.
+inventories), `notes`, `codex`, `bosses` and `waypoints`. `stages` and `objectives` are renamed inside a quest, and
+`codex_sections` inside a Codex entry, which you name by its new id.
 
 Running a migration again changes nothing. If the new id already has progress, that progress is kept. A rename whose
 old id still exists is ignored, and the validator tells you. Keep the file for as long as old saves may be around.
@@ -215,12 +217,16 @@ When you rename a node in the editor, it writes the migration for you.
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `hud.questTracker`, `questTrackerCorner`, `questTrackerOffsetY` | `true`, `TOP_RIGHT`, `70` | The pinned quests on the HUD and where they are shown. |
+| `hud.size` | `0` | The size of Storybound's HUD (the observation bar, the quest tracker, waypoint markers). `0` follows Minecraft's GUI scale, and each step from -3 to 3 makes it one screen pixel bigger or smaller. |
+| `hud.questTracker`, `questTrackerCorner`, `questTrackerOffsetY` | `true`, `TOP_RIGHT`, `70` | The pinned quests on the HUD and where they are shown. The offset leaves room for a minimap. |
+| `hud.reputationCorner` | `TOP_LEFT` | The corner where your standing with an NPC shows, as stars or skulls. |
+| `hud.menuOpened` | `false` | Set by itself once the Adventure Menu has been opened. Until then, the quest tracker shows which key opens it. |
 | `dialogue.textSpeed` | `45` | Characters per second. `0` shows the whole line at once. |
 | `dialogue.thinkPause` | `1.0` | How long the NPC's thinking pause is, from 0 to 2 times the normal length. |
 | `dialogue.speechBubbles` | `true` | Shows other players' dialogue lines over their heads. |
 | `waypoints.untrackedQuestWaypoints` | `HIDE` | What to do with waypoints of quests that aren't pinned: `HIDE`, `DIM` or `SHOW`. |
 | `waypoints.markers`, `markerScale`, `markerOpacity` | `true`, `1.0`, `1.0` | Markers in the world, their size and their opacity. |
+| `waypoints.areaRings` | `true` | Draws the edge of search areas on the ground near you. |
 | `waypoints.edgeArrows` | `TRACKED` | Which markers get an arrow at the edge of the screen while you look away: `TRACKED` (the tracked quest's), `ALL` or `NEVER`. |
 | `camera.enabled`, `camera.disableWith` | `true`, `[]` | The dialogue camera, and the ids of mods that keep it off. |
 | `camera.floating` | `true` | While a line plays, the mouse turns the dialogue camera a little and the cursor hides. |

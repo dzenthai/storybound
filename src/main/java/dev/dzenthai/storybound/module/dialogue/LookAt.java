@@ -2,7 +2,6 @@ package dev.dzenthai.storybound.module.dialogue;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
-import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;

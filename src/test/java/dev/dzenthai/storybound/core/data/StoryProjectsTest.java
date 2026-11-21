@@ -3,7 +3,6 @@ package dev.dzenthai.storybound.core.data;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import dev.dzenthai.storybound.core.state.FlagDeclaration;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
 import io.netty.buffer.Unpooled;

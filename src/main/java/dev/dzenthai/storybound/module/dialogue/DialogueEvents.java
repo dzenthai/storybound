@@ -307,7 +307,10 @@ public final class DialogueEvents {
                     // A kind with no attack damage (a villager, a cow) has nothing to fight with.
                     binding.entities().forEach(selector -> selector.type().ifPresent(types -> types.forEach(holder -> {
                         EntityType<?> kind = holder.value();
-                        if (!DefaultAttributes.hasSupplier(kind) || !DefaultAttributes.getSupplier((EntityType<? extends LivingEntity>) kind).hasAttribute(Attributes.ATTACK_DAMAGE)) {
+                        // A kind with attributes is a living one.
+                        @SuppressWarnings("unchecked")
+                        EntityType<? extends LivingEntity> living = (EntityType<? extends LivingEntity>) kind;
+                        if (!DefaultAttributes.hasSupplier(kind) || !DefaultAttributes.getSupplier(living).hasAttribute(Attributes.ATTACK_DAMAGE)) {
                             sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "when_attacked: fight, but "
                                     + BuiltInRegistries.ENTITY_TYPE.getKey(kind) + " cannot attack; it does nothing to the player"));
                         }
@@ -330,8 +333,8 @@ public final class DialogueEvents {
 
     /**
      * Warns about a spawn of an NPC that a binding talks through (by its tag), written without {@code unique}, where it
-     * may run more than once (for each player or party that gets there): each would get a copy of their own, as three
-     * players got three demo elders. An explicit {@code unique} says which was meant.
+     * may run more than once (for each player or party that gets there): each would get a copy of their own (three
+     * players, three elders). An explicit {@code unique} says which was meant.
      */
     private record NpcCopies(DefinitionType<?> owner, ResourceLocation ownerId, Set<String> boundTags, boolean runsOnce, Set<String> reported,
                              Consumer<ValidationIssue> sink) implements References {

@@ -3,8 +3,6 @@ package dev.dzenthai.storybound.client.quest;
 import dev.dzenthai.storybound.client.ClientQuests;
 import dev.dzenthai.storybound.client.SeenMarks;
 import dev.dzenthai.storybound.client.UiPalette;
-import dev.dzenthai.storybound.client.menu.AdventureMenu;
-import dev.dzenthai.storybound.client.menu.AdventureMenuScreen;
 import dev.dzenthai.storybound.client.menu.BookButton;
 import dev.dzenthai.storybound.client.menu.JournalSkin;
 import dev.dzenthai.storybound.client.menu.ListDetailView;

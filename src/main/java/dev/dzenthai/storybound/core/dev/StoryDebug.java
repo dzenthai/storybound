@@ -30,7 +30,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * {@code /storybound debug}: an operator watches a player's story live, on a panel of their own screen — the dialogue
+ * {@code /storybound debug}: an operator watches a player's story live, on a panel of their own screen: the dialogue
  * and node the player is at, their active quests with stages and counts, and the last things the story logic did for
  * them with the reasons (the trace's lines, see {@link StoryTrace#tap}), whether the file trace is on or not.
  */

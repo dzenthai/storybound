@@ -31,7 +31,7 @@ final class JourneyMapWaypointRenderer implements WaypointRenderer {
         for (ClientWaypoint waypoint : waypoints) {
             String name = waypoint.name().toComponent().getString();
             ClientWaypoints.Display display = ClientWaypoints.display(waypoint);
-            Waypoint journeymap = WaypointFactory.createClientWaypoint(Storybound.MOD_ID, BlockPos.containing(waypoint.pos()),
+            Waypoint journeymap = WaypointFactory.createWaypoint(Storybound.MOD_ID, BlockPos.containing(waypoint.pos()),
                     display == ClientWaypoints.Display.TRACKED ? "» " + name : name,
                     ResourceKey.create(Registries.DIMENSION, waypoint.dimension()), false);
             journeymap.setColor(waypoint.color() & 0xFFFFFF);

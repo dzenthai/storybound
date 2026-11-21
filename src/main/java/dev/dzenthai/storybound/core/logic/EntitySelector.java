@@ -105,7 +105,7 @@ public record EntitySelector(Optional<HolderSet<EntityType<?>>> type, Optional<S
 
     /** Checked cheapest first: what the entity is, where it is, then its saved data, read once for both. */
     public boolean matches(Entity entity) {
-        return type.map(set -> set.contains(entity.getType().builtInRegistryHolder())).orElse(true)
+        return type.map(set -> set.contains(BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()))).orElse(true)
                 && dimension.map(entity.level().dimension()::equals).orElse(true)
                 && tag.map(entity.getTags()::contains).orElse(true)
                 && name.map(value -> value.equals(customName(entity))).orElse(true)
@@ -136,7 +136,7 @@ public record EntitySelector(Optional<HolderSet<EntityType<?>>> type, Optional<S
      */
     public String mismatch(Entity entity) {
         List<String> parts = new ArrayList<>();
-        if (type.isPresent() && !type.get().contains(entity.getType().builtInRegistryHolder())) {
+        if (type.isPresent() && !type.get().contains(BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()))) {
             parts.add("type is " + BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()));
         }
         if (dimension.isPresent() && !dimension.get().equals(entity.level().dimension())) {

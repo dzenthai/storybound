@@ -52,7 +52,7 @@ public final class CoreTriggers {
     private CoreTriggers() {}
 
     private static boolean entityMatches(Optional<HolderSet<EntityType<?>>> filter, Entity entity) {
-        return filter.map(set -> set.contains(entity.getType().builtInRegistryHolder())).orElse(true);
+        return filter.map(set -> set.contains(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()))).orElse(true);
     }
 
     /** {@code { "type": "flag_changed", "key": "mypack:met_elder", "value": true }}; without {@code value} any change matches. */
@@ -96,19 +96,22 @@ public final class CoreTriggers {
     }
 
     /**
-     * The payload of {@code entity_killed}: fired for the killer ({@code killingBlow}) and then for every
-     * party member of theirs near the victim, whom only {@code shared} triggers count.
+     * The payload of {@code entity_killed}: fired for the player who killed it ({@code killingBlow}), then for every
+     * party member of theirs near the victim, whom {@code shared} triggers count, then for every other player near it
+     * ({@code bystander}), whom only {@code by_anyone} triggers count; a death no player caused has only bystanders.
      */
-    public record Kill(LivingEntity victim, boolean killingBlow) {}
+    public record Kill(LivingEntity victim, boolean killingBlow, boolean bystander) {}
 
     /**
-     * The player dealt the killing blow; with {@code shared}, also a party member of the killer within 48 blocks.
-     * {@code entity} is an id, a #tag or a list; omitted means any.
+     * The player dealt the killing blow; with {@code shared}, also a party member of the killer within
+     * {@code detection.killCreditRadius}; with {@code by_anyone}, every player that near, whoever or whatever killed it
+     * (an iron golem, another mob, a fall, lava). {@code entity} is an id, a #tag or a list; omitted means any.
      */
-    public record EntityKilled(Optional<HolderSet<EntityType<?>>> entity, boolean shared) implements Trigger<Kill> {
+    public record EntityKilled(Optional<HolderSet<EntityType<?>>> entity, boolean shared, boolean byAnyone) implements Trigger<Kill> {
         public static final MapCodec<EntityKilled> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 ENTITY_FILTER.forGetter(EntityKilled::entity),
-                Codec.BOOL.optionalFieldOf("shared", false).forGetter(EntityKilled::shared)
+                Codec.BOOL.optionalFieldOf("shared", false).forGetter(EntityKilled::shared),
+                Codec.BOOL.optionalFieldOf("by_anyone", false).forGetter(EntityKilled::byAnyone)
         ).apply(instance, EntityKilled::new));
 
         @Override
@@ -118,7 +121,8 @@ public final class CoreTriggers {
 
         @Override
         public boolean matches(StoryContext context, Kill kill) {
-            return (kill.killingBlow() || shared) && entityMatches(entity, kill.victim());
+            boolean credited = kill.killingBlow() || byAnyone || shared && !kill.bystander();
+            return credited && entityMatches(entity, kill.victim());
         }
     }
 

@@ -56,7 +56,7 @@ public final class CodexEvents {
                 for (Unlock.Source source : sources) {
                     Trigger<?> trigger = switch (source) {
                         case Unlock.Source.Seen seen -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntitySeen(Optional.of(set))).orElse(null);
-                        case Unlock.Source.Killed killed -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntityKilled(Optional.of(set), true)).orElse(null);
+                        case Unlock.Source.Killed killed -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntityKilled(Optional.of(set), true, false)).orElse(null);
                         case Unlock.Source.Read read -> new DocumentLogic.Read(Optional.of(read.document()), false);
                         case Unlock.Source.Observed observed -> definition.entity().<Trigger<?>>map(set -> CoreTriggers.Observed.of(
                                 EntitySelector.ofTypes(set), observed.seconds())).orElse(null);

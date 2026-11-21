@@ -729,7 +729,7 @@ public final class Quests {
         }
     }
 
-    /** Fade in, stay and fade out of the screen text, in ticks: as long as the demo's arrival title. */
+    /** Fade in, stay and fade out of the screen text, in ticks. */
     private static final int SCREEN_FADE_IN = 15;
     private static final int SCREEN_STAY = 70;
     private static final int SCREEN_FADE_OUT = 25;

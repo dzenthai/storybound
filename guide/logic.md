@@ -53,6 +53,7 @@ Players manage parties with `/storybound party`, and any player can use it:
 /storybound party create [name]
 /storybound party invite <player>
 /storybound party accept
+/storybound party decline
 /storybound party leave
 /storybound party kick <player>
 /storybound party disband
@@ -102,7 +103,7 @@ happen and never from the past.
 | Type | Fields | Fires when |
 | --- | --- | --- |
 | `flag_changed` | `key`, `value?` | The flag changes, or changes to `value` if you give one. |
-| `entity_killed` | `entity?`, `shared?` | The player kills the entity. With `shared`, party members nearby count too. |
+| `entity_killed` | `entity?`, `shared?`, `by_anyone?` | The player kills the entity. With `shared`, party members nearby count too. With `by_anyone`, every player nearby counts, whoever or whatever killed it: an iron golem, another mob, a fall, lava. Use it for "drive them off" rather than "kill them yourself". |
 | `entity_seen` | `entity?` | The player looks at the entity for a moment. It fires once per entity, until that entity leaves the area. |
 | `entity_interacted` | `entity?` | The player right-clicks the entity. |
 | `observed` | `entity`, `block` (with `pos?`) or `item`, `time?`, `distance?`, `text?` | The player keeps looking at the target for `time` seconds. A bar under the crosshair fills meanwhile, but only while it would do something. Looking away pauses the bar, and after two seconds it starts over. An item counts lying on the ground or in an item frame. |

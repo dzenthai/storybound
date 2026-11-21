@@ -2,7 +2,6 @@ package dev.dzenthai.storybound.module.quest;
 
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.CoreDefinitions;
-import dev.dzenthai.storybound.core.data.ConfigStorySource;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.ProjectSettings;
 import dev.dzenthai.storybound.core.data.StoryProjects;

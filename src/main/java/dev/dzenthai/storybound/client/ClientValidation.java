@@ -19,7 +19,7 @@ import net.minecraft.locale.Language;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * {@code /storybound_client validate}: what only a client can check, in the game's language — every translation key
+ * {@code /storybound_client validate}: what only a client can check, in the game's language: every translation key
  * the received definitions name (quests, documents, Codex entries, bosses), their long texts and the documents'
  * styles. Dialogues and other server-only data never reach clients, so they are not checked here.
  */

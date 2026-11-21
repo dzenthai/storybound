@@ -40,8 +40,8 @@ public final class StoryFolder {
      * moved to one folder per story ({@link StoryProjects#migrate}, each move in the log); a missing folder is created
      * with a README and the story {@value #FIRST_STORY} (a folder per definition type and four blank documents):
      * deleting the folder brings them back, changing them never does. A folder given by {@code -Dstorybound.folder} (a
-     * pack's repository checked by CI) is never changed: an old layout there is a validation error instead. There is no
-     * demo story any more; see the debug scenarios.
+     * pack's repository checked by CI) is never changed: an old layout there is a validation error instead. Nothing
+     * starts for players on its own: mechanics are shown by the debug scenarios.
      */
     public static void createIfMissing() {
         Path root = ConfigStorySource.root();

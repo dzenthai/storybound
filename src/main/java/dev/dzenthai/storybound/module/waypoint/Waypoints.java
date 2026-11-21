@@ -7,7 +7,6 @@ import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
 import dev.dzenthai.storybound.module.dialogue.NpcParts;
 import dev.dzenthai.storybound.core.logic.StoryContext;
-import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
 import dev.dzenthai.storybound.core.state.StoryScope;

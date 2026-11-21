@@ -17,8 +17,8 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * "Inside the quest": what starts it on the left, then a column per stage — the stage with its log line and
- * objectives on top, below it what the stage touches ({@link QuestOutline}) — and what follows the quest on the right.
+ * "Inside the quest": what starts it on the left, then a column per stage: the stage with its log line and
+ * objectives on top, below them what the stage touches ({@link QuestOutline}). What follows the quest is on the right.
  * For reading; a click goes where the thing is edited: a dialogue opens its graph, a quest its own inside, anything
  * else is shown selected on the "All links" canvas.
  */
