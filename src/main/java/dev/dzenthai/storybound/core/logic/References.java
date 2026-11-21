@@ -24,6 +24,9 @@ public interface References {
 
     default void boss(ResourceLocation boss) {}
 
+    /** A script of vanilla commands a {@code run_script} runs. */
+    default void vanillaScript(ResourceLocation id) {}
+
     /** A handler of the action or condition "Script" ({@code kubejs}). */
     default void script(ResourceLocation id, boolean condition) {}
 

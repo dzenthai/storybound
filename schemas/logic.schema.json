@@ -449,6 +449,16 @@
           "additionalProperties": false
         },
         {
+          "description": "Runs a script of vanilla commands (scripts/), as the player, at a place: the player (default), the entity of the moment (entity: the NPC talked to, the dialogue partner, the mob killed), or the nearest entity a selector matches within 64 blocks (nothing runs when none is near). ~ ~ ~ in its lines is that place.",
+          "properties": {
+            "type": { "enum": ["run_script", "storybound:run_script"] },
+            "script": { "$ref": "#/definitions/id" },
+            "at": { "oneOf": [ { "$ref": "#/definitions/scene_target" }, { "$ref": "#/definitions/entity_selector" } ] }
+          },
+          "required": ["script"],
+          "additionalProperties": false
+        },
+        {
           "description": "The player's screen fades to a colour and back, in seconds: it rises from where it is (no flash over another fade), holds, and clears. in 0 is black at once; stay and out 0 clear it at once. Drawn over the world and the HUD, under titles and subtitles. A time cut, waking up, the start of a scene.",
           "properties": {
             "type": { "enum": ["fade", "storybound:fade"] },

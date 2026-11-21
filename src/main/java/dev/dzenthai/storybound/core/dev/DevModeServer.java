@@ -584,6 +584,16 @@ public final class DevModeServer {
             // No speaker: the dialogue's own participants play it out; the player cannot be its bound NPC.
             case "dialogue_start" -> Dialogues.start(player, targetId, null);
             case "document_give" -> Documents.give(player, targetId, 1);
+            // At the player, as if a node ran it with no "at".
+            case "script_run" -> {
+                try {
+                    new dev.dzenthai.storybound.core.logic.action.SceneActions.RunScript(targetId, Optional.empty(), 0, Optional.empty())
+                            .run(dev.dzenthai.storybound.core.logic.StoryContext.of(player));
+                    player.sendSystemMessage(Component.literal("▶ Ran the script " + targetId + " at you").withStyle(ChatFormatting.GREEN));
+                } catch (dev.dzenthai.storybound.core.StoryException failure) {
+                    player.sendSystemMessage(failure.component().copy().withStyle(ChatFormatting.RED));
+                }
+            }
             case "waypoint_tp" -> {
                 switch (Waypoints.teleportTo(player, targetId)) {
                     case SEARCHING -> player.sendSystemMessage(Component.literal("Searching for the structure of " + targetId + " in the background; try again in a moment")

@@ -59,6 +59,7 @@ public final class Storybound {
         StoryFolder.createIfMissing();
         dev.dzenthai.storybound.core.data.WorldStory.register();
         ValidationService.registerValidator(StoryFolder::validate);
+        dev.dzenthai.storybound.core.logic.VanillaScripts.register();
 
         modBus.addListener(StoryboundNetwork::register);
         StoryboundDataEvents.register(NeoForge.EVENT_BUS);

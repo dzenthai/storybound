@@ -44,6 +44,8 @@ public final class NpcMovement {
     /** Speed walking back: a brain's walk (a villager's 0.5 strolls), a goal mob's own walk. */
     private static final float BRAIN_SPEED = 0.6f;
     private static final double GOAL_SPEED = 1.0;
+    /** How long after being hurt an NPC is let run as its kind does (a goal mob's panic). */
+    private static final int HURT_TICKS = 100;
 
     /** Entity → what holds it, for the mobs some binding holds now. */
     private static final Map<UUID, Held> HELD = new HashMap<>();
@@ -146,6 +148,10 @@ public final class NpcMovement {
         if (mob.isNoAi() || mob.isSleeping() || mob.isPassenger() || mob.isLeashed() || mob.getTarget() != null) {
             return true;
         }
+        // Just hurt: a goal mob's own panic runs (a villager's is its brain's PANIC, below).
+        if (mob.getLastHurtByMob() != null && mob.tickCount - mob.getLastHurtByMobTimestamp() < HURT_TICKS) {
+            return true;
+        }
         Brain<?> brain = mob.getBrain();
         if (brain.isActive(Activity.PANIC) || brain.isActive(Activity.HIDE) || brain.isActive(Activity.FIGHT)
                 || brain.checkMemory(MemoryModuleType.ATTACK_TARGET, MemoryStatus.VALUE_PRESENT)) {
@@ -179,6 +185,9 @@ public final class NpcMovement {
     /** As a dialogue holds it: no path, no walk target. */
     private static void standStill(Mob mob) {
         mob.getNavigation().stop();
+        // A goal mob (a wandering trader) would start a stroll and take a step before the next stop: its moving goals
+        // are kept from starting while it stays (vanilla gives them back within five ticks once it is let go).
+        mob.goalSelector.disableControlFlag(net.minecraft.world.entity.ai.goal.Goal.Flag.MOVE);
         Brain<?> brain = mob.getBrain();
         if (brain.checkMemory(MemoryModuleType.WALK_TARGET, MemoryStatus.REGISTERED)) {
             brain.eraseMemory(MemoryModuleType.WALK_TARGET);
@@ -210,6 +219,8 @@ public final class NpcMovement {
             return;
         }
         mob.getLookControl().setLookAt(player);
+        // Its own looking goals (at any mob near: a trader's llama) would turn its head away.
+        mob.goalSelector.disableControlFlag(net.minecraft.world.entity.ai.goal.Goal.Flag.LOOK);
         Brain<?> brain = mob.getBrain();
         if (brain.checkMemory(MemoryModuleType.LOOK_TARGET, MemoryStatus.REGISTERED)) {
             brain.setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(player, true));

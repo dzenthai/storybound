@@ -229,7 +229,10 @@ final class StoryView extends StoryDrawing {
             items.add(linked(screen, target, "🗡", "menu.link.quest_side", Template.QUEST_SIDE, false));
             items.add(linked(screen, target, "📖", "menu.link.give_document", Template.DOCUMENT, false));
             items.add(linked(screen, target, "🧑", "menu.link.new_npc", Template.NPC, true));
-            items.add(linked(screen, target, "⚙", "menu.link.runs_script", Template.SCRIPT, false));
+            items.add(linked(screen, target, "📄", "menu.link.runs_vanilla_script", Template.VANILLA_SCRIPT, false));
+            if (ClientDevStore.kubejs()) {
+                items.add(linked(screen, target, "⚙", "menu.link.runs_script", Template.SCRIPT, false));
+            }
         } else if (type.equals(ClientDevStore.TYPE_DOCUMENT)) {
             items.add(linked(screen, target, "📜", "menu.link.quest_main", Template.QUEST_MAIN, false));
             items.add(linked(screen, target, "🗡", "menu.link.quest_side", Template.QUEST_SIDE, false));
@@ -241,7 +244,10 @@ final class StoryView extends StoryDrawing {
             items.add(linked(screen, target, "🐉", "menu.link.boss", Template.BOSS, false));
             items.add(linked(screen, target, "💬", "menu.link.started_by_dialogue", Template.DIALOGUE_SCREEN, true));
             items.add(linked(screen, target, "📖", "menu.link.started_by_document", Template.DOCUMENT, true));
-            items.add(linked(screen, target, "⚙", "menu.link.runs_script_on_complete", Template.SCRIPT, false));
+            items.add(linked(screen, target, "📄", "menu.link.runs_vanilla_script_on_start", Template.VANILLA_SCRIPT, false));
+            if (ClientDevStore.kubejs()) {
+                items.add(linked(screen, target, "⚙", "menu.link.runs_script_on_complete", Template.SCRIPT, false));
+            }
         } else if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
             items.add(linked(screen, target, "📜", "menu.link.new_quest", Template.QUEST_MAIN, true));
         } else if (type.equals(ClientDevStore.TYPE_BOSS)) {
@@ -249,13 +255,25 @@ final class StoryView extends StoryDrawing {
         } else if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
             items.add(linked(screen, target, "📜", "menu.link.script_leads_to_quest", Template.QUEST_MAIN, false));
             items.add(linked(screen, target, "💬", "menu.link.script_run_by_dialogue", Template.DIALOGUE_SCREEN, true));
+        } else if (type.equals(ClientDevStore.TYPE_EVENT)) {
+            items.add(linked(screen, target, "📄", "menu.link.runs_vanilla_script_event", Template.VANILLA_SCRIPT, false));
+        } else if (type.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
+            // Nothing runs a script by itself: what makes one run.
+            items.add(linked(screen, target, "📜", "menu.link.script_run_by_quest", Template.QUEST_MAIN, true));
+            items.add(linked(screen, target, "💬", "menu.link.script_run_by_dialogue", Template.DIALOGUE_SCREEN, true));
+            items.add(linked(screen, target, "⚡", "menu.link.script_run_by_event", Template.EVENT, true));
         }
         return items;
     }
 
+    /** A KubeJS script block is made only where the server has KubeJS. */
+    static boolean offered(TemplateItem item) {
+        return !item.kind().equals(ClientDevStore.TYPE_SCRIPT) || ClientDevStore.kubejs();
+    }
+
     /** The templates making definitions of the kind; all of them without one. */
     static List<Template> templatesFor(@Nullable ResourceLocation kind) {
-        return TEMPLATES.stream().filter(item -> kind == null || item.kind().equals(kind)).map(TemplateItem::template).toList();
+        return TEMPLATES.stream().filter(item -> kind == null || item.kind().equals(kind)).filter(StoryView::offered).map(TemplateItem::template).toList();
     }
 
     /**
@@ -265,7 +283,7 @@ final class StoryView extends StoryDrawing {
     List<MenuItem> templateMenu(DevModeScreen screen, @Nullable Set<ResourceLocation> kinds, boolean onCanvas) {
         List<MenuItem> items = new ArrayList<>();
         for (TemplateItem item : TEMPLATES) {
-            if (kinds == null || kinds.contains(item.kind())) {
+            if ((kinds == null || kinds.contains(item.kind())) && offered(item)) {
                 items.add(MenuItem.of(Component.literal(item.icon() + " ").append(DevUi.text(item.label())), () -> {
                     if (onCanvas) {
                         create(screen, item.template());

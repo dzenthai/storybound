@@ -43,7 +43,10 @@ public final class ClientDevStore {
     public static final ResourceLocation TYPE_FLAG = Storybound.id("flag");
     public static final ResourceLocation TYPE_CHAPTER = Storybound.id("chapter");
     public static final ResourceLocation TYPE_DIALOGUE_LAYOUT = Storybound.id("dialogue_layout");
+    /** A KubeJS script block. */
     public static final ResourceLocation TYPE_SCRIPT = StoryLinks.SCRIPT;
+    /** A script of vanilla commands. */
+    public static final ResourceLocation TYPE_VANILLA_SCRIPT = StoryLinks.VANILLA_SCRIPT;
     public static final ResourceLocation TYPE_PHRASES = StoryLinks.PHRASES;
 
     private static volatile Map<ResourceLocation, Map<ResourceLocation, String>> definitions = Map.of();
@@ -666,6 +669,11 @@ public final class ClientDevStore {
     public enum ScriptState { UNKNOWN, NO_KUBEJS, NO_FILE, FILE_MISSING, NOT_REGISTERED, READY }
 
     private static volatile Scripts scripts = Scripts.UNKNOWN;
+
+    /** Whether the server has KubeJS: only then are KubeJS script blocks, the "KubeJS" logic and an NPC's "custom" offered. */
+    public static boolean kubejs() {
+        return scripts.known() && scripts.kubejs();
+    }
 
     public static Scripts scripts() {
         return scripts;

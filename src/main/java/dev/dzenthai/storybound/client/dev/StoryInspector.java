@@ -6,7 +6,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import dev.dzenthai.storybound.client.document.DocumentTexts;
+import dev.dzenthai.storybound.client.dev.NodeTemplates.Template;
+import dev.dzenthai.storybound.core.data.VanillaScriptDefinition;
 import dev.dzenthai.storybound.core.dev.DevScripts;
+import dev.dzenthai.storybound.core.logic.VanillaScripts;
 import dev.dzenthai.storybound.core.story.StoryLinks.NodeKey;
 import dev.dzenthai.storybound.core.story.StoryLinks;
 import dev.dzenthai.storybound.core.story.StoryRenames;
@@ -21,6 +24,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -56,6 +61,14 @@ final class StoryInspector {
     /** A row of the quest giver's block: its phase, where its label is drawn. */
     private record GiverRow(QuestGiver.Phase phase, int y) {}
 
+    /** A line of text the panel draws where it was laid out. */
+    private record Note(String text, int color, int y) {}
+
+    /** A validator's problem of a script's line, as {@link VanillaScripts#problems} words it. */
+    private static final Pattern SCRIPT_LINE = Pattern.compile("line (\\d+): (.*)", Pattern.DOTALL);
+    /** A "+ Run it in…" choice making a new node, by its template. */
+    private static final String NEW_CALLER = "@new:";
+
     private final StoryView view;
     private final FormView form;
     private @Nullable DevModeScreen screen;
@@ -88,6 +101,9 @@ final class StoryInspector {
     private @Nullable String renameText;
     private @Nullable NodeKey renameFor;
     private int giverY;
+    private final List<Note> notes = new ArrayList<>();
+    /** Where a script of commands' check is drawn (two rows); -1 for other nodes. */
+    private int scriptCheckY = -1;
 
     StoryInspector(StoryView view) {
         this.view = view;
@@ -232,8 +248,13 @@ final class StoryInspector {
             y = sectionTexts(screen, key, json, x, y + 6, w);
         }
         scriptState = null;
+        notes.clear();
+        scriptCheckY = -1;
         if (key.type().equals(ClientDevStore.TYPE_SCRIPT)) {
             y = script(screen, key, json, x, y, w);
+        }
+        if (key.type().equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
+            y = vanillaScript(screen, key, x, y, w);
         }
         addLinks(screen, key, json, x, w);
         int formBottom = links.isEmpty() ? screen.height - 34 : linksTop - 16;
@@ -399,6 +420,10 @@ final class StoryInspector {
             buttons.add(test(screen, "🎒 ", "document.give", "document_give", key));
         } else if (type.equals(ClientDevStore.TYPE_WAYPOINT)) {
             buttons.add(test(screen, "⚡ ", "waypoint.teleport", "waypoint_tp", key));
+        } else if (type.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
+            // At the player: what runs it may run it elsewhere (its "at").
+            buttons.add(Button.builder(Component.literal("▶ ").append(DevUi.text("vanilla_script.run_now")), b -> screen.playtest("script_run", key.id()))
+                    .tooltip(Tooltip.create(DevUi.text("vanilla_script.run_now_tooltip"))).build());
         }
         testsY = -1;
         if (buttons.isEmpty()) {
@@ -680,6 +705,123 @@ final class StoryInspector {
         }
     }
 
+    // --- scripts of commands
+
+    /**
+     * A script of commands runs only when something runs it: whether anything does (a warning while nothing does),
+     * "+ Run it in…" making a quest's start, a dialogue's end or a story event run it, and how its commands parse on
+     * the server (drawn in {@link #renderScriptCheck}).
+     */
+    private int vanillaScript(DevModeScreen screen, NodeKey key, int x, int y, int w) {
+        notes.add(new Note(DevUi.str("vanilla_script.when"), DevUi.ACCENT, y + 1));
+        y += 12;
+        int callers = callers(key).size();
+        notes.add(callers == 0 ? new Note("⚠ " + DevUi.str("vanilla_script.nobody"), DevUi.WARN, y + 1)
+                : new Note("✓ " + DevUi.str("vanilla_script.run_by", callers), DevUi.GOOD, y + 1));
+        y += 12;
+        screen.add(Button.builder(DevUi.text("vanilla_script.run_in"), b -> pickCaller(screen, key))
+                .tooltip(Tooltip.create(DevUi.text("vanilla_script.run_in_tooltip"))).bounds(x, y, w, 18).build());
+        y += 24;
+        notes.add(new Note(DevUi.str("vanilla_script.check"), DevUi.ACCENT, y + 1));
+        scriptCheckY = y + 12;
+        return y + 12 + 24 + 4;
+    }
+
+    /** The nodes running the script, each once. */
+    private static List<NodeKey> callers(NodeKey script) {
+        List<NodeKey> found = new ArrayList<>();
+        for (StoryLinks.Edge edge : ClientDevStore.collectEdges()) {
+            if (edge.to().equals(script) && !found.contains(edge.from()) && ClientDevStore.getJson(edge.from().type(), edge.from().id()) != null) {
+                found.add(edge.from());
+            }
+        }
+        return found;
+    }
+
+    /** What is to run the script: a new story event, dialogue or quest, or one there is (a quest at its start, a dialogue at its end). */
+    private void pickCaller(DevModeScreen screen, NodeKey script) {
+        List<NodeKey> already = callers(script);
+        List<Catalog.Entry> entries = new ArrayList<>();
+        entries.add(new Catalog.Entry(Catalog.SECTION + "new", DevUi.str("vanilla_script.section_new"), ItemStack.EMPTY));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.EVENT.name(), DevUi.str("vanilla_script.new_event"), new ItemStack(Items.REDSTONE_TORCH)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.DIALOGUE_SCREEN.name(), DevUi.str("vanilla_script.new_dialogue"), new ItemStack(Items.WRITABLE_BOOK)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.QUEST_MAIN.name(), DevUi.str("vanilla_script.new_quest"), new ItemStack(Items.FILLED_MAP)));
+        for (ResourceLocation type : List.of(ClientDevStore.TYPE_EVENT, ClientDevStore.TYPE_DIALOGUE, ClientDevStore.TYPE_QUEST)) {
+            String kind = DevUi.shortId(type.toString());
+            List<Catalog.Entry> rows = new ArrayList<>();
+            ClientDevStore.byType(type).forEach((id, raw) -> {
+                NodeKey node = new NodeKey(type, id);
+                if (!already.contains(node)) {
+                    rows.add(new Catalog.Entry(type + "|" + id, StoryView.title(node), StoryView.icon(node, ClientDevStore.parseObject(raw))));
+                }
+            });
+            if (!rows.isEmpty()) {
+                rows.sort(Comparator.comparing(Catalog.Entry::label));
+                entries.add(new Catalog.Entry(Catalog.SECTION + kind, DevUi.str("vanilla_script.section_" + kind), ItemStack.EMPTY));
+                entries.addAll(rows);
+            }
+        }
+        screen.catalog().openList(DevUi.text("vanilla_script.run_in_title"), entries, (kind, entry) -> {
+            if (entry.id().startsWith(NEW_CALLER)) {
+                view.createLinked(screen, script, Template.valueOf(entry.id().substring(NEW_CALLER.length())), true);
+            } else {
+                int bar = entry.id().indexOf('|');
+                view.link(screen, new NodeKey(ResourceLocation.parse(entry.id().substring(0, bar)), ResourceLocation.parse(entry.id().substring(bar + 1))), script);
+            }
+            screen.rebuild();
+        });
+    }
+
+    /**
+     * How the commands parsed on the server, in two rows: all of them, or the first problem and how many more, or
+     * that the check waits for a save; then the lines' syntax.
+     */
+    private void renderScriptCheck(DevModeScreen screen, GuiGraphics graphics, int left) {
+        NodeKey key = view.selected;
+        if (scriptCheckY < 0 || key == null || view.editing == null) {
+            return;
+        }
+        int commands = 0;
+        if (view.editing.get("lines") instanceof JsonArray lines) {
+            for (JsonElement line : lines) {
+                if (line instanceof JsonPrimitive text && !VanillaScriptDefinition.skipped(text.getAsString())
+                        && VanillaScriptDefinition.waitSeconds(text.getAsString()) == null) {
+                    commands++;
+                }
+            }
+        }
+        List<String> problems = new ArrayList<>();
+        String needle = key.type() + " " + key.id() + ": ";
+        for (String issue : ClientDevStore.issuesFor(key.type(), key.id())) {
+            int at = issue.indexOf(needle);
+            String message = at >= 0 ? issue.substring(at + needle.length()) : issue;
+            if (!message.equals(VanillaScripts.NO_COMMANDS)) {
+                Matcher line = SCRIPT_LINE.matcher(message);
+                problems.add(line.matches() ? DevUi.str("vanilla_script.line", line.group(1), line.group(2)) : message);
+            }
+        }
+        String first;
+        int color;
+        if (view.dirty) {
+            first = DevUi.str("vanilla_script.unsaved");
+            color = DevUi.MUTED;
+        } else if (commands == 0) {
+            first = "⚠ " + DevUi.str("vanilla_script.empty");
+            color = DevUi.WARN;
+        } else if (!problems.isEmpty()) {
+            first = "✗ " + problems.getFirst();
+            color = DevUi.ERROR;
+        } else {
+            first = "✓ " + DevUi.str("vanilla_script.all_parsed", commands);
+            color = DevUi.GOOD;
+        }
+        int width = DevUi.RIGHT_PANEL_W - 16;
+        screen.drawCut(graphics, first, left + 8, scriptCheckY + 1, width, color);
+        boolean more = !view.dirty && commands > 0 && problems.size() > 1;
+        screen.drawCut(graphics, more ? DevUi.str("vanilla_script.more", problems.size() - 1) : DevUi.str("vanilla_script.syntax"),
+                left + 8, scriptCheckY + 13, width, more ? DevUi.ERROR : DevUi.MUTED);
+    }
+
     // --- links
 
     /** The node's links, listed above the save button; a link that can be taken out gets a ✕. */
@@ -776,6 +918,10 @@ final class StoryInspector {
             graphics.drawString(font, DevUi.text("inspector.tests"), left + 8, testsY + 1, DevUi.ACCENT, false);
         }
         renderScriptState(font, graphics, left);
+        for (Note note : notes) {
+            screen.drawCut(graphics, note.text(), left + 8, note.y(), DevUi.RIGHT_PANEL_W - 16, note.color());
+        }
+        renderScriptCheck(screen, graphics, left);
         renderGiver(font, graphics, left);
         form.render(graphics, font);
         renderLinks(font, graphics, left);

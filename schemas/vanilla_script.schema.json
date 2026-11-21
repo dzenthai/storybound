@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/vanilla_script.schema.json",
+  "title": "Storybound script",
+  "description": "config/storybound/scripts/<path>.json — a script of vanilla commands, run in order by the action run_script (at the player, at the entity of the moment, or at an entity found by a selector), like an .mcfunction. A line 'wait <seconds>' pauses; a line starting with # is a note. Every command is checked when the story loads.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "icon": {
+      "type": "string",
+      "description": "Dev mode only: the item this node shows on the editor's canvases."
+    },
+    "title": {
+      "$ref": "logic.schema.json#/definitions/story_text"
+    },
+    "description": {
+      "description": "A note for the pack's authors: what the script does.",
+      "type": "string"
+    },
+    "lines": {
+      "description": "The commands, one per line, without a leading slash: ~ ~ ~ is where the script runs. 'wait 2' pauses two seconds; '# ...' is a note.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

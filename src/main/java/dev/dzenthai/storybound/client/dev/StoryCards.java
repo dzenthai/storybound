@@ -48,7 +48,7 @@ abstract class StoryCards extends GraphView {
     static final int PROGRESS_REFRESH = 40;
     /** The kinds of definitions, in the order "All links" puts them in columns, left to right. */
     static final List<ResourceLocation> KINDS = List.of(ClientDevStore.TYPE_NPC, ClientDevStore.TYPE_PHRASES, ClientDevStore.TYPE_DIALOGUE,
-            ClientDevStore.TYPE_SCRIPT, ClientDevStore.TYPE_DOCUMENT, ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_WAYPOINT, ClientDevStore.TYPE_BOSS,
+            ClientDevStore.TYPE_SCRIPT, ClientDevStore.TYPE_VANILLA_SCRIPT, ClientDevStore.TYPE_DOCUMENT, ClientDevStore.TYPE_QUEST, ClientDevStore.TYPE_WAYPOINT, ClientDevStore.TYPE_BOSS,
             ClientDevStore.TYPE_CODEX, ClientDevStore.TYPE_EVENT);
     /** The map's grid for quests not placed by hand: a column per step of the story. */
     private static final int MAP_COLUMN_W = 5 * DevUi.GRID;
@@ -84,6 +84,7 @@ abstract class StoryCards extends GraphView {
             new TemplateItem("🐉", "menu.new.boss", Template.BOSS, ClientDevStore.TYPE_BOSS),
             new TemplateItem("📚", "menu.new.codex", Template.CODEX, ClientDevStore.TYPE_CODEX),
             new TemplateItem("⚡", "menu.new.event", Template.EVENT, ClientDevStore.TYPE_EVENT),
+            new TemplateItem("📄", "menu.new.vanilla_script", Template.VANILLA_SCRIPT, ClientDevStore.TYPE_VANILLA_SCRIPT),
             new TemplateItem("⚙", "menu.new.script", Template.SCRIPT, ClientDevStore.TYPE_SCRIPT));
 
     /**
@@ -218,6 +219,9 @@ abstract class StoryCards extends GraphView {
         }
         if (type.equals(ClientDevStore.TYPE_BOSS)) {
             return new ItemStack(Items.IRON_SWORD);
+        }
+        if (type.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
+            return new ItemStack(Items.COMMAND_BLOCK);
         }
         return new ItemStack(type.equals(ClientDevStore.TYPE_CODEX) ? Items.BOOK : Items.REDSTONE);
     }
@@ -554,6 +558,9 @@ abstract class StoryCards extends GraphView {
         if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
             return "⚙";
         }
+        if (type.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
+            return "📄";
+        }
         if (type.equals(ClientDevStore.TYPE_DOCUMENT)) {
             return "📖";
         }
@@ -641,6 +648,9 @@ abstract class StoryCards extends GraphView {
         if (type.equals(ClientDevStore.TYPE_BOSS)) {
             return DevUi.str("badge.boss");
         }
+        if (type.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
+            return DevUi.str("badge.vanilla_script");
+        }
         return DevUi.str(type.equals(ClientDevStore.TYPE_CODEX) ? "badge.codex" : "badge.event");
     }
 
@@ -650,6 +660,9 @@ abstract class StoryCards extends GraphView {
         }
         if (type.equals(ClientDevStore.TYPE_SCRIPT)) {
             return 0xFFBE96D0;
+        }
+        if (type.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
+            return 0xFF9AA7B0;
         }
         if (type.equals(ClientDevStore.TYPE_QUEST)) {
             return switch (category(json)) {

@@ -8,7 +8,7 @@ import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * A script block of the dev mode's story canvas, in {@code config/storybound/scripts/}: a KubeJS handler the story
+ * A KubeJS script block of the dev mode's story canvas, in {@code config/storybound/kubejs/}: a KubeJS handler the story
  * calls (the action or condition "Script" with {@code hook}), the file it is written in, and what it leads to. The
  * code stays in KubeJS; this only shows where it enters the story. The game never reads script blocks.
  *

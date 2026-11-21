@@ -299,6 +299,33 @@ class DevEditsTest {
     }
 
     @Test
+    void aQuestATalkAndAnEventRunAScriptOfCommands() {
+        NodeKey script = new NodeKey(ClientDevStore.TYPE_VANILLA_SCRIPT, ResourceLocation.parse("mypack:camp"));
+        String run = "{\"type\":\"run_script\",\"script\":\"mypack:camp\"}";
+
+        JsonObject quest = new JsonObject();
+        assertTrue(StoryEdits.link(quest, new NodeKey(ClientDevStore.TYPE_QUEST, QUEST), script));
+        assertTrue(StoryEdits.link(quest, new NodeKey(ClientDevStore.TYPE_QUEST, QUEST), script), "linking twice");
+        assertEquals("[" + run + "]", quest.get("on_start").toString(), "a quest runs it when it starts, once");
+
+        JsonObject talk = json("{ \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"x\" } } }");
+        assertTrue(StoryEdits.link(talk, new NodeKey(ClientDevStore.TYPE_DIALOGUE, DIALOGUE), script));
+        assertEquals("[" + run + "]", DialogueGraph.node(talk, "script_camp").getAsJsonArray("actions").toString(), "a talk at its end");
+
+        JsonObject event = json("{ \"trigger\": { \"type\": \"login\" }, \"actions\": [] }");
+        assertTrue(StoryEdits.link(event, new NodeKey(ClientDevStore.TYPE_EVENT, ResourceLocation.parse("mypack:dawn")), script));
+        assertEquals("[" + run + "]", event.get("actions").toString(), "a story event with its actions");
+
+        assertFalse(StoryEdits.link(new JsonObject(), new NodeKey(ClientDevStore.TYPE_NPC, ResourceLocation.parse("mypack:smith")), script),
+                "an NPC has no such link");
+        for (JsonObject from : List.of(quest, talk, event)) {
+            assertTrue(StoryEdits.refersTo(from, script));
+            assertTrue(StoryEdits.unlink(from, script), "✕ takes it out of " + from);
+            assertFalse(StoryEdits.refersTo(from, script));
+        }
+    }
+
+    @Test
     void descriptionsComeInTheGamesLanguage() {
         assertEquals(dev.dzenthai.storybound.TestTranslations.russian("fixture.schema.first_node"), Schemas.localized("The first node.", "ru_ru"));
         assertEquals("The first node.", Schemas.localized("The first node.", "de_de"), "a language without translations shows English");

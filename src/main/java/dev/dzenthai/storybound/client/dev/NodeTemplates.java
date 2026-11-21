@@ -17,7 +17,7 @@ final class NodeTemplates {
     }
 
     enum Template {
-        QUEST_MAIN, QUEST_SIDE, CONTRACT, DIALOGUE_SCREEN, DIALOGUE_BUBBLE, NPC, PHRASES, DOCUMENT, WAYPOINT, BOSS, CODEX, EVENT, SCRIPT
+        QUEST_MAIN, QUEST_SIDE, CONTRACT, DIALOGUE_SCREEN, DIALOGUE_BUBBLE, NPC, PHRASES, DOCUMENT, WAYPOINT, BOSS, CODEX, EVENT, SCRIPT, VANILLA_SCRIPT
     }
 
     /**
@@ -190,6 +190,16 @@ final class NodeTemplates {
                 JsonObject script = new JsonObject();
                 ClientDevStore.writeStoryText(script, "title", texts.get("template.script", number), key(ClientDevStore.TYPE_SCRIPT, id, "title"));
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_SCRIPT, id), script, Optional.empty(), 0));
+            }
+            case VANILLA_SCRIPT -> {
+                // A note line to start from: the author writes the commands under it.
+                ResourceLocation id = ClientDevStore.id("script_" + number);
+                JsonObject script = new JsonObject();
+                ClientDevStore.writeStoryText(script, "title", texts.get("template.vanilla_script", number), key(ClientDevStore.TYPE_VANILLA_SCRIPT, id, "title"));
+                com.google.gson.JsonArray lines = new com.google.gson.JsonArray();
+                lines.add(texts.get("template.vanilla_script_line", number));
+                script.add("lines", lines);
+                yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_VANILLA_SCRIPT, id), script, Optional.empty(), 0));
             }
         };
     }

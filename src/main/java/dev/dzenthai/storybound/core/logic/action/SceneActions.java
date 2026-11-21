@@ -10,6 +10,8 @@ import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.ActionType;
 import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
+import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.List;
@@ -41,6 +43,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Actions that stage a scene without {@code run_command}, so the validator and the editor know what they do: an
@@ -347,6 +350,116 @@ public final class SceneActions {
                 player.connection.send(new ClientboundSetTitleTextPacket(title.map(text -> text.resolve(player).toComponent()).orElse(Component.empty())));
             }
             actionbar.ifPresent(text -> player.connection.send(new ClientboundSetActionBarTextPacket(text.resolve(player).toComponent())));
+        }
+    }
+
+    /**
+     * {@code { "type": "run_script", "script": "mypack:storm", "at": "entity" }}: runs a script of vanilla commands
+     * (see {@link dev.dzenthai.storybound.core.data.VanillaScriptDefinition}) as the player, positioned at {@code at}:
+     * the player (by default), the context entity ({@code entity}: the NPC talked to, the dialogue partner, the mob
+     * killed; the player when there is none) or the nearest entity a selector matches within 64 blocks (nothing runs when
+     * none is near). So {@code ~ ~ ~} in its lines is that place. A {@code wait} line hands the rest to a scheduled
+     * {@code run_script} from the next line ({@code from}) at the place found at the start ({@code origin}), so it
+     * survives a save. A command that fails to parse is skipped; the validator has said so already.
+     */
+    public record RunScript(ResourceLocation script, Optional<Either<Target, EntitySelector>> at, int from, Optional<Origin> origin)
+            implements Action {
+        public static final double RANGE = 64;
+        public static final MapCodec<RunScript> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                ResourceLocation.CODEC.fieldOf("script").forGetter(RunScript::script),
+                Codec.either(Target.CODEC, EntitySelector.CODEC).optionalFieldOf("at").forGetter(RunScript::at),
+                Codec.intRange(0, 100_000).optionalFieldOf("from", 0).forGetter(RunScript::from),
+                Origin.CODEC.optionalFieldOf("origin").forGetter(RunScript::origin)
+        ).apply(instance, RunScript::new));
+
+        /** Where the script runs: a place, its level and the way it faces (for {@code ^ ^ ^}). */
+        public record Origin(Vec3 pos, ResourceKey<Level> dimension, float yaw, float pitch) {
+            public static final Codec<Origin> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                    Vec3.CODEC.fieldOf("pos").forGetter(Origin::pos),
+                    Level.RESOURCE_KEY_CODEC.fieldOf("dimension").forGetter(Origin::dimension),
+                    Codec.FLOAT.optionalFieldOf("yaw", 0f).forGetter(Origin::yaw),
+                    Codec.FLOAT.optionalFieldOf("pitch", 0f).forGetter(Origin::pitch)
+            ).apply(instance, Origin::new));
+
+            static Origin of(Entity entity) {
+                return new Origin(entity.position(), entity.level().dimension(), entity.getYRot(), entity.getXRot());
+            }
+        }
+
+        @Override
+        public ActionType<?> type() {
+            return BuiltinActions.RUN_SCRIPT.get();
+        }
+
+        @Override
+        public void collectReferences(References references) {
+            references.vanillaScript(script);
+        }
+
+        @Override
+        public void run(StoryContext context) throws StoryException {
+            var definition = dev.dzenthai.storybound.core.CoreDefinitions.VANILLA_SCRIPTS.serverStore().getOrNull(script);
+            if (definition == null) {
+                throw new StoryException(Component.literal("Unknown script " + script));
+            }
+            ServerPlayer player = context.player();
+            Origin where = origin.orElse(null);
+            if (where == null) {
+                Entity anchor = anchor(context);
+                if (anchor == null) {
+                    StoryTrace.note(player, "script " + script, "not run: no entity the selector of 'at' matches near the player");
+                    return;
+                }
+                where = Origin.of(anchor);
+            }
+            ServerLevel level = context.server().getLevel(where.dimension());
+            if (level == null) {
+                return;
+            }
+            net.minecraft.commands.CommandSourceStack source = player.createCommandSourceStack()
+                    .withPosition(where.pos()).withRotation(new net.minecraft.world.phys.Vec2(where.pitch(), where.yaw())).withLevel(level)
+                    .withPermission(dev.dzenthai.storybound.config.StoryboundConfig.COMMON.commandPermissionLevel.get())
+                    .withSuppressedOutput();
+            List<String> lines = definition.lines();
+            for (int i = from; i < lines.size(); i++) {
+                String line = lines.get(i);
+                if (dev.dzenthai.storybound.core.data.VanillaScriptDefinition.skipped(line)) {
+                    continue;
+                }
+                Double wait = dev.dzenthai.storybound.core.data.VanillaScriptDefinition.waitSeconds(line);
+                if (wait != null) {
+                    if (!wait.isNaN() && wait >= 0.05) {
+                        double seconds = Math.min(wait, dev.dzenthai.storybound.core.data.VanillaScriptDefinition.MAX_WAIT);
+                        new FlowActions.Schedule(seconds, List.of(new RunScript(script, at, i + 1, Optional.of(where))), OnFail.CONTINUE).run(context);
+                        return;
+                    }
+                    continue;
+                }
+                context.server().getCommands().performPrefixedCommand(source, dev.dzenthai.storybound.core.data.VanillaScriptDefinition.command(line));
+            }
+        }
+
+        private @Nullable Entity anchor(StoryContext context) {
+            if (at.isEmpty()) {
+                return context.player();
+            }
+            Either<Target, EntitySelector> where = at.get();
+            if (where.left().isPresent()) {
+                return where.left().get() == Target.ENTITY && context.entity() != null ? context.entity() : context.player();
+            }
+            EntitySelector selector = where.right().orElseThrow();
+            ServerPlayer player = context.player();
+            Entity best = null;
+            double bestDistance = RANGE * RANGE;
+            for (Entity candidate : player.serverLevel().getEntities(player, player.getBoundingBox().inflate(RANGE),
+                    candidate -> candidate.isAlive() && selector.matches(candidate))) {
+                double distance = candidate.distanceToSqr(player);
+                if (distance <= bestDistance) {
+                    best = candidate;
+                    bestDistance = distance;
+                }
+            }
+            return best;
         }
     }
 

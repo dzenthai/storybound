@@ -24,9 +24,16 @@ public final class CoreDefinitions {
     public static final DefinitionType<ChapterDefinition> CHAPTERS = DefinitionTypes.register(
             DefinitionType.serverOnly(Storybound.id("chapter"), "storybound/chapters", ChapterDefinition.CODEC));
 
-    /** Dev mode only: script blocks, where KubeJS code enters the story. */
+    /**
+     * Dev mode only: KubeJS script blocks, where KubeJS code enters the story, in {@code kubejs/} (the type keeps its id
+     * {@code script}; the editor calls it "KubeJS script" and offers it only where KubeJS is installed).
+     */
     public static final DefinitionType<ScriptDefinition> SCRIPTS = DefinitionTypes.register(
-            DefinitionType.serverOnly(Storybound.id("script"), "storybound/scripts", ScriptDefinition.CODEC));
+            DefinitionType.serverOnly(Storybound.id("script"), "storybound/kubejs", ScriptDefinition.CODEC));
+
+    /** Scripts of vanilla commands, in {@code scripts/}, run by {@code run_script} (see {@link dev.dzenthai.storybound.core.data.VanillaScriptDefinition}). */
+    public static final DefinitionType<dev.dzenthai.storybound.core.data.VanillaScriptDefinition> VANILLA_SCRIPTS = DefinitionTypes.register(
+            DefinitionType.serverOnly(Storybound.id("vanilla_script"), "storybound/scripts", dev.dzenthai.storybound.core.data.VanillaScriptDefinition.CODEC));
 
     /** Dev mode only: where a dialogue's nodes are drawn, under the dialogue's id. */
     public static final DefinitionType<DialogueLayout> DIALOGUE_LAYOUTS = DefinitionTypes.register(

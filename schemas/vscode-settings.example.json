@@ -9,8 +9,12 @@
       "url": "./schemas/dialogue_layout.schema.json"
     },
     {
-      "fileMatch": ["**/data/*/storybound/scripts/**/*.json", "**/config/storybound/scripts/**/*.json"],
+      "fileMatch": ["**/data/*/storybound/kubejs/**/*.json", "**/config/storybound/**/kubejs/**/*.json"],
       "url": "./schemas/script.schema.json"
+    },
+    {
+      "fileMatch": ["**/data/*/storybound/scripts/**/*.json", "**/config/storybound/**/scripts/**/*.json"],
+      "url": "./schemas/vanilla_script.schema.json"
     },
     {
       "fileMatch": ["**/data/*/storybound/migrations/**/*.json", "**/config/storybound/migrations/**/*.json"],

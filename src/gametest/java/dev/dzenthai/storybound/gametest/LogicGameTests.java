@@ -74,6 +74,53 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class LogicGameTests {
     private LogicGameTests() {}
 
+    /**
+     * A script of vanilla commands runs at the entity a selector finds (its ~ ~ ~), skips notes, and nothing runs when no
+     * such entity is near; the validator parses every command (a typo, a bad wait, an empty script, an unknown script).
+     */
+    @GameTest(template = "empty")
+    public static void aVanillaScriptRunsAtAnEntityAndIsChecked(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        net.minecraft.world.entity.LivingEntity pig = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.PIG, 2, 2, 2);
+        pig.addTag("gametest_camp");
+        // Near the pig: the selector looks within 64 blocks of the player, and test plots are far apart.
+        player.setPos(helper.absoluteVec(new net.minecraft.world.phys.Vec3(1.5, 2, 1.5)));
+        RegistryOps<com.google.gson.JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        var store = CoreDefinitions.VANILLA_SCRIPTS.serverStore();
+        var previous = store.all();
+        Map<ResourceLocation, dev.dzenthai.storybound.core.data.VanillaScriptDefinition> installed = new LinkedHashMap<>(previous);
+        java.util.function.BiConsumer<String, String> install = (path, json) -> installed.put(key(path), dev.dzenthai.storybound.core.data.VanillaScriptDefinition.CODEC
+                .parse(ops, JsonParser.parseString(json)).getOrThrow(GameTestAssertException::new));
+        install.accept("camp", "{ \"lines\": [ \"# the merchant's camp\", \"\", \"setblock ~1 ~ ~ minecraft:campfire keep\" ] }");
+        install.accept("typo", "{ \"lines\": [ \"weathr thunder\", \"wait soon\" ] }");
+        install.accept("empty", "{ \"lines\": [ \"# nothing yet\" ] }");
+        store.replace(installed);
+        try {
+            BlockPos fire = pig.blockPosition().east();
+            helper.getLevel().setBlockAndUpdate(fire, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            Actions.runAll(LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString(
+                    "{ \"type\": \"run_script\", \"script\": \"gametest:camp\", \"at\": { \"type\": \"minecraft:pig\", \"tag\": \"gametest_camp\" } }"))
+                    .getOrThrow(GameTestAssertException::new), StoryContext.of(player), "gametest", OnFail.ABORT);
+            helper.assertTrue(helper.getLevel().getBlockState(fire).is(net.minecraft.world.level.block.Blocks.CAMPFIRE),
+                    "a campfire a block east of the pig, at " + fire);
+            helper.getLevel().setBlockAndUpdate(fire, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            Actions.runAll(LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString(
+                    "{ \"type\": \"run_script\", \"script\": \"gametest:camp\", \"at\": { \"type\": \"minecraft:pig\", \"tag\": \"gametest_nobody\" } }"))
+                    .getOrThrow(GameTestAssertException::new), StoryContext.of(player), "gametest", OnFail.ABORT);
+            helper.assertTrue(helper.getLevel().getBlockState(fire).isAir(), "nobody with that tag near: nothing runs");
+
+            List<String> typo = dev.dzenthai.storybound.core.logic.VanillaScripts.problems(helper.getLevel().getServer(), installed.get(key("typo")).lines());
+            helper.assertTrue(typo.size() == 2 && typo.get(0).startsWith("line 1:") && typo.get(1).startsWith("line 2: wait"),
+                    "a typo and a wait without seconds, each by its line: " + typo);
+            List<dev.dzenthai.storybound.core.data.ValidationIssue> issues = dev.dzenthai.storybound.core.data.ValidationService.validate().issues();
+            helper.assertTrue(issues.stream().anyMatch(issue -> key("empty").equals(issue.entry()) && !issue.isError()), "an empty script is a warning");
+            helper.assertTrue(issues.stream().anyMatch(issue -> key("typo").equals(issue.entry()) && issue.isError()), "the typo is an error");
+        } finally {
+            store.replace(previous);
+        }
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void parsesStoryEventJson(GameTestHelper helper) {
         StoryEvent event = parse(helper, """

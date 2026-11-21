@@ -60,6 +60,8 @@ abstract class FormNpc extends FormEntities {
         return switch (name) {
             case "override_interact" -> flag(binding, "interact", true) || flag(binding, "override_interact", false);
             case "busy" -> flag(binding, "exclusive", false) || binding != null && binding.has("busy");
+            // Tells KubeJS: only where the server has it, unless the file turns it on.
+            case "custom" -> ClientDevStore.kubejs() || flag(binding, "custom", false);
             case "home_radius" -> binding != null && (binding.has("home_radius")
                     || binding.get("movement") instanceof JsonPrimitive movement && movement.getAsString().equals("home"));
             default -> true;

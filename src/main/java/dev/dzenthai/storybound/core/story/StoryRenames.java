@@ -28,10 +28,10 @@ public final class StoryRenames {
     public static final ResourceLocation CHAPTER = Storybound.id("chapter");
     /** The story's nodes and flags; not chapters (their title is their name) or the editor's own files. */
     public static final Set<ResourceLocation> RENAMEABLE = Set.of(StoryLinks.QUEST, StoryLinks.DIALOGUE, StoryLinks.NPC, StoryLinks.DOCUMENT,
-            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, FLAG, StoryLinks.PHRASES);
+            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, StoryLinks.VANILLA_SCRIPT, FLAG, StoryLinks.PHRASES);
     /** The definitions that may name a renamed id. */
     public static final Set<ResourceLocation> REFERRING = Set.of(StoryLinks.QUEST, StoryLinks.DIALOGUE, StoryLinks.NPC, StoryLinks.DOCUMENT,
-            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, FLAG, CHAPTER, StoryLinks.PHRASES);
+            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, StoryLinks.VANILLA_SCRIPT, FLAG, CHAPTER, StoryLinks.PHRASES);
     /** An NPC's relationship scale is the flag {@code <ns>:rep/<npc path>}. */
     public static final String RELATIONSHIP_PREFIX = "rep/";
 
@@ -523,6 +523,7 @@ public final class StoryRenames {
             case "dialogue" -> StoryLinks.DIALOGUE;
             case "document" -> StoryLinks.DOCUMENT;
             case "boss" -> StoryLinks.BOSS;
+            case "script" -> StoryLinks.VANILLA_SCRIPT;
             case "phrases", "warning", "busy" -> StoryLinks.PHRASES;
             // A waypoint's target { "npc"... }.
             case "npc" -> StoryLinks.NPC;

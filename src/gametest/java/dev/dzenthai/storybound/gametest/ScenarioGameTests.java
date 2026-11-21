@@ -86,32 +86,24 @@ public final class ScenarioGameTests {
     public static void theVanillaStoryLoadsWhenTheWorldsRuleSaysSo(GameTestHelper helper) {
         net.minecraft.server.MinecraftServer server = helper.getLevel().getServer();
         boolean before = server.getGameRules().getBoolean(dev.dzenthai.storybound.core.data.WorldStory.rule());
-        var type = dev.dzenthai.storybound.module.quest.QuestRegistries.QUESTS;
-        ResourceLocation outpost = ResourceLocation.fromNamespaceAndPath("vanilla", "prologue/outpost");
         try {
             java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("storybound-world-story");
-            java.util.function.Supplier<java.util.Map<ResourceLocation, com.google.gson.JsonElement>> scan = () -> {
-                java.util.Map<ResourceLocation, com.google.gson.JsonElement> files = new java.util.LinkedHashMap<>();
-                dev.dzenthai.storybound.core.data.StoryProjects.scan(workspace, type, files, new java.util.ArrayList<>());
-                return files;
-            };
+            java.util.function.Supplier<java.util.Optional<dev.dzenthai.storybound.core.data.StoryProjects.Project>> vanilla = () ->
+                    dev.dzenthai.storybound.core.data.StoryProjects.loaded(workspace).stream().filter(project -> project.id().equals("vanilla")).findFirst();
             dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, false);
-            helper.assertFalse(scan.get().containsKey(outpost), "off: the story is not in the game");
+            helper.assertTrue(vanilla.get().isEmpty(), "off: the story is not in the game");
             dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, true);
-            helper.assertTrue(scan.get().containsKey(outpost), "on: it loads from the mod, nothing installed");
+            helper.assertTrue(vanilla.get().filter(project -> !project.root().startsWith(workspace.toAbsolutePath().normalize())).isPresent(),
+                    "on: it loads from the mod, nothing installed");
             dev.dzenthai.storybound.core.data.StoryFolder.installStory(workspace, "vanilla", false);
-            helper.assertTrue(scan.get().containsKey(outpost), "on, installed: from the copy");
-            helper.assertTrue(dev.dzenthai.storybound.core.data.StoryProjects.owner(type, outpost).startsWith(workspace.toAbsolutePath().normalize()),
-                    "the copy, not the mod's: " + dev.dzenthai.storybound.core.data.StoryProjects.owner(type, outpost));
+            helper.assertTrue(vanilla.get().filter(project -> project.root().startsWith(workspace.toAbsolutePath().normalize())).isPresent(),
+                    "on, installed: from the copy");
             dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, false);
-            helper.assertFalse(scan.get().containsKey(outpost), "off: not the copy either, though its project.json says enabled");
+            helper.assertTrue(vanilla.get().isEmpty(), "off: not the copy either, though its project.json says enabled");
         } catch (java.io.IOException e) {
             throw new GameTestAssertException(e.toString());
         } finally {
             dev.dzenthai.storybound.core.data.WorldStory.setQuietly(server, before);
-            // Who owns each quest again, as the real story folder has it.
-            dev.dzenthai.storybound.core.data.StoryProjects.scan(dev.dzenthai.storybound.core.data.ConfigStorySource.root(), type,
-                    new java.util.LinkedHashMap<>(), new java.util.ArrayList<>());
         }
         helper.succeed();
     }

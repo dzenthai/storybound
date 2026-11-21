@@ -139,7 +139,8 @@ final class StoryEdits {
     /**
      * Writes the link drawn from one node to another into the first one's JSON: an NPC talks with a dialogue, a
      * document gives a quest, a quest stage shows a waypoint, a quest leads to the next one or opens a boss entry, a
-     * dialogue starts a quest or hands over a document, a node runs a script, a script leads to a node.
+     * dialogue starts a quest or hands over a document, a node runs a script (of commands or KubeJS), a KubeJS script
+     * leads to a node.
      *
      * @return false for a pair that has no such link (it takes conditions or actions written in the inspector)
      */
@@ -204,6 +205,8 @@ final class StoryEdits {
             addQuestStart(from, target.id());
         } else if (a.equals(ClientDevStore.TYPE_DIALOGUE) && b.equals(ClientDevStore.TYPE_DOCUMENT)) {
             addGiveDocument(from, target.id());
+        } else if (b.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
+            return runVanillaScript(from, a, target.id());
         } else if (b.equals(ClientDevStore.TYPE_SCRIPT)) {
             return runScript(from, a, ClientDevStore.scriptHook(target.id()));
         } else if (a.equals(ClientDevStore.TYPE_SCRIPT)) {
@@ -241,6 +244,30 @@ final class StoryEdits {
             return false;
         }
         array(from, field).add(action);
+        return true;
+    }
+
+    /**
+     * The node runs the script of commands: a quest when it starts, a dialogue at its end, a story event with its
+     * actions, a document on its first read, a boss on every victory. A node already running it there stays as it is.
+     */
+    private static boolean runVanillaScript(JsonObject from, ResourceLocation type, ResourceLocation script) {
+        JsonObject action = new JsonObject();
+        action.addProperty("type", "run_script");
+        action.addProperty("script", script.toString());
+        if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
+            addEnding(from, "script_" + script.getPath().replace('/', '_'), action);
+            return true;
+        }
+        String field = type.equals(ClientDevStore.TYPE_QUEST) ? "on_start" : type.equals(ClientDevStore.TYPE_DOCUMENT) ? "on_read"
+                : type.equals(ClientDevStore.TYPE_EVENT) ? "actions" : type.equals(ClientDevStore.TYPE_BOSS) ? "on_kill" : null;
+        if (field == null) {
+            return false;
+        }
+        JsonArray actions = array(from, field);
+        if (!actions.contains(action)) {
+            actions.add(action);
+        }
         return true;
     }
 
@@ -289,7 +316,8 @@ final class StoryEdits {
             ClientDevStore.TYPE_DOCUMENT, Set.of("give_document"),
             ClientDevStore.TYPE_BOSS, Set.of("unlock_boss_section"),
             ClientDevStore.TYPE_CODEX, Set.of("unlock_codex"),
-            ClientDevStore.TYPE_SCRIPT, Set.of("kubejs"));
+            ClientDevStore.TYPE_SCRIPT, Set.of("kubejs"),
+            ClientDevStore.TYPE_VANILLA_SCRIPT, Set.of("run_script"));
     private static final Map<ResourceLocation, String> ID_FIELD = Map.of(
             ClientDevStore.TYPE_QUEST, "quest",
             ClientDevStore.TYPE_DIALOGUE, "dialogue",
@@ -297,6 +325,7 @@ final class StoryEdits {
             ClientDevStore.TYPE_BOSS, "boss",
             ClientDevStore.TYPE_CODEX, "entry",
             ClientDevStore.TYPE_SCRIPT, "id",
+            ClientDevStore.TYPE_VANILLA_SCRIPT, "script",
             ClientDevStore.TYPE_PHRASES, "phrases",
             // A waypoint's target { "npc"... }.
             ClientDevStore.TYPE_NPC, "npc");

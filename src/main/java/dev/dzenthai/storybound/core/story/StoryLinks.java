@@ -32,7 +32,10 @@ public final class StoryLinks {
     public static final ResourceLocation BOSS = Storybound.id("boss");
     public static final ResourceLocation CODEX = Storybound.id("codex");
     public static final ResourceLocation EVENT = Storybound.id("event");
+    /** A KubeJS script block (its id stays {@code script}). */
     public static final ResourceLocation SCRIPT = Storybound.id("script");
+    /** A script of vanilla commands. */
+    public static final ResourceLocation VANILLA_SCRIPT = Storybound.id("vanilla_script");
     /** An NPC's phrases: its chatter and what it says when hit. */
     public static final ResourceLocation PHRASES = Storybound.id("phrases");
 
@@ -250,6 +253,12 @@ public final class StoryLinks {
                     if (obj.has("quest") && obj.get("quest").isJsonPrimitive()) {
                         parseId(obj.get("quest").getAsString()).map(q -> new NodeKey(QUEST, q)).filter(q -> !q.equals(owner))
                                 .ifPresent(q -> edges.add(new Edge(q, owner, "after")));
+                    }
+                }
+                case "run_script" -> {
+                    if (obj.has("script") && obj.get("script").isJsonPrimitive()) {
+                        parseId(obj.get("script").getAsString())
+                                .ifPresent(s -> edges.add(new Edge(owner, new NodeKey(VANILLA_SCRIPT, s), "runs")));
                     }
                 }
                 case "start_dialogue" -> {

@@ -941,6 +941,11 @@ public final class Dialogues {
             return;
         }
         mob.getNavigation().stop();
+        // A goal mob (a wandering trader) keeps none of its moving or looking goals while it talks: a stroll would
+        // take a step before the next stop, a look at any mob near (its llama) would turn it away from the player.
+        // Vanilla gives them back within five ticks after the talk.
+        mob.goalSelector.disableControlFlag(net.minecraft.world.entity.ai.goal.Goal.Flag.MOVE);
+        mob.goalSelector.disableControlFlag(net.minecraft.world.entity.ai.goal.Goal.Flag.LOOK);
         Brain<?> brain = mob.getBrain();
         if (brain.checkMemory(MemoryModuleType.WALK_TARGET, MemoryStatus.REGISTERED)) {
             brain.eraseMemory(MemoryModuleType.WALK_TARGET);

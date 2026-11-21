@@ -1350,6 +1350,33 @@ public final class NpcReactionGameTests {
     }
 
     /**
+     * A goal mob (a wandering trader, its llama beside it) that stays: none of its moving goals runs (a stroll took a
+     * step before each stop, a twitch), nor, with the player near, its own looking goals (they turned it to the llama).
+     */
+    @GameTest(template = "open", batch = MOVEMENT, timeoutTicks = 300)
+    public static void aStayingGoalMobKeepsNoMovingOrLookingGoal(GameTestHelper helper) {
+        net.minecraft.world.entity.npc.WanderingTrader npc = helper.spawn(EntityType.WANDERING_TRADER, 1, 1, 1);
+        npc.addTag("gt_move_goal");
+        helper.spawn(EntityType.TRADER_LLAMA, 2, 1, 1);
+        ServerPlayer player = player(helper);
+        Definitions defs = new Definitions().binding("move_goal", "{ \"entity\": { \"tag\": \"gt_move_goal\" }, \"movement\": \"stay\" }");
+        defs.install(helper);
+        helper.startSequence()
+                .thenIdle(25)
+                .thenExecute(() -> helper.assertTrue(NpcMovement.held(npc), "the binding holds it"))
+                .thenIdle(60)
+                .thenExecute(() -> {
+                    helper.assertTrue(npc.goalSelector.getAvailableGoals().stream().filter(net.minecraft.world.entity.ai.goal.WrappedGoal::isRunning)
+                            .noneMatch(goal -> goal.getFlags().contains(net.minecraft.world.entity.ai.goal.Goal.Flag.MOVE)), "no moving goal runs");
+                    helper.assertTrue(npc.goalSelector.getAvailableGoals().stream().filter(net.minecraft.world.entity.ai.goal.WrappedGoal::isRunning)
+                            .noneMatch(goal -> goal.getFlags().contains(net.minecraft.world.entity.ai.goal.Goal.Flag.LOOK)), "nor its own looking, the player near");
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /**
      * {@code home} with {@code home_radius} 2: led 5 blocks away, it walks back within 2 and keeps near. A radius is read
      * with home (12), dropped without a movement.
      */

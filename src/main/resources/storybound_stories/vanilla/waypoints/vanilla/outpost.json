@@ -1,6 +1,0 @@
-{
-  "name": "vanilla.waypoint.outpost",
-  "target": {
-    "structure": "minecraft:pillager_outpost"
-  }
-}

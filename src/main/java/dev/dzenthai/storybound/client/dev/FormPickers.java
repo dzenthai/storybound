@@ -74,6 +74,10 @@ abstract class FormPickers extends FormCore {
             entries.add(new Entry(id, line.label(), line.icon().get()));
         }
         for (String type : Schemas.logicTypes(logic)) {
+            // "KubeJS" only where the server has it.
+            if (type.equals("kubejs") && !ClientDevStore.kubejs()) {
+                continue;
+            }
             entries.add(new Entry(type, typeName(logic, type), new ItemStack(icon(logic))));
         }
         Registry<?> registry = switch (logic) {
@@ -368,6 +372,7 @@ abstract class FormPickers extends FormCore {
             case "dialogue" -> ClientDevStore.TYPE_DIALOGUE;
             case "document" -> ClientDevStore.TYPE_DOCUMENT;
             case "boss" -> ClientDevStore.TYPE_BOSS;
+            case "script" -> ClientDevStore.TYPE_VANILLA_SCRIPT;
             case "phrases", "warning", "busy" -> ClientDevStore.TYPE_PHRASES;
             case "entry" -> ClientDevStore.TYPE_CODEX;
             case "waypoint" -> ClientDevStore.TYPE_WAYPOINT;

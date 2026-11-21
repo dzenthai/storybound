@@ -26,6 +26,8 @@ public final class BuiltinActions {
             REGISTER.register("play_sound", () -> new ActionType<>(WorldActions.PlaySound.CODEC));
     public static final DeferredHolder<ActionType<?>, ActionType<WorldActions.RunCommand>> RUN_COMMAND =
             REGISTER.register("run_command", () -> new ActionType<>(WorldActions.RunCommand.CODEC));
+    public static final DeferredHolder<ActionType<?>, ActionType<SceneActions.RunScript>> RUN_SCRIPT =
+            REGISTER.register("run_script", () -> new ActionType<>(SceneActions.RunScript.CODEC));
     public static final DeferredHolder<ActionType<?>, ActionType<WorldActions.Script>> KUBEJS =
             REGISTER.register("kubejs", () -> new ActionType<>(WorldActions.Script.CODEC));
     public static final DeferredHolder<ActionType<?>, ActionType<WorldActions.Notify>> NOTIFY =
