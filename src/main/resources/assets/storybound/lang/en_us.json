@@ -1897,6 +1897,7 @@
   "scenario.village.quest.title": "The village elder",
   "scenario.village.quest.text": "Find a village and its elder: the marker leads to the nearest village, then to him.",
   "scenario.village.quest.talk": "Talk to the elder",
+  "scenario.village.chapter": "The village",
   "scenario.village.quest.done": "I spoke with Miron. The village has more troubles than a letter could tell.",
   "scenario.village.quest.log.reach": "A letter asks me to find Miron, the elder of the nearest village.",
   "scenario.village.quest.log.find": "I reached the village. Now to find the elder among the villagers.",

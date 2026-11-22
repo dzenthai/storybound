@@ -1897,6 +1897,7 @@
   "scenario.village.quest.title": "Деревенский староста",
   "scenario.village.quest.text": "Найди деревню и её старосту: метка приведёт к ближайшей деревне, а потом к нему.",
   "scenario.village.quest.talk": "Поговорить со старостой",
+  "scenario.village.chapter": "Деревня",
   "scenario.village.quest.done": "Я поговорил с Мироном. У деревни бед больше, чем уместилось в письме.",
   "scenario.village.quest.log.reach": "В письме меня просят найти Мирона, старосту ближайшей деревни.",
   "scenario.village.quest.log.find": "Я дошёл до деревни. Теперь нужно найти старосту среди жителей.",

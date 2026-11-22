@@ -1,0 +1,49 @@
+{
+  "title": "scenario.village.chapter",
+  "order": 0,
+  "icon": "minecraft:bell",
+  "nodes": [
+    {
+      "type": "event",
+      "id": "scenario:village/start",
+      "x": 0,
+      "y": 168
+    },
+    {
+      "type": "quest",
+      "id": "scenario:village/quest",
+      "x": 216,
+      "y": 168
+    },
+    {
+      "type": "quest",
+      "id": "scenario:village/gift",
+      "x": 216,
+      "y": 336
+    },
+    {
+      "type": "quest",
+      "id": "scenario:village/raiders",
+      "x": 456,
+      "y": 0
+    },
+    {
+      "type": "quest",
+      "id": "scenario:village/bread",
+      "x": 456,
+      "y": 144
+    },
+    {
+      "type": "quest",
+      "id": "scenario:village/lamb",
+      "x": 456,
+      "y": 288
+    },
+    {
+      "type": "quest",
+      "id": "scenario:village/dragon",
+      "x": 456,
+      "y": 456
+    }
+  ]
+}
