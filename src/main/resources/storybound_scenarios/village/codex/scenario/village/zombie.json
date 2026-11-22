@@ -1,0 +1,26 @@
+{
+  "category": "monsters",
+  "entity": "minecraft:zombie",
+  "title": "scenario.village.codex.zombie",
+  "sections": [
+    {
+      "id": "base",
+      "unlock": {
+        "on": [
+          "seen",
+          "killed"
+        ]
+      }
+    },
+    {
+      "id": "weakness",
+      "title": "scenario.village.codex.weakness",
+      "unlock": {
+        "on": [
+          "killed"
+        ],
+        "count": 3
+      }
+    }
+  ]
+}

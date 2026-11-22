@@ -1,0 +1,9 @@
+{
+  "name": "scenario.village.fields",
+  "target": {
+    "structure": "#minecraft:village",
+    "search_radius": 100
+  },
+  "radius": 40,
+  "color": "#5DBB63"
+}

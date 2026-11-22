@@ -1,0 +1,19 @@
+{
+  "entity": {
+    "type": "minecraft:warden"
+  },
+  "title": "scenario.village.boss.warden",
+  "lore": {},
+  "tactics": {
+    "unlock": {
+      "on": [
+        "killed"
+      ]
+    }
+  },
+  "rewards": {
+    "items": [
+      "minecraft:sculk_catalyst"
+    ]
+  }
+}

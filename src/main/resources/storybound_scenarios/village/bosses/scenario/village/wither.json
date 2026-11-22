@@ -1,0 +1,19 @@
+{
+  "entity": {
+    "type": "minecraft:wither"
+  },
+  "title": "scenario.village.boss.wither",
+  "lore": {},
+  "tactics": {
+    "unlock": {
+      "on": [
+        "killed"
+      ]
+    }
+  },
+  "rewards": {
+    "items": [
+      "minecraft:nether_star"
+    ]
+  }
+}

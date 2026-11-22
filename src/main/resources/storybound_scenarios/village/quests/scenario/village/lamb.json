@@ -1,0 +1,32 @@
+{
+  "category": "side",
+  "title": "scenario.village.lamb.title",
+  "text": {
+    "active": "scenario.village.lamb.text",
+    "completed": "scenario.village.lamb.done"
+  },
+  "difficulty": 1,
+  "stages": [
+    {
+      "id": "search",
+      "log": "scenario.village.lamb.log",
+      "objectives": [
+        {
+          "id": "find",
+          "text": "scenario.village.lamb.objective",
+          "trigger": {
+            "type": "observed",
+            "entity": {
+              "type": "minecraft:sheep"
+            },
+            "time": 2,
+            "text": "scenario.village.lamb.observe"
+          }
+        }
+      ],
+      "waypoints": [
+        "scenario:village/fields"
+      ]
+    }
+  ]
+}

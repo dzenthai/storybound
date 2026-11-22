@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.client.waypoint;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.dzenthai.storybound.client.ClientModules;
+import dev.dzenthai.storybound.client.ShaderPacks;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
@@ -42,7 +43,8 @@ public final class AreaRings {
 
     public static void onRenderLevel(RenderLevelStageEvent event) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER || minecraft.level == null || minecraft.player == null
+        if (event.getStage() != ShaderPacks.worldOverlayStage() || ShaderPacks.renderingShadowPass()
+                || minecraft.level == null || minecraft.player == null
                 || minecraft.options.hideGui || !StoryboundClientConfig.INSTANCE.waypointAreaRings.get()
                 || !ClientModules.isEnabled("waypoints") || CutsceneClient.playing()) {
             return;

@@ -1,0 +1,26 @@
+{
+  "category": "monsters",
+  "entity": "minecraft:enderman",
+  "title": "scenario.village.codex.enderman",
+  "sections": [
+    {
+      "id": "base",
+      "unlock": {
+        "on": [
+          "seen",
+          "killed"
+        ]
+      }
+    },
+    {
+      "id": "weakness",
+      "title": "scenario.village.codex.weakness",
+      "unlock": {
+        "on": [
+          "killed"
+        ],
+        "count": 3
+      }
+    }
+  ]
+}

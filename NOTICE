@@ -26,16 +26,6 @@ The palette they use is in aseprite/palette/. The book item follows the vanilla
 Minecraft book; Minecraft-derived elements are not claimed as original
 Storybound intellectual property.
 
-The following textures are original assets generated for Storybound with the
-built-in OpenAI imagegen tool, using only the project's own artwork and
-concepts as references:
-
-- textures/gui/journal/traveler_corner.png
-- textures/gui/dialogue/parchment.png, frame.png and ornaments.png
-  (the frame and ornaments are extracted from the generated dialogue concept)
-- textures/gui/dialogue/nebula.png (reduced to a four-colour pixel grid and
-  exported as animation cels)
-
 BookmarkPixels and JournalSkin draw original pixel emblems, cloth ribbons,
 reward glints, an XP orb and printed rules. No Minecraft item textures are
 bundled as UI icons.

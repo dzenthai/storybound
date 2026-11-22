@@ -1,0 +1,34 @@
+{
+  "category": "side",
+  "title": "scenario.village.bread.title",
+  "text": {
+    "active": "scenario.village.bread.text",
+    "completed": "scenario.village.bread.done"
+  },
+  "difficulty": 1,
+  "stages": [
+    {
+      "id": "bake",
+      "log": "scenario.village.bread.log",
+      "objectives": [
+        {
+          "id": "bread",
+          "text": "scenario.village.bread.objective",
+          "count": 16,
+          "items": {
+            "item": "minecraft:bread",
+            "consume": true
+          }
+        }
+      ]
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 5
+      }
+    ]
+  }
+}

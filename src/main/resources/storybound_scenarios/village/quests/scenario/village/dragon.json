@@ -1,0 +1,64 @@
+{
+  "category": "main",
+  "title": "scenario.village.dragon.title",
+  "text": {
+    "active": "scenario.village.dragon.text",
+    "completed": "scenario.village.dragon.done"
+  },
+  "difficulty": 5,
+  "stages": [
+    {
+      "id": "stronghold",
+      "log": "scenario.village.dragon.log.stronghold",
+      "objectives": [
+        {
+          "id": "find",
+          "text": "scenario.village.dragon.objective.stronghold",
+          "trigger": {
+            "type": "structure_entered",
+            "structure": "minecraft:stronghold"
+          }
+        }
+      ],
+      "waypoints": [
+        "scenario:village/stronghold"
+      ]
+    },
+    {
+      "id": "eyes",
+      "log": "scenario.village.dragon.log.eyes",
+      "objectives": [
+        {
+          "id": "eyes",
+          "text": "scenario.village.dragon.objective.eyes",
+          "count": 12,
+          "items": {
+            "item": "minecraft:ender_eye"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dragon",
+      "log": "scenario.village.dragon.log.dragon",
+      "objectives": [
+        {
+          "id": "slay",
+          "text": "scenario.village.dragon.objective.dragon",
+          "trigger": {
+            "type": "boss_killed",
+            "boss": "scenario:village/ender_dragon"
+          }
+        }
+      ]
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:elytra"
+      }
+    ],
+    "xp": 500
+  }
+}

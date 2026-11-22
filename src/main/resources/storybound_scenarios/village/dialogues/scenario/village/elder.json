@@ -16,7 +16,132 @@
     "l2": {
       "type": "line",
       "speaker": "npc",
-      "text": "scenario.village.elder.l2"
+      "text": "scenario.village.elder.l2",
+      "next": "menu"
+    },
+    "menu": {
+      "type": "choice",
+      "options": [
+        {
+          "text": "scenario.village.elder.opt_trouble",
+          "conditions": {
+            "type": "quest",
+            "quest": "scenario:village/raiders",
+            "state": "unknown"
+          },
+          "next": "trouble"
+        },
+        {
+          "text": "scenario.village.elder.opt_dragon",
+          "conditions": {
+            "type": "quest",
+            "quest": "scenario:village/dragon",
+            "state": "unknown"
+          },
+          "next": "dragon"
+        },
+        {
+          "text": "scenario.village.elder.opt_map",
+          "conditions": {
+            "type": "has_item",
+            "item": "minecraft:emerald",
+            "count": 5
+          },
+          "locked": "show",
+          "locked_text": "scenario.village.elder.opt_map_locked",
+          "once": true,
+          "actions": {
+            "type": "take_item",
+            "item": "minecraft:emerald",
+            "count": 5
+          },
+          "next": "map"
+        },
+        {
+          "text": "scenario.village.elder.opt_bye",
+          "next": "bye"
+        }
+      ]
+    },
+    "trouble": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.village.elder.trouble",
+      "next": "trouble_quests"
+    },
+    "trouble_quests": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "set_quest_state",
+          "quest": "scenario:village/raiders",
+          "state": "active"
+        },
+        {
+          "type": "set_quest_state",
+          "quest": "scenario:village/bread",
+          "state": "active"
+        },
+        {
+          "type": "set_quest_state",
+          "quest": "scenario:village/lamb",
+          "state": "active"
+        }
+      ],
+      "next": "trouble_end"
+    },
+    "trouble_end": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.village.elder.trouble_end",
+      "next": "menu"
+    },
+    "dragon": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.village.elder.dragon",
+      "next": "dragon_quest"
+    },
+    "dragon_quest": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "set_quest_state",
+          "quest": "scenario:village/dragon",
+          "state": "active"
+        },
+        {
+          "type": "unlock_boss_section",
+          "boss": "scenario:village/ender_dragon",
+          "section": "lore"
+        }
+      ],
+      "next": "dragon_end"
+    },
+    "dragon_end": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.village.elder.dragon_end",
+      "next": "menu"
+    },
+    "map": {
+      "type": "action",
+      "actions": {
+        "type": "give_document",
+        "document": "scenario:village/map"
+      },
+      "next": "map_end"
+    },
+    "map_end": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.village.elder.map_end",
+      "next": "menu"
+    },
+    "bye": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "scenario.village.elder.bye"
     }
   }
 }

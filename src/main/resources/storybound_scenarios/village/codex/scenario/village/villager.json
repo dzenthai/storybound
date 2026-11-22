@@ -1,0 +1,26 @@
+{
+  "category": "characters",
+  "entity": "minecraft:villager",
+  "title": "scenario.village.codex.villager",
+  "sections": [
+    {
+      "id": "base",
+      "unlock": {
+        "on": [
+          "seen",
+          "killed"
+        ]
+      }
+    },
+    {
+      "id": "weakness",
+      "title": "scenario.village.codex.weakness",
+      "unlock": {
+        "on": [
+          "killed"
+        ],
+        "count": 3
+      }
+    }
+  ]
+}

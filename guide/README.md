@@ -49,7 +49,7 @@ Play the fights in survival mode. In creative, hostile mobs ignore you.
 | `dimensions` | Reach a Nether fortress and come back. The pinned quest has waypoints in the Overworld, the Nether and the End. Each one shows only in its own dimension, and the quest tracker names the dimensions where the others are. |
 | `duel` | Ataman Grom comes for you and taunts you in subtitles all through the fight, and you answer him. Your hits don't stop the talk, and when he falls he has last words. |
 | `reputation` | Hilda the baker remembers how you treat her. Praise raises her opinion of you and rudeness lowers it. Help her fight off the husks within a minute and it goes up even more; fail and it drops. You see it change as stars and skulls on the HUD. |
-| `village` | A waypoint leads you to the nearest village. There every villager becomes an NPC with a name from a list. Smiths chat about their work, about three in ten grown-ups become guards, and the mod picks one villager as the elder. The waypoint then follows him around. |
+| `village` | A waypoint leads you to the nearest village. There every villager becomes an NPC with a name from a list. Smiths chat about their work, about three in ten grown-ups become guards, and the mod picks one villager as Elder Miron, whom the waypoint then follows. His conversation has choices that give quests (zombies at night, bread to hand in, a lamb in a search area, a dragon hunt across three stages) and an old map that costs 5 emeralds. You also start with a letter, a reward to claim in the Journal, Codex entries for eight mobs and pages for four bosses. |
 
 ## Where files go
 

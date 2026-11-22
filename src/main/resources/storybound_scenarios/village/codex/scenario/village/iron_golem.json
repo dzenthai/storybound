@@ -1,0 +1,26 @@
+{
+  "category": "characters",
+  "entity": "minecraft:iron_golem",
+  "title": "scenario.village.codex.iron_golem",
+  "sections": [
+    {
+      "id": "base",
+      "unlock": {
+        "on": [
+          "seen",
+          "killed"
+        ]
+      }
+    },
+    {
+      "id": "weakness",
+      "title": "scenario.village.codex.weakness",
+      "unlock": {
+        "on": [
+          "killed"
+        ],
+        "count": 3
+      }
+    }
+  ]
+}

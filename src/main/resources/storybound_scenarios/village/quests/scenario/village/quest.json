@@ -2,11 +2,13 @@
   "category": "side",
   "title": "scenario.village.quest.title",
   "text": {
-    "active": "scenario.village.quest.text"
+    "active": "scenario.village.quest.text",
+    "completed": "scenario.village.quest.done"
   },
   "stages": [
     {
       "id": "reach",
+      "log": "scenario.village.quest.log.reach",
       "objectives": [
         {
           "id": "village",
@@ -23,6 +25,7 @@
     },
     {
       "id": "find",
+      "log": "scenario.village.quest.log.find",
       "objectives": [
         {
           "id": "talk",

@@ -1,0 +1,7 @@
+{
+  "name": "scenario.village.stronghold",
+  "target": {
+    "structure": "minecraft:stronghold"
+  },
+  "color": "#9B59B6"
+}

@@ -1,0 +1,20 @@
+{
+  "entity": {
+    "type": "minecraft:ender_dragon"
+  },
+  "title": "scenario.village.boss.ender_dragon",
+  "lore": {},
+  "tactics": {
+    "unlock": {
+      "on": [
+        "killed"
+      ]
+    }
+  },
+  "rewards": {
+    "items": [
+      "minecraft:elytra",
+      "minecraft:dragon_egg"
+    ]
+  }
+}

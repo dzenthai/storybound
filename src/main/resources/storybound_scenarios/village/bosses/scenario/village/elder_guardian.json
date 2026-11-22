@@ -1,0 +1,20 @@
+{
+  "entity": {
+    "type": "minecraft:elder_guardian"
+  },
+  "title": "scenario.village.boss.elder_guardian",
+  "lore": {},
+  "tactics": {
+    "unlock": {
+      "on": [
+        "killed"
+      ]
+    }
+  },
+  "rewards": {
+    "items": [
+      "minecraft:wet_sponge",
+      "minecraft:prismarine_shard"
+    ]
+  }
+}

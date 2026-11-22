@@ -1,0 +1,28 @@
+{
+  "category": "side",
+  "title": "scenario.village.gift.title",
+  "text": {
+    "completed": "scenario.village.gift.text"
+  },
+  "stages": [
+    {
+      "id": "given"
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:cooked_beef",
+        "count": 8
+      }
+    ],
+    "choice": [
+      {
+        "item": "minecraft:iron_pickaxe"
+      },
+      {
+        "item": "minecraft:iron_axe"
+      }
+    ]
+  }
+}

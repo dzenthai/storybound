@@ -89,7 +89,7 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onClientTick);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.sound.ClientStoryMusic::onSelectMusic);
-        NeoForge.EVENT_BUS.addListener(SpeechBubbles::onRenderLevel);
+        NeoForge.EVENT_BUS.addListener(ScreenProjection::capture);
         NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
         NeoForge.EVENT_BUS.addListener(AreaRings::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
@@ -155,6 +155,7 @@ public final class StoryboundClient {
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {
         // Under the crosshair and the rest of the HUD: markers belong to the world.
         event.registerBelow(VanillaGuiLayers.CROSSHAIR, Storybound.id("waypoint_markers"), WaypointMarkers::render);
+        event.registerBelow(VanillaGuiLayers.CROSSHAIR, Storybound.id("speech_bubbles"), SpeechBubbles::render);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("talk_hint"), TalkHint::render);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("observation"), ObservationHud::render);
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, Storybound.id("quest_tracker"), QuestHud::render);

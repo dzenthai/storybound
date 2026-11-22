@@ -1,0 +1,44 @@
+{
+  "category": "contract",
+  "title": "scenario.village.raiders.title",
+  "text": {
+    "active": "scenario.village.raiders.text",
+    "completed": "scenario.village.raiders.done"
+  },
+  "difficulty": 2,
+  "stages": [
+    {
+      "id": "hunt",
+      "log": "scenario.village.raiders.log",
+      "objectives": [
+        {
+          "id": "zombies",
+          "text": "scenario.village.raiders.objective",
+          "count": 10,
+          "trigger": {
+            "type": "entity_killed",
+            "entity": "minecraft:zombie",
+            "by_anyone": true
+          },
+          "hints": [
+            {
+              "text": "scenario.village.raiders.hint",
+              "after": 120
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rewards": {
+    "choice": [
+      {
+        "item": "minecraft:iron_sword"
+      },
+      {
+        "item": "minecraft:bow"
+      }
+    ],
+    "xp": 30
+  }
+}

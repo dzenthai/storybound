@@ -11,8 +11,82 @@
     },
     {
       "type": "set_quest_state",
+      "quest": "scenario:village/raiders",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:village/bread",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:village/lamb",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:village/dragon",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:village/gift",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
       "quest": "scenario:village/quest",
       "state": "active"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:village/gift",
+      "state": "completed"
+    },
+    {
+      "type": "give_document",
+      "document": "scenario:village/letter"
+    },
+    {
+      "type": "unlock_codex",
+      "entry": "scenario:village/zombie",
+      "section": "base"
+    },
+    {
+      "type": "unlock_codex",
+      "entry": "scenario:village/skeleton",
+      "section": "base"
+    },
+    {
+      "type": "unlock_codex",
+      "entry": "scenario:village/creeper",
+      "section": "base"
+    },
+    {
+      "type": "unlock_codex",
+      "entry": "scenario:village/villager",
+      "section": "base"
+    },
+    {
+      "type": "unlock_codex",
+      "entry": "scenario:village/iron_golem",
+      "section": "base"
+    },
+    {
+      "type": "unlock_boss_section",
+      "boss": "scenario:village/wither",
+      "section": "lore"
+    },
+    {
+      "type": "unlock_boss_section",
+      "boss": "scenario:village/elder_guardian",
+      "section": "lore"
+    },
+    {
+      "type": "unlock_boss_section",
+      "boss": "scenario:village/warden",
+      "section": "lore"
     }
   ]
 }
