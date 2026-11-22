@@ -8,6 +8,8 @@
   "properties": {
     "icon": { "description": "The marker of a point.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/marker" },
     "area_icon": { "description": "The marker of a search area (radius > 0).", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/area" },
+    "event_icon": { "description": "The marker of an event (marker: event): one \"!\", drawn three times, the middle one larger, and animated.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/event" },
+    "question_icon": { "description": "The marker of a question (marker: question): one \"?\", animated.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/question" },
     "arrow": { "description": "The arrow at the screen edge, pointing up; turned in game.", "$ref": "logic.schema.json#/definitions/id", "default": "storybound:waypoint/arrow" },
     "size": { "description": "Icon size in GUI pixels, before the player's scale setting.", "type": "integer", "minimum": 4, "maximum": 64, "default": 11 },
     "text_color": { "$ref": "#/definitions/color", "default": "#F0E6D2" },

@@ -27,6 +27,7 @@ don't need a map mod.
 | `show_radius` | true | For a search area, shows "radius 24 m" next to the name. |
 | `show_ring` | true | For a search area, draws its edge on the ground near the player. Turn it off when the edge would give the answer away. |
 | `color` | `#E8C66A` | The colour of the marker (its icon, name, edge arrow and ring) and of the waypoint on maps. See below. |
+| `marker` | `point` | `event` shows three "!" instead of the icon, the middle one larger, hopping like a cartoon, for something happening there: a fight, a meeting, a call for help. `question` shows one "?" that now and then shakes and gives a small hop, for something unknown there: a rumour, a riddle, a place to look into. A search area with either still draws its edge. |
 | `conditions` | none | The waypoint shows only while these hold. |
 | `quest`, `stage` | none | The waypoint shows only while the quest is active, or while it is at that stage. |
 
@@ -92,7 +93,7 @@ The `add_waypoint` action adds a waypoint from the story. `visibility` decides w
 | `structure`, `search_radius` | Puts it at the nearest such structure. |
 | `npc`, `boss`, `nearest`, `range` | Points it at an NPC, a boss or the nearest mob, as the targets above do. |
 | none of the above | Puts it where the entity of the moment stands, or the player if there is none. |
-| `color`, `radius`, `visibility` | As above. |
+| `color`, `radius`, `marker`, `visibility` | As above. |
 
 `remove_waypoint` takes an `id` and a `visibility`.
 

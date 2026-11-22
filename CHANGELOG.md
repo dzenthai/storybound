@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Waypoints and `add_waypoint` take `"marker": "event"`: three animated "!" instead of the icon, the middle one larger,
+  for something happening at that place. Resource packs draw its sprite as `event_icon`; Xaero's Minimap shows "!".
+- `"marker": "question"`: one animated "?" that shakes and hops a little, for something unknown at that place. Its sprite
+  is `question_icon`; Xaero's Minimap shows "?".
+- A search area's marker is a magnifier. All markers share one look: a dark outline and a hard shadow.
+
 ## 0.1.0 — first release
 
 Storybound is a data-driven story engine for NeoForge 1.21.1 modpacks. Stories are JSON files in

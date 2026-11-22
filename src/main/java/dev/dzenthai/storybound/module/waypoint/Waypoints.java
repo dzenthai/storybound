@@ -145,7 +145,8 @@ public final class Waypoints {
             if (place != null) {
                 result.put(key, new ClientWaypoint(key, definition.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(definition.radius()), place.showRadius(definition.radius(), definition.look()),
-                        place.showRing(definition.radius(), definition.look()), definition.color(), quest, place.placed()));
+                        place.showRing(definition.radius(), definition.look()), definition.color(), quest, place.placed(),
+                        definition.look().marker()));
             }
         });
         for (WaypointData.Added added : WaypointData.get(player.server).all()) {
@@ -157,7 +158,7 @@ public final class Waypoints {
             if (place != null) {
                 result.put(added.key(), new ClientWaypoint(added.key(), added.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(added.radius()), place.showRadius(added.radius(), added.look()), place.showRing(added.radius(), added.look()),
-                        added.color(), Optional.empty(), place.placed()));
+                        added.color(), Optional.empty(), place.placed(), added.look().marker()));
             }
         }
         return result;

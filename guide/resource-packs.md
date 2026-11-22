@@ -158,6 +158,8 @@ All markers share one look, defined in `default.json`. Leave out a key to keep t
 {
   "icon": "storybound:waypoint/marker",
   "area_icon": "storybound:waypoint/area",
+  "event_icon": "storybound:waypoint/event",
+  "question_icon": "storybound:waypoint/question",
   "arrow": "storybound:waypoint/arrow",
   "size": 11,
   "text_color": "#F0E6D2",
@@ -172,7 +174,9 @@ All markers share one look, defined in `default.json`. Leave out a key to keep t
 
 | Key | What it does |
 | --- | --- |
-| `icon`, `area_icon`, `arrow` | GUI sprites (`assets/<namespace>/textures/gui/sprites/<path>.png`) for a point, a search area and the arrow at the edge of the screen. Draw them in light colours on a transparent background, because the mod tints them with each waypoint's colour. |
+| `icon`, `area_icon`, `arrow` | GUI sprites (`assets/<namespace>/textures/gui/sprites/<path>.png`) for a point (a diamond), a search area (a magnifier) and the arrow at the edge of the screen. Draw them in light colours on a transparent background, because the mod tints them with each waypoint's colour. The mod's own icons have a dark outline and a hard shadow 2 pixels (of 32) to the right and down; draw the shadow into `icon` and `area_icon`, but not into `arrow`: the arrow turns, so the mod draws its shadow itself. |
+| `event_icon` | The sprite of an event marker: one "!" filling the height of the square, its dot at the bottom edge. The mod draws it three times on one line, the middle one larger, and makes them hop, the middle one first and the side ones together after it, squashing and stretching like a cartoon. Draw it in greys with a dark outline, like the other icons: the waypoint's colour is laid over it. To add a glint that runs over it, draw the frames one under another in the same PNG and add a `.png.mcmeta` with an `animation` section, as for any animated sprite. |
+| `question_icon` | The sprite of a question marker: one "?" filling the height of the square, its dot at the bottom edge. The mod shakes it now and then, turning it around its dot, with a small hop. Draw it in greys with a dark outline, like the other icons. |
 | `size` | The icon's size in GUI pixels, before the player's own scale. |
 | `text_color`, `distance_color` | The colours of the name and the distance under the icon. |
 | `name` | When the name shows: `always`, `near_crosshair`, `tracked` (always for the tracked quest, near the crosshair for the rest) or `never`. |

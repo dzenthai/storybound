@@ -337,5 +337,8 @@
   "Dev mode only: the item this node shows on the editor's canvases (an item id, e.g. minecraft:compass). The game does not read it; without it, the kind's own item.": "Только для dev mode: предмет, которым этот узел показан на холстах редактора (id предмета, например minecraft:compass). Игра его не читает; без него — свой предмет вида узла.",
   "Dev mode only: the item this node shows on the editor's canvases.": "Только для dev mode: предмет, которым этот узел показан на холстах редактора.",
   "For an int: its greatest value; adding or setting above it gives this.": "Для числа: наибольшее значение; прибавить или задать больше — получится оно.",
-  "For an int: its least value; adding or setting below it gives this.": "Для числа: наименьшее значение; прибавить или задать меньше — получится оно."
+  "For an int: its least value; adding or setting below it gives this.": "Для числа: наименьшее значение; прибавить или задать меньше — получится оно.",
+  "What the marker in the world shows: the point's icon; event, three animated \"!\" (the middle one larger) for something happening there; or question, an animated \"?\" for something unknown there. With a radius the edge of the area is drawn either way.": "Что показывает метка в мире: значок точки; event — три анимированных «!» (средний крупнее), там что-то происходит; question — анимированный «?», там что-то неизвестное. С радиусом край зоны рисуется в любом случае.",
+  "The marker of an event (marker: event): one \"!\", drawn three times, the middle one larger, and animated.": "Значок события (marker: event): один «!», рисуется трижды, средний крупнее, с анимацией.",
+  "The marker of a question (marker: question): one \"?\", animated.": "Значок вопроса (marker: question): один «?», с анимацией."
 }

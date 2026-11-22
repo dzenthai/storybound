@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.client.ClientModules;
 import dev.dzenthai.storybound.client.HudScale;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
+import dev.dzenthai.storybound.module.waypoint.AreaLook;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
 import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
 import java.util.ArrayList;
@@ -46,6 +47,57 @@ public final class WaypointMarkers {
     /** A waypoint switching to another entity (a {@code nearest} one picking the next mob) glides over this long. */
     private static final long SWITCH_MILLIS = 350;
     private static final float DIMMED_ALPHA = 0.55f;
+    /** How often an event's three "!" hop. */
+    private static final long EVENT_PERIOD_MS = 1400;
+    /** How long the side marks hop after the middle one, both at once. */
+    private static final long EVENT_FOLLOW_MS = 70;
+    /** How long a mark crouches before it jumps. */
+    private static final long EVENT_CROUCH_MS = 110;
+    /** How long a mark is in the air. */
+    private static final long EVENT_AIR_MS = 340;
+    /** How high every mark jumps, in marker sizes: the same for all, as if one gravity held them. */
+    private static final float EVENT_JUMP = 0.6f;
+    /** How far the side marks lean outwards at the top of the jump, in degrees. */
+    private static final float EVENT_LEAN = 8f;
+    /**
+     * The middle mark's height, in marker sizes: the question's too, so the glyph markers share one height. Taller than
+     * a point's icon because a narrow glyph looks smaller than a square of the same height.
+     */
+    private static final float GLYPH_HEIGHT = 1.1f;
+    /** The side marks' size beside the middle one's. */
+    private static final float EVENT_SIDE_SCALE = 0.65f;
+    /** The distance between the marks, in marker sizes. */
+    private static final float EVENT_SPACING = 0.38f;
+    /** How often the question's "?" shakes and hops. */
+    private static final long QUESTION_PERIOD_MS = 3000;
+    /** How high it hops, in marker sizes. */
+    private static final float QUESTION_JUMP = 0.2f;
+    /** How long its shake lasts, dying away. */
+    private static final long QUESTION_SHAKE_MS = 650;
+    /** One swing of the shake there and back. */
+    private static final long QUESTION_SHAKE_SWING_MS = 260;
+    /** How far the shake turns it at first, in degrees. */
+    private static final float QUESTION_SHAKE = 9f;
+    /** How much of the event's squash and stretch it takes. */
+    private static final float QUESTION_SQUASH = 0.5f;
+    /** The marks' hard shadow, drawn by the mod under the edge arrow, which turns, so its light stays at the top left. */
+    private static final int SHADOW_RGB = 0x18120C;
+    /**
+     * A point's icon beside a marker's size: the diamond fills 28 of its sprite's 32 rows with its shadow, so at this
+     * scale it stands as tall as the "?" and the middle "!".
+     */
+    private static final float POINT_SCALE = 1.26f;
+    /** How often the search area's magnifier searches and takes a closer look. */
+    private static final long AREA_PERIOD_MS = 3200;
+    /** How long it sweeps left, right and back before it stops on something. */
+    private static final long AREA_SWEEP_MS = 700;
+    /** How far it sweeps to each side, in marker sizes. */
+    private static final float AREA_SWEEP = 0.14f;
+    /** How long it draws back before the closer look. */
+    private static final long AREA_DRAW_BACK_MS = 100;
+    /** How much it shrinks drawing back, and how far past its size it springs coming closer. */
+    private static final float AREA_DRAW_BACK = 0.08f;
+    private static final float AREA_ZOOM = 0.3f;
     private static final float DIMMED_SIZE = 0.85f;
     private static final float TRACKED_SIZE = 1.15f;
     /** Far markers fade down to this, between the style's fade start and maximum distance. */
@@ -224,9 +276,22 @@ public final class WaypointMarkers {
             drawArrow(graphics, marker, now);
             return;
         }
-        sprite(graphics, marker.area() ? style.areaIcon() : style.icon(), x, y, marker.size(), 0, marker.tint(), marker.alpha());
+        AreaLook.Marker kind = marker.waypoint().marker();
+        switch (kind) {
+            case EVENT -> drawEvent(graphics, style.eventIcon(), x, y, marker.size(), marker.tint(), marker.alpha(), now);
+            case QUESTION -> drawQuestion(graphics, style.questionIcon(), x, y, marker.size(), marker.tint(), marker.alpha(), now);
+            case POINT -> {
+                if (marker.area()) {
+                    drawArea(graphics, style.areaIcon(), x, y, marker.size(), marker.tint(), marker.alpha(), now);
+                } else {
+                    sprite(graphics, style.icon(), x, y, marker.size() * POINT_SCALE, 0, marker.tint(), marker.alpha());
+                }
+            }
+        }
 
         float half = marker.size() / 2;
+        // Every kind's name on one line, just above the top of the event's jump, so names of markers side by side line up.
+        float nameY = y + half - marker.size() * (GLYPH_HEIGHT + EVENT_JUMP) - 10;
         float nameAlpha = nameAlpha(style, marker, graphics);
         if (nameAlpha > 0.03f) {
             Component name = marker.waypoint().name().toComponent();
@@ -235,17 +300,129 @@ public final class WaypointMarkers {
             }
             // The name in the waypoint's colour, unless it keeps the default (then the look's text colour, as before).
             int nameColor = marker.waypoint().color() == WaypointDefinition.DEFAULT_COLOR ? style.textColor() : marker.tint();
-            text(graphics, font, name, x, y - half - 10 - stack * NAME_LINE, 1f, nameColor, marker.alpha() * nameAlpha);
+            text(graphics, font, name, x, nameY - stack * NAME_LINE, 1f, nameColor, marker.alpha() * nameAlpha);
         }
         if (marker.label() != null && stack == 0) {
             text(graphics, font, marker.label(), x, y + half + 2, DISTANCE_SCALE, style.distanceColor(), marker.alpha());
         }
     }
 
+    /**
+     * An event's marker: three "!", the middle one larger, standing on one line where a point's icon would end. They
+     * hop as a cartoon does ({@link #hop}): the middle one leads and the side ones follow together a moment later,
+     * every {@link #EVENT_PERIOD_MS}. Each mark squashes and turns around the middle of its bottom edge, so it stays on
+     * the line; the side ones are drawn first, so the middle one's shadow lies over them. The sprite is one "!" in greys,
+     * tinted by the waypoint's colour like the other icons. Timed by the clock, so it runs the same at any frame rate.
+     */
+    private static void drawEvent(GuiGraphics graphics, ResourceLocation sprite, float x, float y, float size, int rgb, float alpha, long now) {
+        float base = y + size / 2;
+        graphics.setColor(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, Mth.clamp(alpha, 0f, 1f));
+        for (int side : new int[] {-1, 1, 0}) {
+            float height = size * GLYPH_HEIGHT * (side == 0 ? 1f : EVENT_SIDE_SCALE);
+            float[] hop = hop(Math.floorMod(now - (side == 0 ? 0 : EVENT_FOLLOW_MS), EVENT_PERIOD_MS));
+            graphics.pose().pushPose();
+            graphics.pose().translate(x + side * size * EVENT_SPACING, base - hop[0] * size * EVENT_JUMP, 0);
+            if (side != 0) {
+                graphics.pose().mulPose(Axis.ZP.rotationDegrees(hop[0] * EVENT_LEAN * side));
+            }
+            graphics.pose().scale(height / (16f * hop[1]), hop[1] * height / 16f, 1f);
+            graphics.blitSprite(sprite, -8, -16, 16, 16);
+            graphics.pose().popPose();
+        }
+        graphics.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /**
+     * The question's marker: one "?", standing where a point's icon would end. Every {@link #QUESTION_PERIOD_MS} it
+     * shakes, two or three swings that die away softly, and makes a small hop ({@link #hop}, with half the event's squash
+     * and stretch), then stands still. It turns around the middle of its bottom edge, its dot. The sprite is one "?" in
+     * greys, tinted by the waypoint's colour like the other icons.
+     */
+    private static void drawQuestion(GuiGraphics graphics, ResourceLocation sprite, float x, float y, float size, int rgb, float alpha, long now) {
+        long t = Math.floorMod(now, QUESTION_PERIOD_MS);
+        float[] hop = hop(t);
+        float squash = 1f + (hop[1] - 1f) * QUESTION_SQUASH;
+        float fade = 1f - Math.min(1f, t / (float) QUESTION_SHAKE_MS);
+        float shake = QUESTION_SHAKE * Mth.sin(Mth.TWO_PI * t / QUESTION_SHAKE_SWING_MS) * fade * fade;
+        float height = size * GLYPH_HEIGHT;
+        graphics.setColor(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, Mth.clamp(alpha, 0f, 1f));
+        graphics.pose().pushPose();
+        graphics.pose().translate(x, y + size / 2 - hop[0] * size * QUESTION_JUMP, 0);
+        graphics.pose().mulPose(Axis.ZP.rotationDegrees(shake));
+        graphics.pose().scale(height / (16f * squash), squash * height / 16f, 1f);
+        graphics.blitSprite(sprite, -8, -16, 16, 16);
+        graphics.pose().popPose();
+        graphics.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /**
+     * A search area's marker: the magnifier as a cartoon detective holds it. Every {@link #AREA_PERIOD_MS} it searches,
+     * sweeping left, right and back to the middle; then it notices something: it draws back a moment and comes closer,
+     * growing and springing past its size and back, a closer look; then it rests. Never turned, and kept on window
+     * pixels, so its pixels stay as drawn.
+     */
+    private static void drawArea(GuiGraphics graphics, ResourceLocation sprite, float x, float y, float size, int rgb, float alpha, long now) {
+        long t = Math.floorMod(now, AREA_PERIOD_MS);
+        float dx = 0f;
+        float scale = 1f;
+        if (t < AREA_SWEEP_MS) {
+            // Left first: an eased run once round a sine, so it starts and ends at rest.
+            dx = -size * AREA_SWEEP * Mth.sin(Mth.TWO_PI * smooth(t / (float) AREA_SWEEP_MS));
+        } else {
+            float look = t - AREA_SWEEP_MS;
+            if (look < AREA_DRAW_BACK_MS) {
+                scale = 1f - AREA_DRAW_BACK * smooth(look / AREA_DRAW_BACK_MS);
+            } else {
+                float closer = look - AREA_DRAW_BACK_MS;
+                // The draw-back lets go over the first moments while the spring carries it past its size and back.
+                float letGo = 1f - AREA_DRAW_BACK * (1f - smooth(closer / 50f));
+                scale = letGo * (1f + AREA_ZOOM * (float) Math.exp(-closer / 200f) * Mth.sin(Mth.PI * closer / 260f));
+            }
+        }
+        sprite(graphics, sprite, snap(x + dx), snap(y), size * scale, 0, rgb, alpha);
+    }
+
+    /** A HUD coordinate on the nearest window pixel, so a moving sprite keeps its pixels instead of shimmering. */
+    private static float snap(float v) {
+        int pixel = HudScale.pixel();
+        return Math.round(v * pixel) / (float) pixel;
+    }
+
+    /**
+     * One mark's hop at {@code t} ms into the cycle: its rise (0 to 1 of the jump) and its height scale (the width
+     * scale is the inverse, so it keeps its bulk). It crouches, then flies a parabola, as a thrown thing does,
+     * stretched by its speed, more going up than coming down, and lands squashed, springing past its shape and back.
+     * The squash before the jump lets go over the first moments in the air and the stretch grows in, so nothing jumps
+     * from frame to frame but the landing, which is the hit.
+     */
+    private static float[] hop(long t) {
+        if (t < EVENT_CROUCH_MS) {
+            return new float[] {0f, 1f - 0.18f * smooth(t / (float) EVENT_CROUCH_MS)};
+        }
+        float air = t - EVENT_CROUCH_MS;
+        if (air < EVENT_AIR_MS) {
+            float u = air / EVENT_AIR_MS;
+            float speed = 1f - 2f * u;
+            float letGo = 1f - 0.18f * (1f - smooth(air / 40f));
+            float stretch = 1f + (speed > 0 ? 0.22f : 0.12f) * Math.abs(speed) * Math.min(1f, air / 40f);
+            return new float[] {4f * u * (1f - u), letGo * stretch};
+        }
+        float landed = air - EVENT_AIR_MS;
+        return new float[] {0f, 1f - 0.22f * (float) Math.exp(-landed / 90f) * Mth.cos(Mth.TWO_PI * landed / 220f)};
+    }
+
+    private static float smooth(float t) {
+        t = Mth.clamp(t, 0f, 1f);
+        return t * t * (3f - 2f * t);
+    }
+
     /** An arrow at the screen edge, pointing where the off-screen waypoint is, with its distance beside it. */
     private static void drawArrow(GuiGraphics graphics, Marker marker, long now) {
         float angle = (float) Math.atan2(marker.screen().dirX(), marker.screen().dirY());
         float pulse = 0.8f + 0.2f * Mth.sin((now % 1600) / 1600f * Mth.TWO_PI);
+        // The shadow as on the other icons (2 of a sprite's 32 pixels right and down), kept there however the arrow turns.
+        float drop = marker.size() / 16f;
+        sprite(graphics, marker.style().arrow(), marker.screen().x() + drop, marker.screen().y() + drop, marker.size(), angle, SHADOW_RGB, marker.alpha() * pulse);
         sprite(graphics, marker.style().arrow(), marker.screen().x(), marker.screen().y(), marker.size(), angle, marker.tint(), marker.alpha() * pulse);
         if (marker.label() != null) {
             // Inside the arrow, towards the screen centre, so it never leaves the screen.

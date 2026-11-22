@@ -658,6 +658,7 @@
             "range": { "description": "For npc, boss and nearest: blocks around the player.", "type": "integer", "minimum": 1, "maximum": 256, "default": 64 },
             "color": { "description": "Colours the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the maps. Left out, the marker keeps its own look. Xaero's Minimap shows only Minecraft's 16 text colours, any other as the nearest of them. #RRGGBB.", "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
             "radius": { "type": "number", "minimum": 0, "maximum": 1024 },
+            "marker": { "description": "What the marker in the world shows: the point's icon; event, three animated \"!\" (the middle one larger) for something happening there; or question, an animated \"?\" for something unknown there. With a radius the edge of the area is drawn either way.", "enum": ["point", "event", "question"], "default": "point" },
             "show_radius": { "description": "For a search area: write its radius by the name.", "type": "boolean", "default": true },
             "show_ring": { "description": "For a search area: draw its edge on the ground near the player.", "type": "boolean", "default": true },
             "visibility": { "$ref": "#/definitions/scope", "default": "player" }

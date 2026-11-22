@@ -68,7 +68,7 @@ public final class XaeroWaypointRenderer implements WaypointRenderer {
             String name = waypoint.name().toComponent().getString();
             boolean tracked = ClientWaypoints.display(waypoint) == ClientWaypoints.Display.TRACKED;
             Waypoint xaero = new Waypoint((int) Math.floor(waypoint.pos().x), (int) Math.floor(waypoint.pos().y), (int) Math.floor(waypoint.pos().z),
-                    tracked ? "» " + name : name, initials(name), nearest(waypoint.color()), WaypointPurpose.NORMAL);
+                    tracked ? "» " + name : name, symbol(waypoint, name), nearest(waypoint.color()), WaypointPurpose.NORMAL);
             OURS.add(xaero);
             ours.add(waypoint.key(), xaero);
             // Deleting a third-party waypoint in Xaero's menu is remembered per id, in the world's config, for
@@ -78,6 +78,15 @@ public final class XaeroWaypointRenderer implements WaypointRenderer {
                 xaero.setThirdPartyDeleted(false);
             }
         }
+    }
+
+    /** The letters on Xaero's waypoint: "!" for an event, "?" for a question, else the name's initials. */
+    private static String symbol(ClientWaypoint waypoint, String name) {
+        return switch (waypoint.marker()) {
+            case EVENT -> "!";
+            case QUESTION -> "?";
+            case POINT -> initials(name);
+        };
     }
 
     private static String initials(String name) {

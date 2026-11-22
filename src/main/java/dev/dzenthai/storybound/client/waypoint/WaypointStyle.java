@@ -10,7 +10,8 @@ import net.minecraft.util.StringRepresentable;
 /**
  * How waypoint markers are drawn in the world, from {@code assets/<ns>/storybound/waypoint_styles/<path>.json}. One
  * look for every marker ({@code storybound:default}), which resource packs restyle. Sprites are GUI sprites drawn
- * light-on-transparent and tinted with the waypoint's colour. Whether off-screen markers get an edge arrow is the
+ * light-on-transparent and tinted with the waypoint's colour; the icons carry their own hard shadow, the arrow's is
+ * drawn by the mod as it turns. Whether off-screen markers get an edge arrow is the
  * player's setting; a style's older {@code edge} is ignored.
  *
  * @param size        the icon's size in GUI pixels, before the player's scale setting
@@ -18,16 +19,20 @@ import net.minecraft.util.StringRepresentable;
  * @param maxDistance farther than this it is hidden, unless its quest is tracked; 0 for no limit
  * @param hideWithin  closer than this the marker fades out: you have arrived
  */
-public record WaypointStyle(ResourceLocation icon, ResourceLocation areaIcon, ResourceLocation arrow,
+public record WaypointStyle(ResourceLocation icon, ResourceLocation areaIcon, ResourceLocation eventIcon,
+                            ResourceLocation questionIcon, ResourceLocation arrow,
                             int size, int textColor, int distanceColor,
                             NameMode name, boolean distance, float fadeStart, float maxDistance, float hideWithin) {
     public static final WaypointStyle FALLBACK = new WaypointStyle(
-            Storybound.id("waypoint/marker"), Storybound.id("waypoint/area"), Storybound.id("waypoint/arrow"),
+            Storybound.id("waypoint/marker"), Storybound.id("waypoint/area"), Storybound.id("waypoint/event"), Storybound.id("waypoint/question"),
+            Storybound.id("waypoint/arrow"),
             11, 0xFFF0E6D2, 0xFFC9B48A, NameMode.TRACKED, true, 96f, 768f, 4f);
 
     public static final Codec<WaypointStyle> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.optionalFieldOf("icon", FALLBACK.icon).forGetter(WaypointStyle::icon),
             ResourceLocation.CODEC.optionalFieldOf("area_icon", FALLBACK.areaIcon).forGetter(WaypointStyle::areaIcon),
+            ResourceLocation.CODEC.optionalFieldOf("event_icon", FALLBACK.eventIcon).forGetter(WaypointStyle::eventIcon),
+            ResourceLocation.CODEC.optionalFieldOf("question_icon", FALLBACK.questionIcon).forGetter(WaypointStyle::questionIcon),
             ResourceLocation.CODEC.optionalFieldOf("arrow", FALLBACK.arrow).forGetter(WaypointStyle::arrow),
             Codec.intRange(4, 64).optionalFieldOf("size", FALLBACK.size).forGetter(WaypointStyle::size),
             ColorCodec.CODEC.optionalFieldOf("text_color", FALLBACK.textColor).forGetter(WaypointStyle::textColor),

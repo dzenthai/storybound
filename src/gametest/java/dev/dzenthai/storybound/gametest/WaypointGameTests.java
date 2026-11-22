@@ -23,6 +23,7 @@ import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestEvents;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.module.quest.Quests;
+import dev.dzenthai.storybound.module.waypoint.AreaLook;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
 import dev.dzenthai.storybound.module.waypoint.StructureLocator;
 import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
@@ -194,6 +195,54 @@ public final class WaypointGameTests {
 
         ok(() -> PartyManager.disband(leader));
         List.of(leader, member, stranger).forEach(player -> remove(helper, player));
+        helper.succeed();
+    }
+
+    /**
+     * {@code "marker"}: a waypoint added by an action and one written in a file reach the client as an event or a
+     * question, one without it stays a point; the client gets it intact over the network and the save keeps it; the
+     * validator's warning about a point's area switches does not mistake the marker for one of them.
+     */
+    @GameTest(template = "empty")
+    public static void anEventMarkerReachesTheClientAndIsKept(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        run(helper, player, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:fight\", \"name\": \"gametest.fight\", \"pos\": [1, 2, 3], \"marker\": \"event\" }");
+        run(helper, player, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:calm\", \"name\": \"gametest.calm\", \"pos\": [4, 5, 6] }");
+        run(helper, player, "{ \"type\": \"add_waypoint\", \"id\": \"gametest:riddle\", \"name\": \"gametest.riddle\", \"pos\": [7, 8, 9], \"marker\": \"question\" }");
+        ClientWaypoint fight = Waypoints.visible(player).get("player/gametest:fight");
+        ClientWaypoint riddle = Waypoints.visible(player).get("player/gametest:riddle");
+        helper.assertTrue(fight != null && fight.marker() == AreaLook.Marker.EVENT, "an added event marker is an event on the client");
+        helper.assertTrue(riddle != null && riddle.marker() == AreaLook.Marker.QUESTION, "an added question marker is a question on the client");
+        helper.assertTrue(Waypoints.visible(player).get("player/gametest:calm").marker() == AreaLook.Marker.POINT, "without a marker: a point");
+
+        var buf = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), helper.getLevel().registryAccess());
+        ClientWaypoint.STREAM_CODEC.encode(buf, fight);
+        expect(helper, ClientWaypoint.STREAM_CODEC.decode(buf), fight, "sent intact");
+        ClientWaypoint.STREAM_CODEC.encode(buf, riddle);
+        expect(helper, ClientWaypoint.STREAM_CODEC.decode(buf), riddle, "a question sent intact");
+
+        var saved = new dev.dzenthai.storybound.module.waypoint.WaypointData.Added(key("fight"), dev.dzenthai.storybound.core.text.StoryText.key("gametest.fight"),
+                new WaypointTarget.Fixed(new net.minecraft.world.phys.Vec3(1, 2, 3), net.minecraft.world.level.Level.OVERWORLD), WaypointDefinition.DEFAULT_COLOR, 0f,
+                new dev.dzenthai.storybound.module.waypoint.AreaLook(true, true, dev.dzenthai.storybound.module.waypoint.AreaLook.Marker.EVENT),
+                StoryScope.PLAYER, java.util.Optional.of(player.getUUID()));
+        JsonElement written = dev.dzenthai.storybound.module.waypoint.WaypointData.Added.CODEC.encodeStart(JsonOps.INSTANCE, saved).getOrThrow();
+        helper.assertTrue(dev.dzenthai.storybound.module.waypoint.WaypointData.Added.CODEC.parse(JsonOps.INSTANCE, written).getOrThrow().look().marker() == AreaLook.Marker.EVENT,
+                "the save keeps it: " + written);
+
+        WaypointDefinition defined = WaypointDefinition.CODEC.parse(JsonOps.INSTANCE,
+                JsonParser.parseString("{ \"name\": \"gametest.fight\", \"target\": { \"pos\": [0, 0, 0] }, \"marker\": \"event\" }")).getOrThrow();
+        helper.assertTrue(defined.look().marker() == AreaLook.Marker.EVENT && !defined.look().areaChanged(), "a file's event marker; the area's switches untouched");
+        helper.assertTrue(WaypointDefinition.CODEC.parse(JsonOps.INSTANCE,
+                JsonParser.parseString("{ \"name\": \"gametest.riddle\", \"target\": { \"pos\": [0, 0, 0] }, \"marker\": \"question\" }")).getOrThrow().look().marker()
+                == AreaLook.Marker.QUESTION, "a file's question marker");
+        helper.assertTrue(WaypointDefinition.CODEC.parse(JsonOps.INSTANCE,
+                JsonParser.parseString("{ \"name\": \"gametest.calm\", \"target\": { \"pos\": [0, 0, 0] } }")).getOrThrow().look().marker()
+                == AreaLook.Marker.POINT, "a file's default: a point");
+
+        Waypoints.remove(player.server, key("fight"), StoryScope.PLAYER, player.getUUID());
+        Waypoints.remove(player.server, key("calm"), StoryScope.PLAYER, player.getUUID());
+        Waypoints.remove(player.server, key("riddle"), StoryScope.PLAYER, player.getUUID());
+        remove(helper, player);
         helper.succeed();
     }
 
