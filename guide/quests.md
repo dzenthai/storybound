@@ -4,6 +4,8 @@ A quest in Storybound tells a small story of its own. It has a state and goes th
 new entry to the quest's log, the way quest logs work in The Witcher: new entries are added under the old ones
 instead of replacing them.
 
+![The Adventure Menu: quests with their log, the Journal, the Codex and boss pages](images/journal.webp)
+
 A quest starts out `unknown`, which means the player doesn't see it yet. It becomes `active`, and ends up `completed`
 or `failed`. Players see their quests in the Quests tab of the Adventure Menu, and can pin up to five of them to the
 HUD.

@@ -95,6 +95,8 @@ keys 1 to 9 pick an answer.
 
 ## The camera
 
+![The camera films the conversation; one answer is greyed out until the player has 5 emeralds](images/dialogue.webp)
+
 On the dialogue screen, the camera films the conversation the way a film would: it switches between the speakers,
 showing each one over the listener's shoulder. It keeps clear of walls. In a cramped room it moves in front of the
 listener, and if nothing fits it stays in first person.
@@ -234,6 +236,8 @@ matches any number of that value, and `true` and `false` match 1 and 0.
 `entity` can also be a list of selectors. The binding then applies to any mob that matches one of them.
 
 ### NPCs for every mob of a kind
+
+![Every villager is an NPC with a name and chatter of its own](images/npcs.webp)
 
 A binding with a tag or a uuid is an NPC you place by hand. A binding without one turns every matching mob into an
 NPC, for example every villager in a village. Three settings help with that:

@@ -2,6 +2,8 @@
 
 ## Documents
 
+![A book open on the reading screen](images/book.png)
+
 Books, scrolls, notes, letters and contracts are all one item, `storybound:document`, which remembers which document
 it is. The text comes from the document's definition, so when you edit a document, the copies players already hold
 change too.
@@ -34,6 +36,8 @@ in a resource pack. How to format it is described in [Long texts](languages.md#l
 
 ### Giving documents to players
 
+![A contract from a notice board](images/contract.png)
+
 - the `give_document` action;
 - the command `/storybound document give|open|mark_read <players> <document>`;
 - loot tables, with `set_components` and `storybound:document`;
@@ -42,6 +46,8 @@ in a resource pack. How to format it is described in [Long texts](languages.md#l
 The Storybound creative tab lists every document.
 
 ### Books on a lectern
+
+![A book on a lectern, and the book as a 3D item in the hand](images/lectern.png)
 
 A player can put a `book` document on an empty lectern with a right-click, the same way as a vanilla written book.
 Scrolls, notes and letters can't be put on a lectern. Right-click reads the book, and sneak and right-click, or the

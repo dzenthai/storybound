@@ -4,6 +4,8 @@ Storybound lets you add a story to a modpack: quests, NPCs who talk, letters and
 of creatures, bosses and waypoints. You write the story as JSON files or build it in the in-game editor. The server
 runs the story, and players follow it in the Adventure Menu (the J key), on the HUD and in dialogue screens.
 
+![Talking to the elder: the camera switches between the speakers](images/dialogue.webp)
+
 Install the mod on the server and on every client.
 
 | Page | What it covers |

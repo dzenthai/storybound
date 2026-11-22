@@ -5,6 +5,8 @@ see. A waypoint shows up as a marker in the world, with an icon and the distance
 screen for the tracked quest. If Xaero's Minimap or JourneyMap is installed, the waypoints appear there too, but you
 don't need a map mod.
 
+![A search area with its edge drawn on the ground](images/waypoints.webp)
+
 ```json
 // config/storybound/my_story/waypoints/mypack/wolf_den.json
 {

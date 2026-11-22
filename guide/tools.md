@@ -7,6 +7,8 @@ edit mode of FTB Quests and writes the files in the story folder for you.
 
 ### The map
 
+![A chapter map of quests and story events with arrows and badges](images/chapters.png)
+
 The map shows the story's quests and story events. An arrow goes from each one to what it leads to, labelled in plain
 words: "after it is completed", "starts", or "through 💬" when a dialogue or a script sits in between.
 
@@ -24,6 +26,8 @@ The strip of icons on the left lists the chapters, as in FTB Quests. ★ is the 
 to see its name.
 
 ### The top bar
+
+![Show all links: every part of the story on one canvas](images/links.png)
 
 The top bar uses small icons, and hovering over one shows what it does:
 
@@ -61,6 +65,8 @@ Quick tests let you try a definition right away: start or complete a quest, star
 document, teleport to a waypoint, or run a script.
 
 ### Other parts of the editor
+
+![A dialogue as a graph of lines, choices and actions](images/dialogues.png)
 
 - Long texts, such as documents, Codex sections and boss lore and tactics, open in a text window with the markup at
   hand. A document can be previewed on its real reading screen before you save it.
