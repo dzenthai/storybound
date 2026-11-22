@@ -92,7 +92,7 @@ final class FormView extends FormStory {
                 : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
         JsonObject object = objectAt(path);
         if (npc) {
-            // Who it is, under its heading: the rule, the kind, the filters and the name, in the author's order.
+            // Who it is, under its heading: the rule, the kind, the filters and the name, in that order.
             group(DevUi.text("npc.group.who"));
             npcWho(schema, object);
         }

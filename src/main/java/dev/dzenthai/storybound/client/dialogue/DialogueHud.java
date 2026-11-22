@@ -38,7 +38,7 @@ public final class DialogueHud {
 
     /**
      * "[H] Answer" over the subtitles while a choice waits for the talk key, in the talk hint's look, with its timer
-     * under it as a shrinking bar, as in the window. Drawn by the code until the author's art replaces it.
+     * under it as a shrinking bar, as in the window. Drawn by the code; a texture can replace it later.
      */
     private static void renderPrompt(GuiGraphics graphics, Minecraft minecraft, int above) {
         ClientDialogue.Choices choices = ClientDialogue.choices();

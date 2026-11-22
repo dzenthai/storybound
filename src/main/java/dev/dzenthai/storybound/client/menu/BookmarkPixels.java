@@ -103,9 +103,8 @@ final class BookmarkPixels {
             }
     };
     /**
-     * The emblems in a pale tint of their cloth's colour (light, body, shadow), the author's: the one exception to the
-     * palette, which dropped these pale tints. The map's cloth turned ochre the same day, so its emblem takes the gold
-     * sheet's light tones instead of its old pale blue.
+     * The emblems in a pale tint of their cloth's colour (light, body, shadow): the one exception to the palette, which
+     * has no such pale tints. The map's cloth is ochre, so its emblem takes the gold sheet's light tones.
      */
     private static final int[][] INKS = {
             {0xFFF0C3A5, 0xFFE3A58D, 0xFFC98270},
@@ -180,8 +179,7 @@ final class BookmarkPixels {
     /**
      * Where the emblem starts, fixed on the cloth so it travels with it: in the middle between the page's edge and the
      * fork's apex, the page's edge taken halfway between a ribbon at rest (6 pixels in) and one slid out (3 in), so it
-     * sits near the middle of what shows either way (for a moment the same day, recentred as the ribbon slid, which
-     * made it twitch).
+     * sits near the middle of what shows either way. Recentring it as the ribbon slides would make it twitch.
      */
     static int iconLeft(int width, int height) {
         int notch = Math.max(0, (height - 1) / 2 - height / 5);

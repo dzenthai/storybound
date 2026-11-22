@@ -51,8 +51,8 @@ final class DevButton extends Button {
         int room = w - 6;
         String text = split.text();
         int iconW = split.icon() == null ? 0 : DevIcons.SIZE + (text.isEmpty() ? 0 : DevIcons.GAP);
-        // Words too long are cut with "…"; an icon alone is never cut, and no "…" is added to no words (November 19,
-        // 2026: a 12-wide ✕ got a "…" after its icon, which ran out of the button).
+        // Words too long are cut with "…"; an icon alone is never cut, and no "…" is added when there are no words
+        // (a narrow ✕ would get one after its icon and run out of the button).
         if (!text.isEmpty() && font.width(text) > room - iconW) {
             int fit = room - iconW - font.width("…");
             text = fit > 0 ? font.plainSubstrByWidth(text, fit) + "…" : "";

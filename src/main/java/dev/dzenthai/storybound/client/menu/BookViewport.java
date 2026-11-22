@@ -14,9 +14,7 @@ public record BookViewport(double scale, double x, double y, int width, int heig
     public static final int MENU_HEIGHT = 432;
     /**
      * How much of the window the documents and the Adventure Menu's book take at most, so the world stays in sight
-     * around them: one scale for all of them. The menu was put back to "as large as fits" the same day over a
-     * misunderstanding (the trouble was the scroll arrows moving the lines, fixed by laying them over the text) and
-     * brought back to this rule.
+     * around them: one scale for all of them.
      */
     public static final double FILL_HEIGHT = 0.8;
     public static final double FILL_WIDTH = 0.9;

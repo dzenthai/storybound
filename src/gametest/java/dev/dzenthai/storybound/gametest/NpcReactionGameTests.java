@@ -65,8 +65,8 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * An NPC binding's {@code invulnerable}, {@code when_attacked} and {@code chatter}, and the phrases they say (November
- * 5, 2026): nothing hurts an invulnerable NPC but the void; a golem told to ignore a player's hit may not take the
+ * An NPC binding's {@code invulnerable}, {@code when_attacked} and {@code chatter}, and the phrases they say: nothing
+ * hurts an invulnerable NPC but the void; a golem told to ignore a player's hit may not take the
  * player as its target (one without a binding may); with fight, patience forgives hits before it fights back; every hit
  * says the next phrase in order, and calming down starts them over; a fleeing golem runs and a phrase that is a dialogue
  * starts it; chatter speaks with a player near, in order, and keeps quiet with nobody near, in a dialogue or when its

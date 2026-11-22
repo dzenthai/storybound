@@ -41,7 +41,7 @@ public class JournalView extends ListDetailView<JournalView.Entry> {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // The author's drawing, on the book's pixels: one pixel of it is one of the book's, at the page's bottom right.
+        // The drawing, on the book's pixels: one pixel of it is one of the book's, at the page's bottom right.
         var layout = screen.bookLayout();
         double px = layout.bookPixel();
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();

@@ -12,7 +12,7 @@ import dev.dzenthai.storybound.core.data.ColorCodec;
 public record MenuTheme(int title, int ink, int muted, int accent, int unseen, int completed, int failed,
                         int selection, int hover, int divider, int hudBackground, int hudTitle, int hudText) {
     public static final MenuTheme FALLBACK = new MenuTheme(
-            // As theme.json, in the author's palette; muted and the HUD's background are not in it.
+            // As theme.json, in the mod's palette; muted and the HUD's background are not in it.
             UiPalette.opaque(UiPalette.INK), UiPalette.opaque(UiPalette.INK), 0xFF806747, UiPalette.opaque(UiPalette.DARK_BROWN),
             UiPalette.opaque(UiPalette.OCHRE), UiPalette.opaque(UiPalette.GREEN_DARK), UiPalette.opaque(UiPalette.RED_SHADOW),
             0x60000000 | UiPalette.TAN_LIGHT, 0x30000000 | UiPalette.TAN, UiPalette.opaque(UiPalette.TAN), 0xA62A221C,

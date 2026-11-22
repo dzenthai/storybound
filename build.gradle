@@ -180,8 +180,8 @@ neoForge {
     addModdingDependenciesTo(sourceSets.gametest)
 }
 
-// A story folder of one story, gametest/ (one folder per story since November 18, 2026): the starter files plus the
-// story the GameTests play (src/gametest/story: the former demo, never shipped; its lang files hold the starter's keys
+// A story folder of one story, gametest/: the starter files plus the
+// story the GameTests play (src/gametest/story, never shipped; its lang files hold the starter's keys
 // too), and every debug scenario as if installed (their texts are in the mod's own lang files).
 def prepareGameTestStory = tasks.register('prepareGameTestStory', Sync) {
     from('src/main/resources/storybound_starter') {

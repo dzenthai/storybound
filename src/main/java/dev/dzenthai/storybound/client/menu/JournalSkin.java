@@ -138,12 +138,12 @@ public final class JournalSkin {
     /** Width of {@link #pin}. */
     public static final int PIN_WIDTH = 8;
 
-    /** The author's pin, 8 × 8, when the resource pack has it; until then the stand-in below is drawn. */
+    /** The pin texture, 8 × 8, when a resource pack has it; until then the stand-in below is drawn. */
     private static final ResourceLocation PIN = Storybound.id("textures/gui/journal/pin.png");
 
     /**
-     * The track button's pin, 8 × 8 from its top left. Also marks pinned quests in the Journal's list (November 6,
-     * 2026). The author's {@code textures/gui/journal/pin.png} when there is one; otherwise a stand-in of four
+     * The track button's pin, 8 × 8 from its top left. Also marks pinned quests in the Journal's list. The texture
+     * {@code textures/gui/journal/pin.png} when there is one; otherwise a stand-in of four
      * rectangles in {@code color} (a head at the top right, the needle down to the bottom left).
      */
     public static void pin(GuiGraphics graphics, int x, int y, int color) {
@@ -166,7 +166,7 @@ public final class JournalSkin {
     }
 
     /**
-     * The author's sparks, when the resource pack has them: a strip of {@link #SPARK_FRAMES} frames of
+     * The spark texture, when a resource pack has it: a strip of {@link #SPARK_FRAMES} frames of
      * {@link #SPARK_SIZE} × {@link #SPARK_SIZE}, smallest first, one per size a spark is drawn at (1 to 4); until then
      * the stand-in below, a diamond of the gold ramp.
      */

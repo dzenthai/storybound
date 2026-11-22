@@ -121,8 +121,8 @@ public final class DevProjects {
                             .forEach(DevModeServer::sendSnapshot);
                 }
                 case "update" -> {
-                    // Any story's title and whether it is in the game, not only the one being edited (November 18,
-                    // 2026: its settings opened only after the editor had switched to it, a wait and a jump).
+                    // Any story's title and whether it is in the game, not only the one being edited, so its settings
+                    // open without switching the editor to it first.
                     var before = StoryProjects.get(ConfigStorySource.root(), id);
                     if (enabled && !before.enabled()) {
                         validateForEnable(player.server, before);

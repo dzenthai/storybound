@@ -40,7 +40,7 @@ public final class StoryProjects {
     private static final String ID = "[a-z0-9][a-z0-9_-]{0,63}";
     /** What stays in the story folder itself when an old layout is moved into a story. */
     private static final String README = "README.txt";
-    /** Where the other stories were, the same day, before one folder was one story. */
+    /** Where the old layout kept the other stories; {@link #migrate} moves them to a folder each. */
     private static final String OLD_STORIES = "stories";
 
     /** A story: its id (its folder's name), title, whether it loads into the game, folder. */

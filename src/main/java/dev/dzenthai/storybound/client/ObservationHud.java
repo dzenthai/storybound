@@ -34,7 +34,7 @@ import org.jetbrains.annotations.Nullable;
  * is lost the fill runs back to nothing, its percent counting down, and only then fades. Looked at again on the way
  * down, it turns and fills from where it is.
  * <p>
- * The bar is the author's art: three strips of {@link #BAR_WIDTH} × {@link #BAR_HEIGHT}, the frame with a dark
+ * The bar is a texture of three strips of {@link #BAR_WIDTH} × {@link #BAR_HEIGHT}, the frame with a dark
  * translucent ground inside it, the full fill in gold, and the full fill in the glint that runs over it at the end,
  * each fill strip with its tip (the chevron spark, {@link #TIP} columns) beside it. While it grows the fill is the
  * strip's left part with the tip at its end; full, it is the whole strip, its right end as round as its left, up to the
@@ -129,7 +129,7 @@ public final class ObservationHud {
             if (doneAt == 0) {
                 doneAt = now;
                 // Done: the next step of the clicks, a little louder, then one a step lower as it settles, as if it
-                // clicked into place (the same day the enchanting table's rustle, then a bell: off the clicks' tune).
+                // clicked into place, in the clicks' own tune.
                 play(SoundEvents.UI_BUTTON_CLICK.value(), 1.9f, 0.35f);
                 settleAt = now + 70;
             }
@@ -195,8 +195,7 @@ public final class ObservationHud {
                 draining = false;
                 hideAt = now + FADE_MS;
             }
-            // The scroll arrows' soft click at each tenth on the way up, a little higher each time (the same day an amethyst
-            // chime, too quiet to hear).
+            // The scroll arrows' soft click at each tenth on the way up, a little higher each time.
             int tenth = (int) (shown * 10);
             if (tenth > chimed && tenth >= 1 && tenth <= 9) {
                 play(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f + tenth * 0.09f, 0.25f);

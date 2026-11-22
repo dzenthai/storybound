@@ -638,8 +638,8 @@ public final class Waypoints {
         }
 
         /**
-         * Only its dimension is known: a structure in a dimension the player is not in, not searched for (November 9,
-         * 2026); the quest tracker names the dimension, nothing is drawn.
+         * Only its dimension is known: a structure in a dimension the player is not in, not searched for; the quest
+         * tracker names the dimension, nothing is drawn.
          */
         static Place elsewhere(ResourceLocation dimension) {
             return new Place(dimension, Vec3.ZERO, ClientWaypoint.NO_ENTITY, -1, false);
