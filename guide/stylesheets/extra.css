@@ -1,7 +1,8 @@
-/* The menu's "Features" item: bold, in the mod's gold, with two small sparks twinkling beside it. */
+/* The menu's "Features" item: bold, in the mod's gold; sparks of different sizes leave its text and fade (features.js). */
 .md-nav__link.sb-features,
 .md-tabs__link.sb-features {
   position: relative;
+  overflow: visible;
   font-weight: 700;
   color: #e1b34d;
 }
@@ -12,37 +13,31 @@
   color: #b08031;
 }
 
-.md-nav__link.sb-features::before,
-.md-nav__link.sb-features::after {
-  content: "✦";
+.sb-spark {
   position: absolute;
+  z-index: 1;
+  line-height: 1;
   color: inherit;
   pointer-events: none;
-  animation: sb-twinkle 2.4s ease-in-out infinite;
+  transform: translate(-50%, -50%) scale(0.3);
+  opacity: 0;
+  animation-name: sb-spark;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
 }
 
-.md-nav__link.sb-features::before {
-  left: 4.6em;
-  top: -0.15em;
-  font-size: 0.55em;
-}
-
-.md-nav__link.sb-features::after {
-  left: 5.6em;
-  top: 0.55em;
-  font-size: 0.4em;
-  animation-delay: 1.2s;
-}
-
-@keyframes sb-twinkle {
-  0%, 100% { opacity: 0; transform: scale(0.4); }
-  50% { opacity: 1; transform: scale(1); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .md-nav__link.sb-features::before,
-  .md-nav__link.sb-features::after {
-    animation: none;
-    opacity: 0.8;
+/* Born small on the text, brightest a moment later, then drifting off to its place and fading out. */
+@keyframes sb-spark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--sb-dx) * 0.2), calc(-50% + var(--sb-dy) * 0.2)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--sb-dx)), calc(-50% + var(--sb-dy))) scale(0.6) rotate(45deg);
   }
 }
