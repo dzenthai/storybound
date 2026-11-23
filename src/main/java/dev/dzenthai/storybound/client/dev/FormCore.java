@@ -876,6 +876,13 @@ abstract class FormCore {
         if (properties.containsKey("variants") && properties.containsKey("min_interval")) {
             return CHATTER;
         }
+        // A story event's cooldown is a wait between runs, not a quest's "Cooldown, s"; its scope is whose wait it is.
+        if (properties.containsKey("on_fail") && properties.containsKey("cooldown")) {
+            return "event";
+        }
+        if (properties.size() == 2 && properties.containsKey("seconds") && properties.containsKey("scope")) {
+            return "cooldown";
+        }
         // The story's settings and their difficulty scale: "style" is how quests show
         // it, not a document's look.
         if (properties.containsKey("track_given_quests")) {

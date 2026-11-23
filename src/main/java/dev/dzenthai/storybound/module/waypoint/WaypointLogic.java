@@ -60,7 +60,7 @@ public final class WaypointLogic {
                 // An NPC by its node, a boss, the nearest mob of a kind, as a waypoint's own target.
                 ResourceLocation.CODEC.optionalFieldOf("npc").forGetter(AddWaypoint::npc),
                 ResourceLocation.CODEC.optionalFieldOf("boss").forGetter(AddWaypoint::boss),
-                WaypointTarget.Nearest.SELECTOR.optionalFieldOf("nearest").forGetter(AddWaypoint::nearest),
+                dev.dzenthai.storybound.core.logic.EntitySelector.TYPES_OR_SELECTOR.optionalFieldOf("nearest").forGetter(AddWaypoint::nearest),
                 Codec.intRange(1, 256).optionalFieldOf("range", WaypointTarget.Nearest.DEFAULT_RANGE).forGetter(AddWaypoint::range),
                 ColorCodec.CODEC.optionalFieldOf("color", WaypointDefinition.DEFAULT_COLOR).forGetter(AddWaypoint::color),
                 Codec.floatRange(0f, 1024f).optionalFieldOf("radius", 0f).forGetter(AddWaypoint::radius),

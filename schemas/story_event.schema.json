@@ -22,6 +22,16 @@
     "once": {
       "description": "Run only once per this scope. Absent means every time.",
       "enum": ["player", "party", "world"]
+    },
+    "cooldown": {
+      "description": "After it has run, it does not run again in this scope until that much game time has passed (an encounter that comes back now and then). An aborted run does not count.",
+      "type": "object",
+      "properties": {
+        "seconds": { "description": "Seconds of game time; a Minecraft day is 1200. Sleeping does not shorten it.", "type": "integer", "minimum": 1, "maximum": 100000000 },
+        "scope": { "description": "Whose cooldown it is: each player's, the party's or the whole world's.", "enum": ["player", "party", "world"], "default": "player" }
+      },
+      "required": ["seconds"],
+      "additionalProperties": false
     }
   }
 }

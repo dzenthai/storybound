@@ -254,6 +254,22 @@
           "additionalProperties": false
         },
         {
+          "description": "Counts the living entities that match within radius of the place: the player, a pos (with dimension), or an offset from at. Without min and max, at least one; max 0, none left. Only loaded chunks count.",
+          "properties": {
+            "type": { "enum": ["entities", "storybound:entities"] },
+            "entity": { "description": "Which entities: a type, a #tag or a list, or a selector with filters (a tag given by spawn_entity, a name, biome, in_village).", "oneOf": [ { "$ref": "#/definitions/id_list" }, { "$ref": "#/definitions/entity_selector" } ] },
+            "radius": { "description": "Blocks around the place.", "type": "number", "minimum": 1, "maximum": 128, "default": 32 },
+            "min": { "description": "At least this many.", "type": "integer", "minimum": 0, "maximum": 10000 },
+            "max": { "description": "At most this many; 0 means none.", "type": "integer", "minimum": 0, "maximum": 10000 },
+            "pos": { "$ref": "#/definitions/vec3" },
+            "dimension": { "$ref": "#/definitions/id" },
+            "at": { "$ref": "#/definitions/scene_target" },
+            "offset": { "$ref": "#/definitions/vec3" }
+          },
+          "required": ["entity"],
+          "additionalProperties": false
+        },
+        {
           "description": "The player has the advancement (done: false, has not). One that is not loaded is never done.",
           "properties": {
             "type": { "enum": ["advancement", "storybound:advancement"] },
@@ -705,7 +721,7 @@
         {
           "properties": {
             "type": { "enum": ["entity_interacted", "storybound:entity_interacted", "entity_seen", "storybound:entity_seen"] },
-            "entity": { "$ref": "#/definitions/id_list" }
+            "entity": { "description": "Which entities: a type, a #tag or a list, or a selector with filters (a tag given by spawn_entity, a name, biome, in_village). Omitted means any.", "oneOf": [ { "$ref": "#/definitions/id_list" }, { "$ref": "#/definitions/entity_selector" } ] }
           },
           "additionalProperties": false
         },
@@ -728,7 +744,7 @@
           "description": "The player dealt the killing blow; with shared, also a party member of the killer nearby; with by_anyone, every player nearby, whoever or whatever killed it.",
           "properties": {
             "type": { "enum": ["entity_killed", "storybound:entity_killed"] },
-            "entity": { "$ref": "#/definitions/id_list" },
+            "entity": { "description": "Which entities: a type, a #tag or a list, or a selector with filters (a tag given by spawn_entity, a name, biome, in_village). Omitted means any.", "oneOf": [ { "$ref": "#/definitions/id_list" }, { "$ref": "#/definitions/entity_selector" } ] },
             "shared": { "type": "boolean", "default": false },
             "by_anyone": { "description": "Counts for every player near the victim (detection.killCreditRadius), whoever or whatever killed it: an iron golem, another mob, a fall, lava. For \"drive them off\" rather than \"kill them yourself\".", "type": "boolean", "default": false }
           },

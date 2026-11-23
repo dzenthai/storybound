@@ -8,9 +8,7 @@ import dev.dzenthai.storybound.core.logic.StructureRef;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.UUIDUtil;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
@@ -118,11 +116,8 @@ public sealed interface WaypointTarget {
      */
     record Nearest(EntitySelector entity, int range) implements WaypointTarget {
         public static final int DEFAULT_RANGE = 64;
-        static final Codec<EntitySelector> SELECTOR = Codec.either(EntitySelector.CODEC, RegistryCodecs.homogeneousList(Registries.ENTITY_TYPE))
-                .xmap(either -> either.map(selector -> selector,
-                        EntitySelector::ofTypes), Either::left);
         public static final Codec<Nearest> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                SELECTOR.fieldOf("nearest").forGetter(Nearest::entity),
+                EntitySelector.TYPES_OR_SELECTOR.fieldOf("nearest").forGetter(Nearest::entity),
                 Codec.intRange(1, 256).optionalFieldOf("range", DEFAULT_RANGE).forGetter(Nearest::range)
         ).apply(instance, Nearest::new));
     }

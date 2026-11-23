@@ -91,7 +91,9 @@ class DevEditsTest {
         assertEquals(Schemas.Kind.VARIANTS, Schemas.kind(Schemas.properties(Schemas.definition(ClientDevStore.TYPE_WAYPOINT)).get("target")));
 
         Schemas.Node killed = Schemas.typed(Schemas.logic("trigger"), "storybound:entity_killed");
-        assertEquals(Schemas.Kind.ID_LIST, Schemas.kind(Schemas.properties(killed).get("entity")));
+        // Types or a selector: edited as a selector, whose type is the list.
+        assertTrue(FormEntities.isTypesOrSelector(Schemas.properties(killed).get("entity")));
+        assertTrue(FormEntities.isTypesOrSelector(Schemas.properties(Schemas.typed(Schemas.logic("condition"), "entities")).get("entity")));
         Schemas.Node waypoint = Schemas.typed(Schemas.logic("action"), "add_waypoint");
         assertEquals(Schemas.Kind.POSITION, Schemas.kind(Schemas.properties(waypoint).get("pos")));
         // A uuid gets "point at an entity in the world" instead of the mob catalog.

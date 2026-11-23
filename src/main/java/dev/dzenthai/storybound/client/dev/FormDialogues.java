@@ -104,7 +104,7 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("unlock", List.of("on", "count", "conditions")),
             // A story event, a script block, a flag: when and what; what the block is and where it leads, its file
             // last; what the flag holds, then where.
-            Map.entry("event", List.of("trigger", "conditions", "once", "actions", "on_fail")),
+            Map.entry("event", List.of("trigger", "conditions", "once", "cooldown", "actions", "on_fail")),
             Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
             Map.entry("flag", List.of("description", "type", "default", "scope", "sync")),
             // The trigger "observed": what is looked at, how long and from how far, what the bar says.

@@ -757,6 +757,125 @@ public final class LogicGameTests {
         helper.succeed();
     }
 
+    /**
+     * A story event with a cooldown runs, is skipped while it cools down (its conditions are not even asked), and runs
+     * again once the time has passed; a run whose actions aborted starts no cooldown.
+     */
+    @GameTest(template = "empty")
+    public static void storyEventCooldownWaitsAndAnAbortedRunDoesNotCount(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation id = key("raid_cooldown");
+        withEvents(helper, Map.of(id, """
+                {
+                  "trigger": { "type": "custom", "id": "gametest:raid" },
+                  "actions": [
+                    { "type": "take_item", "item": "minecraft:leather", "count": 1 },
+                    { "type": "add_var", "key": "gametest:raids", "amount": 1 }
+                  ],
+                  "cooldown": { "seconds": 600 }
+                }
+                """), () -> {
+            fireCustom(player, "raid");
+            expect(helper, stored(player, "raids"), Optional.empty(), "without leather the run aborts");
+            expect(helper, StoryState.getStored(player, StoryScope.PLAYER, StoryEvents.cooldownKey(id)), Optional.empty(),
+                    "and an aborted run starts no cooldown");
+
+            player.getInventory().add(new ItemStack(Items.LEATHER, 3));
+            fireCustom(player, "raid");
+            expect(helper, stored(player, "raids"), Optional.of(new StoryValue.Int(1)), "with leather it runs");
+            int now = (int) (helper.getLevel().getServer().overworld().getGameTime() / 20);
+            expect(helper, StoryState.getStored(player, StoryScope.PLAYER, StoryEvents.cooldownKey(id)), Optional.of(new StoryValue.Int(now + 600)),
+                    "and may run again 600 s of game time later");
+            fireCustom(player, "raid");
+            expect(helper, stored(player, "raids"), Optional.of(new StoryValue.Int(1)), "skipped while cooling down");
+            expect(helper, player.getInventory().countItem(Items.LEATHER), 2, "its actions did not run");
+
+            // The 600 seconds have passed.
+            ok(() -> StoryState.set(player, StoryScope.PLAYER, StoryEvents.cooldownKey(id), new StoryValue.Int(now)));
+            fireCustom(player, "raid");
+            expect(helper, stored(player, "raids"), Optional.of(new StoryValue.Int(2)), "runs again after the cooldown");
+        });
+        helper.assertTrue(parse(helper, "{ \"trigger\": { \"type\": \"custom\", \"id\": \"gametest:raid\" }, \"actions\": [],"
+                + " \"cooldown\": { \"seconds\": 0 } }").isError(), "a cooldown of 0 seconds is refused");
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    /**
+     * The entities condition counts living entities that match within the radius: by a selector's tag or by type, the
+     * far, the dead and the untagged left out; "max": 0 holds once none are left; min above max is refused.
+     */
+    @GameTest(template = "empty")
+    public static void entitiesConditionCountsWhatIsNear(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        player.moveTo(origin.getX() + 0.5, origin.getY() + 1, origin.getZ() + 0.5);
+        StoryContext context = StoryContext.of(player);
+        List<Zombie> zombies = new ArrayList<>();
+        for (double[] at : new double[][] { { 3, 0 }, { -3, 2 }, { 20, 0 }, { 0, -4 } }) {
+            Zombie zombie = new Zombie(helper.getLevel());
+            zombie.moveTo(player.getX() + at[0], player.getY(), player.getZ() + at[1]);
+            zombie.setNoAi(true);
+            if (zombies.size() < 3) {
+                zombie.addTag("gametest_raider");
+            }
+            helper.getLevel().addFreshEntity(zombie);
+            zombies.add(zombie);
+        }
+        try {
+            Condition any = condition(helper, "{ \"type\": \"entities\", \"entity\": { \"tag\": \"gametest_raider\" }, \"radius\": 8 }");
+            Condition two = condition(helper, "{ \"type\": \"entities\", \"entity\": { \"tag\": \"gametest_raider\" }, \"radius\": 8, \"min\": 2, \"max\": 2 }");
+            Condition three = condition(helper, "{ \"type\": \"entities\", \"entity\": { \"tag\": \"gametest_raider\" }, \"radius\": 8, \"min\": 3 }");
+            Condition none = condition(helper, "{ \"type\": \"entities\", \"entity\": { \"tag\": \"gametest_raider\" }, \"radius\": 8, \"max\": 0 }");
+            Condition wide = condition(helper, "{ \"type\": \"entities\", \"entity\": { \"tag\": \"gametest_raider\" }, \"radius\": 32, \"min\": 3 }");
+            Condition byType = condition(helper, "{ \"type\": \"entities\", \"entity\": \"minecraft:zombie\", \"radius\": 8, \"min\": 3 }");
+            expect(helper, List.of(any.test(context), two.test(context), three.test(context), none.test(context)), List.of(true, true, false, false),
+                    "two tagged zombies within 8 blocks, the third 20 away");
+            expect(helper, wide.test(context), true, "within 32 blocks the far one counts too");
+            expect(helper, byType.test(context), true, "by type, the untagged one counts as well");
+
+            zombies.get(0).kill();
+            expect(helper, List.of(any.test(context), two.test(context)), List.of(true, false), "a dead one does not count");
+            zombies.get(1).discard();
+            expect(helper, List.of(any.test(context), none.test(context)), List.of(false, true), "none left near");
+        } finally {
+            zombies.forEach(Entity::discard);
+        }
+        helper.assertTrue(LogicCodecs.CONDITION.parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()),
+                JsonParser.parseString("{ \"type\": \"entities\", \"entity\": \"minecraft:zombie\", \"min\": 3, \"max\": 1 }")).isError(),
+                "min above max is refused");
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    /** entity_killed takes a selector: only the tagged zombies count for it; a type alone still counts every zombie. */
+    @GameTest(template = "empty")
+    public static void entityKilledTakesASelector(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        withEvents(helper, Map.of(key("raider_killed"), """
+                {
+                  "trigger": { "type": "entity_killed", "entity": { "type": "minecraft:zombie", "tag": "gametest_raider" } },
+                  "actions": { "type": "add_var", "key": "gametest:raiders_killed", "amount": 1 }
+                }
+                """, key("zombie_killed"), """
+                {
+                  "trigger": { "type": "entity_killed", "entity": "minecraft:zombie" },
+                  "actions": { "type": "add_var", "key": "gametest:zombies_killed", "amount": 1 }
+                }
+                """), () -> {
+            Zombie raider = new Zombie(helper.getLevel());
+            raider.addTag("gametest_raider");
+            Zombie stranger = new Zombie(helper.getLevel());
+            for (Zombie victim : List.of(raider, stranger)) {
+                TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(player, victim), new CoreTriggers.Kill(victim, true, false));
+            }
+            expect(helper, stored(player, "raiders_killed"), Optional.of(new StoryValue.Int(1)), "only the tagged one is a raider");
+            expect(helper, stored(player, "zombies_killed"), Optional.of(new StoryValue.Int(2)), "a type counts both");
+        });
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
     private static void fireCustom(ServerPlayer player, String id) {
         TriggerDispatcher.fire(BuiltinTriggers.CUSTOM.get(), StoryContext.of(player), key(id));
     }

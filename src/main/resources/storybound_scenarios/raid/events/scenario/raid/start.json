@@ -1,0 +1,26 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:raid"
+  },
+  "actions": [
+    {
+      "type": "run_command",
+      "command": "time set day"
+    },
+    {
+      "type": "run_command",
+      "command": "kill @e[tag=scenario_raider]"
+    },
+    {
+      "type": "remove_waypoint",
+      "id": "scenario:raid/raiders",
+      "visibility": "world"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:raid/quest",
+      "state": "unknown"
+    }
+  ]
+}

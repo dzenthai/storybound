@@ -35,6 +35,8 @@ public final class BuiltinConditions {
             REGISTER.register("time", () -> new ConditionType<>(WorldConditions.Time.CODEC));
     public static final DeferredHolder<ConditionType<?>, ConditionType<WorldConditions.Weather>> WEATHER =
             REGISTER.register("weather", () -> new ConditionType<>(WorldConditions.Weather.CODEC));
+    public static final DeferredHolder<ConditionType<?>, ConditionType<WorldConditions.Entities>> ENTITIES =
+            REGISTER.register("entities", () -> new ConditionType<>(WorldConditions.Entities.CODEC));
     public static final DeferredHolder<ConditionType<?>, ConditionType<ProgressConditions.Advancement>> ADVANCEMENT =
             REGISTER.register("advancement", () -> new ConditionType<>(ProgressConditions.Advancement.CODEC));
     public static final DeferredHolder<ConditionType<?>, ConditionType<ProgressConditions.Level>> LEVEL =

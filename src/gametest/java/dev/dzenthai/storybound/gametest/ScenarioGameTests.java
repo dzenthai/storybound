@@ -144,6 +144,62 @@ public final class ScenarioGameTests {
         return villager;
     }
 
+    /**
+     * The raid scenario, loaded alone as the village is: it comes on every night, for every test's player. It loads with
+     * nothing for the validator to say; the night brings three tagged raiders, a marker and the quest; a second night
+     * within the cooldown brings none; the quest is done only once the last of them is down.
+     */
+    @GameTest(template = "open", batch = "scenario_raid", timeoutTicks = 100)
+    public static void theRaidCoolsDownAndIsDoneWhenNoRaiderIsLeft(GameTestHelper helper) {
+        java.nio.file.Path folder = net.neoforged.fml.ModList.get().getModFileById(Storybound.MOD_ID).getFile().findResource("storybound_scenarios", "raid");
+        net.minecraft.resources.RegistryOps<com.google.gson.JsonElement> ops = net.minecraft.resources.RegistryOps.create(
+                com.mojang.serialization.JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        java.util.Map<dev.dzenthai.storybound.core.data.DefinitionType<?>, java.util.Map<ResourceLocation, ?>> before = new java.util.LinkedHashMap<>();
+        List<dev.dzenthai.storybound.core.data.ValidationIssue> loading = new java.util.ArrayList<>();
+        dev.dzenthai.storybound.core.data.DefinitionTypes.all().forEach(type -> install(type, folder, ops, before, loading));
+        dev.dzenthai.storybound.core.logic.StoryEvents.rebuild();
+        dev.dzenthai.storybound.module.quest.QuestEvents.rebuild();
+        ServerPlayer player = player(helper);
+        Runnable night = () -> TriggerDispatcher.fire(dev.dzenthai.storybound.core.logic.trigger.BuiltinTriggers.TIME.get(),
+                dev.dzenthai.storybound.core.logic.StoryContext.of(player), dev.dzenthai.storybound.core.logic.condition.WorldConditions.Time.Period.NIGHT);
+        Runnable cleanUp = () -> {
+            before.forEach((type, definitions) -> restore(type, definitions));
+            dev.dzenthai.storybound.core.logic.StoryEvents.rebuild();
+            dev.dzenthai.storybound.module.quest.QuestEvents.rebuild();
+            tagged(helper, player, EntityType.PILLAGER, "scenario_raider").forEach(Entity::discard);
+            try {
+                dev.dzenthai.storybound.core.state.StoryState.clear(player, dev.dzenthai.storybound.core.state.StoryScope.WORLD,
+                        dev.dzenthai.storybound.core.logic.StoryEvents.cooldownKey(id("raid/attack")));
+            } catch (dev.dzenthai.storybound.core.StoryException e) {
+                throw new GameTestAssertException("the cooldown could not be cleared: " + e.getMessage());
+            }
+            helper.getLevel().getServer().getPlayerList().remove(player);
+        };
+        try {
+            expect(helper, loading, List.of(), "every file of the raid loads");
+            List<String> said = dev.dzenthai.storybound.core.data.ValidationService.validate().issues().stream()
+                    .filter(issue -> issue.entry() != null && issue.entry().getNamespace().equals("scenario") && issue.entry().getPath().startsWith("raid/"))
+                    .map(issue -> issue.entry() + ": " + issue.message()).toList();
+            expect(helper, said, List.of(), "the validator has nothing to say of the raid");
+            fire(player, "raid");
+            night.run();
+            expect(helper, tagged(helper, player, EntityType.PILLAGER, "scenario_raider").size(), 3, "the night brings three raiders");
+            expect(helper, status(player, "raid"), Optional.of(QuestStatus.ACTIVE), "and the quest");
+            night.run();
+            expect(helper, tagged(helper, player, EntityType.PILLAGER, "scenario_raider").size(), 3, "another night within the cooldown brings none");
+            List<net.minecraft.world.entity.monster.Pillager> raiders = tagged(helper, player, EntityType.PILLAGER, "scenario_raider");
+            for (int i = 0; i < 2; i++) {
+                raiders.get(i).hurt(player.damageSources().playerAttack(player), 1000f);
+            }
+            expect(helper, status(player, "raid"), Optional.of(QuestStatus.ACTIVE), "one raider left: not yet");
+            raiders.get(2).hurt(player.damageSources().playerAttack(player), 1000f);
+            expect(helper, status(player, "raid"), Optional.of(QuestStatus.COMPLETED), "the last one down: the raid is driven off");
+        } finally {
+            cleanUp.run();
+        }
+        helper.succeed();
+    }
+
     /** A type's files of the folder put into its store beside what is there; what was there kept to give back. */
     private static <T> void install(dev.dzenthai.storybound.core.data.DefinitionType<T> type, java.nio.file.Path folder,
                                     net.minecraft.resources.RegistryOps<com.google.gson.JsonElement> ops,

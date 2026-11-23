@@ -97,8 +97,9 @@ public final class DocumentGameTests {
         helper.assertTrue(DialogueRegistries.DIALOGUES.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath("demo", "elder")) != null,
                 "and its dialogues");
         for (String scenario : StoryFolder.scenarios()) {
-            // The village is left out of the test story (its NPCs are every villager) and checked alone in ScenarioGameTests.
-            helper.assertTrue(scenario.equals("village")
+            // The village and the raid are left out of the test story (every villager is an NPC; a raid comes for every
+            // player at night) and checked alone in ScenarioGameTests.
+            helper.assertTrue(scenario.equals("village") || scenario.equals("raid")
                             || QuestRegistries.QUESTS.serverStore().getOrNull(ResourceLocation.fromNamespaceAndPath(StoryFolder.SCENARIO, scenario + "/quest")) != null,
                     "scenario " + scenario + " has its quest");
             // The server knows the mod's English only; both languages' keys are compared by the lang check.
@@ -128,7 +129,7 @@ public final class DocumentGameTests {
             Files.writeString(root.resolve("lang/en_us.json"), "{ \"mypack.quest.hunt.title\": \"Hunt\" }");
             Files.createDirectories(root.resolve("quests/mypack"));
             Files.writeString(root.resolve("quests/mypack/hunt.json"), "{}");
-            helper.assertTrue(StoryFolder.scenarios().containsAll(List.of("campfire", "dimensions", "duel", "reputation", "village")), "the scenarios are bundled: " + StoryFolder.scenarios());
+            helper.assertTrue(StoryFolder.scenarios().containsAll(List.of("campfire", "dimensions", "duel", "raid", "reputation", "village")), "the scenarios are bundled: " + StoryFolder.scenarios());
             int written = StoryFolder.installScenario(root, "campfire");
             helper.assertTrue(written == 8, "the scenario's eight files are written, got " + written);
             helper.assertTrue(Files.isRegularFile(root.resolve("dialogues/scenario/campfire/story.json")), "a dialogue under dialogues/scenario/");

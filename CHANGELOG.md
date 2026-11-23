@@ -13,6 +13,13 @@
 - Trails: a waypoint with `"trace"` has no icon. It shows near the player as glowing motes rising from the steps, or
   with `"marker": "scent"` as wisps and strands drifting along it. A trail is recorded by walking it in the editor, or
   found as the game goes: a creature's real tracks, shown only on blocks in `storybound:takes_tracks`.
+- Story events take `"cooldown": { "seconds": 3600, "scope": "world" }`: after a run, not again in that scope until
+  that much game time has passed. With `chance`, an encounter that comes back now and then.
+- `entities` condition: how many living entities that match are within a radius of the player or a place (`min`,
+  `max`; `"max": 0` when none are left), for "the raiders are driven off".
+- `entity_killed`, `entity_seen` and `entity_interacted` take a selector in `entity` as well as types:
+  `{ "type": "minecraft:pillager", "tag": "night_raider" }` counts only the mobs an event spawned with that tag.
+- Debug scenario `raid`: a night raid that comes back after a cooldown and is done when none of its raiders is left.
 - The client and the server must both be on this version: what they send each other has changed.
 - Fixed: a selector naming an entity tag (`"#minecraft:zombies"` in a waypoint, an objective or an NPC binding) failed
   with "Missing tag" when a world loaded, and its definition was left out.

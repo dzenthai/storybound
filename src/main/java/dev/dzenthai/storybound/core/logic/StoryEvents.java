@@ -31,6 +31,7 @@ import net.neoforged.fml.ModList;
 public final class StoryEvents {
     private static final String SOURCE = Storybound.id("events").toString();
     static final String ONCE_PREFIX = "once/";
+    static final String COOLDOWN_PREFIX = "cooldown/";
     /** Per player: once events run by their state that aborted, not tried again while the state keeps holding. */
     private static final Map<UUID, Set<ResourceLocation>> ATTEMPTED = new HashMap<>();
 
@@ -43,6 +44,16 @@ public final class StoryEvents {
         TriggerDispatcher.setSubscriptions(SOURCE, subscriptions);
     }
 
+    /** The internal value that holds when a cooling event may run again, in seconds of game time. */
+    public static ResourceLocation cooldownKey(ResourceLocation eventId) {
+        return Storybound.id(COOLDOWN_PREFIX + eventId.getNamespace() + "/" + eventId.getPath());
+    }
+
+    /** Seconds of game time on the server, as {@code wait} counts them. */
+    private static int gameSeconds(StoryContext context) {
+        return (int) (context.server().overworld().getGameTime() / 20);
+    }
+
     /** The internal flag that remembers a {@code once} event has run. */
     public static ResourceLocation onceKey(ResourceLocation eventId) {
         return Storybound.id(ONCE_PREFIX + eventId.getNamespace() + "/" + eventId.getPath());
@@ -53,6 +64,14 @@ public final class StoryEvents {
             StoryTrace.note(context.player(), "story event " + id, "skipped: already run once (" + event.once().get().getSerializedName() + ")");
             return;
         }
+        if (event.cooldown().isPresent()) {
+            int left = cooldownLeft(id, event.cooldown().get(), context);
+            if (left > 0) {
+                StoryTrace.note(context.player(), "story event " + id, "skipped: cooling down, " + left + " s left ("
+                        + event.cooldown().get().scope().getSerializedName() + ")");
+                return;
+            }
+        }
         if (!Conditions.check(event.conditions(), context, "story event " + id)) {
             return;
         }
@@ -60,12 +79,16 @@ public final class StoryEvents {
         if (event.once().isPresent()) {
             setDone(id, event.once().get(), context, true);
         }
+        event.cooldown().ifPresent(cooldown -> setCooldown(id, cooldown, context, true));
         boolean completed = Actions.runAll(event.actions(), context, "story event " + id, event.onFail());
         // An aborted event did not happen (e.g. the price could not be taken), so it may be tried again.
-        if (!completed && event.onFail() == OnFail.ABORT && event.once().isPresent()) {
-            setDone(id, event.once().get(), context, false);
-            // Not tried again by its state until that state stops holding (see checkStates).
-            ATTEMPTED.computeIfAbsent(context.player().getUUID(), uuid -> new HashSet<>()).add(id);
+        if (!completed && event.onFail() == OnFail.ABORT) {
+            event.cooldown().ifPresent(cooldown -> setCooldown(id, cooldown, context, false));
+            if (event.once().isPresent()) {
+                setDone(id, event.once().get(), context, false);
+                // Not tried again by its state until that state stops holding (see checkStates).
+                ATTEMPTED.computeIfAbsent(context.player().getUUID(), uuid -> new HashSet<>()).add(id);
+            }
         }
     }
 
@@ -203,6 +226,10 @@ public final class StoryEvents {
                     sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id, eachSharerWarning("a change of the party flag " + changed.key(), StoryScope.PARTY, shared)));
                 }
             }
+            if (event.once().isPresent() && event.cooldown().isPresent()) {
+                sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id,
+                        "Has both once and cooldown: it runs once, so the cooldown never matters. Keep one of them."));
+            }
             if (event.onFail() == OnFail.ABORT && hasTakeAfterOtherActions(event.actions())) {
                 sink.accept(ValidationIssue.warning(CoreDefinitions.EVENTS.id(), id,
                         "take_item runs after other actions; if it fails, those actions have already happened. Put take_item first."));
@@ -226,10 +253,33 @@ public final class StoryEvents {
         return new Subscription<>("story event " + id, trigger, context -> run(id, event, context), context -> wouldRun(id, event, context));
     }
 
-    /** Whether the event would run now: not run already when it runs once, its conditions holding (tested quietly). */
+    /**
+     * Whether the event would run now: not run already when it runs once, not cooling down, its conditions holding
+     * (tested quietly).
+     */
     static boolean wouldRun(ResourceLocation id, StoryEvent event, StoryContext context) {
         return (event.once().isEmpty() || StoryState.getStored(context.player(), event.once().get(), onceKey(id)).isEmpty())
+                && (event.cooldown().isEmpty() || cooldownLeft(id, event.cooldown().get(), context) == 0)
                 && event.conditions().test(context);
+    }
+
+    /** Seconds of game time before a cooling event may run again in its scope; 0 when it may now. */
+    private static int cooldownLeft(ResourceLocation id, StoryEvent.Cooldown cooldown, StoryContext context) {
+        return StoryState.getStored(context.player(), cooldown.scope(), cooldownKey(id))
+                .map(value -> value instanceof StoryValue.Int until ? Math.max(0, until.value() - gameSeconds(context)) : 0).orElse(0);
+    }
+
+    /** Starts the cooldown (it may run again {@code seconds} from now), or takes it away. */
+    private static void setCooldown(ResourceLocation id, StoryEvent.Cooldown cooldown, StoryContext context, boolean start) {
+        try {
+            if (start) {
+                StoryState.set(context.player(), cooldown.scope(), cooldownKey(id), new StoryValue.Int(gameSeconds(context) + cooldown.seconds()));
+            } else {
+                StoryState.clear(context.player(), cooldown.scope(), cooldownKey(id));
+            }
+        } catch (StoryException e) {
+            Storybound.LOGGER.warn("Storybound: could not update the cooldown of story event {}: {}", id, e.getMessage());
+        }
     }
 
     private static void setDone(ResourceLocation id, StoryScope scope, StoryContext context, boolean done) {

@@ -30,7 +30,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Unit;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
@@ -46,13 +45,16 @@ import org.jetbrains.annotations.Nullable;
 
 /** Triggers backed by core systems and vanilla events. Module triggers live with their modules. */
 public final class CoreTriggers {
-    private static final MapCodec<Optional<HolderSet<EntityType<?>>>> ENTITY_FILTER =
-            RegistryCodecs.homogeneousList(Registries.ENTITY_TYPE).optionalFieldOf("entity");
+    /**
+     * Which entities a trigger is about: types ({@code "minecraft:zombie"}, a {@code #tag} or a list) or a selector,
+     * {@code { "type": "minecraft:pillager", "tag": "raider" }}, as an NPC binding's; omitted means any.
+     */
+    private static final MapCodec<Optional<EntitySelector>> ENTITY_FILTER = EntitySelector.TYPES_OR_SELECTOR.optionalFieldOf("entity");
 
     private CoreTriggers() {}
 
-    private static boolean entityMatches(Optional<HolderSet<EntityType<?>>> filter, Entity entity) {
-        return filter.map(set -> set.contains(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()))).orElse(true);
+    private static boolean entityMatches(Optional<EntitySelector> filter, Entity entity) {
+        return filter.map(selector -> selector.matches(entity)).orElse(true);
     }
 
     /** {@code { "type": "flag_changed", "key": "mypack:met_elder", "value": true }}; without {@code value} any change matches. */
@@ -105,9 +107,9 @@ public final class CoreTriggers {
     /**
      * The player dealt the killing blow; with {@code shared}, also a party member of the killer within
      * {@code detection.killCreditRadius}; with {@code by_anyone}, every player that near, whoever or whatever killed it
-     * (an iron golem, another mob, a fall, lava). {@code entity} is an id, a #tag or a list; omitted means any.
+     * (an iron golem, another mob, a fall, lava). {@code entity} as {@link #ENTITY_FILTER} reads it.
      */
-    public record EntityKilled(Optional<HolderSet<EntityType<?>>> entity, boolean shared, boolean byAnyone) implements Trigger<Kill> {
+    public record EntityKilled(Optional<EntitySelector> entity, boolean shared, boolean byAnyone) implements Trigger<Kill> {
         public static final MapCodec<EntityKilled> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 ENTITY_FILTER.forGetter(EntityKilled::entity),
                 Codec.BOOL.optionalFieldOf("shared", false).forGetter(EntityKilled::shared),
@@ -130,7 +132,7 @@ public final class CoreTriggers {
      * The player saw the entity: within range, in the field of view and in line of sight for long enough
      * (see {@link SeenTracker}). Fires once per entity until it leaves the range.
      */
-    public record EntitySeen(Optional<HolderSet<EntityType<?>>> entity) implements Trigger<Entity> {
+    public record EntitySeen(Optional<EntitySelector> entity) implements Trigger<Entity> {
         public static final MapCodec<EntitySeen> CODEC = ENTITY_FILTER.xmap(EntitySeen::new, EntitySeen::entity);
 
         @Override
@@ -399,7 +401,7 @@ public final class CoreTriggers {
     }
 
     /** Right-click on an entity with the main hand. */
-    public record EntityInteracted(Optional<HolderSet<EntityType<?>>> entity) implements Trigger<Entity> {
+    public record EntityInteracted(Optional<EntitySelector> entity) implements Trigger<Entity> {
         public static final MapCodec<EntityInteracted> CODEC = ENTITY_FILTER.xmap(EntityInteracted::new, EntityInteracted::entity);
 
         @Override

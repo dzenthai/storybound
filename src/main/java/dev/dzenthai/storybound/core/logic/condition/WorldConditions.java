@@ -4,6 +4,12 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import dev.dzenthai.storybound.core.StoryException;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
+import dev.dzenthai.storybound.core.logic.action.SceneActions;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import dev.dzenthai.storybound.core.logic.Area;
 import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.ConditionType;
@@ -227,6 +233,67 @@ public final class WorldConditions {
             public String getSerializedName() {
                 return name;
             }
+        }
+    }
+
+    /**
+     * {@code { "type": "entities", "entity": { "tag": "raider" }, "radius": 48, "max": 0 }}: how many living entities
+     * that match {@code entity} (types, or a selector as an NPC binding's) are within {@code radius} blocks of a place,
+     * taken as actions take one: the player by default, a {@code pos}, or an {@code offset} from {@code at}. Without
+     * {@code min} or {@code max}, at least one; {@code max} 0, none left ("the raid is driven off"). Only entities in
+     * loaded chunks count; dead and dying ones never.
+     */
+    public record Entities(EntitySelector entity, double radius, Optional<Integer> min, Optional<Integer> max, SceneActions.Place place)
+            implements Condition {
+        public static final MapCodec<Entities> CODEC = RecordCodecBuilder.<Entities>mapCodec(instance -> instance.group(
+                EntitySelector.TYPES_OR_SELECTOR.fieldOf("entity").forGetter(Entities::entity),
+                Codec.doubleRange(1, 128).optionalFieldOf("radius", 32.0).forGetter(Entities::radius),
+                Codec.intRange(0, 10_000).optionalFieldOf("min").forGetter(Entities::min),
+                Codec.intRange(0, 10_000).optionalFieldOf("max").forGetter(Entities::max),
+                SceneActions.Place.MAP_CODEC.forGetter(Entities::place)
+        ).apply(instance, Entities::new)).validate(entities -> entities.min().isPresent() && entities.max().isPresent()
+                && entities.min().get() > entities.max().get()
+                ? DataResult.error(() -> "An entities condition's 'min' is above its 'max'")
+                : DataResult.success(entities));
+
+        @Override
+        public ConditionType<?> type() {
+            return BuiltinConditions.ENTITIES.get();
+        }
+
+        /** At least one when neither bound is written; none at least when only {@code max} is. */
+        private int least() {
+            return min.orElse(max.isPresent() ? 0 : 1);
+        }
+
+        @Override
+        public boolean test(StoryContext context) {
+            int count = count(context);
+            return count >= 0 && count >= least() && count <= max.orElse(Integer.MAX_VALUE);
+        }
+
+        /** The entities that match around the place; -1 when the place cannot be found (no entity of the moment). */
+        private int count(StoryContext context) {
+            SceneActions.Place.Resolved where;
+            try {
+                where = place.resolve(context);
+            } catch (StoryException e) {
+                return -1;
+            }
+            Vec3 centre = where.pos();
+            double reach = radius * radius;
+            return where.level().getEntitiesOfClass(LivingEntity.class, new AABB(centre, centre).inflate(radius),
+                    found -> found.isAlive() && !found.isSpectator() && found.distanceToSqr(centre) <= reach && entity.matches(found)).size();
+        }
+
+        @Override
+        public String describe(StoryContext context) {
+            int count = count(context);
+            if (count < 0) {
+                return "the place to count around could not be found";
+            }
+            String wanted = max.map(most -> least() + ".." + most).orElse("at least " + least());
+            return count + " match within " + (int) radius + " blocks, wanted " + wanted;
         }
     }
 }

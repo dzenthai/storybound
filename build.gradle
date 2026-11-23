@@ -193,8 +193,9 @@ def prepareGameTestStory = tasks.register('prepareGameTestStory', Sync) {
     }
     from('src/gametest/story') { into 'gametest' }
     from('src/main/resources/storybound_scenarios') {
-        // The village's NPCs are every villager: they would be every other test's too; ScenarioGameTests loads them alone.
-        exclude 'village/**'
+        // The village's NPCs are every villager, and the raid comes on every night, for every test's player: they would be
+        // every other test's too; ScenarioGameTests loads them alone.
+        exclude 'village/**', 'raid/**'
         eachFile { relativePath = new RelativePath(true, 'gametest', *relativePath.segments.drop(1)) }
     }
     // Scenarios kept only as the GameTests' fixtures (their texts in src/gametest/story/lang), in the same layout.

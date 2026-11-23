@@ -1,0 +1,58 @@
+{
+  "category": "side",
+  "title": "scenario.raid.quest.title",
+  "text": {
+    "active": "scenario.raid.quest.text",
+    "completed": "scenario.raid.quest.done"
+  },
+  "screen_text": {
+    "started": "scenario.raid.quest.intro",
+    "completed": "scenario.raid.quest.done_title"
+  },
+  "difficulty": 1,
+  "stages": [
+    {
+      "id": "repel",
+      "objectives": [
+        {
+          "id": "raiders",
+          "text": "scenario.raid.quest.drive",
+          "since_stage": true,
+          "trigger": {
+            "type": "entity_killed",
+            "entity": {
+              "type": "minecraft:pillager",
+              "tag": "scenario_raider"
+            },
+            "by_anyone": true
+          },
+          "conditions": {
+            "type": "entities",
+            "entity": {
+              "tag": "scenario_raider"
+            },
+            "radius": 48,
+            "at": "entity",
+            "max": 0
+          }
+        }
+      ]
+    }
+  ],
+  "on_complete": [
+    {
+      "type": "remove_waypoint",
+      "id": "scenario:raid/raiders",
+      "visibility": "world"
+    }
+  ],
+  "rewards": {
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 5
+      }
+    ],
+    "claim": false
+  }
+}

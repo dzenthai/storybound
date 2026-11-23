@@ -127,6 +127,10 @@ happen and never from the past.
 | `stat_reached` | `stat`, `stat_type?`, `value` | A vanilla statistic reaches the value (see the `stat` condition below). |
 | `cutscene_finished` | `cutscene?`, `reason?` | A cutscene ends, with the reason `finish`, `interrupt`, `command` or `error`. Needs Cutscene API. |
 
+In `entity_killed`, `entity_seen` and `entity_interacted`, `entity` is a type (`"minecraft:pillager"`), a `#tag` or
+a list, or a selector as in an NPC binding: `{ "type": "minecraft:pillager", "tag": "night_raider" }` counts only
+the pillagers a `spawn_entity` gave that tag, not every pillager in the world.
+
 An area is a sphere:
 
 ```json
@@ -153,6 +157,7 @@ depth of 16 and writes an error to the log.
 | `in_party` | `min_size?` (1) | The player is in a real party with at least that many members. |
 | `time` | `period?` (`day`, `sunset`, `night`, `sunrise`), `min?`, `max?` (ticks from 0 to 24000) | The time of day fits. If `min` is larger than `max`, the range goes over midnight. |
 | `weather` | `weather` (`clear`, `rain` or `thunder`) | The weather in the player's dimension matches. `rain` also covers thunder and snow. |
+| `entities` | `entity`, `radius?` (32), `min?`, `max?`, a place¹ | The number of living entities that match `entity` (as in `entity_killed`) within `radius` blocks of the place is between `min` and `max`. With neither, at least one. `"max": 0` holds when none are left. Only loaded chunks count. |
 | `chance` | `value` (from 0 to 1) | A random roll succeeds. `0.25` holds one time in four. |
 | `all`, `any` | `conditions` | All of the conditions hold, or any one of them does. |
 | `not` | `condition` | The condition does not hold. |
@@ -262,6 +267,33 @@ A story event is a general rule: when this happens, if this is true, do that. St
 | `actions` | required | Run in order. |
 | `on_fail` | `abort` | What to do when an action fails (see above). |
 | `once` | runs every time | `player`, `party` or `world`: the event runs at most once per player, per party or for the whole world. A run that stopped because an action failed doesn't count. |
+| `cooldown` | none | `{ "seconds": 3600, "scope": "world" }`: after a run, the event doesn't run again in that scope (`player` by default) until that much game time has passed. A Minecraft day is 1200 seconds, and sleeping doesn't shorten it. A run that stopped because an action failed doesn't start it. |
+
+### Random encounters
+
+`chance` and `cooldown` together make something that happens now and then. This event sends raiders at a player
+in the plains on one night in three, at most once every three days for the whole world:
+
+```json
+// config/storybound/my_story/events/mypack/night_raid.json
+{
+  "trigger": { "type": "time", "period": "night" },
+  "conditions": [
+    { "type": "location", "biome": "minecraft:plains" },
+    { "type": "chance", "value": 0.33 }
+  ],
+  "actions": [
+    { "type": "spawn_entity", "entity": "minecraft:pillager", "count": 4, "offset": [24, 0, 0], "tag": "night_raider" },
+    { "type": "add_waypoint", "id": "mypack:raid", "name": "Raiders", "visibility": "world", "marker": "event",
+      "nearest": { "type": "minecraft:pillager", "tag": "night_raider" } }
+  ],
+  "cooldown": { "seconds": 3600, "scope": "world" }
+}
+```
+
+A second event on `entity_killed` with `"by_anyone": true` and the same selector can check
+`{ "type": "entities", "entity": { "tag": "night_raider" }, "radius": 64, "max": 0 }`: when the last raider is
+gone, it removes the waypoint and pays the player.
 
 To build a sequence such as "a cutscene plays, five seconds later Kairen appears, then he speaks", use one story event
 on `cutscene_finished` with a `wait` and a `spawn_entity`, and start the dialogue or quest that follows from there.

@@ -1,0 +1,48 @@
+{
+  "trigger": {
+    "type": "time",
+    "period": "night"
+  },
+  "actions": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:pillager",
+      "count": 3,
+      "offset": [
+        12,
+        0,
+        0
+      ],
+      "tag": "scenario_raider"
+    },
+    {
+      "type": "add_waypoint",
+      "id": "scenario:raid/raiders",
+      "name": "scenario.raid.raiders",
+      "visibility": "world",
+      "marker": "event",
+      "nearest": {
+        "type": "minecraft:pillager",
+        "tag": "scenario_raider"
+      }
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:raid/quest",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:raid/quest",
+      "state": "active"
+    },
+    {
+      "type": "track_quest",
+      "quest": "scenario:raid/quest"
+    }
+  ],
+  "cooldown": {
+    "seconds": 120,
+    "scope": "world"
+  }
+}

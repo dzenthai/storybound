@@ -97,6 +97,13 @@ public record EntitySelector(Optional<HolderSet<EntityType<?>>> type, Optional<S
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
 
+    /**
+     * Entity types written alone ({@code "minecraft:zombie"}, a {@code #tag} or a list) or a whole selector
+     * ({@code { "type": "minecraft:zombie", "tag": "raider" }}): types alone read as a selector of only a type.
+     */
+    public static final Codec<EntitySelector> TYPES_OR_SELECTOR = Codec.either(CODEC, RegistryCodecs.homogeneousList(Registries.ENTITY_TYPE))
+            .xmap(either -> either.map(selector -> selector, EntitySelector::ofTypes), Either::left);
+
     /** A selector of only entity types (an id, a #tag or a list). */
     public static EntitySelector ofTypes(HolderSet<EntityType<?>> types) {
         return new EntitySelector(Optional.of(types), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
