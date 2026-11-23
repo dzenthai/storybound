@@ -25,7 +25,7 @@ don't need a map mod.
 | `target` | required | What it points at. See [Targets](#targets). |
 | `radius` | 0 | Turns the waypoint into a search area of that radius instead of an exact point, as in The Witcher. |
 | `show_radius` | true | For a search area, shows "radius 24 m" next to the name. |
-| `show_ring` | true | For a search area, draws its edge on the ground near the player. Turn it off when the edge would give the answer away. |
+| `show_ring` | true | For a search area, draws its edge near the player, level at the player's own height. Above the area, the edge shows up to 16 blocks over the higher of the waypoint and the ground along its edge, then fades out by 32. Below, it shows down to 30 blocks under the waypoint, enough for the foot of a tower with the waypoint on top, and is gone at 32, so from under a floating island the area up there does not show. Within the radius the marker says "Search the area" only where the edge shows whole; elsewhere it shows the distance. Turn it off when the edge would give the answer away. |
 | `color` | `#E8C66A` | The colour of the marker (its icon, name, edge arrow and ring) and of the waypoint on maps. See below. |
 | `marker` | `point` | `event` shows three "!" instead of the icon, the middle one larger, hopping like a cartoon, for something happening there: a fight, a meeting, a call for help. `question` shows one "?" that now and then shakes and gives a small hop, for something unknown there: a rumour, a riddle, a place to look into. A search area with either still draws its edge. |
 | `conditions` | none | The waypoint shows only while these hold. |

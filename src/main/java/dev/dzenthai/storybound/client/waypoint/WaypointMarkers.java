@@ -189,7 +189,11 @@ public final class WaypointMarkers {
         double distance = eyes.distanceTo(anchor);
         boolean area = waypoint.radius() > 0;
         double horizontal = Math.hypot(eyes.x - pos.x, eyes.z - pos.z);
-        boolean inside = area && horizontal <= waypoint.radius();
+        // Inside: within the radius and at a height where the area's edge is drawn whole, so a player mining far under
+        // an area on the surface gets its distance rather than "Search the area".
+        Minecraft minecraft = Minecraft.getInstance();
+        boolean inside = area && horizontal <= waypoint.radius() && minecraft.level != null && minecraft.player != null
+                && AreaRings.heightShown(minecraft.level, pos, waypoint.radius(), minecraft.player.getY()) >= 1f;
         if (!tracked && style.maxDistance() > 0 && distance > style.maxDistance()) {
             return null;
         }
@@ -227,7 +231,7 @@ public final class WaypointMarkers {
         // Shown no darker than reads on the icons' dark outline and the font's dark shadow (the hue kept); the maps get it as chosen.
         int tint = MarkerContrast.readable(waypoint.color());
         Component label = inside ? Component.translatable("storybound.waypoint.in_area")
-                : style.distance() ? distanceText(area ? Math.max(0, horizontal - waypoint.radius()) : distance) : null;
+                : style.distance() ? distanceText(area && horizontal > waypoint.radius() ? horizontal - waypoint.radius() : distance) : null;
         return new Marker(waypoint, style, screen, anchor, tracked, area, distance, alpha, size, tint, label);
     }
 
