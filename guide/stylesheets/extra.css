@@ -1,0 +1,48 @@
+/* The menu's "Features" item: bold, in the mod's gold, with two small sparks twinkling beside it. */
+.md-nav__link.sb-features,
+.md-tabs__link.sb-features {
+  position: relative;
+  font-weight: 700;
+  color: #e1b34d;
+}
+
+/* On the light theme a darker gold, so it reads on white. */
+[data-md-color-scheme="default"] .md-nav__link.sb-features,
+[data-md-color-scheme="default"] .md-tabs__link.sb-features {
+  color: #b08031;
+}
+
+.md-nav__link.sb-features::before,
+.md-nav__link.sb-features::after {
+  content: "✦";
+  position: absolute;
+  color: inherit;
+  pointer-events: none;
+  animation: sb-twinkle 2.4s ease-in-out infinite;
+}
+
+.md-nav__link.sb-features::before {
+  left: 4.6em;
+  top: -0.15em;
+  font-size: 0.55em;
+}
+
+.md-nav__link.sb-features::after {
+  left: 5.6em;
+  top: 0.55em;
+  font-size: 0.4em;
+  animation-delay: 1.2s;
+}
+
+@keyframes sb-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.4); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-nav__link.sb-features::before,
+  .md-nav__link.sb-features::after {
+    animation: none;
+    opacity: 0.8;
+  }
+}

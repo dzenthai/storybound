@@ -33,6 +33,11 @@ theme:
     - search.highlight
     - content.code.copy
 
+extra_css:
+  - stylesheets/extra.css
+extra_javascript:
+  - javascripts/features.js
+
 nav:
   - Home: README.md
   - Features: features.md
