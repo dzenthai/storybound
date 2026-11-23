@@ -1,0 +1,14 @@
+{
+  "name": "demo.waypoint.village.name",
+  "target": {
+    "nearest": {
+      "type": "#minecraft:undead"
+    }
+  },
+  "conditions": {
+    "type": "var",
+    "key": "demo:rep/elder",
+    "op": ">=",
+    "value": 1000000
+  }
+}

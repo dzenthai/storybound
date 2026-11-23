@@ -85,6 +85,7 @@ public final class StoryboundClient {
         modBus.addListener(StoryboundClient::onRegisterKeys);
         modBus.addListener(StoryboundClient::onRegisterReloadListeners);
         modBus.addListener(StoryboundClient::onRegisterGuiLayers);
+        modBus.addListener(StoryboundClient::onRegisterParticles);
         dev.dzenthai.storybound.client.sound.StoryAssets.register(modBus);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onClientTick);
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
@@ -92,12 +93,14 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(ScreenProjection::capture);
         NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
         NeoForge.EVENT_BUS.addListener(AreaRings::onRenderLevel);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.waypoint.ScentStrands::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHand);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onComputeFov);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHighlight);
         NeoForge.EVENT_BUS.addListener(StoryboundClientCommands::register);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevWorldPicker::onInteractionTriggered);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevTraceRecorder::onInteractionTriggered);
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
@@ -145,6 +148,11 @@ public final class StoryboundClient {
         event.register(TALK);
     }
 
+    private static void onRegisterParticles(net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent event) {
+        event.registerSpriteSet(dev.dzenthai.storybound.module.waypoint.WaypointParticles.TRAIL.get(), dev.dzenthai.storybound.client.waypoint.TrailParticle.Provider::new);
+        event.registerSpriteSet(dev.dzenthai.storybound.module.waypoint.WaypointParticles.WISP.get(), dev.dzenthai.storybound.client.waypoint.WispParticle.Provider::new);
+    }
+
     private static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(DocumentStyles.INSTANCE);
         event.registerReloadListener(MenuThemes.INSTANCE);
@@ -164,11 +172,14 @@ public final class StoryboundClient {
         // Over the world and the HUD, under the titles and the subtitles: text stands on the black.
         event.registerBelow(VanillaGuiLayers.TITLE, Storybound.id("screen_fade"), ScreenFadeOverlay::render);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("dev_world_picker"), dev.dzenthai.storybound.client.dev.DevWorldPicker::renderHud);
+        event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("dev_trace_recorder"), dev.dzenthai.storybound.client.dev.DevTraceRecorder::renderHud);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("story_debug"), DebugOverlay::render);
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
         dev.dzenthai.storybound.client.dev.DevWorldPicker.tick();
+        dev.dzenthai.storybound.client.dev.DevTraceRecorder.tick();
+        dev.dzenthai.storybound.client.waypoint.TraceTrails.tick();
         openOnKey(OPEN_MENU, null);
         openOnKey(OPEN_QUESTS, AdventureMenu.QUESTS);
         openOnKey(OPEN_JOURNAL, AdventureMenu.JOURNAL);

@@ -89,8 +89,11 @@ public final class AreaRings {
                     .setCullState(RenderStateShard.NO_CULL)
                     .createCompositeState(false));
 
-    /** A flat band of quads in the waypoint's colour, see-through, lying under the line. */
-    private static final RenderType RING_BAND = RenderType.create("storybound_area_band", DefaultVertexFormat.POSITION_COLOR,
+    /**
+     * See-through quads in a colour, unlit, not writing depth: the band under the line here, and a scent's strands
+     * ({@link ScentStrands}).
+     */
+    static final RenderType RING_BAND = RenderType.create("storybound_area_band", DefaultVertexFormat.POSITION_COLOR,
             VertexFormat.Mode.QUADS, 1536, RenderType.CompositeState.builder()
                     .setShaderState(RenderStateShard.POSITION_COLOR_SHADER)
                     .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
@@ -127,7 +130,7 @@ public final class AreaRings {
         double y = height(minecraft.player, player);
         List<Edge> edges = new ArrayList<>();
         for (ClientWaypoint waypoint : ClientWaypoints.shown()) {
-            if (waypoint.radius() <= 0 || !waypoint.showRing() || !waypoint.dimension().equals(level.dimension().location())) {
+            if (waypoint.radius() <= 0 || !waypoint.showRing() || waypoint.isTrace() || !waypoint.dimension().equals(level.dimension().location())) {
                 continue;
             }
             Vec3 center = center(level, waypoint, partialTick);

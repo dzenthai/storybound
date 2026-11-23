@@ -1,0 +1,17 @@
+{
+  "values": [
+    "#minecraft:dirt",
+    "#minecraft:sand",
+    "#minecraft:nylium",
+    "minecraft:gravel",
+    "minecraft:suspicious_gravel",
+    "minecraft:clay",
+    "minecraft:farmland",
+    "minecraft:dirt_path",
+    "minecraft:snow",
+    "minecraft:snow_block",
+    "minecraft:powder_snow",
+    "minecraft:soul_sand",
+    "minecraft:soul_soil"
+  ]
+}

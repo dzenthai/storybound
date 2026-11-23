@@ -12,6 +12,7 @@ import java.util.Set;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -42,29 +43,94 @@ abstract class FormWaypoints extends FormNpc {
     }
 
     /**
-     * A waypoint is a target (a point, the diamond) or a search area (the ring icon, a radius, its radius written by
-     * the name and its edge drawn on the ground). Switching to a target takes the area's fields away; to an area gives
-     * it a radius of {@link #NEW_AREA_RADIUS}.
+     * A waypoint is a target (a point, the diamond), a search area (the magnifier, a radius, its radius written by the
+     * name and its edge drawn on the ground) or, in a waypoint's own file, a trail (dashes on the ground, no marker).
+     * One button goes round them. Leaving a kind takes its fields away; an area starts with a radius of
+     * {@link #NEW_AREA_RADIUS}, a trail empty, to be recorded ({@link #traceField}), with no marker.
      */
-    void waypointKindField(List<Object> path, boolean area) {
+    void waypointKindField(List<Object> path, String kind, boolean traceOffered) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
         }
         labelRow(DevUi.text("form.waypoint_kind"));
-        Component shown = DevUi.text(area ? "form.waypoint_area" : "form.waypoint_target");
-        Button button = Button.builder(shown, b -> {
+        Button button = Button.builder(DevUi.text("form.waypoint_" + kind), b -> {
             JsonObject owner = ensureObject(path);
-            if (area) {
-                owner.remove("radius");
-                owner.remove("show_radius");
-                owner.remove("show_ring");
-            } else {
+            String next = switch (kind) {
+                case "target" -> "area";
+                case "area" -> traceOffered ? "trace" : "target";
+                default -> "target";
+            };
+            owner.remove("radius");
+            owner.remove("show_radius");
+            owner.remove("show_ring");
+            owner.remove("trace");
+            if (next.equals("area")) {
                 owner.addProperty("radius", NEW_AREA_RADIUS);
+            } else if (next.equals("trace")) {
+                owner.remove("marker");
+                owner.add("trace", new JsonArray());
+            }
+            if (kind.equals("trace")) {
+                owner.remove("marker");
             }
             host.changed();
         }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
         button.setTooltip(Tooltip.create(DevUi.text("form.waypoint_kind.tooltip")));
         screen.add(button);
+    }
+
+    /**
+     * A recorded trail's points, on its "Points at" page: how many and how long, and a button to record them by walking
+     * ({@link DevTraceRecorder}). The recording writes the points and puts the target, a point, at its end.
+     */
+    void traceField(List<Object> path, @Nullable JsonObject waypoint) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("form.waypoint_trace"));
+        JsonArray points = waypoint != null && waypoint.get("trace") instanceof JsonArray array ? array : new JsonArray();
+        Component shown = points.size() < 2 ? DevUi.text("form.trace.record")
+                : DevUi.text("form.trace.summary", points.size(), Math.round(traceLength(points)));
+        Button button = Button.builder(shown, b -> DevTraceRecorder.start(screen, (trail, dimension) -> {
+            JsonObject owner = ensureObject(path);
+            JsonArray written = new JsonArray();
+            for (Vec3 point : trail) {
+                written.add(position(point));
+            }
+            owner.add("trace", written);
+            JsonObject target = new JsonObject();
+            target.add("pos", position(trail.getLast()));
+            target.addProperty("dimension", dimension.toString());
+            owner.add("target", target);
+            host.changed();
+        })).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        button.setTooltip(Tooltip.create(DevUi.text("form.trace.tooltip")));
+        screen.add(button);
+    }
+
+    /** A point as a file writes it, to a tenth of a block. */
+    private static JsonArray position(Vec3 point) {
+        JsonArray array = new JsonArray();
+        array.add(Math.round(point.x * 10) / 10.0);
+        array.add(Math.round(point.y * 10) / 10.0);
+        array.add(Math.round(point.z * 10) / 10.0);
+        return array;
+    }
+
+    private static double traceLength(JsonArray points) {
+        double length = 0;
+        double[] previous = null;
+        for (JsonElement element : points) {
+            if (!(element instanceof JsonArray xyz) || xyz.size() != 3) {
+                continue;
+            }
+            double[] point = {xyz.get(0).getAsDouble(), xyz.get(1).getAsDouble(), xyz.get(2).getAsDouble()};
+            if (previous != null) {
+                length += Math.sqrt(Math.pow(point[0] - previous[0], 2) + Math.pow(point[1] - previous[1], 2) + Math.pow(point[2] - previous[2], 2));
+            }
+            previous = point;
+        }
+        return length;
     }
 
     /** A waypoint's targets known in advance: a point, one entity followed. */
@@ -78,6 +144,10 @@ abstract class FormWaypoints extends FormNpc {
      * open.
      */
     void waypointTargetPage(List<Object> path, List<Node> variants, int current) {
+        if (host.root().has("trace")) {
+            trailTargetPage(path, variants, current);
+            return;
+        }
         String kind = Schemas.required(variants.get(current)).iterator().next();
         boolean dynamic = DYNAMIC_KINDS.contains(kind);
         String rule = dynamic ? "dynamic" : "fixed";
@@ -99,6 +169,81 @@ abstract class FormWaypoints extends FormNpc {
             text(DevUi.text("waypoint.kind." + kind + ".note"), DevUi.MUTED);
         }
         objectPage(path, variants.get(current), Set.of(), null);
+    }
+
+    /** The looks a waypoint's marker offers: a target's or an area's, and a trail's. */
+    private static final List<String> MARKERS = List.of("point", "event", "question");
+    private static final List<String> TRAIL_MARKERS = List.of("point", "scent");
+
+    /**
+     * A waypoint's "Marker", the looks of its kind only: a target or an area the usual icon, the event's "!!!" or the
+     * question's "?"; a trail its tracks (sparks from the steps) or its scent (wisps along it). One button goes round
+     * them; the usual one is written by leaving the field out.
+     */
+    void markerField(List<Object> path, @Nullable JsonObject waypoint, boolean trail) {
+        List<String> values = trail ? TRAIL_MARKERS : MARKERS;
+        String current = waypoint != null && waypoint.get("marker") instanceof JsonPrimitive written ? written.getAsString() : "point";
+        int index = Math.max(0, values.indexOf(current));
+        String shown = trail && values.get(index).equals("point") ? "tracks" : values.get(index);
+        switchRow(DevUi.text("field.marker"), DevUi.text("value.marker." + shown),
+                Component.empty().append(DevUi.text("value.marker." + shown + ".tooltip")).append(" ").append(DevUi.text("form.click_to_switch")), () -> {
+                    JsonObject owner = ensureObject(path);
+                    String next = values.get((index + 1) % values.size());
+                    if (next.equals("point")) {
+                        owner.remove("marker");
+                    } else {
+                        owner.addProperty("marker", next);
+                    }
+                    host.changed();
+                });
+    }
+
+    /** Whose tracks a trail can follow: the nearest of a kind, an NPC, a boss, one entity. */
+    private static final List<String> TRAIL_KINDS = List.of("nearest", "npc", "boss", "entity");
+
+    /**
+     * Where a trail points: "Rule: Recorded / Dynamic". Recorded: the button that records it by walking. Dynamic: "What"
+     * among {@link #TRAIL_KINDS}, then that kind's fields: the creature's real tracks. Switching keeps the other rule's
+     * target, and the recorded points, to give back while the node is open.
+     */
+    private void trailTargetPage(List<Object> path, List<Node> variants, int current) {
+        JsonObject root = host.root();
+        boolean recorded = root.get("trace") instanceof JsonArray;
+        String kind = Schemas.required(variants.get(current)).iterator().next();
+        switchRow(DevUi.text("waypoint.rule"), DevUi.text(recorded ? "trace.rule.record" : "waypoint.rule.dynamic"), DevUi.text("trace.rule.tooltip"), () -> {
+            if (recorded) {
+                switchedAway.put(path + "#trace", root.get("trace").deepCopy());
+                root.add("trace", new JsonObject());
+                switchTargetKind(path, variants, kind, entityModes.getOrDefault(path + "#trail", TRAIL_KINDS.getFirst()));
+            } else {
+                entityModes.put(path + "#trail", kind);
+                JsonElement walked = switchedAway.remove(path + "#trace");
+                root.add("trace", walked instanceof JsonArray ? walked : new JsonArray());
+                switchTargetKind(path, variants, kind, "pos");
+            }
+            host.changed();
+        });
+        if (recorded) {
+            traceField(List.of(), root);
+            return;
+        }
+        int index = TRAIL_KINDS.indexOf(kind);
+        switchRow(DevUi.text("waypoint.what"), DevUi.text("waypoint.what." + kind),
+                Component.empty().append(DevUi.text("waypoint.what." + kind + ".tooltip")).append(" ").append(DevUi.text("form.click_to_switch")),
+                () -> switchTargetKind(path, variants, kind, TRAIL_KINDS.get((index + 1) % TRAIL_KINDS.size())));
+        if (index >= 0) {
+            text(DevUi.text("trace.tracks.note"), DevUi.MUTED);
+            objectPage(path, variants.get(current), Set.of(), null);
+        }
+    }
+
+    /** The "Points at" row of a trail: recorded or not, or whose tracks. */
+    static String trailSummary(JsonObject waypoint) {
+        if (waypoint.get("trace") instanceof JsonArray points) {
+            return points.size() < 2 ? DevUi.str("trace.summary.empty")
+                    : DevUi.str("trace.summary.recorded", points.size(), Math.round(traceLength(points)));
+        }
+        return DevUi.str("trace.summary.tracks", targetSummary(waypoint.get("target")));
     }
 
     /** Puts the target of this kind in place of the one written, keeping that one to give back. */

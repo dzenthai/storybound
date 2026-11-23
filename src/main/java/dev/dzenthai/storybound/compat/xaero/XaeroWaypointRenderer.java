@@ -85,7 +85,7 @@ public final class XaeroWaypointRenderer implements WaypointRenderer {
         return switch (waypoint.marker()) {
             case EVENT -> "!";
             case QUESTION -> "?";
-            case POINT -> initials(name);
+            case POINT, SCENT -> initials(name);
         };
     }
 

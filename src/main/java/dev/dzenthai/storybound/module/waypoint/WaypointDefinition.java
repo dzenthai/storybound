@@ -22,9 +22,12 @@ import net.minecraft.resources.ResourceLocation;
  * @param look   how an area shows (its radius by the name, its edge on the ground)
  * @param color  the marker in the world (its icon, name, edge arrow and a search area's ring) and the waypoint on the
  *               maps; {@link #DEFAULT_COLOR} keeps the marker's own look. Xaero's Minimap shows only {@link #PALETTE}
+ * @param trace  a trail of prints on the ground instead of a marker ({@link WaypointTrace}): no icon, no edge arrow,
+ *               nothing on the maps
  */
 public record WaypointDefinition(StoryText name, WaypointTarget target, int color, Condition conditions,
-                                 Optional<ResourceLocation> quest, Optional<String> stage, float radius, AreaLook look) {
+                                 Optional<ResourceLocation> quest, Optional<String> stage, float radius, AreaLook look,
+                                 Optional<WaypointTrace> trace) {
     public static final int DEFAULT_COLOR = 0xFFE8C66A;
     /**
      * The colours a waypoint offers: Minecraft's 16 text colours, the only ones Xaero's Minimap shows (any other is
@@ -42,7 +45,8 @@ public record WaypointDefinition(StoryText name, WaypointTarget target, int colo
             ResourceLocation.CODEC.optionalFieldOf("quest").forGetter(WaypointDefinition::quest),
             Codec.STRING.optionalFieldOf("stage").forGetter(WaypointDefinition::stage),
             Codec.floatRange(0f, 1024f).optionalFieldOf("radius", 0f).forGetter(WaypointDefinition::radius),
-            AreaLook.MAP_CODEC.forGetter(WaypointDefinition::look)
+            AreaLook.MAP_CODEC.forGetter(WaypointDefinition::look),
+            WaypointTrace.CODEC.optionalFieldOf("trace").forGetter(WaypointDefinition::trace)
     ).apply(instance, WaypointDefinition::new));
 
     /**

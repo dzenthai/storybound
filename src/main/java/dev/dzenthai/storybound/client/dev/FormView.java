@@ -251,15 +251,25 @@ final class FormView extends FormStory {
             targetField(path, name, value, label, required);
             return;
         }
-        // A waypoint (or add_waypoint): "target or search area" first; an area's radius and looks only for an area.
+        // A waypoint (or add_waypoint): "target, search area or trail" first; an area's radius and looks only for an
+        // area; a trail's recording in place of where it points and of the marker it does not have.
         if (Schemas.properties(owner).containsKey("show_ring")) {
             if (name.equals("color")) {
                 colorField(path, object);
                 return;
             }
-            boolean area = object != null && object.get("radius") instanceof JsonPrimitive radius && radius.isNumber() && radius.getAsDouble() > 0;
+            boolean traceOffered = Schemas.properties(owner).containsKey("trace");
+            boolean trace = traceOffered && object != null && object.has("trace");
+            boolean area = !trace && object != null && object.get("radius") instanceof JsonPrimitive radius && radius.isNumber() && radius.getAsDouble() > 0;
+            if (name.equals("trace")) {
+                return;
+            }
+            if (name.equals("marker") && Schemas.properties(owner).containsKey("trace")) {
+                markerField(path, object, trace);
+                return;
+            }
             if (name.equals("radius")) {
-                waypointKindField(path, area);
+                waypointKindField(path, trace ? "trace" : area ? "area" : "target", traceOffered);
                 if (!area) {
                     return;
                 }
@@ -305,7 +315,8 @@ final class FormView extends FormStory {
                 if (row(LABEL_H + CONTROL_H)) {
                     labelRow(label);
                     Component shown = name.equals("target") && path.isEmpty() && Schemas.properties(owner).containsKey("show_ring")
-                            ? Component.literal(targetSummary(value))
+                            ? Component.literal(object != null && object.has("trace") && Schemas.properties(owner).containsKey("trace")
+                                    ? trailSummary(object) : targetSummary(value))
                             : name.equals("participants") && path.isEmpty() && isDialogue(owner) ? Component.literal(participantsSummary(value))
                             : questSummary(name, owner, value) != null ? Component.literal(questSummary(name, owner, value))
                             : name.equals("sections") && Schemas.properties(owner).containsKey("show_kills") ? Component.literal(sectionsSummary(value))

@@ -7,6 +7,15 @@
 - `"marker": "question"`: one animated "?" that shakes and hops a little, for something unknown at that place. Its sprite
   is `question_icon`; Xaero's Minimap shows "?".
 - A search area's marker is a magnifier. All markers share one look: a dark outline and a hard shadow.
+- A search area's edge lies level at the player's height instead of following the blocks, bolder, over a band on the
+  ground. It fades out far above the area and is cut off 30 blocks under its waypoint; "Search the area" shows only
+  where the edge does.
+- Trails: a waypoint with `"trace"` has no icon. It shows near the player as glowing motes rising from the steps, or
+  with `"marker": "scent"` as wisps and strands drifting along it. A trail is recorded by walking it in the editor, or
+  found as the game goes: a creature's real tracks, shown only on blocks in `storybound:takes_tracks`.
+- The client and the server must both be on this version: what they send each other has changed.
+- Fixed: a selector naming an entity tag (`"#minecraft:zombies"` in a waypoint, an objective or an NPC binding) failed
+  with "Missing tag" when a world loaded, and its definition was left out.
 
 ## 0.1.0 — first release
 

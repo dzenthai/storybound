@@ -93,7 +93,8 @@ public final class ClientWaypoints {
         shownTracked = tracked;
         shownLevel = minecraft.level;
         shownUntracked = untracked;
-        List<ClientWaypoint> shown = shown();
+        // A trail is found on the ground, never shown on a map.
+        List<ClientWaypoint> shown = shown().stream().filter(waypoint -> !waypoint.isTrace()).toList();
         for (WaypointRenderer renderer : RENDERERS) {
             try {
                 renderer.refresh(shown);

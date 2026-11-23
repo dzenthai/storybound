@@ -47,6 +47,7 @@ public final class Storybound {
         LogicRegistries.register(modBus);
         CoreDefinitions.bootstrap();
         StoryAttachments.register(modBus);
+        dev.dzenthai.storybound.module.waypoint.WaypointParticles.register(modBus);
         DocumentRegistries.register(modBus);
         Journal.register(modBus);
         QuestRegistries.register(modBus);

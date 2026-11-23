@@ -24,6 +24,7 @@ import dev.dzenthai.storybound.module.quest.QuestEvents;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import dev.dzenthai.storybound.module.quest.Quests;
 import dev.dzenthai.storybound.module.waypoint.AreaLook;
+import dev.dzenthai.storybound.module.waypoint.WaypointTrace;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
 import dev.dzenthai.storybound.module.waypoint.StructureLocator;
 import dev.dzenthai.storybound.module.waypoint.WaypointDefinition;
@@ -196,6 +197,60 @@ public final class WaypointGameTests {
         ok(() -> PartyManager.disband(leader));
         List.of(leader, member, stranger).forEach(player -> remove(helper, player));
         helper.succeed();
+    }
+
+    /**
+     * {@code "trace"}: a waypoint's file gives its recorded trail's points in order, or asks for a creature's tracks
+     * found as the game goes; a waypoint without one is no trail; more points than a trail may have are refused; the
+     * client gets a trail intact, marked as one.
+     */
+    @GameTest(template = "empty")
+    public static void aTraceKeepsItsPointsOnTheWay(GameTestHelper helper) {
+        WaypointDefinition trail = parse("{ \"name\": \"gametest.trail\", \"target\": { \"pos\": [4, 64, 4] }, \"trace\": [[0, 64, 0], [2, 64, 1], [4, 64, 4]] }");
+        helper.assertTrue(trail.trace().orElse(null) instanceof WaypointTrace.Recorded recorded && recorded.points().size() == 3
+                && recorded.points().get(1).equals(new Vec3(2, 64, 1)), "the file's points, in order: " + trail.trace());
+        helper.assertTrue(parse("{ \"name\": \"gametest.calm\", \"target\": { \"pos\": [0, 0, 0] } }").trace().isEmpty(), "without a trace: no trail");
+        helper.assertTrue(parse("{ \"name\": \"gametest.wolf\", \"target\": { \"npc\": \"gametest:wolf\" }, \"trace\": { } }").trace().orElse(null)
+                instanceof WaypointTrace.Found, "a creature's tracks");
+        helper.assertTrue(parse("{ \"name\": \"gametest.wolf\", \"target\": { \"npc\": \"gametest:wolf\" }, \"trace\": { }, \"marker\": \"scent\" }")
+                .look().marker() == AreaLook.Marker.SCENT, "a trail shown by its scent");
+        StringBuilder many = new StringBuilder("{ \"name\": \"gametest.trail\", \"target\": { \"pos\": [0, 0, 0] }, \"trace\": [");
+        for (int i = 0; i <= WaypointTrace.MAX_POINTS; i++) {
+            many.append(i == 0 ? "" : ", ").append("[").append(i).append(", 64, 0]");
+        }
+        helper.assertTrue(WaypointDefinition.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(many.append("] }").toString())).isError(),
+                "more than " + WaypointTrace.MAX_POINTS + " points are refused");
+
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        List<Vec3> points = ((WaypointTrace.Recorded) trail.trace().get()).points();
+        ClientWaypoint sent = new ClientWaypoint("gametest:trail", dev.dzenthai.storybound.core.text.StoryText.key("gametest.trail").resolve(player),
+                net.minecraft.world.level.Level.OVERWORLD.location(), new Vec3(4, 64, 4), ClientWaypoint.NO_ENTITY, 0f, false, false,
+                WaypointDefinition.DEFAULT_COLOR, java.util.Optional.empty(), true, AreaLook.Marker.POINT, WaypointTrace.Kind.TRACKS, points, 0.6f);
+        var buf = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), helper.getLevel().registryAccess());
+        ClientWaypoint.STREAM_CODEC.encode(buf, sent);
+        ClientWaypoint received = ClientWaypoint.STREAM_CODEC.decode(buf);
+        expect(helper, received, sent, "a trail sent intact");
+        helper.assertTrue(received.isTrace(), "it reaches the client as a trail");
+
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * A waypoint whose selector names an entity tag loads with the world: the story's files are read again once
+     * Minecraft has bound its tags (on the first load of a world none are bound, and "#minecraft:undead" failed with
+     * "Missing tag").
+     */
+    @GameTest(template = "empty")
+    public static void aSelectorNamingATagLoadsWithTheWorld(GameTestHelper helper) {
+        WaypointDefinition tagged = WaypointRegistries.WAYPOINTS.serverStore().get(ResourceLocation.fromNamespaceAndPath("demo", "tagged_undead")).orElse(null);
+        helper.assertTrue(tagged != null && tagged.target() instanceof WaypointTarget.Nearest,
+                "the waypoint naming #minecraft:undead is loaded: " + tagged);
+        helper.succeed();
+    }
+
+    private static WaypointDefinition parse(String json) {
+        return WaypointDefinition.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(json)).getOrThrow();
     }
 
     /**

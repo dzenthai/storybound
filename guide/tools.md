@@ -232,7 +232,7 @@ When you rename a node in the editor, it writes the migration for you.
 | `dialogue.speechBubbles` | `true` | Shows other players' dialogue lines over their heads. |
 | `waypoints.untrackedQuestWaypoints` | `HIDE` | What to do with waypoints of quests that aren't pinned: `HIDE`, `DIM` or `SHOW`. |
 | `waypoints.markers`, `markerScale`, `markerOpacity` | `true`, `1.0`, `1.0` | Markers in the world, their size and their opacity. |
-| `waypoints.areaRings` | `true` | Draws the edge of search areas on the ground near you. |
+| `waypoints.areaRings` | `true` | Draws the edge of search areas on the ground near you. Trails are drawn either way. |
 | `waypoints.edgeArrows` | `TRACKED` | Which markers get an arrow at the edge of the screen while you look away: `TRACKED` (the tracked quest's), `ALL` or `NEVER`. |
 | `camera.enabled`, `camera.disableWith` | `true`, `[]` | The dialogue camera, and the ids of mods that keep it off. |
 | `camera.floating` | `true` | While a line plays, the mouse turns the dialogue camera a little and the cursor hides. |

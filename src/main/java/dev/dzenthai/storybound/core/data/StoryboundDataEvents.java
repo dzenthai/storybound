@@ -19,6 +19,8 @@ public final class StoryboundDataEvents {
 
     public static void register(IEventBus gameBus) {
         gameBus.addListener(StoryboundDataEvents::onAddReloadListeners);
+        // HIGHEST: the definitions are read again with the tags bound before any module rebuilds from them.
+        gameBus.addListener(net.neoforged.bus.api.EventPriority.HIGHEST, StoryboundDataEvents::onTagsBound);
         gameBus.addListener(StoryboundDataEvents::onTagsUpdated);
         // HIGH: before the headless validation (LOWEST), which validates on its own.
         gameBus.addListener(net.neoforged.bus.api.EventPriority.HIGH, StoryboundDataEvents::onServerStarted);
@@ -40,6 +42,13 @@ public final class StoryboundDataEvents {
 
     /** A data load came before the worlds were made: validated once they are, as a place's checks need them. */
     private static boolean pending;
+
+    /** The tags are bound now: the definitions are read again, so those naming a tag load too. */
+    private static void onTagsBound(TagsUpdatedEvent event) {
+        if (event.getUpdateCause() == TagsUpdatedEvent.UpdateCause.SERVER_DATA_LOAD) {
+            DefinitionLoader.reparse(event.getRegistryAccess());
+        }
+    }
 
     // Fires after all reload listeners have run, both on world start and after /reload.
     private static void onTagsUpdated(TagsUpdatedEvent event) {

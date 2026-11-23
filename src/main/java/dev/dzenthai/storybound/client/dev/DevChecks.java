@@ -35,6 +35,15 @@ final class DevChecks {
      * What a waypoint's target still lacks, in the author's words; empty when it has it, the codec then says the rest.
      */
     private static Optional<String> waypointTarget(JsonObject waypoint) {
+        if (waypoint.get("trace") instanceof com.google.gson.JsonArray points && points.size() < 2) {
+            return Optional.of(DevUi.str("check.waypoint.trace"));
+        }
+        if (waypoint.get("trace") instanceof JsonObject) {
+            JsonObject target = waypoint.get("target") instanceof JsonObject written ? written : new JsonObject();
+            if (target.has("pos") || target.has("structure") || target.isEmpty()) {
+                return Optional.of(DevUi.str("check.waypoint.trace_dynamic"));
+            }
+        }
         if (!(waypoint.get("target") instanceof JsonObject target)) {
             return Optional.of(DevUi.str("check.waypoint.target"));
         }

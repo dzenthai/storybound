@@ -27,7 +27,8 @@ don't need a map mod.
 | `show_radius` | true | For a search area, shows "radius 24 m" next to the name. |
 | `show_ring` | true | For a search area, draws its edge near the player, level at the player's own height. Above the area, the edge shows up to 16 blocks over the higher of the waypoint and the ground along its edge, then fades out by 32. Below, it shows down to 30 blocks under the waypoint, enough for the foot of a tower with the waypoint on top, and is gone at 32, so from under a floating island the area up there does not show. Within the radius the marker says "Search the area" only where the edge shows whole; elsewhere it shows the distance. Turn it off when the edge would give the answer away. |
 | `color` | `#E8C66A` | The colour of the marker (its icon, name, edge arrow and ring) and of the waypoint on maps. See below. |
-| `marker` | `point` | `event` shows three "!" instead of the icon, the middle one larger, hopping like a cartoon, for something happening there: a fight, a meeting, a call for help. `question` shows one "?" that now and then shakes and gives a small hop, for something unknown there: a rumour, a riddle, a place to look into. A search area with either still draws its edge. |
+| `marker` | `point` | `event` shows three "!" instead of the icon, the middle one larger, hopping like a cartoon, for something happening there: a fight, a meeting, a call for help. `question` shows one "?" that now and then shakes and gives a small hop, for something unknown there: a rumour, a riddle, a place to look into. A search area with either still draws its edge. A trail takes `point`, its tracks, or `scent`, see [Trails](#trails). |
+| `trace` | none | Turns the waypoint into a trail, see [Trails](#trails). |
 | `conditions` | none | The waypoint shows only while these hold. |
 | `quest`, `stage` | none | The waypoint shows only while the quest is active, or while it is at that stage. |
 
@@ -56,6 +57,50 @@ where it was last seen, labelled "Search the area". It becomes a point again onc
 dies, the waypoint moves on to another one. An NPC that respawns keeps its area while it waits to come back.
 
 For a party or world quest, what one player's waypoint has found, the others see too, however far away they are.
+
+## Trails
+
+A trail leads the player along a way, like footprints from a farm to a cave. It has no marker at all: no icon, no
+arrow at the edge of the screen and nothing on the maps. Where each step was, glowing motes in the waypoint's colour rise
+now and then and fade, a step about every block, so a chain of flickering sparks shows the way. With
+`"marker": "scent"` the trail shows its scent instead: wisps of coloured smoke drift along it at chest height, the way
+it leads, over any ground, and thin glowing strands run quicker along it, like a scent in the air. They show only within
+11 blocks of the player, so the player finds the trail and follows it and never sees it whole. A step sits on the
+surface under it, never in the air, and the motes show whatever the player's particle setting is.
+A trail is recorded, or found as the game goes: a creature's tracks.
+
+**Recorded.** `trace` lists the trail's points from its start to its end, at most 512. The end is the target, which
+has to be a `pos`. The steps lie at the points' own heights, on any ground.
+
+```json
+// waypoints/mypack/blood_trail.json
+{
+  "name": "mypack.waypoint.blood_trail",
+  "target": { "pos": [140, 64, -310], "dimension": "minecraft:overworld" },
+  "trace": [[120, 70, -340], [124, 69, -333], [131, 66, -322], [140, 64, -310]],
+  "color": "#B33A2F",
+  "quest": "mypack:missing_farmer",
+  "stage": "follow"
+}
+```
+
+**A creature's tracks.** With `"trace": {}` and a target that finds a creature (`entity`, `nearest`, `npc` or
+`boss`), the trail is the creature's real steps of the last five minutes: where it walked, with its turns and loops.
+Fresh steps near it give motes often, old ones seldom. Steps show only on ground that takes tracks, such as earth,
+sand, snow or gravel, so they break off on stone. A creature that flies or swims leaves none.
+
+```json
+{ "name": "mypack.waypoint.wolf_tracks", "target": { "nearest": "minecraft:wolf" }, "trace": {} }
+```
+
+Which blocks take tracks is the block tag `storybound:takes_tracks`. A data pack can add its own blocks to it. Show
+the player where a trail starts with an earlier stage, for example a search area at the farm, and end it with
+something to look at, an `observed` objective.
+
+In the editor, choose "Trail" as the kind of waypoint, then open "Points at". Rule "Recorded" gives the button
+"Record it by walking": walk the trail from its start to its end, then click where it leads. The points are taken
+every 2 blocks while you are on the ground or swimming, and the straight stretches are thinned out. Rule "Dynamic"
+chooses whose tracks these are.
 
 ## In quests
 

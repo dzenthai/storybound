@@ -55,6 +55,23 @@ public final class DefinitionLoader<T> extends SimplePreparableReloadListener<De
 
     @Override
     protected void apply(Scan scan, ResourceManager resourceManager, ProfilerFiller profiler) {
+        LAST.put(type, scan);
+        store(type, scan, registries);
+    }
+
+    /**
+     * The files of each type's last load, read again by {@link #reparse} once Minecraft has bound its tags: during a
+     * load they are not bound yet (on the first load of a world, none are), so a selector naming a tag
+     * ({@code "#minecraft:zombies"}) cannot be read until then.
+     */
+    private static final Map<DefinitionType<?>, Scan> LAST = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Every type's last files parsed again, with registries whose tags are bound; the stores and load issues replaced. */
+    public static void reparse(HolderLookup.Provider registries) {
+        LAST.forEach((type, scan) -> store(type, scan, registries));
+    }
+
+    private static <T> void store(DefinitionType<T> type, Scan scan, HolderLookup.Provider registries) {
         ParseResult<T> result = parse(type, scan.files(), RegistryOps.create(JsonOps.INSTANCE, registries));
         List<ValidationIssue> issues = new ArrayList<>(scan.issues());
         issues.addAll(result.issues());

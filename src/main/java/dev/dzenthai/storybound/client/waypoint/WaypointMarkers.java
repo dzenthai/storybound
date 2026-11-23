@@ -152,7 +152,8 @@ public final class WaypointMarkers {
         List<Marker> markers = new ArrayList<>();
         Map<String, Vec3> seen = new HashMap<>();
         for (ClientWaypoint waypoint : ClientWaypoints.shown()) {
-            if (!waypoint.dimension().equals(dimension)) {
+            // A trail has no marker: TraceTrails draws it.
+            if (!waypoint.dimension().equals(dimension) || waypoint.isTrace()) {
                 continue;
             }
             Vec3 pos = position(minecraft, waypoint, frameSeconds, partialTick, now);
@@ -284,7 +285,8 @@ public final class WaypointMarkers {
         switch (kind) {
             case EVENT -> drawEvent(graphics, style.eventIcon(), x, y, marker.size(), marker.tint(), marker.alpha(), now);
             case QUESTION -> drawQuestion(graphics, style.questionIcon(), x, y, marker.size(), marker.tint(), marker.alpha(), now);
-            case POINT -> {
+            // A scent is a trail's, never drawn as a marker; on anything else it shows the usual icon.
+            case POINT, SCENT -> {
                 if (marker.area()) {
                     drawArea(graphics, style.areaIcon(), x, y, marker.size(), marker.tint(), marker.alpha(), now);
                 } else {
@@ -302,7 +304,7 @@ public final class WaypointMarkers {
             if (marker.area() && marker.waypoint().showRadius()) {
                 name = name.copy().append(Component.translatable("storybound.waypoint.radius", Math.round(marker.waypoint().radius())));
             }
-            // The name in the waypoint's colour, unless it keeps the default (then the look's text colour, as before).
+            // The name in the waypoint's colour, unless it keeps the default: then the look's text colour.
             int nameColor = marker.waypoint().color() == WaypointDefinition.DEFAULT_COLOR ? style.textColor() : marker.tint();
             text(graphics, font, name, x, nameY - stack * NAME_LINE, 1f, nameColor, marker.alpha() * nameAlpha);
         }

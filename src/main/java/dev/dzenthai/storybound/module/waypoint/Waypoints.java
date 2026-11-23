@@ -143,10 +143,11 @@ public final class Waypoints {
             String key = id.toString();
             Place place = locate(player, key, definition.target(), companions(player, quest));
             if (place != null) {
+                Trail trail = trail(player, key, definition, place);
                 result.put(key, new ClientWaypoint(key, definition.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(definition.radius()), place.showRadius(definition.radius(), definition.look()),
                         place.showRing(definition.radius(), definition.look()), definition.color(), quest, place.placed(),
-                        definition.look().marker()));
+                        definition.look().marker(), trail.kind(), trail.points(), trail.size()));
             }
         });
         for (WaypointData.Added added : WaypointData.get(player.server).all()) {
@@ -158,7 +159,7 @@ public final class Waypoints {
             if (place != null) {
                 result.put(added.key(), new ClientWaypoint(added.key(), added.name().resolve(player), place.dimension(), place.pos(), place.entity(),
                         place.radius(added.radius()), place.showRadius(added.radius(), added.look()), place.showRing(added.radius(), added.look()),
-                        added.color(), Optional.empty(), place.placed(), added.look().marker()));
+                        added.color(), Optional.empty(), place.placed(), added.look().marker(), WaypointTrace.Kind.NONE, List.of(), 0f));
             }
         }
         return result;
@@ -629,6 +630,32 @@ public final class Waypoints {
      * @param entity the network id of the entity it is above, for the client to follow it smoothly, or {@link ClientWaypoint#NO_ENTITY}
      * @param radius a search area to show at least, for an entity out of sight; negative for the waypoint's own
      */
+    /** What a client gets of a waypoint's trail. */
+    private record Trail(WaypointTrace.Kind kind, List<Vec3> points, float size) {
+        static final Trail NONE = new Trail(WaypointTrace.Kind.NONE, List.of(), 0f);
+    }
+
+    /**
+     * A waypoint's trail for this player: the author's points, or a creature's real steps (the creature the target
+     * finds now, or the last one found while it is not loaded).
+     */
+    private static Trail trail(ServerPlayer player, String key, WaypointDefinition definition, Place place) {
+        if (definition.trace().isEmpty()) {
+            return Trail.NONE;
+        }
+        if (definition.trace().get() instanceof WaypointTrace.Recorded recorded) {
+            return new Trail(WaypointTrace.Kind.RECORDED, recorded.points(), WaypointTracks.DEFAULT_WIDTH);
+        }
+        // A point or a structure does not walk: the validator says so; it leaves no tracks.
+        if (definition.target() instanceof WaypointTarget.Fixed || definition.target() instanceof WaypointTarget.Structure) {
+            return new Trail(WaypointTrace.Kind.TRACKS, List.of(), WaypointTracks.DEFAULT_WIDTH);
+        }
+        ServerLevel level = player.server.getLevel(ResourceKey.create(Registries.DIMENSION, place.dimension()));
+        Entity entity = level == null || place.entity() == ClientWaypoint.NO_ENTITY ? null : level.getEntity(place.entity());
+        WaypointTracks.Steps steps = WaypointTracks.of(player.server, player, key, entity);
+        return new Trail(WaypointTrace.Kind.TRACKS, steps.points(), steps.width());
+    }
+
     private record Place(ResourceLocation dimension, Vec3 pos, int entity, float radius, boolean placed) {
         Place(ResourceLocation dimension, Vec3 pos, int entity, float radius) {
             this(dimension, pos, entity, radius, true);

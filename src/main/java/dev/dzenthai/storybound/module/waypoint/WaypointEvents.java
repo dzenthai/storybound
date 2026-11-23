@@ -91,10 +91,12 @@ public final class WaypointEvents {
 
     private static void onServerTick(ServerTickEvent.Post event) {
         Waypoints.tick(event.getServer());
+        WaypointTracks.tick(event.getServer());
     }
 
     private static void onServerStopped(ServerStoppedEvent event) {
         Waypoints.reset();
+        WaypointTracks.reset();
     }
 
     /** A followed entity killed or removed for good (not unloaded, not through a portal) is gone for every player. */
@@ -127,9 +129,34 @@ public final class WaypointEvents {
             if (waypoint.stage().isPresent() && waypoint.quest().isEmpty()) {
                 sink.accept(ValidationIssue.error(WaypointRegistries.WAYPOINTS.id(), id, "'stage' needs 'quest'"));
             }
-            if (waypoint.radius() == 0 && waypoint.look().areaChanged()) {
+            if (waypoint.trace().isEmpty() && waypoint.radius() == 0 && waypoint.look().areaChanged()) {
                 sink.accept(ValidationIssue.warning(WaypointRegistries.WAYPOINTS.id(), id,
                         "'show_radius' and 'show_ring' are for a search area; without a 'radius' this is a point and they do nothing"));
+            }
+            if (waypoint.trace().orElse(null) instanceof WaypointTrace.Recorded recorded) {
+                if (!(waypoint.target() instanceof WaypointTarget.Fixed)) {
+                    sink.accept(ValidationIssue.error(WaypointRegistries.WAYPOINTS.id(), id, "A recorded 'trace' ends at its target, which must be a 'pos'"));
+                }
+                if (recorded.points().size() < 2) {
+                    sink.accept(ValidationIssue.warning(WaypointRegistries.WAYPOINTS.id(), id, "The 'trace' has fewer than two points: nothing is drawn"));
+                }
+            }
+            if (waypoint.trace().orElse(null) instanceof WaypointTrace.Found
+                    && (waypoint.target() instanceof WaypointTarget.Fixed || waypoint.target() instanceof WaypointTarget.Structure)) {
+                sink.accept(ValidationIssue.error(WaypointRegistries.WAYPOINTS.id(), id,
+                        "Found tracks are a creature's: an entity, the nearest mob, an NPC or a boss; for a place, record the trail"));
+            }
+            if (waypoint.trace().isPresent()) {
+                if (waypoint.radius() > 0 || waypoint.look().areaChanged()) {
+                    sink.accept(ValidationIssue.warning(WaypointRegistries.WAYPOINTS.id(), id,
+                            "A trace has no area: 'radius', 'show_radius' and 'show_ring' do nothing"));
+                }
+                if (waypoint.look().marker() == AreaLook.Marker.EVENT || waypoint.look().marker() == AreaLook.Marker.QUESTION) {
+                    sink.accept(ValidationIssue.warning(WaypointRegistries.WAYPOINTS.id(), id,
+                            "A trace shows its tracks or its scent: 'marker' is 'point' or 'scent' for it"));
+                }
+            } else if (waypoint.look().marker() == AreaLook.Marker.SCENT) {
+                sink.accept(ValidationIssue.warning(WaypointRegistries.WAYPOINTS.id(), id, "'scent' is a trail's: this waypoint shows its icon"));
             }
             if (waypoint.target() instanceof WaypointTarget.Npc npc && !dev.dzenthai.storybound.module.dialogue.DialogueRegistries.NPC_BINDINGS.serverStore().contains(npc.npc())) {
                 sink.accept(ValidationIssue.error(WaypointRegistries.WAYPOINTS.id(), id, "Points at unknown NPC " + npc.npc()));
