@@ -128,3 +128,8 @@ You can switch off any part of the mod in `config/storybound-common.toml`: `modu
 `bosses`, `waypoints` and `dialogues`. A part that is switched off does nothing in the game, and its tab disappears
 from the Adventure Menu. Its files are still loaded, so the validator keeps checking them. Other settings are listed
 in [Tools](tools.md#settings).
+
+## Credits
+
+The villages in the clips and screenshots of this guide are from
+[Epic Structures: Villages](https://modrinth.com/datapack/epic-structures-villages) by ATi.
