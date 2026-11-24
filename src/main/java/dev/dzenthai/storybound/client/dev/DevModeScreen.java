@@ -142,6 +142,7 @@ public class DevModeScreen extends Screen implements Catalog.Host {
     public void removed() {
         view().saveEdits(this);
         ClientDevStore.setListener(null);
+        DevSoundPreview.stop();
         super.removed();
     }
 
@@ -790,11 +791,13 @@ public class DevModeScreen extends Screen implements Catalog.Host {
         if (!menu.isEmpty()) {
             renderMenu(graphics, mouseX, mouseY);
         }
-        renderIssuesTooltip(graphics, mouseX, mouseY);
-        for (Cut cut : cuts) {
-            if (mouseX >= cut.x() && mouseX < cut.x() + cut.width() && mouseY >= cut.y() && mouseY < cut.y() + 9) {
-                graphics.renderTooltip(font, font.split(Component.literal(cut.text()), 300), mouseX, mouseY);
-                break;
+        if (!modal && menu.isEmpty()) {
+            renderIssuesTooltip(graphics, mouseX, mouseY);
+            for (Cut cut : cuts) {
+                if (mouseX >= cut.x() && mouseX < cut.x() + cut.width() && mouseY >= cut.y() && mouseY < cut.y() + 9) {
+                    graphics.renderTooltip(font, font.split(Component.literal(cut.text()), 300), mouseX, mouseY);
+                    break;
+                }
             }
         }
     }
@@ -821,11 +824,11 @@ public class DevModeScreen extends Screen implements Catalog.Host {
     }
 
     private int menuLeft() {
-        return Math.min(menuX, width - MENU_W - 6);
+        return Math.max(4, Math.min(menuX, width - MENU_W - 6));
     }
 
     private int menuTop() {
-        return Math.min(menuY, height - (menu.size() * MENU_ITEM_H + 6) - 6);
+        return Math.max(4, Math.min(menuY, height - (menu.size() * MENU_ITEM_H + 6) - 6));
     }
 
     /** A click while the context menu is open: runs the line under it, and the menu closes either way. */

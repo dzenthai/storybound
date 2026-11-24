@@ -26,12 +26,15 @@ import org.jetbrains.annotations.Nullable;
 public final class StoryRenames {
     public static final ResourceLocation FLAG = Storybound.id("flag");
     public static final ResourceLocation CHAPTER = Storybound.id("chapter");
+    public static final ResourceLocation MUSIC = Storybound.id("music");
     /** The story's nodes and flags; not chapters (their title is their name) or the editor's own files. */
     public static final Set<ResourceLocation> RENAMEABLE = Set.of(StoryLinks.QUEST, StoryLinks.DIALOGUE, StoryLinks.NPC, StoryLinks.DOCUMENT,
-            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, StoryLinks.VANILLA_SCRIPT, FLAG, StoryLinks.PHRASES);
+            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, StoryLinks.VANILLA_SCRIPT,
+            StoryLinks.SCENE, FLAG, StoryLinks.PHRASES);
     /** The definitions that may name a renamed id. */
     public static final Set<ResourceLocation> REFERRING = Set.of(StoryLinks.QUEST, StoryLinks.DIALOGUE, StoryLinks.NPC, StoryLinks.DOCUMENT,
-            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, StoryLinks.VANILLA_SCRIPT, FLAG, CHAPTER, StoryLinks.PHRASES);
+            StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, StoryLinks.VANILLA_SCRIPT,
+            StoryLinks.SCENE, MUSIC, FLAG, CHAPTER, StoryLinks.PHRASES);
     /** An NPC's relationship scale is the flag {@code <ns>:rep/<npc path>}. */
     public static final String RELATIONSHIP_PREFIX = "rep/";
 
@@ -468,9 +471,11 @@ public final class StoryRenames {
         if (element instanceof JsonArray array) {
             for (int i = 0; i < array.size(); i++) {
                 if (array.get(i) instanceof JsonPrimitive primitive && primitive.isString()) {
-                    String text = rewriteText(primitive.getAsString(), renames);
-                    if (!text.equals(primitive.getAsString())) {
-                        array.set(i, new JsonPrimitive(text));
+                    String raw = primitive.getAsString();
+                    String updated = rewriteReadUnlock(raw, renames);
+                    updated = rewriteText(updated, renames);
+                    if (!updated.equals(raw)) {
+                        array.set(i, new JsonPrimitive(updated));
                         changed++;
                     }
                 } else {
@@ -482,8 +487,9 @@ public final class StoryRenames {
         if (!(element instanceof JsonObject object)) {
             return 0;
         }
-        if (ownerType.equals(CHAPTER) && object.has("x") && object.get("type") instanceof JsonPrimitive type && object.get("id") instanceof JsonPrimitive id) {
-            // A node's place on a chapter's canvas: the type may leave out the namespace.
+        if ((ownerType.equals(CHAPTER) && object.has("x") || ownerType.equals(StoryLinks.SCRIPT))
+                && object.get("type") instanceof JsonPrimitive type && object.get("id") instanceof JsonPrimitive id) {
+            // A node's place on a chapter's canvas or a script's leads_to entry: the type may leave out the namespace.
             String typeName = type.getAsString();
             ResourceLocation nodeType = typeName.contains(":") ? ResourceLocation.tryParse(typeName) : Storybound.id(typeName);
             return nodeType != null && rename(object, "id", nodeType, id, renames) ? 1 : 0;
@@ -491,7 +497,8 @@ public final class StoryRenames {
         boolean logic = object.has("type");
         for (String key : List.copyOf(object.keySet())) {
             JsonElement value = object.get(key);
-            ResourceLocation type = referenceType(key, logic);
+            ResourceLocation type = key.equals("content") && ownerType.equals(StoryLinks.DOCUMENT)
+                    ? StoryLinks.DOCUMENT : referenceType(key, logic);
             if (type != null && value instanceof JsonPrimitive primitive && primitive.isString() && rename(object, key, type, primitive, renames)) {
                 changed++;
             } else if (key.equals("waypoints") && ownerType.equals(StoryLinks.QUEST) && value instanceof JsonArray waypoints) {
@@ -524,13 +531,26 @@ public final class StoryRenames {
             case "document" -> StoryLinks.DOCUMENT;
             case "boss" -> StoryLinks.BOSS;
             case "script" -> StoryLinks.VANILLA_SCRIPT;
+            case "scene" -> StoryLinks.SCENE;
+            case "waypoint" -> StoryLinks.WAYPOINT;
             case "phrases", "warning", "busy" -> StoryLinks.PHRASES;
             // A waypoint's target { "npc"... }.
             case "npc" -> StoryLinks.NPC;
             case "entry" -> logic ? StoryLinks.CODEX : null;
             case "key" -> logic ? FLAG : null;
+            case "variant_by" -> FLAG;
             default -> null;
         };
+    }
+
+    /** Rewrites {@code read:<document>} unlock entries in Codex/Boss unlock arrays when a document is renamed. */
+    private static String rewriteReadUnlock(String raw, List<Rename> renames) {
+        if (!raw.startsWith("read:")) {
+            return raw;
+        }
+        ResourceLocation doc = ResourceLocation.tryParse(raw.substring("read:".length()));
+        ResourceLocation renamed = doc == null ? null : renamed(StoryLinks.DOCUMENT, doc, renames);
+        return renamed != null ? "read:" + renamed : raw;
     }
 
     private static boolean rename(JsonObject object, String field, ResourceLocation type, JsonPrimitive value, List<Rename> renames) {

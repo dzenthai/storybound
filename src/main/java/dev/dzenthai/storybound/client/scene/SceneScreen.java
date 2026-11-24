@@ -11,8 +11,8 @@ import net.minecraft.util.FormattedCharSequence;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Open while a scene plays: it takes the keys and the mouse, so the player neither moves nor looks around, and Escape
- * opens the pause menu (the scene cannot be skipped). It draws the black bars when the scene has them and the line in
+ * Open while a scene plays: it takes the keys and the mouse, so the player neither moves nor looks around; Space skips
+ * the scene and Escape opens the pause menu. It draws the black bars when the scene has them and the line in
  * subtitles: the speaker's name, then the words, centred above the lower bar.
  */
 final class SceneScreen extends Screen {
@@ -39,6 +39,8 @@ final class SceneScreen extends Screen {
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == GLFW.GLFW_KEY_ESCAPE && minecraft != null) {
             minecraft.setScreen(new PauseScreen(true));
+        } else if (keyCode == GLFW.GLFW_KEY_SPACE) {
+            ClientScene.skip();
         }
         return true;
     }

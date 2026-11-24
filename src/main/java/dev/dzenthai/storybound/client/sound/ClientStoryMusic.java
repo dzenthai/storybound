@@ -65,6 +65,27 @@ public final class ClientStoryMusic {
         if (current != null && track.isPresent() && current.getLocation().equals(track.get())) {
             return;
         }
+        // Inside a cutscene, switching music cuts cleanly to the new track instead of overlapping two tracks for 2.5s.
+        if (dev.dzenthai.storybound.client.scene.ClientScene.playing()) {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (current != null) {
+                minecraft.getSoundManager().stop(current);
+                current = null;
+                if (track.isEmpty()) {
+                    restUntil = -1;
+                }
+            }
+            if (!fading.isEmpty()) {
+                fading.forEach(minecraft.getSoundManager()::stop);
+                fading.clear();
+            }
+            if (track.isPresent()) {
+                restUntil = 0;
+                minecraft.getMusicManager().stopPlaying();
+                start(track.get(), true);
+            }
+            return;
+        }
         if (current != null) {
             current.fadeOut();
             fading.add(current);
@@ -84,13 +105,13 @@ public final class ClientStoryMusic {
                 back.fadeIn();
                 current = back;
             } else {
-                start(track.get());
+                start(track.get(), false);
             }
         }
     }
 
-    private static void start(ResourceLocation track) {
-        current = new Track(SoundEvent.createVariableRangeEvent(track));
+    private static void start(ResourceLocation track, boolean instant) {
+        current = new Track(SoundEvent.createVariableRangeEvent(track), instant);
         silent = 0;
         Minecraft.getInstance().getSoundManager().play(current);
     }
@@ -111,9 +132,15 @@ public final class ClientStoryMusic {
     /** Every tick, as vanilla picks its music: keeps the track playing, and vanilla quiet while it should be. */
     public static void onSelectMusic(SelectMusicEvent event) {
         ticks++;
-        float target = dev.dzenthai.storybound.client.dialogue.ClientDialogue.isActive() ? DUCKED : 1.0f;
-        float step = (1.0f - DUCKED) / DUCK_TICKS;
-        duck = duck < target ? Math.min(target, duck + step) : Math.max(target, duck - step);
+        boolean previewing = dev.dzenthai.storybound.client.dev.DevSoundPreview.isActive()
+                || dev.dzenthai.storybound.client.dev.ScenePreview.isPlayingAudio();
+        if (previewing) {
+            duck = 0.0f;
+        } else {
+            float target = dev.dzenthai.storybound.client.dialogue.ClientDialogue.isActive() ? DUCKED : 1.0f;
+            float step = (1.0f - DUCKED) / DUCK_TICKS;
+            duck = duck < target ? Math.min(target, duck + step) : Math.max(target, duck - step);
+        }
         Minecraft minecraft = Minecraft.getInstance();
         fading.removeIf(fade -> fade.isStopped() || !minecraft.getSoundManager().isActive(fade));
         if (screenMusic()) {
@@ -131,14 +158,14 @@ public final class ClientStoryMusic {
             waiting = null;
             play(Optional.of(back));
         }
-        if (current != null) {
+        if (current != null && !previewing) {
             if (minecraft.getSoundManager().isActive(current)) {
                 silent = 0;
             } else if (++silent >= RETRY_TICKS) {
-                start(current.getLocation());
+                start(current.getLocation(), dev.dzenthai.storybound.client.scene.ClientScene.playing());
             }
         }
-        if (current != null || !fading.isEmpty()) {
+        if (current != null || !fading.isEmpty() || previewing) {
             event.setMusic(null);
             return;
         }
@@ -170,20 +197,26 @@ public final class ClientStoryMusic {
     private static final class Track extends AbstractTickableSoundInstance {
         private int age;
         private int fadeOutAge = -1;
+        private float fadeOutFrom = 1.0f;
         /** How far it has faded in or out, before the dialogue's ducking. */
         private float level;
 
-        Track(SoundEvent event) {
+        Track(SoundEvent event, boolean instant) {
             super(event, SoundSource.MUSIC, RandomSource.create());
             this.looping = true;
             this.delay = 0;
             this.relative = true;
             this.attenuation = SoundInstance.Attenuation.NONE;
-            this.volume = 0.0f;
+            this.age = instant ? FADE_TICKS : 0;
+            this.level = instant ? 1.0f : 0.0f;
+            this.volume = instant ? duck : 0.0f;
         }
 
         void fadeOut() {
-            fadeOutAge = age;
+            if (fadeOutAge < 0) {
+                fadeOutFrom = level;
+                fadeOutAge = age;
+            }
         }
 
         /** Back from fading out: up again from the volume it has reached. */
@@ -195,15 +228,14 @@ public final class ClientStoryMusic {
         @Override
         public void tick() {
             age++;
-            float in = Math.min(1.0f, age / (float) FADE_TICKS);
             if (fadeOutAge >= 0) {
-                float out = 1.0f - (age - fadeOutAge) / (float) FADE_TICKS;
-                level = Math.max(0.0f, Math.min(in, out));
+                float out = fadeOutFrom - (age - fadeOutAge) / (float) FADE_TICKS;
+                level = Math.max(0.0f, out);
                 if (out <= 0.0f) {
                     stop();
                 }
             } else {
-                level = in;
+                level = Math.min(1.0f, age / (float) FADE_TICKS);
             }
             volume = level * duck;
         }

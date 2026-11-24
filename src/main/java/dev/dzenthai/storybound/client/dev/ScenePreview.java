@@ -10,7 +10,9 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.dzenthai.storybound.client.ScreenProjection;
 import dev.dzenthai.storybound.client.ShaderPacks;
 import dev.dzenthai.storybound.client.camera.SceneCamera;
+import dev.dzenthai.storybound.core.logic.action.ScreenFade;
 import dev.dzenthai.storybound.module.scene.SceneDefinition;
+import dev.dzenthai.storybound.module.scene.ScenePath;
 import dev.dzenthai.storybound.network.ScenePayloads;
 import java.util.HashMap;
 import java.util.List;
@@ -27,8 +29,11 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -65,7 +70,14 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private static final int MUTED = 0xFF9A93A6;
     private static final int TEXT = 0xFFE8E2EE;
     private static final int START = 0xFF7ED957;
+    private static final int VIA = 0xFF5CE1E6;
+    private static final int VIA_SELECTED = 0xFFA6F7FF;
     private static final int END = 0xFFE05A47;
+    private static final int DRAG_POINT = 1;
+    private static final int DRAG_ORBIT = 3;
+    private static final int DRAG_LOOK = 4;
+    private static final int DRAG_CUE = 5;
+    private static final int DRAG_SCRUB = 6;
     /** How near the cursor must be to a handle on screen to take it. */
     private static final double HANDLE_REACH = 9;
     /** How fast the free view flies, blocks a second; sprint makes it faster. */
@@ -102,25 +114,33 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private boolean playing;
     private long lastFrame;
 
-    /** What the mouse is doing over the world: 1 dragging the start, 2 the end, 3 orbiting, 4 looking around. */
+    /** What the mouse is doing over the world: DRAG_POINT, DRAG_ORBIT, DRAG_LOOK, DRAG_CUE, DRAG_SCRUB, or 0 for none. */
     private int dragging;
-    private int hovered;
+    private int draggedPoint = -1;
+    private boolean dragMoved;
+    private int groupToCycle = -1;
+    private int hoveredPoint = -1;
     private boolean dirty;
     private boolean panelShown = true;
     private boolean grid;
     private boolean closeAsked;
 
-    private final EditBox[] from = new EditBox[3];
-    private final EditBox[] to = new EditBox[3];
-    private final AxisSlider[] fromSliders = new AxisSlider[3];
-    private final AxisSlider[] toSliders = new AxisSlider[3];
-    /** Where the panel's middle begins; how far it is scrolled, how tall it is, where its two headings are. */
+    private final EditBox[] pointBoxes = new EditBox[3];
+    private final AxisSlider[] pointSliders = new AxisSlider[3];
+    private final EditBox[] fadeBoxes = new EditBox[3];
+    /** Where the panel's middle begins; how far it is scrolled, how tall it is, where its headings are. */
     private static final int CONTENT_TOP = 54;
     private int scroll;
     private int contentHeight;
-    private int fromLabelY = CONTENT_TOP;
-    private int toLabelY = CONTENT_TOP;
+    private boolean buildingScrollArea;
+    private int pathLabelY = CONTENT_TOP;
+    private int pathAxesY = -1000;
     private int cueLabelY = CONTENT_TOP;
+    private int fadeLabelY = -1000;
+    /** Currently selected control point index: 0 = From, 1..N = Via, N+1 = To. */
+    private int selectedPoint;
+    private @Nullable FovSlider fovSlider;
+    private @Nullable Button fovResetButton;
     /** The thing of the shot picked on the time line, its index in the shot's "during"; -1 for none. */
     private int selectedCue = -1;
     /** Set when a thing is added or picked: the next build scrolls the panel to its fields. */
@@ -133,8 +153,25 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private @Nullable Component note;
     private int noteColor;
     private long noteAt;
-    private @Nullable TimeSlider slider;
+    private @Nullable Button freeButton;
+    /** When a thing was last added on the time line (ms), to flash its mark and badge there. */
+    private long cueAddedAt;
     private boolean filling;
+    /** Single-channel audio instances played during timeline playback (music, sound effect, line voice-over). */
+    private @Nullable SoundInstance previewMusic;
+    private @Nullable String previewMusicKey;
+    private @Nullable SoundInstance previewSound;
+    private @Nullable String previewSoundKey;
+    private @Nullable SoundInstance previewVoice;
+    private @Nullable String previewVoiceKey;
+    private double lastAudioTime = -1;
+
+    /** Whether the cutscene preview is currently playing timeline audio. */
+    public static boolean isPlayingAudio() {
+        ScenePreview preview = open;
+        return preview != null && preview.playing
+                && (preview.previewMusic != null || preview.previewSound != null || preview.previewVoice != null);
+    }
 
     ScenePreview(DevModeScreen editor, ResourceLocation id) {
         super(Component.literal(id.toString()));
@@ -150,6 +187,9 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     protected void init() {
         open = this;
         SceneCamera.preview(this::pose);
+        if (selectedCue < 0) {
+            selectedCue = cueAtMoment(shot, time * seconds(shot));
+        }
         build();
         if (anchors.isEmpty()) {
             askAnchors();
@@ -162,6 +202,8 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             open = null;
         }
         SceneCamera.preview(null);
+        stopPreviewAudio();
+        DevSoundPreview.stop();
     }
 
     @Override
@@ -181,6 +223,13 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     /** Where the panel's middle ends: above Save and Close. */
     private int contentBottom() {
         return height - 34;
+    }
+
+    /** Where the panel's middle begins: shifts down when the anchor line wraps onto a second line. */
+    private int contentTop() {
+        var f = font != null ? font : Minecraft.getInstance().font;
+        int rows = Math.max(1, f.split(Component.literal(DevUi.str("scene_view.anchor", anchorName())), PANEL - 16).size());
+        return CONTENT_TOP + (rows - 1) * 10;
     }
 
     // --- the scene's JSON
@@ -229,15 +278,20 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         return camera(shot);
     }
 
-    private static Vec3 read(@Nullable JsonElement element, Vec3 otherwise) {
+    private static @Nullable Vec3 readOrNull(@Nullable JsonElement element) {
         if (element instanceof JsonArray array && array.size() == 3) {
             try {
                 return new Vec3(array.get(0).getAsDouble(), array.get(1).getAsDouble(), array.get(2).getAsDouble());
             } catch (RuntimeException e) {
-                return otherwise;
+                return null;
             }
         }
-        return otherwise;
+        return null;
+    }
+
+    private static Vec3 read(@Nullable JsonElement element, Vec3 otherwise) {
+        Vec3 parsed = readOrNull(element);
+        return parsed != null ? parsed : otherwise;
     }
 
     private static JsonArray vec(Vec3 vec) {
@@ -256,9 +310,105 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         return read(camera(index).get("from"), Vec3.ZERO);
     }
 
+    private List<Vec3> localVia(int index) {
+        if (!(camera(index).get("via") instanceof JsonArray array) || array.isEmpty()) {
+            return List.of();
+        }
+        List<Vec3> points = new java.util.ArrayList<>(array.size());
+        for (JsonElement element : array) {
+            Vec3 point = readOrNull(element);
+            if (point != null) {
+                points.add(point);
+            }
+        }
+        return points;
+    }
+
+    private void writeVia(List<Vec3> points) {
+        if (points.isEmpty()) {
+            camera().remove("via");
+            return;
+        }
+        JsonArray array = new JsonArray();
+        for (Vec3 point : points) {
+            array.add(vec(point));
+        }
+        camera().add("via", array);
+    }
+
     private Vec3 localTo(int index) {
         JsonObject camera = camera(index);
         return camera.has("to") ? read(camera.get("to"), localFrom(index)) : localFrom(index);
+    }
+
+    /** All camera control points in anchor-local coordinates: From, Via..., To. */
+    private List<Vec3> controlPointsLocal(int index) {
+        List<Vec3> via = localVia(index);
+        List<Vec3> all = new java.util.ArrayList<>(via.size() + 2);
+        all.add(localFrom(index));
+        all.addAll(via);
+        all.add(localTo(index));
+        return all;
+    }
+
+    private void setControlPointLocal(int pointIndex, Vec3 value) {
+        List<Vec3> via = new java.util.ArrayList<>(localVia(shot));
+        if (pointIndex == 0) {
+            camera().add("from", vec(value));
+        } else if (pointIndex == via.size() + 1) {
+            camera().add("to", vec(value));
+        } else if (pointIndex >= 1 && pointIndex <= via.size()) {
+            via.set(pointIndex - 1, value);
+            writeVia(via);
+        }
+    }
+
+    private ScenePath shotPath(int index) {
+        Vec3 start = world(index, localFrom(index));
+        Vec3 end = world(index, localTo(index));
+        List<Vec3> localVia = localVia(index);
+        if (localVia.isEmpty()) {
+            return ScenePath.of(start, List.of(), end);
+        }
+        List<Vec3> worldVia = new java.util.ArrayList<>(localVia.size());
+        for (Vec3 point : localVia) {
+            worldVia.add(world(index, point));
+        }
+        return ScenePath.of(start, worldVia, end);
+    }
+
+    private float shotFov(int index) {
+        JsonElement raw = camera(index).get("fov");
+        if (raw instanceof JsonPrimitive num && num.isNumber()) {
+            try {
+                return Mth.clamp((float) num.getAsDouble(), SceneDefinition.Camera.MIN_FOV, SceneDefinition.Camera.MAX_FOV);
+            } catch (RuntimeException ignored) {
+            }
+        }
+        return 0f;
+    }
+
+    /** Normalized shot time t in [0, 1] at which the camera passes through control point {@code controlIndex}. */
+    private double timeForControlPoint(int index, int controlIndex) {
+        double targetU = shotPath(index).parameterOfControl(controlIndex);
+        if (targetU <= 0.0) {
+            return 0.0;
+        }
+        if (targetU >= 1.0) {
+            return 1.0;
+        }
+        SceneDefinition.Ease ease = ease(index);
+        double lo = 0.0;
+        double hi = 1.0;
+        for (int i = 0; i < 16; i++) {
+            double mid = (lo + hi) * 0.5;
+            if (ease.apply(mid) < targetU) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        return (lo + hi) * 0.5;
     }
 
     private SceneDefinition.Ease ease(int index) {
@@ -293,7 +443,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         try {
             if (camera.has("speed")) {
                 double speed = Math.max(0.05, camera.get("speed").getAsDouble());
-                return Math.max(0.05, Math.min(120, world(index, localFrom(index)).distanceTo(world(index, localTo(index))) / speed));
+                return Math.max(0.05, Math.min(120, shotPath(index).length() / speed));
             }
             return Math.max(0.05, Math.min(120, camera.get("duration").getAsDouble()));
         } catch (RuntimeException e) {
@@ -400,16 +550,19 @@ public final class ScenePreview extends Screen implements Catalog.Host {
 
     /** The shot's camera at {@code t} of its time. */
     private SceneCamera.Pose shotPose(int index, double t, float partialTick) {
-        Vec3 start = world(index, localFrom(index));
-        Vec3 end = world(index, localTo(index));
-        Vec3 pos = start.lerp(end, ease(index).apply(t));
+        ScenePath path = shotPath(index);
+        double gone = ease(index).apply(t);
+        Vec3 pos = path.pointAt(gone);
         Vec3 target = anchorTarget(index, partialTick);
         Vec3 look = switch (look(index)) {
-            case "path" -> end.subtract(start).lengthSqr() > 1.0e-6 ? pos.add(end.subtract(start)) : target;
+            case "path" -> {
+                Vec3 way = path.tangentAt(gone);
+                yield way.lengthSqr() > 1.0e-6 ? pos.add(way) : target;
+            }
             case "player" -> Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getEyePosition(partialTick) : target;
             default -> target;
         };
-        return SceneCamera.facing(pos, look);
+        return SceneCamera.facing(pos, look).withFov(shotFov(index));
     }
 
     /** The whole scene at its second: its shot, a glide from the last one when it eases in. */
@@ -450,12 +603,15 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private double sceneFade(double at) {
         double start = 0;
         for (int i = 0; i < shots().size(); i++) {
+            if (talk(i)) {
+                continue;
+            }
             if (transition(i).equals("fade")) {
                 double distance = Math.abs(at - start);
-                if (i == 0 && at < FADE) {
+                if (start == 0 && at < FADE) {
                     return 1 - at / FADE;
                 }
-                if (i > 0 && distance < FADE) {
+                if (start > 0 && distance < FADE) {
                     return 1 - distance / FADE;
                 }
             }
@@ -471,18 +627,27 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         lastFrame = now;
         if (playing) {
             if (view == View.SCENE) {
-                sceneTime += dt;
-                if (sceneTime >= sceneSeconds()) {
-                    sceneTime = sceneSeconds();
+                double total = sceneSeconds();
+                if (total <= 0) {
                     playing = false;
+                } else {
+                    sceneTime += dt;
+                    if (sceneTime >= total) {
+                        sceneTime = total;
+                        playing = false;
+                    }
                 }
             } else if (view == View.SHOT) {
-                time += dt / seconds(shot);
-                if (time >= 1) {
-                    time = 1;
+                double len = seconds(shot);
+                if (talk(shot) || len <= 0) {
                     playing = false;
+                } else {
+                    time += dt / len;
+                    if (time >= 1) {
+                        time = 1;
+                        playing = false;
+                    }
                 }
-                updateSlider();
             }
         }
         if (view == View.FREE) {
@@ -561,10 +726,12 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         viewPitch = facing.pitch();
     }
 
-    /** F: the free view turns to the selected point (or the anchor) and turns around it from now on. */
+    /** F: the free view turns to the hovered control point (or the anchor) and turns around it from now on. */
     private void focus() {
         goFree();
-        Vec3 target = hovered == 1 ? world(shot, localFrom(shot)) : hovered == 2 ? world(shot, localTo(shot)) : anchorTarget(shot, 0);
+        List<Vec3> controls = controlPointsLocal(shot);
+        Vec3 target = hoveredPoint >= 0 && hoveredPoint < controls.size()
+                ? world(shot, controls.get(hoveredPoint)) : anchorTarget(shot, 0);
         pivot = target;
         if (viewPos.distanceTo(target) < 1) {
             viewPos = target.subtract(direction(viewYaw, viewPitch).scale(5));
@@ -575,7 +742,6 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private void showShot(double at) {
         view = View.SHOT;
         time = Mth.clamp(at, 0, 1);
-        updateSlider();
     }
 
     // --- the panel
@@ -587,9 +753,10 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     @Override
     protected <T extends net.minecraft.client.gui.components.events.GuiEventListener & net.minecraft.client.gui.components.Renderable
             & net.minecraft.client.gui.narration.NarratableEntry> T addRenderableWidget(T widget) {
-        if (!catalog.isOpen() && widget instanceof net.minecraft.client.gui.components.AbstractWidget shown && shown.getY() >= 26
-                && shown.getY() < height - 30) {
-            shown.visible = shown.getY() >= CONTENT_TOP - 2 && shown.getY() + shown.getHeight() <= contentBottom();
+        if (!catalog.isOpen() && buildingScrollArea && widget instanceof net.minecraft.client.gui.components.AbstractWidget shown) {
+            int top = contentTop();
+            int bottom = contentBottom();
+            shown.visible = shown.getY() >= top && shown.getY() + shown.getHeight() <= bottom;
         }
         if (widget instanceof Button button && !(widget instanceof DevButton)) {
             super.addRenderableWidget(new DevButton(button));
@@ -618,6 +785,15 @@ public final class ScenePreview extends Screen implements Catalog.Host {
 
     private void build() {
         clearWidgets();
+        freeButton = null;
+        fovSlider = null;
+        fovResetButton = null;
+        buildingScrollArea = false;
+        java.util.Arrays.fill(pointBoxes, null);
+        java.util.Arrays.fill(pointSliders, null);
+        java.util.Arrays.fill(fadeBoxes, null);
+        pathAxesY = -1000;
+        fadeLabelY = -1000;
         if (catalog.isOpen()) {
             catalog.addWidgets(this);
             return;
@@ -633,110 +809,130 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         addRenderableWidget(small("+", "scene_view.add", tools + 42, this::addShot));
         addRenderableWidget(small("📋", "scene_view.copy", tools + 63, this::copyShot));
         addRenderableWidget(small("✕", "scene_view.remove", tools + 84, this::removeShot)).active = count > 1;
+        int top = contentTop();
         if (talk(shot)) {
             // A talk: its dialogue is set in the form; here the scene around it plays.
-            int y = CONTENT_TOP + 24 - scroll;
-            addRenderableWidget(Button.builder(Component.literal("⏩ ").append(DevUi.text("scene_view.play_scene")), b -> playScene())
-                    .bounds(x, y, 200, 20).tooltip(Tooltip.create(DevUi.text("scene_view.play_scene_tooltip"))).build());
-            contentHeight = 48;
+            buildingScrollArea = true;
+            try {
+                int y = top + 24 - scroll;
+                addRenderableWidget(Button.builder(Component.literal("⏩ ").append(DevUi.text("scene_view.play_scene")), b -> playScene())
+                        .bounds(x, y, 200, 20).tooltip(Tooltip.create(DevUi.text("scene_view.play_scene_tooltip"))).build());
+                contentHeight = 48;
+            } finally {
+                buildingScrollArea = false;
+            }
             addRenderableWidget(Button.builder(DevUi.text("scene_view.save").copy().withColor(DevUi.ACCENT), b -> save())
                     .bounds(x, height - 28, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.save_tooltip"))).build());
             addRenderableWidget(Button.builder(DevUi.text("scene_view.close"), b -> close()).bounds(x + 102, height - 28, 98, 20).build());
             return;
         }
-        int y = CONTENT_TOP - scroll;
-        fromLabelY = y;
-        y = pointRows(x, y, true);
-        toLabelY = y;
-        y = pointRows(x, y, false);
-        addRenderableWidget(Button.builder(Component.literal("⇄"), b -> {
-            Vec3 start = localFrom(shot);
-            camera().add("from", vec(localTo(shot)));
-            camera().add("to", vec(start));
-            changed();
-            build();
-        }).bounds(x + 112, toLabelY - 1, 40, 14).tooltip(Tooltip.create(DevUi.text("scene_view.swap_tooltip"))).build());
-        y += 4;
-        addRenderableWidget(Button.builder(DevUi.text(bySpeed() ? "scene_view.by_speed" : "scene_view.by_time"), b -> {
-            JsonObject camera = camera();
-            double seconds = seconds(shot);
-            if (bySpeed()) {
-                camera.remove("speed");
-                camera.addProperty("duration", round(seconds));
-            } else {
-                double distance = world(shot, localFrom(shot)).distanceTo(world(shot, localTo(shot)));
-                camera.remove("duration");
-                camera.addProperty("speed", round(Math.max(0.05, distance / seconds)));
-            }
-            changed();
-            build();
-        }).bounds(x, y, 128, 20).tooltip(Tooltip.create(DevUi.text("scene_view.length_tooltip"))).build());
-        EditBox length = addRenderableWidget(new EditBox(font, x + 134, y, 66, 20, Component.empty()));
-        length.setValue(number(camera().get(bySpeed() ? "speed" : "duration")));
-        length.setTooltip(Tooltip.create(DevUi.text("scene_view.nudge_tooltip")));
-        length.setResponder(text -> {
-            if (filling) {
-                return;
-            }
-            double value = parse(text, -1);
-            if (value > 0) {
-                camera().addProperty(bySpeed() ? "speed" : "duration", Math.min(bySpeed() ? 200 : 120, value));
+        int y;
+        buildingScrollArea = true;
+        try {
+            y = top - scroll;
+            y = pathRows(x, y);
+            y += 2;
+            addRenderableWidget(Button.builder(DevUi.text(bySpeed() ? "scene_view.by_speed" : "scene_view.by_time"), b -> {
+                JsonObject camera = camera();
+                double seconds = seconds(shot);
+                if (bySpeed()) {
+                    camera.remove("speed");
+                    camera.addProperty("duration", round(Mth.clamp(seconds, 0.05, 120)));
+                } else {
+                    double distance = shotPath(shot).length();
+                    camera.remove("duration");
+                    camera.addProperty("speed", round(Mth.clamp(distance / seconds, 0.05, 200)));
+                }
                 changed();
-            }
-        });
-        y += ROW;
-        addRenderableWidget(Button.builder(DevUi.text("scene_view.ease_" + ease(shot).getSerializedName()), b -> {
-            SceneDefinition.Ease[] all = SceneDefinition.Ease.values();
-            camera().addProperty("ease", all[(ease(shot).ordinal() + 1) % all.length].getSerializedName());
-            changed();
+                build();
+            }).bounds(x, y, 128, 20).tooltip(Tooltip.create(DevUi.text("scene_view.length_tooltip"))).build());
+            EditBox length = addRenderableWidget(new EditBox(font, x + 134, y, 66, 20, Component.empty()));
+            length.setValue(number(camera().get(bySpeed() ? "speed" : "duration")));
+            length.setTooltip(Tooltip.create(DevUi.text("scene_view.nudge_tooltip")));
+            length.setResponder(text -> {
+                if (filling) {
+                    return;
+                }
+                double value = parse(text, -1);
+                if (value > 0) {
+                    camera().addProperty(bySpeed() ? "speed" : "duration", Mth.clamp(value, 0.05, bySpeed() ? 200 : 120));
+                    changed();
+                }
+            });
+            y += ROW;
+            addRenderableWidget(Button.builder(DevUi.text("scene_view.ease_" + ease(shot).getSerializedName()), b -> {
+                SceneDefinition.Ease[] all = SceneDefinition.Ease.values();
+                camera().addProperty("ease", all[(ease(shot).ordinal() + 1) % all.length].getSerializedName());
+                changed();
+                build();
+            }).bounds(x, y, 200, 20).tooltip(Tooltip.create(DevUi.text("scene_view.ease_tooltip"))).build());
+            y += ROW;
+            Button look = addRenderableWidget(Button.builder(DevUi.text("scene_view.look_" + look(shot)), b -> {
+                String next = switch (look(shot)) {
+                    case "anchor" -> "path";
+                    case "path" -> "player";
+                    default -> "anchor";
+                };
+                camera().addProperty("look", next);
+                changed();
+                build();
+            }).bounds(x, y, 200, 20).tooltip(Tooltip.create(DevUi.text("scene_view.look_tooltip"))).build());
+            look.active = !look(shot).equals("other");
+            y += ROW;
+            addRenderableWidget(Button.builder(DevUi.text("scene_view.transition_" + transition(shot)), b -> {
+                String next = switch (transition(shot)) {
+                    case "cut" -> "fade";
+                    case "fade" -> "ease";
+                    default -> "cut";
+                };
+                shotJson(shot).addProperty("transition", next);
+                changed();
+                build();
+            }).bounds(x, y, 200, 20).tooltip(Tooltip.create(DevUi.text("scene_view.transition_tooltip"))).build());
+            y += ROW;
+            fovSlider = addRenderableWidget(new FovSlider(x, y, 176, 20));
+            fovSlider.setTooltip(Tooltip.create(DevUi.text("scene_view.fov_tooltip")));
+            fovResetButton = addRenderableWidget(Button.builder(Component.literal("↺"), b -> {
+                camera().remove("fov");
+                changed();
+                build();
+            }).bounds(x + 180, y, 20, 20).tooltip(Tooltip.create(DevUi.text("scene_view.fov_reset"))).build());
+            fovResetButton.active = camera().has("fov");
+            y += ROW + 6;
+            addRenderableWidget(Button.builder(Component.literal("▶ ").append(DevUi.text("scene_view.play")), b -> playShot())
+                    .bounds(x, y, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.play_tooltip"))).build());
+            addRenderableWidget(Button.builder(Component.literal("⏩ ").append(DevUi.text("scene_view.play_scene")), b -> playScene())
+                    .bounds(x + 102, y, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.play_scene_tooltip"))).build());
+            y += ROW;
+            freeButton = addRenderableWidget(Button.builder(freeLabel(), b -> {
+                if (view == View.FREE) {
+                    showShot(time);
+                } else {
+                    goFree();
+                }
+            }).bounds(x, y, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.free_tooltip"))).build());
+            addRenderableWidget(Button.builder(DevUi.text(grid ? "scene_view.grid_on" : "scene_view.grid_off"), b -> {
+                grid = !grid;
+                build();
+            }).bounds(x + 102, y, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.grid_tooltip"))).build());
+            y += ROW + 8;
+            y = cueEditor(x, y);
+        } finally {
+            buildingScrollArea = false;
+        }
+        contentHeight = y + scroll - top;
+        int maxScroll = Math.max(0, contentHeight - (contentBottom() - top));
+        if (scroll > maxScroll) {
+            scroll = maxScroll;
+            revealCue = false;
             build();
-        }).bounds(x, y, 200, 20).tooltip(Tooltip.create(DevUi.text("scene_view.ease_tooltip"))).build());
-        y += ROW;
-        Button look = addRenderableWidget(Button.builder(DevUi.text("scene_view.look_" + look(shot)), b -> {
-            String next = switch (look(shot)) {
-                case "anchor" -> "path";
-                case "path" -> "player";
-                default -> "anchor";
-            };
-            camera().addProperty("look", next);
-            changed();
-            build();
-        }).bounds(x, y, 200, 20).tooltip(Tooltip.create(DevUi.text("scene_view.look_tooltip"))).build());
-        look.active = !look(shot).equals("other");
-        y += ROW;
-        addRenderableWidget(Button.builder(DevUi.text("scene_view.transition_" + transition(shot)), b -> {
-            String next = switch (transition(shot)) {
-                case "cut" -> "fade";
-                case "fade" -> "ease";
-                default -> "cut";
-            };
-            shotJson(shot).addProperty("transition", next);
-            changed();
-            build();
-        }).bounds(x, y, 200, 20).tooltip(Tooltip.create(DevUi.text("scene_view.transition_tooltip"))).build());
-        y += ROW + 6;
-        slider = addRenderableWidget(new TimeSlider(x, y, 200, 20, time));
-        y += ROW;
-        addRenderableWidget(Button.builder(Component.literal("⏵ ").append(DevUi.text("scene_view.play")), b -> playShot())
-                .bounds(x, y, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.play_tooltip"))).build());
-        addRenderableWidget(Button.builder(Component.literal("⏩ ").append(DevUi.text("scene_view.play_scene")), b -> playScene())
-                .bounds(x + 102, y, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.play_scene_tooltip"))).build());
-        y += ROW;
-        addRenderableWidget(Button.builder(DevUi.text("scene_view.free"), b -> goFree())
-                .bounds(x, y, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.free_tooltip"))).build());
-        addRenderableWidget(Button.builder(DevUi.text(grid ? "scene_view.grid_on" : "scene_view.grid_off"), b -> {
-            grid = !grid;
-            build();
-        }).bounds(x + 102, y, 98, 20).tooltip(Tooltip.create(DevUi.text("scene_view.grid_tooltip"))).build());
-        y += ROW + 8;
-        y = cueEditor(x, y);
-        contentHeight = y + scroll - CONTENT_TOP;
+            return;
+        }
         if (revealCue) {
             // A thing just added or picked: the panel scrolls to its fields when they are out of sight.
             revealCue = false;
-            int most = Math.max(0, contentHeight - (contentBottom() - CONTENT_TOP));
-            int wanted = Mth.clamp(scroll + Math.max(0, y - contentBottom()), 0, most);
-            wanted = Math.min(wanted, Math.max(0, scroll + cueLabelY - CONTENT_TOP));
+            int wanted = Mth.clamp(scroll + Math.max(0, y - contentBottom()), 0, maxScroll);
+            wanted = Math.min(wanted, Math.max(0, scroll + cueLabelY - top));
             if (wanted != scroll) {
                 scroll = wanted;
                 build();
@@ -751,6 +947,12 @@ public final class ScenePreview extends Screen implements Catalog.Host {
 
     private Button small(String label, String tooltip, int x, Runnable press) {
         return Button.builder(Component.literal(label), b -> press.run()).bounds(x, 6, 20, 18).tooltip(Tooltip.create(DevUi.text(tooltip))).build();
+    }
+
+    private Component freeLabel() {
+        return view == View.FREE
+                ? DevUi.text("scene_view.free").copy().withColor(DevUi.ACCENT)
+                : DevUi.text("scene_view.shot_view");
     }
 
     // --- what happens in the shot
@@ -790,23 +992,150 @@ public final class ScenePreview extends Screen implements Catalog.Host {
      */
     private static final List<String> VIEW_CUE_KINDS = FormScenes.CUE_KINDS.stream().filter(kind -> !kind.equals("actions")).toList();
 
-    /** A new line at that second of a flight shot, picked to be written; the panel scrolls to it. */
+    /** Preferred order when adding a new thing at a moment that already has others. */
+    private static final List<String> ADD_CUE_ORDER = List.of("line", "sound", "music", "title", "caption", "fade");
+
+    /** Indices in {@code during(shotIndex)} that sit at {@code at} (within 0.08s). */
+    private List<Integer> cuesAtSecond(int shotIndex, double at) {
+        List<Integer> indices = new java.util.ArrayList<>();
+        JsonArray during = during(shotIndex);
+        for (int i = 0; i < during.size(); i++) {
+            if (during.get(i) instanceof JsonObject cue && Math.abs(cueAt(cue) - at) < 0.08) {
+                indices.add(i);
+            }
+        }
+        return indices;
+    }
+
+    /** Kinds already used at {@code at} in {@code shotIndex}, ignoring {@code ignoreCue}. */
+    private java.util.Set<String> cueKindsAtSecond(int shotIndex, double at, int ignoreCue) {
+        java.util.Set<String> kinds = new java.util.HashSet<>();
+        JsonArray during = during(shotIndex);
+        for (int i = 0; i < during.size(); i++) {
+            if (i != ignoreCue && during.get(i) instanceof JsonObject cue && Math.abs(cueAt(cue) - at) < 0.08) {
+                kinds.add(cueKind(cue));
+            }
+        }
+        return kinds;
+    }
+
+    /** Adds a thing at the exact moment the editor's playhead shows right now. */
+    private void addCueAtPlayhead() {
+        int targetShot = shot;
+        double targetSeconds = time * seconds(shot);
+        if (view == View.SCENE) {
+            double left = sceneTime;
+            for (int i = 0; i < shots().size(); i++) {
+                double length = seconds(i);
+                if (!talk(i) && (left <= length || i == lastFlightIndex())) {
+                    targetShot = i;
+                    targetSeconds = Mth.clamp(left, 0, length);
+                    break;
+                }
+                left -= length;
+            }
+        }
+        if (!talk(targetShot)) {
+            addCue(targetShot, targetSeconds);
+        }
+    }
+
+    /**
+     * Adds a thing at that exact second of a flight shot, choosing the first kind not yet used at that moment so
+     * several different things (e.g. chapter title + music + sound) can share one second without duplicating the same
+     * kind.
+     */
     private void addCue(int index, double seconds) {
-        JsonObject cue = new JsonObject();
-        cue.addProperty("at", Math.round(seconds * 10) / 10.0);
-        cue.add("line", freshCue("line"));
+        double duration = Math.max(0.05, seconds(index));
+        double at = Mth.clamp(Math.round(seconds * 10) / 10.0, 0, duration);
+        java.util.Set<String> used = cueKindsAtSecond(index, at, -1);
+        String nextKind = ADD_CUE_ORDER.stream().filter(k -> !used.contains(k)).findFirst().orElse(null);
+        if (nextKind == null) {
+            List<Integer> existing = cuesAtSecond(index, at);
+            if (!existing.isEmpty()) {
+                pickShot(index);
+                int pos = existing.indexOf(selectedCue);
+                selectedCue = existing.get((pos + 1) % existing.size());
+                revealCue = true;
+                cueAddedAt = net.minecraft.Util.getMillis();
+                build();
+                showShot(duration <= 0 ? 0 : at / duration);
+            }
+            return;
+        }
         JsonArray during = during(index);
+        JsonObject cue = new JsonObject();
+        cue.addProperty("at", at);
+        cue.add(nextKind, freshCue(nextKind, at));
         during.add(cue);
         pickShot(index);
         selectedCue = during.size() - 1;
         revealCue = true;
+        cueAddedAt = net.minecraft.Util.getMillis();
         changed();
         build();
-        showShot(seconds(index) <= 0 ? 0 : seconds / seconds(index));
+        showShot(duration <= 0 ? 0 : at / duration);
     }
 
-    /** A fresh thing of that kind: its text empty, a fade of half a second each way, no actions. */
-    private static JsonElement freshCue(String kind) {
+    /** How many seconds a thing stays shown on screen from its start, for scrubbing and previewing. */
+    private double cueDuration(JsonObject cue) {
+        String kind = cueKind(cue);
+        return switch (kind) {
+            case "title" -> 5.5;
+            case "line", "caption" -> {
+                JsonObject inner = cue.get(kind) instanceof JsonObject obj ? obj : null;
+                if (inner != null && inner.get("duration") instanceof JsonPrimitive num && num.isNumber()) {
+                    try {
+                        yield Math.max(0.5, num.getAsDouble());
+                    } catch (RuntimeException ignored) {
+                    }
+                }
+                String text = inner != null ? ClientDevStore.readStoryText(inner, "text", "", ClientDevStore.activeLanguage()) : "";
+                yield Math.max(2.5, text.length() * 0.06);
+            }
+            case "fade" -> {
+                JsonObject inner = cue.get("fade") instanceof JsonObject obj ? obj : null;
+                double in = inner != null ? Math.max(0, parse(number(inner.get("in")), 0.5)) : 0.5;
+                double stay = inner != null ? Math.max(0, parse(number(inner.get("stay")), 1.0)) : 1.0;
+                double out = inner != null ? Math.max(0, parse(number(inner.get("out")), 0.5)) : 0.5;
+                yield Math.max(0.05, in + stay + out);
+            }
+            default -> 1.0;
+        };
+    }
+
+    /**
+     * The thing of the shot right at this moment on the time line (within 0.12s of its mark); -1 when the playhead is
+     * not on any mark, so scrubbing away from a thing deselects it.
+     */
+    private int cueAtMoment(int index, double atSeconds) {
+        if (talk(index)) {
+            return -1;
+        }
+        JsonArray during = during(index);
+        if (index == shot && selectedCue >= 0 && selectedCue < during.size()
+                && during.get(selectedCue) instanceof JsonObject current && Math.abs(cueAt(current) - atSeconds) <= 0.12) {
+            return selectedCue;
+        }
+        int nearest = -1;
+        double bestNear = 0.12;
+        for (int i = 0; i < during.size(); i++) {
+            if (during.get(i) instanceof JsonObject cue) {
+                double distance = Math.abs(cueAt(cue) - atSeconds);
+                if (distance <= bestNear) {
+                    bestNear = distance;
+                    nearest = i;
+                }
+            }
+        }
+        return nearest;
+    }
+
+    /**
+     * A fresh thing of that kind: its text empty, no actions; a fade placed at the very start of a shot (at <= 0.05s)
+     * begins already black (in = 0) so the shot opens out of darkness instead of flashing bright first.
+     */
+    static JsonElement freshCue(String kind, double at) {
         return switch (kind) {
             case "music" -> new JsonPrimitive("");
             case "actions" -> new JsonArray();
@@ -817,7 +1146,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             }
             case "fade" -> {
                 JsonObject fade = new JsonObject();
-                fade.addProperty("in", 0.5);
+                fade.addProperty("in", at <= 0.05 ? 0 : 0.5);
                 fade.addProperty("stay", 1);
                 fade.addProperty("out", 0.5);
                 yield fade;
@@ -837,23 +1166,62 @@ public final class ScenePreview extends Screen implements Catalog.Host {
      */
     private int cueEditor(int x, int y) {
         cueLabelY = y;
+        addRenderableWidget(Button.builder(Component.literal("+"), b -> addCueAtPlayhead())
+                .bounds(x + 160, y, 40, 14).tooltip(Tooltip.create(DevUi.text("scene_view.cue_add_tooltip"))).build());
         y += 16;
         JsonObject cue = selectedCue();
         if (cue == null) {
-            return y + 24;
+            addRenderableWidget(Button.builder(DevUi.text("scene_view.cue_add"), b -> addCueAtPlayhead())
+                    .bounds(x, y, 200, 18).tooltip(Tooltip.create(DevUi.text("scene_view.cue_add_tooltip"))).build());
+            return y + 46;
+        }
+        List<Integer> siblings = cuesAtSecond(shot, cueAt(cue));
+        if (siblings.size() > 1) {
+            int cols = Math.min(3, siblings.size());
+            int gap = 4;
+            int tabW = (200 - (cols - 1) * gap) / cols;
+            for (int n = 0; n < siblings.size(); n++) {
+                int cueIndex = siblings.get(n);
+                String sibKind = cueKind(during(shot).get(cueIndex).getAsJsonObject());
+                boolean current = cueIndex == selectedCue;
+                int col = n % cols;
+                int row = n / cols;
+                Component tabLabel = Component.literal((current ? "• " : "") + DevUi.str("scene.cue." + sibKind))
+                        .withColor(current ? DevUi.ACCENT : cueColor(sibKind));
+                addRenderableWidget(Button.builder(tabLabel, b -> {
+                    selectedCue = cueIndex;
+                    build();
+                }).bounds(x + col * (tabW + gap), y + row * 18, col == cols - 1 ? 200 - col * (tabW + gap) : tabW, 16)
+                        .tooltip(Tooltip.create(DevUi.text("scene.cue." + sibKind))).build());
+            }
+            y += ((siblings.size() + cols - 1) / cols) * 18 + 2;
         }
         String kind = cueKind(cue);
         addRenderableWidget(Button.builder(DevUi.text("scene.cue." + kind), b -> {
-            int at = VIEW_CUE_KINDS.indexOf(kind);
-            String next = VIEW_CUE_KINDS.get((at + 1) % VIEW_CUE_KINDS.size());
-            cue.remove(kind);
-            cue.add(next, freshCue(next));
-            changed();
-            build();
+            java.util.Set<String> usedByOthers = cueKindsAtSecond(shot, cueAt(cue), selectedCue);
+            int startIdx = Math.max(0, VIEW_CUE_KINDS.indexOf(kind));
+            String next = kind;
+            for (int step = 1; step <= VIEW_CUE_KINDS.size(); step++) {
+                String candidate = VIEW_CUE_KINDS.get((startIdx + step) % VIEW_CUE_KINDS.size());
+                if (!usedByOthers.contains(candidate)) {
+                    next = candidate;
+                    break;
+                }
+            }
+            if (!next.equals(kind)) {
+                DevSoundPreview.stop();
+                cue.remove(kind);
+                cue.add(next, freshCue(next, cueAt(cue)));
+                changed();
+                build();
+            }
         }).bounds(x, y, 156, 18).tooltip(Tooltip.create(DevUi.text("scene.cue.tooltip"))).build());
         addRenderableWidget(Button.builder(Component.literal("✕"), b -> {
+            DevSoundPreview.stop();
+            double removedAt = cueAt(cue);
             during(shot).remove(selectedCue);
-            selectedCue = -1;
+            List<Integer> remaining = cuesAtSecond(shot, removedAt);
+            selectedCue = remaining.isEmpty() ? -1 : remaining.getFirst();
             changed();
             build();
         }).bounds(x + 160, y, 40, 18).tooltip(Tooltip.create(DevUi.text("scene_view.cue_remove"))).build());
@@ -868,6 +1236,15 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     y = textBox(x, y, inner, "subtitle", "scene_view.cue_subtitle", kind + ".subtitle", language);
                 } else if (kind.equals("line")) {
                     y = textBox(x, y, inner, "speaker", "scene_view.cue_speaker", kind + ".speaker", language);
+                    y = soundBox(x, y, false, "scene_view.cue_voiceover",
+                            () -> inner.get("sound") instanceof JsonPrimitive s ? s.getAsString() : "",
+                            value -> {
+                                if (value.isEmpty()) {
+                                    inner.remove("sound");
+                                } else {
+                                    inner.addProperty("sound", value);
+                                }
+                            });
                 } else {
                     String position = inner.get("position") instanceof JsonPrimitive written ? written.getAsString() : "bottom_left";
                     boolean black = inner.get("black") instanceof JsonPrimitive written && written.getAsBoolean();
@@ -892,11 +1269,64 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             case "sound" -> {
                 JsonObject inner = cue.get("sound") instanceof JsonObject object ? object : new JsonObject();
                 cue.add("sound", inner);
-                y = soundBox(x, y, false, () -> inner.get("sound") instanceof JsonPrimitive id ? id.getAsString() : "", value -> inner.addProperty("sound", value));
+                y = soundBox(x, y, false, "scene_view.cue_sound", () -> inner.get("sound") instanceof JsonPrimitive id ? id.getAsString() : "", value -> inner.addProperty("sound", value));
             }
-            case "music" -> y = soundBox(x, y, true, () -> cue.get("music") instanceof JsonPrimitive id ? id.getAsString() : "", value -> cue.addProperty("music", value));
+            case "music" -> y = soundBox(x, y, true, "scene_view.cue_music", () -> cue.get("music") instanceof JsonPrimitive id ? id.getAsString() : "", value -> cue.addProperty("music", value));
+            case "fade" -> {
+                JsonObject inner = cue.get("fade") instanceof JsonObject object ? object : new JsonObject();
+                cue.add("fade", inner);
+                double in = Math.max(0, parse(number(inner.get("in")), 0.5));
+                double stay = Math.max(0, parse(number(inner.get("stay")), 1.0));
+                double out = Math.max(0, parse(number(inner.get("out")), 0.5));
+                String style = in <= 0.001 ? "from_black" : out <= 0.001 ? "to_black" : "dip";
+                addRenderableWidget(Button.builder(DevUi.text("scene_view.fade_style_" + style), b -> {
+                    switch (style) {
+                        case "from_black" -> {
+                            inner.addProperty("in", 0.5);
+                            inner.addProperty("out", out > 0.001 ? round(out) : 0.5);
+                        }
+                        case "dip" -> {
+                            inner.addProperty("in", in > 0.001 ? round(in) : 0.5);
+                            inner.addProperty("out", 0);
+                        }
+                        default -> {
+                            inner.addProperty("in", 0);
+                            inner.addProperty("out", 0.5);
+                        }
+                    }
+                    changed();
+                    build();
+                }).bounds(x, y, 200, 18).tooltip(Tooltip.create(DevUi.text("scene_view.fade_style_tooltip"))).build());
+                y += 22;
+                fadeLabelY = y;
+                y += 10;
+                String[] fields = {"in", "stay", "out"};
+                double[] vals = {in, stay, out};
+                double[] maxes = {ScreenFade.MAX_EDGE, ScreenFade.MAX_STAY, ScreenFade.MAX_EDGE};
+                for (int i = 0; i < 3; i++) {
+                    String field = fields[i];
+                    double max = maxes[i];
+                    EditBox box = addRenderableWidget(new EditBox(font, x + i * 68, y, 64, 16, Component.empty()));
+                    filling = true;
+                    box.setValue(String.format(Locale.ROOT, "%.1f", vals[i]));
+                    filling = false;
+                    box.setTooltip(Tooltip.create(DevUi.text("scene_view.nudge_tooltip")));
+                    box.setResponder(text -> {
+                        if (filling) {
+                            return;
+                        }
+                        double parsed = parse(text, -1);
+                        if (parsed >= 0) {
+                            inner.addProperty(field, round(Mth.clamp(parsed, 0, max)));
+                            changed();
+                        }
+                    });
+                    fadeBoxes[i] = box;
+                }
+                y += 20;
+            }
             default -> {
-                // A fade and actions are set in the form, where their fields are.
+                // Actions are set in the form, where their fields are.
                 y += 2;
             }
         }
@@ -941,10 +1371,10 @@ public final class ScenePreview extends Screen implements Catalog.Host {
      * A sound or a track as the form picks one: its id to type, "…" for the editor's list (the story's sounds, then the
      * game's and other mods'; for a track only the music) and a button that plays it.
      */
-    private int soundBox(int x, int y, boolean music, java.util.function.Supplier<String> read, java.util.function.Consumer<String> write) {
+    private int soundBox(int x, int y, boolean music, String hint, java.util.function.Supplier<String> read, java.util.function.Consumer<String> write) {
         EditBox box = addRenderableWidget(new EditBox(font, x, y, 156, 18, Component.empty()));
         box.setMaxLength(256);
-        box.setHint(DevUi.text(music ? "scene_view.cue_music" : "scene_view.cue_sound").copy().withColor(DevUi.HINT));
+        box.setHint(DevUi.text(hint).copy().withColor(DevUi.HINT));
         filling = true;
         box.setValue(read.get());
         filling = false;
@@ -955,22 +1385,19 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             }
         });
         Component pick = DevUi.text(music ? "music.pick" : "sound.pick");
-        addRenderableWidget(Button.builder(Component.literal("…"), b -> catalog.open(pick, music ? Catalog.Kind.MUSIC : Catalog.Kind.SOUND,
-                box.getValue(), (kind, entry) -> {
-            if (entry.id().startsWith(Catalog.PROBLEM)) {
-                status(DevUi.text("sound.problem." + entry.id().substring(Catalog.PROBLEM.length())), DevUi.BAD);
-                return;
-            }
-            write.accept(entry.id().equals(Catalog.CLEAR) ? "" : entry.id());
-            changed();
-        })).tooltip(Tooltip.create(pick)).bounds(x + 160, y, 18, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("⏵"), b -> {
-            ResourceLocation sound = ResourceLocation.tryParse(box.getValue().trim());
-            if (sound != null && !sound.getPath().isEmpty()) {
-                Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
-                        net.minecraft.sounds.SoundEvent.createVariableRangeEvent(sound), 1f));
-            }
-        }).tooltip(Tooltip.create(DevUi.text("sound.play"))).bounds(x + 182, y, 18, 18).build());
+        addRenderableWidget(Button.builder(Component.literal("…"), b -> {
+            catalog.open(pick, music ? Catalog.Kind.MUSIC : Catalog.Kind.SOUND,
+                    box.getValue(), (kind, entry) -> {
+                if (entry.id().startsWith(Catalog.PROBLEM)) {
+                    status(DevUi.text("sound.problem." + entry.id().substring(Catalog.PROBLEM.length())), DevUi.BAD);
+                    return;
+                }
+                write.accept(entry.id().equals(Catalog.CLEAR) ? "" : entry.id());
+                changed();
+            });
+            build();
+        }).tooltip(Tooltip.create(pick)).bounds(x + 160, y, 18, 18).build());
+        addRenderableWidget(DevSoundPreview.button(box::getValue, x + 182, y, 18, 18));
         return y + 22;
     }
 
@@ -1074,27 +1501,58 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         };
     }
 
-    /** The cue under the cursor on the time line, as {shot, index}, or null. */
-    private int @Nullable [] cueAtX(double mouseX, double mouseY) {
-        if (mouseY < lineTop() || mouseY > lineTop() + LINE_H) {
-            return null;
-        }
+    /** Cues at one second of a shot grouped together for drawing and clicking on the time line. */
+    private record CueGroup(int shotIndex, double at, int x, List<Integer> indices) {}
+
+    private List<CueGroup> cueGroups() {
+        List<CueGroup> groups = new java.util.ArrayList<>();
         for (int i = 0; i < shots().size(); i++) {
             if (talk(i)) {
                 continue;
             }
             JsonArray during = during(i);
+            boolean[] grouped = new boolean[during.size()];
             for (int j = 0; j < during.size(); j++) {
-                if (during.get(j) instanceof JsonObject cue && Math.abs(lineX(i, cueAt(cue)) - mouseX) <= 3) {
-                    return new int[]{i, j};
+                if (grouped[j] || !(during.get(j) instanceof JsonObject first)) {
+                    continue;
                 }
+                double at = cueAt(first);
+                List<Integer> members = new java.util.ArrayList<>();
+                for (int k = j; k < during.size(); k++) {
+                    if (!grouped[k] && during.get(k) instanceof JsonObject other && Math.abs(cueAt(other) - at) < 0.08) {
+                        grouped[k] = true;
+                        members.add(k);
+                    }
+                }
+                groups.add(new CueGroup(i, at, (int) Math.round(lineX(i, at)), members));
             }
         }
-        return null;
+        return groups;
     }
 
-    /** The scene on one line at the bottom: a block a shot (a talk with the chat icon), its things as marks, where the view is. */
-    private void drawTimeLine(GuiGraphics graphics) {
+    /** The cue group under the cursor on the time line, or null. */
+    private @Nullable CueGroup cueGroupAtX(double mouseX, double mouseY) {
+        if (mouseY < lineTop() - 5 || mouseY > lineTop() + LINE_H) {
+            return null;
+        }
+        CueGroup best = null;
+        double bestDist = 5;
+        for (CueGroup group : cueGroups()) {
+            double dist = Math.abs(group.x() - mouseX);
+            if (dist <= bestDist) {
+                bestDist = dist;
+                best = group;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * The scene on one line at the bottom: a block a shot (a talk with the chat icon), total seconds at its right edge,
+     * its things as marks (stacked when several share one second), and a playhead bar with the time it stands on beside
+     * it. Returns true when a thing's badge is drawn above the time line.
+     */
+    private boolean drawTimeLine(GuiGraphics graphics, int mouseX, int mouseY) {
         int top = lineTop();
         graphics.fill(lineLeft() - 2, top - 2, lineRight() + 2, top + LINE_H + 2, 0xE01A140F);
         DevUi.frame(graphics, lineLeft() - 2, top - 2, lineRight() - lineLeft() + 4, LINE_H + 4, DevUi.CARD_EDGE);
@@ -1111,26 +1569,128 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             } else if (x1 - x0 > font.width(String.valueOf(i + 1)) + 4) {
                 graphics.drawString(font, String.valueOf(i + 1), x0 + 3, top + LINE_H - 10, labelColor, false);
             }
-            if (talk(i)) {
-                continue;
+        }
+        String endLabel = formatSeconds(sceneSeconds());
+        int endW = font.width(endLabel);
+        int textY = top + (LINE_H - 8) / 2;
+        if (lineRight() - lineLeft() > endW + 24) {
+            graphics.drawString(font, endLabel, lineRight() - endW - 4, textY, DevUi.MUTED, false);
+        }
+        CueGroup hoveredGroup = cueGroupAtX(mouseX, mouseY);
+        CueGroup badgeGroup = null;
+        boolean badgeFromAdd = false;
+        for (CueGroup group : cueGroups()) {
+            int mx = group.x();
+            int count = group.indices().size();
+            boolean picked = group.shotIndex() == shot && group.indices().contains(selectedCue);
+            boolean hover = hoveredGroup != null && hoveredGroup.shotIndex() == group.shotIndex()
+                    && Math.abs(hoveredGroup.at() - group.at()) < 0.08;
+            JsonArray during = during(group.shotIndex());
+            int halfW = count > 1 ? 3 : 2;
+            int barH = 12;
+            for (int s = 0; s < count; s++) {
+                JsonObject member = during.get(group.indices().get(s)).getAsJsonObject();
+                int y0 = top + 2 + s * barH / count;
+                int y1 = top + 2 + (s + 1) * barH / count;
+                graphics.fill(mx - halfW, y0, mx + halfW, Math.max(y0 + 1, y1), cueColor(cueKind(member)));
             }
-            JsonArray during = during(i);
-            for (int j = 0; j < during.size(); j++) {
-                if (during.get(j) instanceof JsonObject cue) {
-                    int mx = (int) Math.round(lineX(i, cueAt(cue)));
-                    boolean picked = i == shot && j == selectedCue;
-                    graphics.fill(mx - 1, top + 2, mx + 2, top + 11, cueColor(cueKind(cue)));
-                    if (picked) {
-                        DevUi.frame(graphics, mx - 2, top + 1, 5, 11, 0xFFFFFFFF);
-                    }
-                }
+            DevUi.frame(graphics, mx - halfW - 1, top + 1, halfW * 2 + 2, barH + 2, picked || hover ? 0xFFFFFFFF : 0xB0000000);
+            if (count > 1) {
+                graphics.drawString(font, "×" + count, mx + halfW + 2, top + 6, picked || hover ? DevUi.ACCENT : DevUi.TEXT, true);
+            }
+            if (picked || hover) {
+                int topCueIdx = picked ? selectedCue : group.indices().getFirst();
+                int capCol = cueColor(cueKind(during.get(topCueIdx).getAsJsonObject()));
+                graphics.fill(mx - halfW - 1, top - 4, mx + halfW + 1, top, capCol);
+                DevUi.frame(graphics, mx - halfW - 2, top - 5, halfW * 2 + 4, 6, 0xFFFFFFFF);
+            }
+            if (hover || (picked && badgeGroup == null)) {
+                badgeGroup = group;
+                badgeFromAdd = picked;
             }
         }
         double head = playhead();
         if (head >= 0) {
             int hx = (int) Math.round(head);
-            graphics.fill(hx, top - 3, hx + 1, top + LINE_H + 3, DevUi.ACCENT);
+            graphics.fill(hx - 1, top - 3, hx + 1, top + LINE_H + 3, DevUi.ACCENT);
+            double nowSec = view == View.SCENE ? sceneTime : time * seconds(shot);
+            String nowLabel = formatSeconds(nowSec);
+            int nowW = font.width(nowLabel);
+            int rightLimit = lineRight() - endW - 10;
+            int nowX = hx + 4 + nowW <= rightLimit ? hx + 4 : Math.max(lineLeft() + 2, hx - 4 - nowW);
+            graphics.fill(nowX - 2, textY - 2, nowX + nowW + 2, textY + 9, 0xC81A140F);
+            graphics.drawString(font, nowLabel, nowX, textY, DevUi.ACCENT, false);
         }
+        boolean showingBadge = false;
+        if (badgeGroup != null) {
+            int badgeX = badgeGroup.x();
+            JsonArray during = during(badgeGroup.shotIndex());
+            int leadIdx = badgeGroup.shotIndex() == shot && badgeGroup.indices().contains(selectedCue)
+                    ? selectedCue : badgeGroup.indices().getFirst();
+            JsonObject leadCue = during.get(leadIdx).getAsJsonObject();
+            long age = net.minecraft.Util.getMillis() - cueAddedAt;
+            boolean flashing = badgeFromAdd && age >= 0 && age < 1800;
+            if (flashing) {
+                int cueCol = cueColor(cueKind(leadCue));
+                double progress = age / 1800.0;
+                double wave = 0.5 + 0.5 * Math.cos(age * 0.015);
+                int alpha = (int) Math.round((1.0 - progress) * (140 + 90 * wave));
+                int expand = 3 + (int) Math.round((1.0 - wave) * 3);
+                graphics.fill(badgeX - expand, top - 4, badgeX + expand, top + LINE_H + 2, (alpha / 2 << 24) | (cueCol & 0x00FFFFFF));
+                DevUi.frame(graphics, badgeX - expand - 1, top - 5, expand * 2 + 2, LINE_H + 8, (Math.min(255, alpha + 40) << 24) | 0x00E1B34D);
+            }
+            if (hoveredGroup != null || flashing) {
+                showingBadge = true;
+                Component badge = cueGroupBadgeLabel(badgeGroup);
+                int bw = font.width(badge) + 10;
+                int bh = 14;
+                int bx = Mth.clamp(badgeX - bw / 2, lineLeft() - 2, lineRight() + 2 - bw);
+                int by = top - 22;
+                graphics.fill(bx, by, bx + bw, by + bh, 0xF01A140F);
+                DevUi.frame(graphics, bx, by, bw, bh, DevUi.ACCENT);
+                graphics.fill(badgeX - 1, by + bh, badgeX + 1, top - 5, DevUi.ACCENT);
+                graphics.drawString(font, badge, bx + 5, by + 3, DevUi.ACCENT, false);
+            }
+        }
+        return showingBadge;
+    }
+
+    private static String formatSeconds(double seconds) {
+        double rounded = Math.round(seconds * 10) / 10.0;
+        return Math.abs(rounded - Math.round(rounded)) < 0.05
+                ? Math.round(rounded) + "s"
+                : String.format(Locale.ROOT, "%.1fs", rounded);
+    }
+
+    private Component cueGroupBadgeLabel(CueGroup group) {
+        JsonArray during = during(group.shotIndex());
+        if (group.indices().size() == 1) {
+            return cueBadgeLabel(during.get(group.indices().getFirst()).getAsJsonObject());
+        }
+        List<String> names = new java.util.ArrayList<>();
+        for (int idx : group.indices()) {
+            String kind = cueKind(during.get(idx).getAsJsonObject());
+            names.add(DevUi.str("scene.cue." + kind));
+        }
+        return Component.literal("✦ " + String.join(" + ", names) + " · " + formatSeconds(group.at()));
+    }
+
+    private Component cueBadgeLabel(JsonObject cue) {
+        String kind = cueKind(cue);
+        String summary = "";
+        if (kind.equals("title") || kind.equals("caption") || kind.equals("line")) {
+            JsonObject inner = cue.get(kind) instanceof JsonObject obj ? obj : null;
+            String text = inner != null ? ClientDevStore.readStoryText(inner, "text", "", ClientDevStore.activeLanguage()).trim() : "";
+            String key = inner != null ? ClientDevStore.getKey(inner, "text") : null;
+            if (!text.isEmpty() && !text.equals(key)) {
+                summary = font.plainSubstrByWidth(text, 90);
+                if (summary.length() < text.length()) {
+                    summary += "…";
+                }
+            }
+        }
+        return Component.literal("✦ ").append(DevUi.text("scene.cue." + kind))
+                .append(Component.literal((summary.isEmpty() ? "" : ": \"" + summary + "\"") + String.format(Locale.ROOT, " · %.1fs", cueAt(cue))));
     }
 
     /** The second of a shot under the cursor, kept inside the shot. */
@@ -1146,23 +1706,33 @@ public final class ScenePreview extends Screen implements Catalog.Host {
      * right button adds a thing there.
      */
     private void lineClicked(double mouseX, double mouseY, int button) {
-        int[] hit = cueAtX(mouseX, mouseY);
+        CueGroup hit = cueGroupAtX(mouseX, mouseY);
         if (hit != null) {
             if (button == 1) {
-                during(hit[0]).remove(hit[1]);
-                if (hit[0] == shot) {
-                    selectedCue = -1;
+                DevSoundPreview.stop();
+                int removeIdx = hit.shotIndex() == shot && hit.indices().contains(selectedCue)
+                        ? selectedCue : hit.indices().getLast();
+                during(hit.shotIndex()).remove(removeIdx);
+                if (hit.shotIndex() == shot) {
+                    List<Integer> remaining = cuesAtSecond(shot, hit.at());
+                    selectedCue = remaining.isEmpty() ? -1 : remaining.getFirst();
                 }
                 changed();
                 build();
                 return;
             }
-            pickShot(hit[0]);
-            selectedCue = hit[1];
+            pickShot(hit.shotIndex());
+            if (hit.indices().contains(selectedCue)) {
+                groupToCycle = hit.indices().size() > 1 ? hit.indices().get((hit.indices().indexOf(selectedCue) + 1) % hit.indices().size()) : -1;
+            } else {
+                selectedCue = hit.indices().getFirst();
+                groupToCycle = -1;
+            }
             revealCue = true;
-            showShot(seconds(shot) <= 0 ? 0 : cueAt(during(shot).get(hit[1]).getAsJsonObject()) / seconds(shot));
+            showShot(seconds(shot) <= 0 ? 0 : hit.at() / seconds(shot));
             build();
             dragging = 5;
+            dragMoved = false;
             return;
         }
         if (button == 1) {
@@ -1175,36 +1745,40 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (button != 0) {
             return;
         }
-        selectedCue = -1;
         scrubTo(mouseX);
-        build();
         dragging = 6;
     }
 
-    /** Picks the shot under the cursor and shows the moment there. */
+    /** Picks the shot under the cursor and shows the moment there (and any thing at that moment). */
     private void scrubTo(double mouseX) {
         int index = shotAtX(mouseX);
-        if (index != shot) {
+        boolean shotChanged = index != shot;
+        if (shotChanged) {
             pickShot(index);
-            build();
         }
         playing = false;
-        showShot(seconds(shot) <= 0 ? 0 : secondsAtX(shot, mouseX) / seconds(shot));
+        double sec = secondsAtX(shot, mouseX);
+        showShot(seconds(shot) <= 0 ? 0 : sec / seconds(shot));
+        int cue = cueAtMoment(shot, sec);
+        if (shotChanged || cue != selectedCue) {
+            selectedCue = cue;
+            build();
+        }
     }
 
     private void pickShot(int index) {
         if (index != shot) {
             shot = index;
             selectedCue = -1;
+            selectedPoint = 0;
+            hoveredPoint = -1;
+            draggedPoint = -1;
             scroll = 0;
         }
     }
 
-    /** Where the view's moment is on the time line; -1 in the free view. */
+    /** Where the view's moment is on the time line. */
     private double playhead() {
-        if (view == View.SHOT) {
-            return lineX(shot, time * seconds(shot));
-        }
         if (view == View.SCENE) {
             double left = sceneTime;
             for (int i = 0; i < shots().size(); i++) {
@@ -1216,30 +1790,79 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             }
             return lineRight();
         }
-        return -1;
+        return lineX(shot, time * seconds(shot));
     }
 
     /**
-     * A point under its heading (with "📷 from here"): a row for each axis, right, up, forward of the anchor, a slider
-     * and the exact number beside it, to drag or to type.
+     * Unified camera path control block: tabs for From, optional intermediate spline points (#1, #2, ...) and To in
+     * flight order, plus one compact set of axis sliders for the currently selected point. From and To cannot be
+     * removed; intermediate points can be inserted and removed freely between them.
      */
-    private int pointRows(int x, int y, boolean first) {
-        addRenderableWidget(Button.builder(Component.literal("📷"), b -> {
-            goFree();
-            camera().add(first ? "from" : "to", vec(local(shot, viewPos)));
+    private int pathRows(int x, int y) {
+        List<Vec3> controls = controlPointsLocal(shot);
+        int total = controls.size();
+        int viaCount = total - 2;
+        selectedPoint = Mth.clamp(selectedPoint, 0, total - 1);
+        boolean removable = selectedPoint > 0 && selectedPoint < total - 1;
+        pathLabelY = y;
+        Button addBtn = addRenderableWidget(Button.builder(Component.literal("+"), b -> addViaPoint())
+                .bounds(x + 80, y, 26, 14).tooltip(Tooltip.create(DevUi.text("scene_view.path_add_tooltip"))).build());
+        addBtn.active = viaCount < SceneDefinition.Camera.MAX_VIA;
+        addRenderableWidget(Button.builder(Component.literal("⇄"), b -> {
+            Vec3 start = localFrom(shot);
+            camera().add("from", vec(localTo(shot)));
+            camera().add("to", vec(start));
+            List<Vec3> via = new java.util.ArrayList<>(localVia(shot));
+            if (!via.isEmpty()) {
+                java.util.Collections.reverse(via);
+                writeVia(via);
+            }
+            selectedPoint = (total - 1) - selectedPoint;
             changed();
             build();
-        }).bounds(x + 158, y - 1, 42, 14).tooltip(Tooltip.create(DevUi.text("scene_view.here_tooltip"))).build());
-        y += 16;
-        Vec3 value = first ? localFrom(shot) : localTo(shot);
+        }).bounds(x + 110, y, 26, 14).tooltip(Tooltip.create(DevUi.text("scene_view.swap_tooltip"))).build());
+        addRenderableWidget(Button.builder(Component.literal("📷"), b -> {
+            goFree();
+            setControlPointLocal(selectedPoint, local(shot, viewPos));
+            changed();
+            build();
+        }).bounds(x + 140, y, 32, 14).tooltip(Tooltip.create(DevUi.text("scene_view.here_tooltip"))).build());
+        Button removeBtn = addRenderableWidget(Button.builder(Component.literal("✕"), b -> removeSelectedVia())
+                .bounds(x + 176, y, 24, 14).tooltip(Tooltip.create(DevUi.text("scene_view.via_remove"))).build());
+        removeBtn.active = removable;
+        y += 17;
+        int cols = Math.min(4, total);
+        int gap = 4;
+        int tabW = (200 - (cols - 1) * gap) / cols;
+        for (int n = 0; n < total; n++) {
+            int idx = n;
+            boolean isFrom = idx == 0;
+            boolean isTo = idx == total - 1;
+            boolean current = idx == selectedPoint;
+            int col = n % cols;
+            int row = n / cols;
+            int bw = col == cols - 1 ? 200 - col * (tabW + gap) : tabW;
+            String name = isFrom ? DevUi.str("scene_view.from") : isTo ? DevUi.str("scene_view.to") : "#" + idx;
+            int color = current ? DevUi.ACCENT : isFrom ? START : isTo ? END : VIA;
+            Component tabLabel = Component.literal((current ? "• " : "") + name).withColor(color);
+            Component tip = isFrom ? DevUi.text("scene_view.from") : isTo ? DevUi.text("scene_view.to") : DevUi.text("scene_view.via_point", idx);
+            addRenderableWidget(Button.builder(tabLabel, b -> {
+                selectedPoint = idx;
+                if (view != View.FREE) {
+                    showShot(timeForControlPoint(shot, idx));
+                }
+                build();
+            }).bounds(x + col * (tabW + gap), y + row * 18, bw, 16).tooltip(Tooltip.create(tip)).build());
+        }
+        y += ((total + cols - 1) / cols) * 18 + 2;
+        pathAxesY = y;
+        Vec3 value = controls.get(selectedPoint);
         double[] parts = {value.x, value.y, value.z};
-        EditBox[] boxes = first ? from : to;
-        AxisSlider[] sliders = first ? fromSliders : toSliders;
         for (int i = 0; i < 3; i++) {
             int axis = i;
-            AxisSlider slider = addRenderableWidget(new AxisSlider(x + 14, y, 138, 16, first, axis, parts[i]));
+            AxisSlider slider = addRenderableWidget(new AxisSlider(x + 14, y, 138, 16, axis, parts[i]));
             slider.setTooltip(Tooltip.create(DevUi.text("scene_view.axis_" + i)));
-            sliders[i] = slider;
+            pointSliders[i] = slider;
             EditBox box = addRenderableWidget(new EditBox(font, x + 156, y, 44, 16, Component.empty()));
             box.setValue(String.format(Locale.ROOT, "%.2f", parts[i]));
             box.setTooltip(Tooltip.create(DevUi.text("scene_view.nudge_tooltip")));
@@ -1249,40 +1872,86 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 }
                 double number = parse(text, Double.NaN);
                 if (!Double.isNaN(number)) {
-                    setAxis(first, axis, number);
-                    sliders[axis].show(number);
+                    setAxis(axis, number);
+                    pointSliders[axis].show(number);
                 }
             });
-            boxes[i] = box;
+            pointBoxes[i] = box;
             y += 18;
         }
         return y + 4;
     }
 
-    /** One axis of a point changed (a slider, a number): written, and the view shows that end of the shot. */
-    private void setAxis(boolean first, int axis, double number) {
-        Vec3 old = first ? localFrom(shot) : localTo(shot);
-        Vec3 updated = axis == 0 ? new Vec3(number, old.y, old.z) : axis == 1 ? new Vec3(old.x, number, old.z) : new Vec3(old.x, old.y, number);
-        camera().add(first ? "from" : "to", vec(updated));
+    private void addViaPoint() {
+        List<Vec3> via = new java.util.ArrayList<>(localVia(shot));
+        if (via.size() >= SceneDefinition.Camera.MAX_VIA) {
+            return;
+        }
+        int insertAt = Mth.clamp(selectedPoint, 0, via.size());
+        Vec3 added;
+        if (view == View.FREE) {
+            added = local(shot, viewPos);
+        } else {
+            ScenePath path = shotPath(shot);
+            double u;
+            if (via.isEmpty()) {
+                u = time > 0.08 && time < 0.92 ? ease(shot).apply(time) : 0.5;
+            } else {
+                u = (path.parameterOfControl(insertAt) + path.parameterOfControl(insertAt + 1)) * 0.5;
+            }
+            Vec3 worldPoint = path.pointAt(u);
+            if (path.length() < 0.5) {
+                worldPoint = worldPoint.add(0, 1.5, 0);
+            }
+            added = local(shot, worldPoint);
+        }
+        via.add(insertAt, added);
+        writeVia(via);
+        selectedPoint = insertAt + 1;
         changed();
         if (view != View.FREE) {
-            showShot(first ? 0 : 1);
+            showShot(timeForControlPoint(shot, selectedPoint));
+        }
+        build();
+    }
+
+    private void removeSelectedVia() {
+        List<Vec3> via = new java.util.ArrayList<>(localVia(shot));
+        int viaIndex = selectedPoint - 1;
+        if (viaIndex < 0 || viaIndex >= via.size()) {
+            return;
+        }
+        via.remove(viaIndex);
+        writeVia(via);
+        selectedPoint = via.isEmpty() ? 0 : Mth.clamp(selectedPoint, 1, via.size());
+        hoveredPoint = -1;
+        changed();
+        build();
+    }
+
+    /** One axis of the selected control point changed (a slider, a number): written, and the view shows that point. */
+    private void setAxis(int axis, double number) {
+        List<Vec3> controls = controlPointsLocal(shot);
+        int idx = Mth.clamp(selectedPoint, 0, controls.size() - 1);
+        Vec3 old = controls.get(idx);
+        Vec3 updated = axis == 0 ? new Vec3(number, old.y, old.z) : axis == 1 ? new Vec3(old.x, number, old.z) : new Vec3(old.x, old.y, number);
+        setControlPointLocal(idx, updated);
+        changed();
+        if (view != View.FREE) {
+            showShot(timeForControlPoint(shot, idx));
         }
     }
 
     /**
-     * A slider for one axis of a point. Its range is ±16 blocks around the anchor, wider (32, 64, 128) once a value
-     * reaches its edge and is let go, so small moves stay fine and far points stay reachable; a number typed beyond it
-     * widens it too.
+     * A slider for one axis of the selected control point. Its range is +-16 blocks around the anchor, wider (32, 64,
+     * 128) once a value reaches its edge and is let go, so small moves stay fine and far points stay reachable.
      */
     private final class AxisSlider extends AbstractSliderButton {
-        private final boolean first;
         private final int axis;
         private double range;
 
-        AxisSlider(int x, int y, int width, int height, boolean first, int axis, double at) {
+        AxisSlider(int x, int y, int width, int height, int axis, double at) {
             super(x, y, width, height, Component.empty(), 0.5);
-            this.first = first;
             this.axis = axis;
             this.range = rangeFor(at);
             this.value = toSlider(at);
@@ -1327,9 +1996,9 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         @Override
         protected void applyValue() {
             double number = number();
-            setAxis(first, axis, number);
+            setAxis(axis, number);
             filling = true;
-            EditBox box = (first ? from : to)[axis];
+            EditBox box = pointBoxes[axis];
             if (box != null) {
                 box.setValue(String.format(Locale.ROOT, "%.2f", number));
             }
@@ -1345,6 +2014,62 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 value = toSlider(current);
                 updateMessage();
             }
+        }
+    }
+
+    /** Shot FOV slider (20 to 120 degrees); shows the player's own FOV as default until dragged or nudged. */
+    private final class FovSlider extends AbstractSliderButton {
+        FovSlider(int x, int y, int width, int height) {
+            super(x, y, width, height, Component.empty(), 0.5);
+            int shown = camera().has("fov") ? Math.round(shotFov(shot)) : playerFov();
+            this.value = toSlider(shown);
+            updateMessage();
+        }
+
+        private static int playerFov() {
+            Minecraft minecraft = Minecraft.getInstance();
+            int raw = minecraft != null && minecraft.options != null ? minecraft.options.fov().get() : 70;
+            return Mth.clamp(raw, (int) SceneDefinition.Camera.MIN_FOV, (int) SceneDefinition.Camera.MAX_FOV);
+        }
+
+        private static double toSlider(int degrees) {
+            return Mth.clamp((degrees - SceneDefinition.Camera.MIN_FOV) / (double) (SceneDefinition.Camera.MAX_FOV - SceneDefinition.Camera.MIN_FOV), 0.0, 1.0);
+        }
+
+        private int degrees() {
+            return (int) Math.round(SceneDefinition.Camera.MIN_FOV + value * (SceneDefinition.Camera.MAX_FOV - SceneDefinition.Camera.MIN_FOV));
+        }
+
+        void nudge(int delta) {
+            int current = camera().has("fov") ? Math.round(shotFov(shot)) : playerFov();
+            int next = Mth.clamp(current + delta, (int) SceneDefinition.Camera.MIN_FOV, (int) SceneDefinition.Camera.MAX_FOV);
+            value = toSlider(next);
+            applyValue();
+            updateMessage();
+        }
+
+        @Override
+        protected void updateMessage() {
+            if (camera().has("fov")) {
+                setMessage(DevUi.text("scene_view.fov_value", Math.round(shotFov(shot))));
+            } else {
+                setMessage(DevUi.text("scene_view.fov_default"));
+            }
+        }
+
+        @Override
+        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+            drawSlider(graphics, this, value);
+        }
+
+        @Override
+        protected void applyValue() {
+            camera().addProperty("fov", degrees());
+            changed();
+            if (fovResetButton != null) {
+                fovResetButton.active = true;
+            }
+            updateMessage();
         }
     }
 
@@ -1367,68 +2092,40 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     /** The numbers as the JSON has them now, without their boxes writing back. */
     private void refreshPoints() {
         filling = true;
-        Vec3 start = localFrom(shot);
-        Vec3 end = localTo(shot);
-        double[][] values = {{start.x, start.y, start.z}, {end.x, end.y, end.z}};
-        EditBox[][] boxes = {from, to};
-        AxisSlider[][] sliders = {fromSliders, toSliders};
-        for (int row = 0; row < 2; row++) {
-            for (int i = 0; i < 3; i++) {
-                if (boxes[row][i] != null && !boxes[row][i].isFocused()) {
-                    boxes[row][i].setValue(String.format(Locale.ROOT, "%.2f", values[row][i]));
-                }
-                if (sliders[row][i] != null) {
-                    sliders[row][i].show(values[row][i]);
-                }
-            }
-        }
+        List<Vec3> controls = controlPointsLocal(shot);
+        int idx = Mth.clamp(selectedPoint, 0, controls.size() - 1);
+        refreshPointRow(controls.get(idx), pointBoxes, pointSliders);
         filling = false;
     }
 
-    private void updateSlider() {
-        if (slider != null) {
-            slider.show(time);
-        }
-    }
-
-    /** The slider through the shot's time: dragging it shows that moment; it follows the time while it plays. */
-    private final class TimeSlider extends AbstractSliderButton {
-        TimeSlider(int x, int y, int width, int height, double at) {
-            super(x, y, width, height, Component.empty(), at);
-            updateMessage();
-        }
-
-        void show(double at) {
-            value = Mth.clamp(at, 0, 1);
-            updateMessage();
-        }
-
-        @Override
-        protected void updateMessage() {
-            setMessage(DevUi.text("scene_view.moment", String.format(Locale.ROOT, "%.1f", value * seconds(shot)),
-                    String.format(Locale.ROOT, "%.1f", seconds(shot))));
-        }
-
-        @Override
-        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            drawSlider(graphics, this, value);
-        }
-
-        @Override
-        protected void applyValue() {
-            playing = false;
-            view = View.SHOT;
-            time = value;
+    private static void refreshPointRow(Vec3 point, EditBox[] boxes, AxisSlider[] sliders) {
+        double[] values = {point.x, point.y, point.z};
+        for (int i = 0; i < 3; i++) {
+            if (boxes[i] != null && !boxes[i].isFocused()) {
+                boxes[i].setValue(String.format(Locale.ROOT, "%.2f", values[i]));
+            }
+            if (sliders[i] != null) {
+                sliders[i].show(values[i]);
+            }
         }
     }
 
     private void playShot() {
+        if (talk(shot)) {
+            playing = false;
+            stopPreviewAudio();
+            return;
+        }
         if (view != View.SHOT || time >= 1) {
             time = 0;
         }
         view = View.SHOT;
         playing = !playing || time == 0;
         lastFrame = 0;
+        stopPreviewAudio();
+        if (playing) {
+            DevSoundPreview.stop();
+        }
     }
 
     private void playScene() {
@@ -1438,16 +2135,22 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         view = View.SCENE;
         playing = true;
         lastFrame = 0;
+        stopPreviewAudio();
+        DevSoundPreview.stop();
     }
 
     private void switchShot(int by) {
         shot = Mth.clamp(shot + by, 0, shots().size() - 1);
-        selectedCue = -1;
         playing = false;
+        selectedPoint = 0;
+        hoveredPoint = -1;
+        draggedPoint = -1;
+        scroll = 0;
         if (view != View.FREE) {
             view = View.SHOT;
             time = 0;
         }
+        selectedCue = cueAtMoment(shot, time * seconds(shot));
         build();
     }
 
@@ -1465,8 +2168,45 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     }
 
     private void copyShot() {
-        shots().add(shotJson(shot).deepCopy());
+        JsonObject copy = shotJson(shot).deepCopy();
+        rekeyCopiedCues(copy, shot + 1);
+        shots().add(copy);
         moveLastTo(shot + 1);
+    }
+
+    /** Gives copied cue texts their own translation keys so editing the copy never overwrites the original shot's text. */
+    private void rekeyCopiedCues(JsonObject copy, int targetShotIndex) {
+        if (!(copy.get("during") instanceof JsonArray during)) {
+            return;
+        }
+        String language = ClientDevStore.activeLanguage();
+        for (int i = 0; i < during.size(); i++) {
+            if (!(during.get(i) instanceof JsonObject cue)) {
+                continue;
+            }
+            for (String kind : new String[] {"title", "caption", "line"}) {
+                if (!(cue.get(kind) instanceof JsonObject inner)) {
+                    continue;
+                }
+                for (String field : new String[] {"text", "subtitle", "speaker"}) {
+                    String existingKey = ClientDevStore.getKey(inner, field);
+                    if (existingKey == null || existingKey.isBlank()) {
+                        continue;
+                    }
+                    String text = ClientDevStore.readStoryText(inner, field, "", language);
+                    String base = ClientDevStore.canonicalKey(ClientDevStore.TYPE_SCENE, id, "shot" + targetShotIndex + ".cue" + i + "." + kind + "." + field);
+                    String allJson = scene.toString() + copy;
+                    String freshKey = base;
+                    for (int n = 2; allJson.contains("\"" + freshKey + "\""); n++) {
+                        freshKey = base + "_" + n;
+                    }
+                    inner.addProperty(field, freshKey);
+                    if (!text.equals(existingKey)) {
+                        ClientDevStore.writeStoryText(inner, field, text, freshKey);
+                    }
+                }
+            }
+        }
     }
 
     private void moveLastTo(int index) {
@@ -1484,6 +2224,10 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         scene.add("shots", reordered);
         shot = index;
         selectedCue = -1;
+        selectedPoint = 0;
+        hoveredPoint = -1;
+        draggedPoint = -1;
+        scroll = 0;
         changed();
         askAnchors();
         showShot(0);
@@ -1498,6 +2242,10 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         shots.remove(shot);
         shot = Mth.clamp(shot, 0, shots.size() - 1);
         selectedCue = -1;
+        selectedPoint = 0;
+        hoveredPoint = -1;
+        draggedPoint = -1;
+        scroll = 0;
         changed();
         askAnchors();
         showShot(0);
@@ -1555,6 +2303,11 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 case GLFW.GLFW_KEY_SPACE -> {
                     if (view == View.SCENE) {
                         playing = !playing;
+                        if (playing) {
+                            DevSoundPreview.stop();
+                        } else {
+                            stopPreviewAudio();
+                        }
                     } else {
                         playShot();
                     }
@@ -1564,8 +2317,13 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     double step = (keyCode == GLFW.GLFW_KEY_LEFT ? -1 : 1) * (hasShiftDown() ? 1.0 : 0.1);
                     if (view == View.SCENE) {
                         sceneTime = Mth.clamp(sceneTime + step, 0, sceneSeconds());
-                    } else {
+                    } else if (!talk(shot) && seconds(shot) > 0) {
                         showShot(time + step / seconds(shot));
+                        int cue = cueAtMoment(shot, time * seconds(shot));
+                        if (cue != selectedCue) {
+                            selectedCue = cue;
+                            build();
+                        }
                     }
                     playing = false;
                     return true;
@@ -1613,18 +2371,19 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         return false;
     }
 
-    /** Which handle is under the cursor: 1 the start, 2 the end, 0 none. */
+    /** Control point handle under the cursor: 0 = From, 1..N = Via, N+1 = To, or -1 for none. */
     private int handleAt(double mouseX, double mouseY) {
-        int found = 0;
+        int found = -1;
         double best = HANDLE_REACH;
-        for (int which = 1; which <= 2; which++) {
-            Vec3 point = world(shot, which == 1 ? localFrom(shot) : localTo(shot));
+        List<Vec3> controls = controlPointsLocal(shot);
+        for (int idx = 0; idx < controls.size(); idx++) {
+            Vec3 point = world(shot, controls.get(idx));
             float[] screen = ScreenProjection.project(point, width, height);
             if (screen != null) {
                 double distance = Math.hypot(screen[0] - mouseX, screen[1] - mouseY);
                 if (distance < best) {
                     best = distance;
-                    found = which;
+                    found = idx;
                 }
             }
         }
@@ -1644,12 +2403,18 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             lineClicked(mouseX, mouseY, button);
             return true;
         }
-        int handle = button == 0 ? handleAt(mouseX, mouseY) : 0;
-        if (handle != 0) {
+        int handle = button == 0 && !talk(shot) ? handleAt(mouseX, mouseY) : -1;
+        if (handle >= 0) {
             goFree();
-            dragging = handle;
+            dragging = DRAG_POINT;
+            draggedPoint = handle;
+            hoveredPoint = handle;
+            if (selectedPoint != handle) {
+                selectedPoint = handle;
+                build();
+            }
         } else {
-            dragging = button == 1 ? 4 : 3;
+            dragging = button == 1 ? DRAG_LOOK : DRAG_ORBIT;
         }
         return true;
     }
@@ -1657,10 +2422,16 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (dragging != 0) {
-            if (dragging <= 2 || dragging == 5) {
+            if (dragging == DRAG_CUE && !dragMoved && groupToCycle >= 0) {
+                selectedCue = groupToCycle;
+            }
+            groupToCycle = -1;
+            if (dragging == DRAG_POINT || dragging == DRAG_CUE) {
                 build();
             }
             dragging = 0;
+            draggedPoint = -1;
+            dragMoved = false;
             return true;
         }
         return super.mouseReleased(mouseX, mouseY, button);
@@ -1671,21 +2442,27 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (dragging == 0) {
             return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         }
-        if (dragging == 5) {
+        if (dragging == DRAG_CUE) {
             if (selectedCue() instanceof JsonObject cue) {
-                cue.addProperty("at", Math.round(secondsAtX(shot, mouseX) * 10) / 10.0);
-                changed();
+                double target = Math.round(secondsAtX(shot, mouseX) * 10) / 10.0;
+                if (Math.abs(target - cueAt(cue)) >= 0.08
+                        && !cueKindsAtSecond(shot, target, selectedCue).contains(cueKind(cue))) {
+                    dragMoved = true;
+                    cue.addProperty("at", target);
+                    showShot(seconds(shot) <= 0 ? 0 : target / seconds(shot));
+                    changed();
+                }
             }
             return true;
         }
-        if (dragging == 6) {
+        if (dragging == DRAG_SCRUB) {
             scrubTo(mouseX);
             return true;
         }
         goFree();
-        if (dragging <= 2) {
-            moveHandle(dragging, dragX, dragY);
-        } else if (dragging == 3) {
+        if (dragging == DRAG_POINT) {
+            moveHandle(draggedPoint, dragX, dragY);
+        } else if (dragging == DRAG_ORBIT) {
             orbit(dragX, dragY);
         } else {
             viewYaw += dragX * 0.3;
@@ -1707,9 +2484,13 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         lookAt(pivot);
     }
 
-    /** Moves a handle with the cursor across the view; with Shift, over the ground. */
-    private void moveHandle(int which, double dragX, double dragY) {
-        Vec3 point = world(shot, which == 1 ? localFrom(shot) : localTo(shot));
+    /** Moves a control-point handle with the cursor across the view; with Shift, over the ground. */
+    private void moveHandle(int pointIndex, double dragX, double dragY) {
+        List<Vec3> controls = controlPointsLocal(shot);
+        if (pointIndex < 0 || pointIndex >= controls.size()) {
+            return;
+        }
+        Vec3 point = world(shot, controls.get(pointIndex));
         double fov = Math.toRadians(Minecraft.getInstance().options.fov().get());
         double perPixel = point.distanceTo(viewPos) * 2 * Math.tan(fov / 2) / Math.max(1, height);
         Vec3 side = right((float) viewYaw);
@@ -1721,7 +2502,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             Vec3 up = side.cross(look).normalize();
             moved = point.add(side.scale(dragX * perPixel)).add(up.scale(-dragY * perPixel));
         }
-        camera().add(which == 1 ? "from" : "to", vec(local(shot, moved)));
+        setControlPointLocal(pointIndex, local(shot, moved));
         changed();
         refreshPoints();
     }
@@ -1746,18 +2527,30 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             return true;
         }
         // The wheel over a number nudges it: 0.1, with Shift 1.
-        for (EditBox[] row : new EditBox[][] {from, to}) {
-            for (EditBox box : row) {
-                if (box != null && box.visible && box.isMouseOver(mouseX, mouseY)) {
-                    double value = parse(box.getValue(), 0) + Math.signum(scrollY) * (hasShiftDown() ? 1 : 0.1);
-                    box.setValue(String.format(Locale.ROOT, "%.2f", value));
-                    return true;
-                }
+        for (EditBox box : pointBoxes) {
+            if (box != null && box.visible && box.isMouseOver(mouseX, mouseY)) {
+                double value = parse(box.getValue(), 0) + Math.signum(scrollY) * (hasShiftDown() ? 1 : 0.1);
+                box.setValue(String.format(Locale.ROOT, "%.2f", value));
+                return true;
+            }
+        }
+        if (fovSlider != null && fovSlider.visible && fovSlider.isMouseOver(mouseX, mouseY)) {
+            fovSlider.nudge((int) Math.signum(scrollY) * (hasShiftDown() ? 5 : 1));
+            return true;
+        }
+        double[] fadeMaxes = {ScreenFade.MAX_EDGE, ScreenFade.MAX_STAY, ScreenFade.MAX_EDGE};
+        for (int i = 0; i < fadeBoxes.length; i++) {
+            EditBox box = fadeBoxes[i];
+            if (box != null && box.visible && box.isMouseOver(mouseX, mouseY)) {
+                double next = Mth.clamp(parse(box.getValue(), 0) + Math.signum(scrollY) * (hasShiftDown() ? 0.5 : 0.1), 0, fadeMaxes[i]);
+                box.setValue(String.format(Locale.ROOT, "%.1f", next));
+                return true;
             }
         }
         // Elsewhere over the panel's middle the wheel scrolls it, when it is taller than the screen.
-        int most = Math.max(0, contentHeight - (contentBottom() - CONTENT_TOP));
-        if (mouseY >= CONTENT_TOP && mouseY < contentBottom() && most > 0) {
+        int top = contentTop();
+        int most = Math.max(0, contentHeight - (contentBottom() - top));
+        if (mouseY >= top && mouseY < contentBottom() && most > 0) {
             scroll = Mth.clamp(scroll - (int) Math.signum(scrollY) * 18, 0, most);
             build();
             return true;
@@ -1767,7 +2560,8 @@ public final class ScenePreview extends Screen implements Catalog.Host {
 
     @Override
     public void mouseMoved(double mouseX, double mouseY) {
-        hovered = dragging != 0 ? (dragging <= 2 ? dragging : hovered) : mouseX >= left() ? handleAt(mouseX, mouseY) : 0;
+        hoveredPoint = dragging != 0 ? (dragging == DRAG_POINT ? draggedPoint : hoveredPoint)
+                : (mouseX >= left() && !talk(shot) ? handleAt(mouseX, mouseY) : -1);
         super.mouseMoved(mouseX, mouseY);
     }
 
@@ -1775,12 +2569,23 @@ public final class ScenePreview extends Screen implements Catalog.Host {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (playing && view == View.SHOT) {
+            int active = cueAtMoment(shot, time * seconds(shot));
+            if (active != selectedCue) {
+                selectedCue = active;
+                build();
+            }
+        }
+        syncPreviewAudio();
         int left = left();
         boolean bars = scene.get("letterbox") instanceof JsonPrimitive on && on.getAsBoolean();
+        int bar = bars ? Math.round(height * 0.12f) : 0;
         if (bars) {
-            int bar = Math.round(height * 0.12f);
             graphics.fill(left, 0, width, bar, 0xFF000000);
             graphics.fill(left, height - bar, width, height, 0xFF000000);
+        }
+        if (!catalog.isOpen()) {
+            drawPreviewCues(graphics, left, bar);
         }
         if (grid) {
             int color = 0x66FFFFFF;
@@ -1799,7 +2604,6 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 graphics.fill(left, 0, width, height, ((int) (black * 255) << 24));
             }
         }
-        drawTimeLine(graphics);
         if (panelShown) {
             graphics.fill(0, 0, PANEL, height, 0xF01A140F);
             graphics.fill(PANEL - 1, 0, PANEL, height, DevUi.PANEL_EDGE);
@@ -1810,37 +2614,58 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             Anchor anchor = anchor(shot);
             String status = anchor.asking() ? DevUi.str("scene_view.anchor_asking") : anchor.found() ? DevUi.str("scene_view.anchor_found")
                     : DevUi.str("scene_view.anchor_stand_in");
-            graphics.drawString(font, DevUi.str("scene_view.anchor", anchorName()), 8, 32, DevUi.TEXT, false);
-            graphics.drawString(font, status, 8, 42, anchor.found() ? DevUi.MUTED : DevUi.WARN, false);
-            if (talk(shot)) {
-                String dialogue = shotJson(shot).get("dialogue") instanceof JsonPrimitive written ? written.getAsString() : "";
-                graphics.drawWordWrap(font, DevUi.text("scene_view.talk", dialogue.isEmpty() ? "—" : dialogue), 8, CONTENT_TOP, PANEL - 16, DevUi.LABEL);
+            var anchorRows = font.split(Component.literal(DevUi.str("scene_view.anchor", anchorName())), PANEL - 16);
+            int headerY = 32;
+            for (var row : anchorRows) {
+                graphics.drawString(font, row, 8, headerY, DevUi.TEXT, false);
+                headerY += 10;
             }
-            if (!talk(shot) && cueLabelY >= CONTENT_TOP - 2 && cueLabelY + 8 <= contentBottom()) {
-                graphics.drawString(font, DevUi.text("scene_view.cues"), 8, cueLabelY + 1, DevUi.LABEL, false);
-                if (selectedCue() == null && cueLabelY + 24 <= contentBottom()) {
-                    graphics.drawWordWrap(font, DevUi.text("scene_view.cue_none"), 8, cueLabelY + 16, PANEL - 16, DevUi.HINT);
-                }
-            }
-            String[] axes = {"→", "↑", "↗"};
-            int[] headings = {fromLabelY, toLabelY};
-            for (int point = 0; point < 2; point++) {
-                int heading = headings[point];
-                if (heading >= CONTENT_TOP - 2 && heading + 8 <= contentBottom()) {
-                    graphics.drawString(font, DevUi.text(point == 0 ? "scene_view.from" : "scene_view.to"), 8, heading + 2, point == 0 ? START : END, false);
-                }
-                for (int axis = 0; axis < 3; axis++) {
-                    int rowY = heading + 16 + axis * 18;
-                    if (rowY >= CONTENT_TOP - 2 && rowY + 16 <= contentBottom()) {
-                        graphics.drawString(font, axes[axis], 9, rowY + 4, MUTED, false);
+            graphics.drawString(font, fitWidth(status, PANEL - 16), 8, headerY, anchor.found() ? DevUi.MUTED : DevUi.WARN, false);
+            int panelTop = contentTop();
+            int panelBottom = contentBottom();
+            graphics.fill(6, panelTop - 3, PANEL - 6, panelTop - 2, DevUi.CARD_EDGE);
+            graphics.fill(6, panelBottom + 2, PANEL - 6, panelBottom + 3, DevUi.CARD_EDGE);
+            graphics.enableScissor(0, panelTop, PANEL - 1, panelBottom);
+            try {
+                if (talk(shot)) {
+                    String dialogue = shotJson(shot).get("dialogue") instanceof JsonPrimitive written ? written.getAsString() : "";
+                    graphics.drawWordWrap(font, DevUi.text("scene_view.talk", dialogue.isEmpty() ? "—" : dialogue), 8, panelTop, PANEL - 16, DevUi.LABEL);
+                } else {
+                    List<Vec3> controls = controlPointsLocal(shot);
+                    int sel = Mth.clamp(selectedPoint, 0, controls.size() - 1);
+                    boolean isFrom = sel == 0;
+                    boolean isTo = sel == controls.size() - 1;
+                    Component pointHeading = isFrom ? DevUi.text("scene_view.from")
+                            : isTo ? DevUi.text("scene_view.to")
+                            : Component.literal(DevUi.str("scene_view.via") + " #" + sel);
+                    int headingColor = isFrom ? START : isTo ? END : VIA;
+                    graphics.drawString(font, pointHeading, 8, pathLabelY + 3, headingColor, false);
+                    String[] axes = {"→", "↑", "↗"};
+                    for (int axis = 0; axis < 3; axis++) {
+                        int rowY = pathAxesY + axis * 18;
+                        if (rowY >= panelTop && rowY + 16 <= panelBottom) {
+                            graphics.drawString(font, axes[axis], 9, rowY + 4, MUTED, false);
+                        }
+                    }
+                    graphics.drawString(font, DevUi.text("scene_view.cues"), 8, cueLabelY + 3, DevUi.LABEL, false);
+                    if (selectedCue() == null) {
+                        graphics.drawWordWrap(font, DevUi.text("scene_view.cue_none"), 8, cueLabelY + 38, PANEL - 16, DevUi.HINT);
+                    }
+                    if (fadeLabelY > -500) {
+                        String[] fadeLabels = {"scene_view.fade_in", "scene_view.fade_stay", "scene_view.fade_out"};
+                        for (int i = 0; i < 3; i++) {
+                            graphics.drawString(font, DevUi.text(fadeLabels[i]), 8 + i * 68, fadeLabelY, MUTED, false);
+                        }
                     }
                 }
+            } finally {
+                graphics.disableScissor();
             }
-            if (Math.max(0, contentHeight - (contentBottom() - CONTENT_TOP)) > 0) {
+            if (Math.max(0, contentHeight - (contentBottom() - panelTop)) > 0) {
                 // A thin bar at the panel's edge: how far its middle is scrolled.
-                int track = contentBottom() - CONTENT_TOP;
+                int track = contentBottom() - panelTop;
                 int thumb = Math.max(12, track * track / Math.max(1, contentHeight));
-                int top = CONTENT_TOP + (track - thumb) * scroll / Math.max(1, contentHeight - track);
+                int top = panelTop + (track - thumb) * scroll / Math.max(1, contentHeight - track);
                 graphics.fill(PANEL - 3, top, PANEL - 1, top + thumb, 0x80FFFFFF);
             }
             if (closeAsked) {
@@ -1852,23 +2677,368 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 graphics.drawWordWrap(font, problem, 8, height - 32 - lines * 9 - 2, PANEL - 16, DevUi.BAD);
             }
         }
-        String hint = view == View.SCENE ? DevUi.str("scene_view.hint_scene", String.format(Locale.ROOT, "%.1f", sceneTime),
-                String.format(Locale.ROOT, "%.1f", sceneSeconds()))
-                : view == View.FREE ? DevUi.str("scene_view.hint_free") : DevUi.str("scene_view.hint_shot");
-        graphics.drawString(font, hint, left + 8, lineTop() - 14, TEXT, true);
+        boolean showingBadge = drawTimeLine(graphics, mouseX, mouseY);
+        if (!showingBadge) {
+            String hint = view == View.SCENE ? DevUi.str("scene_view.hint_scene", String.format(Locale.ROOT, "%.1f", sceneTime),
+                    String.format(Locale.ROOT, "%.1f", sceneSeconds()))
+                    : view == View.FREE ? DevUi.str("scene_view.hint_free") : DevUi.str("scene_view.hint_shot");
+            graphics.drawString(font, fitWidth(hint, Math.max(40, width - left - 16)), left + 8, lineTop() - 14, TEXT, true);
+        }
         if (!panelShown) {
             graphics.drawString(font, DevUi.text("scene_view.hint_panel"), 8, 8, TEXT, true);
         }
         if (panelShown && note != null && net.minecraft.Util.getMillis() - noteAt < 4000) {
             graphics.drawWordWrap(font, note, 8, height - 46, PANEL - 16, noteColor);
         }
-        if (catalog.isOpen()) {
-            catalog.render(this, graphics, mouseX, mouseY);
+        if (freeButton != null) {
+            freeButton.setMessage(freeLabel());
         }
-        super.render(graphics, mouseX, mouseY, partialTick);
+        if (catalog.isOpen()) {
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 200);
+            catalog.render(this, graphics, mouseX, mouseY);
+            super.render(graphics, mouseX, mouseY, partialTick);
+            graphics.pose().popPose();
+        } else {
+            super.render(graphics, mouseX, mouseY, partialTick);
+        }
     }
 
-    /** The shot drawn in the world while the view is open: its flight, its two cameras, its anchor. */
+    /** One cue positioned on the active timeline (a single shot or the whole scene). */
+    record TimedCue(int shotIndex, int cueIndex, double start, JsonObject cue) {}
+
+    /**
+     * Picks at most one cue per channel ({@code title}, {@code caption}, {@code line}, {@code fade}, {@code music},
+     * {@code sound}): the latest mark at or before {@code atSeconds} (within 0.05s). A newer mark on the timeline
+     * replaces the previous cue of the same channel instead of stacking on top of it.
+     */
+    static Map<String, TimedCue> latestCuesByChannel(List<TimedCue> cues, double atSeconds, int preferredShot, int preferredCue) {
+        Map<String, TimedCue> latest = new HashMap<>();
+        for (TimedCue candidate : cues) {
+            if (candidate.start() > atSeconds + 0.05) {
+                continue;
+            }
+            String kind = cueKind(candidate.cue());
+            TimedCue prev = latest.get(kind);
+            if (prev == null || candidate.start() > prev.start() + 1.0e-6) {
+                latest.put(kind, candidate);
+            } else if (Math.abs(candidate.start() - prev.start()) <= 1.0e-6) {
+                boolean prevPreferred = prev.shotIndex() == preferredShot && prev.cueIndex() == preferredCue;
+                boolean candPreferred = candidate.shotIndex() == preferredShot && candidate.cueIndex() == preferredCue;
+                if (candPreferred || !prevPreferred) {
+                    latest.put(kind, candidate);
+                }
+            }
+        }
+        return latest;
+    }
+
+    /** Current playback position in seconds on the active timeline (single shot or whole scene). */
+    private double nowSeconds() {
+        return view == View.SCENE ? sceneTime : time * seconds(shot);
+    }
+
+    /** Cues along the active timeline (the current shot, or every flight shot in scene playback order). */
+    private List<TimedCue> timelineCues() {
+        List<TimedCue> out = new java.util.ArrayList<>();
+        if (view == View.SCENE) {
+            double offset = 0;
+            for (int i = 0; i < shots().size(); i++) {
+                if (talk(i)) {
+                    continue;
+                }
+                JsonArray during = during(i);
+                for (int j = 0; j < during.size(); j++) {
+                    if (during.get(j) instanceof JsonObject cue) {
+                        out.add(new TimedCue(i, j, offset + cueAt(cue), cue));
+                    }
+                }
+                offset += seconds(i);
+            }
+        } else if (!talk(shot)) {
+            JsonArray during = during(shot);
+            for (int j = 0; j < during.size(); j++) {
+                if (during.get(j) instanceof JsonObject cue) {
+                    out.add(new TimedCue(shot, j, cueAt(cue), cue));
+                }
+            }
+        }
+        return out;
+    }
+
+    private void stopPreviewAudio() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.getSoundManager() != null) {
+            if (previewMusic != null) {
+                minecraft.getSoundManager().stop(previewMusic);
+            }
+            if (previewSound != null) {
+                minecraft.getSoundManager().stop(previewSound);
+            }
+            if (previewVoice != null) {
+                minecraft.getSoundManager().stop(previewVoice);
+            }
+        }
+        previewMusic = null;
+        previewMusicKey = null;
+        previewSound = null;
+        previewSoundKey = null;
+        previewVoice = null;
+        previewVoiceKey = null;
+        lastAudioTime = -1;
+    }
+
+    private @Nullable SoundInstance playPreviewSound(@Nullable String rawId, boolean stopVanillaMusic) {
+        if (rawId == null || rawId.isBlank()) {
+            return null;
+        }
+        ResourceLocation soundId = ResourceLocation.tryParse(rawId.trim());
+        if (soundId == null || soundId.getPath().isEmpty()) {
+            return null;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.getSoundManager() == null) {
+            return null;
+        }
+        if (stopVanillaMusic) {
+            minecraft.getMusicManager().stopPlaying();
+        }
+        SoundInstance instance = SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(soundId), 1.0f, 1.0f);
+        minecraft.getSoundManager().play(instance);
+        return instance;
+    }
+
+    /**
+     * Plays the timeline's audio channels (music, sound, line voice-over) while playing a shot or the scene: each new
+     * mark of the same channel stops the previous instance first so tracks never layer over each other.
+     */
+    private void syncPreviewAudio() {
+        if (!playing || catalog.isOpen() || DevSoundPreview.isActive()) {
+            if (previewMusic != null || previewSound != null || previewVoice != null || lastAudioTime >= 0) {
+                stopPreviewAudio();
+            }
+            return;
+        }
+        double now = nowSeconds();
+        if (lastAudioTime >= 0 && now + 0.05 < lastAudioTime) {
+            stopPreviewAudio();
+        }
+        Map<String, TimedCue> active = latestCuesByChannel(timelineCues(), now, shot, selectedCue);
+        Minecraft minecraft = Minecraft.getInstance();
+
+        // Music channel: continuous track, replaced cleanly whenever a newer music mark begins.
+        TimedCue musicCue = active.get("music");
+        String trackId = musicCue != null && musicCue.cue().get("music") instanceof JsonPrimitive p ? p.getAsString().trim()
+                : scene.get("music") instanceof JsonPrimitive top ? top.getAsString().trim() : "";
+        String musicKey = musicCue != null ? musicCue.shotIndex() + ":" + musicCue.cueIndex() + ":" + trackId
+                : !trackId.isEmpty() ? "scene:" + trackId : null;
+        if (!java.util.Objects.equals(musicKey, previewMusicKey)) {
+            if (previewMusic != null && minecraft.getSoundManager() != null) {
+                minecraft.getSoundManager().stop(previewMusic);
+            }
+            previewMusicKey = musicKey;
+            previewMusic = playPreviewSound(trackId, true);
+        }
+
+        // Sound channel: plays when its mark is reached, stopping any previous sound cue first.
+        TimedCue soundCue = active.get("sound");
+        if (soundCue != null) {
+            JsonObject inner = soundCue.cue().get("sound") instanceof JsonObject obj ? obj : null;
+            String soundId = inner != null && inner.get("sound") instanceof JsonPrimitive p ? p.getAsString().trim() : "";
+            String soundKey = soundCue.shotIndex() + ":" + soundCue.cueIndex() + ":" + soundId;
+            boolean reached = lastAudioTime < 0 ? Math.abs(now - soundCue.start()) <= 0.12 : soundCue.start() > lastAudioTime - 0.01;
+            if (!soundKey.equals(previewSoundKey) && reached) {
+                if (previewSound != null && minecraft.getSoundManager() != null) {
+                    minecraft.getSoundManager().stop(previewSound);
+                }
+                previewSoundKey = soundKey;
+                previewSound = playPreviewSound(soundId, false);
+            }
+        }
+
+        // Line voice-over channel: a newer line replaces the previous line's voice-over immediately.
+        TimedCue lineCue = active.get("line");
+        if (lineCue != null) {
+            JsonObject inner = lineCue.cue().get("line") instanceof JsonObject obj ? obj : null;
+            String voiceId = inner != null && inner.get("sound") instanceof JsonPrimitive p ? p.getAsString().trim() : "";
+            String voiceKey = lineCue.shotIndex() + ":" + lineCue.cueIndex() + ":" + voiceId;
+            boolean reached = lastAudioTime < 0 ? Math.abs(now - lineCue.start()) <= 0.12 : lineCue.start() > lastAudioTime - 0.01;
+            if (!voiceKey.equals(previewVoiceKey) && reached) {
+                if (previewVoice != null && minecraft.getSoundManager() != null) {
+                    minecraft.getSoundManager().stop(previewVoice);
+                }
+                previewVoiceKey = voiceKey;
+                previewVoice = playPreviewSound(voiceId, false);
+            }
+        }
+        lastAudioTime = now;
+    }
+
+    /**
+     * Draws the active cue of each visual channel (fade, caption, chapter title, subtitle line) in the preview viewport
+     * at the current moment of the time line: a newer mark of the same kind replaces the earlier one cleanly.
+     */
+    private void drawPreviewCues(GuiGraphics graphics, int left, int bar) {
+        if (view != View.SCENE && talk(shot)) {
+            return;
+        }
+        double atSeconds = nowSeconds();
+        String language = ClientDevStore.activeLanguage();
+        int viewW = Math.max(80, width - left);
+        int centerX = left + viewW / 2;
+        Map<String, TimedCue> active = latestCuesByChannel(timelineCues(), atSeconds, shot, selectedCue);
+        for (String kind : new String[] {"fade", "caption", "title", "line"}) {
+            TimedCue entry = active.get(kind);
+            if (entry == null) {
+                continue;
+            }
+            JsonObject cue = entry.cue();
+            double len = cueDuration(cue);
+            double into = atSeconds - entry.start();
+            if (into < -0.05 || into > len) {
+                continue;
+            }
+            boolean isPicked = entry.shotIndex() == shot && entry.cueIndex() == selectedCue;
+            switch (kind) {
+                case "fade" -> {
+                    JsonObject inner = cue.get("fade") instanceof JsonObject obj ? obj : null;
+                    double in = inner != null ? Math.max(0, parse(number(inner.get("in")), 0.5)) : 0.5;
+                    double stay = inner != null ? Math.max(0, parse(number(inner.get("stay")), 1.0)) : 1.0;
+                    double out = inner != null ? Math.max(0, parse(number(inner.get("out")), 0.5)) : 0.5;
+                    double a = fadeAlpha(into, in, stay, out);
+                    if (!playing && Math.abs(into) <= 0.05 && in > 0 && a < 0.45) {
+                        a = 0.45;
+                    }
+                    if (a > 0.01) {
+                        graphics.fill(left, 0, width, height, ((int) Math.round(a * 255) << 24) | fadeColor(inner));
+                    }
+                }
+                case "caption" -> {
+                    JsonObject inner = cue.get("caption") instanceof JsonObject obj ? obj : null;
+                    String text = inner != null ? previewText(inner, "text", language) : "";
+                    if (text.isEmpty() && isPicked) {
+                        text = "[" + DevUi.str("scene.cue.caption") + "]";
+                    }
+                    if (text.isEmpty()) {
+                        break;
+                    }
+                    boolean black = inner != null && inner.get("black") instanceof JsonPrimitive b && b.getAsBoolean();
+                    String pos = inner != null && inner.get("position") instanceof JsonPrimitive p ? p.getAsString() : "bottom_left";
+                    if (black) {
+                        graphics.fill(left, 0, width, height, 0xD8000000);
+                    }
+                    var rows = font.split(Component.literal(text), Math.min(320, viewW - 48));
+                    int rowH = font.lineHeight + 3;
+                    int blockH = rows.size() * rowH;
+                    int y = switch (pos) {
+                        case "top_left" -> Math.max(bar, 12) + 12;
+                        case "center" -> (height - blockH) / 2;
+                        default -> height - Math.max(bar, 48) - 12 - blockH;
+                    };
+                    for (var row : rows) {
+                        int x = pos.equals("center") ? centerX - font.width(row) / 2 : left + 24;
+                        graphics.drawString(font, row, x, y, 0xFFF2EAD8, !black);
+                        y += rowH;
+                    }
+                }
+                case "title" -> {
+                    JsonObject inner = cue.get("title") instanceof JsonObject obj ? obj : null;
+                    String text = inner != null ? previewText(inner, "text", language) : "";
+                    String sub = inner != null ? previewText(inner, "subtitle", language) : "";
+                    if (text.isEmpty() && isPicked) {
+                        text = "[" + DevUi.str("scene.cue.title") + "]";
+                    }
+                    if (!text.isEmpty()) {
+                        PoseStack pose = graphics.pose();
+                        pose.pushPose();
+                        pose.translate(centerX, height / 2.0 - 18, 0);
+                        pose.scale(2.0f, 2.0f, 1.0f);
+                        graphics.drawString(font, text, -font.width(text) / 2, 0, 0xFFFFFFFF, true);
+                        pose.popPose();
+                    }
+                    if (!sub.isEmpty()) {
+                        graphics.drawString(font, sub, centerX - font.width(sub) / 2, height / 2 + 6, DevUi.TEXT, true);
+                    }
+                }
+                case "line" -> {
+                    JsonObject inner = cue.get("line") instanceof JsonObject obj ? obj : null;
+                    String text = inner != null ? previewText(inner, "text", language) : "";
+                    String speaker = inner != null ? previewText(inner, "speaker", language) : "";
+                    if (text.isEmpty() && isPicked) {
+                        text = "[" + DevUi.str("scene.cue.line") + "]";
+                    }
+                    if (text.isEmpty()) {
+                        break;
+                    }
+                    var rows = font.split(Component.literal(text), Math.min(320, viewW - 40));
+                    int rowH = font.lineHeight + 2;
+                    int count = rows.size() + (speaker.isEmpty() ? 0 : 1);
+                    int bottom = Math.min(height - Math.max(bar, 24) - 8, lineTop() - 28);
+                    int y = bottom - count * rowH;
+                    if (!speaker.isEmpty()) {
+                        Component who = Component.literal(speaker).withStyle(net.minecraft.ChatFormatting.BOLD);
+                        graphics.drawString(font, who, centerX - font.width(who) / 2, y, GOLD, true);
+                        y += rowH;
+                    }
+                    for (var row : rows) {
+                        graphics.drawString(font, row, centerX - font.width(row) / 2, y, 0xFFFFFFFF, true);
+                        y += rowH;
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+    }
+
+    /** Opacity (0 to 1) of a fade cue {@code into} seconds after its start, matching {@code ScreenFadeOverlay}. */
+    static double fadeAlpha(double into, double in, double stay, double out) {
+        double safeIn = Math.max(0.0, in);
+        double safeStay = Math.max(0.0, stay);
+        double safeOut = Math.max(0.0, out);
+        double t = Math.max(0.0, into);
+        if (safeIn > 0.0 && t < safeIn) {
+            return Mth.clamp(t / safeIn, 0.0, 1.0);
+        }
+        t -= safeIn;
+        if (t < safeStay) {
+            return 1.0;
+        }
+        t -= safeStay;
+        if (safeOut > 0.0 && t < safeOut) {
+            return Mth.clamp(1.0 - t / safeOut, 0.0, 1.0);
+        }
+        return 0.0;
+    }
+
+    private static int fadeColor(@Nullable JsonObject inner) {
+        if (inner != null && inner.get("color") instanceof JsonPrimitive raw) {
+            String text = raw.getAsString().trim();
+            if (text.startsWith("#") && text.length() == 7) {
+                try {
+                    return Integer.parseInt(text.substring(1), 16) & 0x00FFFFFF;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return 0;
+    }
+
+    private static String previewText(JsonObject inner, String field, String language) {
+        String key = ClientDevStore.getKey(inner, field);
+        String shown = ClientDevStore.readStoryText(inner, field, "", language);
+        return key != null && shown.equals(key) ? "" : shown.trim();
+    }
+
+    private String fitWidth(String text, int maxWidth) {
+        if (font.width(text) <= maxWidth) {
+            return text;
+        }
+        int fit = Math.max(0, maxWidth - font.width("…"));
+        return font.plainSubstrByWidth(text, fit) + "…";
+    }
+
+    /** The shot drawn in the world while the view is open: its flight curve, its control-point cameras, its anchor. */
     public static void onRenderLevel(RenderLevelStageEvent event) {
         ScenePreview preview = open;
         if (preview == null || event.getStage() != ShaderPacks.worldOverlayStage() || ShaderPacks.renderingShadowPass()
@@ -1883,18 +3053,42 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         VertexConsumer lines = buffers.getBuffer(RenderType.lines());
         int index = preview.shot;
-        Vec3 start = preview.world(index, preview.localFrom(index));
-        Vec3 end = preview.world(index, preview.localTo(index));
-        line(lines, pose, start, end, GOLD);
+        ScenePath path = preview.shotPath(index);
+        List<Vec3> samples = path.samples();
+        for (int i = 0; i + 1 < samples.size(); i++) {
+            line(lines, pose, samples.get(i), samples.get(i + 1), GOLD);
+        }
         // Ticks across the flight at every second of it, closer together where the camera is slow.
         double seconds = preview.seconds(index);
         SceneDefinition.Ease ease = preview.ease(index);
         for (int second = 1; second < seconds; second++) {
-            Vec3 at = start.lerp(end, ease.apply(second / seconds));
+            Vec3 at = path.pointAt(ease.apply(second / seconds));
             line(lines, pose, at.add(0, -0.12, 0), at.add(0, 0.12, 0), GOLD);
         }
-        frustum(lines, pose, preview.shotPose(index, 0, partialTick), preview.hovered == 1 ? 0xFFFFFFFF : START);
-        frustum(lines, pose, preview.shotPose(index, 1, partialTick), preview.hovered == 2 ? 0xFFFFFFFF : END);
+        int viaCount = preview.localVia(index).size();
+        SceneCamera.Pose startPose = preview.shotPose(index, 0, partialTick);
+        int startColor = preview.hoveredPoint == 0 ? 0xFFFFFFFF : START;
+        frustum(lines, pose, startPose, startColor);
+        if (preview.selectedPoint == 0) {
+            line(lines, pose, startPose.pos().add(0, -0.22, 0), startPose.pos().add(0, 0.22, 0), startColor);
+        }
+        for (int k = 0; k < viaCount; k++) {
+            int pointIdx = k + 1;
+            int color = preview.hoveredPoint == pointIdx ? 0xFFFFFFFF : (preview.selectedPoint == pointIdx ? VIA_SELECTED : VIA);
+            SceneCamera.Pose viaPose = preview.shotPose(index, preview.timeForControlPoint(index, pointIdx), partialTick);
+            frustum(lines, pose, viaPose, color);
+            if (preview.selectedPoint == pointIdx) {
+                Vec3 apex = viaPose.pos();
+                line(lines, pose, apex.add(0, -0.22, 0), apex.add(0, 0.22, 0), color);
+            }
+        }
+        int endIdx = viaCount + 1;
+        SceneCamera.Pose endPose = preview.shotPose(index, 1, partialTick);
+        int endColor = preview.hoveredPoint == endIdx ? 0xFFFFFFFF : END;
+        frustum(lines, pose, endPose, endColor);
+        if (preview.selectedPoint == endIdx) {
+            line(lines, pose, endPose.pos().add(0, -0.22, 0), endPose.pos().add(0, 0.22, 0), endColor);
+        }
         if (preview.view == View.FREE) {
             frustum(lines, pose, preview.shotPose(index, preview.time, partialTick), 0xFFB8A9D9);
         }
@@ -1904,15 +3098,17 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         pose.popPose();
     }
 
-    /** A small camera at the pose, pointing where it looks. */
+    /** A small camera at the pose, pointing where it looks, with its cone scaled when the shot sets a custom FOV. */
     private static void frustum(VertexConsumer lines, PoseStack pose, SceneCamera.Pose at, int color) {
         Vec3 look = direction(at.yaw(), at.pitch());
         Vec3 side = right(at.yaw());
         Vec3 up = side.cross(look).normalize();
         Vec3 apex = at.pos();
         Vec3 middle = apex.add(look.scale(0.8));
-        Vec3 w = side.scale(0.45);
-        Vec3 h = up.scale(0.26);
+        double fovScale = at.fov() > 0f
+                ? Mth.clamp(Math.tan(Math.toRadians(at.fov() * 0.5)) / Math.tan(Math.toRadians(35.0)), 0.45, 1.8) : 1.0;
+        Vec3 w = side.scale(0.45 * fovScale);
+        Vec3 h = up.scale(0.26 * fovScale);
         Vec3[] corners = {middle.add(w).add(h), middle.subtract(w).add(h), middle.subtract(w).subtract(h), middle.add(w).subtract(h)};
         for (int i = 0; i < 4; i++) {
             line(lines, pose, apex, corners[i], color);

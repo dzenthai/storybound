@@ -317,4 +317,74 @@ class StoryRenamesTest {
         assertEquals(null, StoryRenames.migrationField(StoryLinks.SCRIPT), "players keep nothing of a script block");
         assertEquals(Storybound.id("flag"), StoryRenames.FLAG);
     }
+
+    @Test
+    void aSceneCanBeRenamedAndFollowsWhatItNames() {
+        assertTrue(StoryRenames.RENAMEABLE.contains(StoryLinks.SCENE));
+        assertTrue(StoryRenames.REFERRING.contains(StoryLinks.SCENE));
+
+        JsonObject dialogue = JsonParser.parseString("""
+                { "nodes": {
+                    "cut": { "type": "scene", "scene": "demo:intro", "next": "done" },
+                    "done": { "type": "action", "actions": [ { "type": "play_scene", "scene": "demo:intro" } ] } } }
+                """).getAsJsonObject();
+        JsonObject event = JsonParser.parseString("""
+                { "trigger": { "type": "scene_finished", "scene": "demo:intro" },
+                  "conditions": [ { "type": "in_scene", "scene": "demo:intro" } ] }
+                """).getAsJsonObject();
+        JsonObject chapter = JsonParser.parseString("""
+                { "title": "Act 1", "nodes": [ { "type": "scene", "id": "demo:intro", "x": 10, "y": 20 } ] }
+                """).getAsJsonObject();
+        List<Rename> sceneRename = List.of(new Rename(StoryLinks.SCENE, id("demo:intro"), id("demo:opening")));
+        assertEquals(2, StoryRenames.rewrite(StoryLinks.DIALOGUE, dialogue, sceneRename));
+        assertEquals(2, StoryRenames.rewrite(StoryLinks.EVENT, event, sceneRename));
+        assertEquals(1, StoryRenames.rewrite(StoryRenames.CHAPTER, chapter, sceneRename));
+        assertEquals("demo:opening", dialogue.getAsJsonObject("nodes").getAsJsonObject("cut").get("scene").getAsString());
+        assertEquals("demo:opening", event.getAsJsonObject("trigger").get("scene").getAsString());
+        assertEquals("demo:opening", chapter.getAsJsonArray("nodes").get(0).getAsJsonObject().get("id").getAsString());
+
+        JsonObject scene = JsonParser.parseString("""
+                { "shots": [
+                    { "anchor": { "npc": "demo:elder" }, "camera": { "look": { "waypoint": "demo:camp" } } },
+                    { "type": "talk", "dialogue": "demo:elder" } ],
+                  "on_end": [ { "type": "set_quest_state", "quest": "demo:elder", "state": "active" } ] }
+                """).getAsJsonObject();
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.SCENE, scene, List.of(new Rename(StoryLinks.NPC, ELDER, OLD_MAN))));
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.SCENE, scene, List.of(new Rename(StoryLinks.WAYPOINT, id("demo:camp"), id("demo:outpost")))));
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.SCENE, scene, List.of(new Rename(StoryLinks.DIALOGUE, ELDER, OLD_MAN))));
+        assertEquals("demo:old_man", scene.getAsJsonArray("shots").get(0).getAsJsonObject().getAsJsonObject("anchor").get("npc").getAsString());
+        assertEquals("demo:outpost", scene.getAsJsonArray("shots").get(0).getAsJsonObject().getAsJsonObject("camera").getAsJsonObject("look").get("waypoint").getAsString());
+        assertEquals("demo:old_man", scene.getAsJsonArray("shots").get(1).getAsJsonObject().get("dialogue").getAsString());
+        assertEquals("demo:elder", scene.getAsJsonArray("on_end").get(0).getAsJsonObject().get("quest").getAsString());
+    }
+
+    @Test
+    void musicScriptsVariantsDocumentContentAndReadUnlocksFollowRenames() {
+        assertTrue(StoryRenames.REFERRING.contains(StoryRenames.MUSIC));
+
+        JsonObject script = JsonParser.parseString("""
+                { "leads_to": [ { "type": "scene", "id": "demo:intro" }, { "type": "quest", "id": "demo:intro" } ] }
+                """).getAsJsonObject();
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.SCRIPT, script, List.of(new Rename(StoryLinks.SCENE, id("demo:intro"), id("demo:opening")))));
+        assertEquals("demo:opening", script.getAsJsonArray("leads_to").get(0).getAsJsonObject().get("id").getAsString());
+        assertEquals("demo:intro", script.getAsJsonArray("leads_to").get(1).getAsJsonObject().get("id").getAsString());
+
+        JsonObject dialogue = JsonParser.parseString("""
+                { "nodes": { "hi": { "type": "line", "text": { "key": "k", "variant_by": "demo:rep/elder" } } } }
+                """).getAsJsonObject();
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.DIALOGUE, dialogue, List.of(new Rename(StoryRenames.FLAG, id("demo:rep/elder"), id("demo:rep/old_man")))));
+        assertEquals("demo:rep/old_man", dialogue.getAsJsonObject("nodes").getAsJsonObject("hi").getAsJsonObject("text").get("variant_by").getAsString());
+
+        JsonObject doc = JsonParser.parseString("""
+                { "content": "demo:letter" }
+                """).getAsJsonObject();
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.DOCUMENT, doc, List.of(new Rename(StoryLinks.DOCUMENT, id("demo:letter"), id("demo:note")))));
+        assertEquals("demo:note", doc.get("content").getAsString());
+
+        JsonObject codex = JsonParser.parseString("""
+                { "sections": [ { "id": "s1", "unlock": { "on": [ "seen", "read:demo:letter" ] } } ] }
+                """).getAsJsonObject();
+        assertEquals(1, StoryRenames.rewrite(StoryLinks.CODEX, codex, List.of(new Rename(StoryLinks.DOCUMENT, id("demo:letter"), id("demo:note")))));
+        assertEquals("read:demo:note", codex.getAsJsonArray("sections").get(0).getAsJsonObject().getAsJsonObject("unlock").getAsJsonArray("on").get(1).getAsString());
+    }
 }

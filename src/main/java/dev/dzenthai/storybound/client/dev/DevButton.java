@@ -20,15 +20,21 @@ final class DevButton extends Button {
         super(original.getX(), original.getY(), original.getWidth(), original.getHeight(), original.getMessage(),
                 button -> original.onPress(), DEFAULT_NARRATION);
         this.original = original;
+        this.active = original.active;
+        this.visible = original.visible;
         setTooltip(original.getTooltip());
     }
 
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        Component originalMessage = original.getMessage();
         active = original.active;
         visible = original.visible;
-        if (!getMessage().equals(original.getMessage())) {
-            setMessage(original.getMessage());
+        if (!visible) {
+            return;
+        }
+        if (!getMessage().equals(originalMessage)) {
+            setMessage(originalMessage);
         }
         if (getTooltip() != original.getTooltip()) {
             setTooltip(original.getTooltip());

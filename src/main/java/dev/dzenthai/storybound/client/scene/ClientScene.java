@@ -6,6 +6,7 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -80,6 +81,7 @@ public final class ClientScene {
         if (planned.isEmpty()) {
             return;
         }
+        dev.dzenthai.storybound.client.dev.DevSoundPreview.stop();
         boolean was = playing();
         session = id;
         letterbox = bars;
@@ -89,6 +91,8 @@ public final class ClientScene {
         tick = 0;
         line = null;
         speaker = null;
+        caption = null;
+        paused = false;
         if (!was) {
             SceneCamera.begin();
         }
@@ -107,6 +111,14 @@ public final class ClientScene {
     public static void end(int id) {
         if (id == session) {
             stop();
+        }
+    }
+
+    /** Space on the scene's screen: asks the server to skip the rest of the scene. */
+    public static void skip() {
+        if (framing()) {
+            dev.dzenthai.storybound.client.ScreenFadeOverlay.clear();
+            PacketDistributor.sendToServer(new ScenePayloads.Skip(session));
         }
     }
 

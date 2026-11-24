@@ -42,6 +42,11 @@ public final class StoryMusic {
         gameBus.addListener((ServerStoppedEvent event) -> PLAYING.clear());
     }
 
+    /** Immediately recomputes and sends the player's music track when it changed (e.g. on scene cue switches). */
+    public static void sync(ServerPlayer player) {
+        update(player);
+    }
+
     private static void update(ServerPlayer player) {
         Optional<ResourceLocation> track = track(player);
         if (!track.equals(PLAYING.get(player.getUUID()))) {

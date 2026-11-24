@@ -38,6 +38,8 @@ abstract class StoryEditing extends StoryChapters {
         }
         selected = key;
         editing = key != null ? ClientDevStore.parseObject(ClientDevStore.getJson(key.type(), key.id())) : null;
+        dirty = false;
+        lastSaved = null;
     }
 
     /**
@@ -193,6 +195,8 @@ abstract class StoryEditing extends StoryChapters {
         saveEdits(screen);
         selected = primary;
         editing = primary != null ? ClientDevStore.parseObject(ClientDevStore.getJson(primary.type(), primary.id())) : null;
+        dirty = false;
+        lastSaved = null;
     }
 
     @Override
@@ -227,9 +231,11 @@ abstract class StoryEditing extends StoryChapters {
         }
         NodeKey target = selected;
         String before = ClientDevStore.getJson(target.type(), target.id());
-        Optional<String> beforeText = documentText(target.id());
+        Optional<String> beforeText = target.type().equals(ClientDevStore.TYPE_DOCUMENT)
+                ? ClientDevStore.document(StoryInspector.documentTextId(target.id(), ClientDevStore.parseObject(before)), ClientDevStore.activeLanguage())
+                : Optional.empty();
         String after = DevUi.GSON.toJson(editing);
-        Optional<String> afterText = inspector.documentText();
+        Optional<String> afterText = target.type().equals(ClientDevStore.TYPE_DOCUMENT) ? inspector.documentText() : Optional.empty();
         dirty = false;
         lastSaved = after;
         ClientDevStore.putLocal(target.type(), target.id(), after);
@@ -428,12 +434,15 @@ abstract class StoryEditing extends StoryChapters {
         screen.remember(DevUi.str("history.create", key.id().getPath()),
                 () -> {
                     positions.remove(key);
+                    chapterNodes.remove(key);
                     selection.remove(key);
                     if (key.equals(selected)) {
                         selected = null;
                         editing = null;
+                        dirty = false;
                     }
                     DevRequests.delete(key.type(), key.id());
+                    saveChapter();
                 },
                 () -> {
                     positions.put(key, new int[]{x, y});
@@ -472,7 +481,10 @@ abstract class StoryEditing extends StoryChapters {
             id = source.id().withPath(source.id().getPath() + "_copy_" + ++number);
         }
         int[] from = positions.getOrDefault(source, new int[]{menuWorldX, menuWorldY});
-        place(screen, new NodeTemplates.Created(new NodeKey(source.type(), id), ClientDevStore.parseObject(raw), documentText(source.id()), 0),
+        JsonObject copy = ClientDevStore.parseObject(raw);
+        Optional<String> docText = source.type().equals(ClientDevStore.TYPE_DOCUMENT)
+                ? documentText(StoryInspector.documentTextId(source.id(), copy)) : Optional.empty();
+        place(screen, new NodeTemplates.Created(new NodeKey(source.type(), id), copy, docText, 0),
                 from[0] + 24, from[1] + 24);
     }
 
@@ -550,15 +562,19 @@ abstract class StoryEditing extends StoryChapters {
         }
         record Deleted(NodeKey key, String json, Optional<String> text, int @Nullable [] pos) {}
         List<Deleted> deleted = new ArrayList<>();
+        int hiddenScripts = 0;
         for (NodeKey key : targets) {
             String json = ClientDevStore.getJson(key.type(), key.id());
             if (json != null) {
                 int[] pos = positions.get(key);
-                deleted.add(new Deleted(key, json, documentText(key.id()), pos != null ? pos.clone() : null));
+                Optional<String> docText = key.type().equals(ClientDevStore.TYPE_DOCUMENT)
+                        ? ClientDevStore.document(StoryInspector.documentTextId(key.id(), ClientDevStore.parseObject(json)), ClientDevStore.activeLanguage())
+                        : Optional.empty();
+                deleted.add(new Deleted(key, json, docText, pos != null ? pos.clone() : null));
             }
             positions.remove(key);
             if (removeNode(key, json)) {
-                screen.status(DevUi.text("status.script_hidden"), DevUi.OK);
+                hiddenScripts++;
             }
         }
         selected = null;
@@ -599,8 +615,12 @@ abstract class StoryEditing extends StoryChapters {
                         .map(definition -> ClientDevStore.parseObject(definition.getValue())))
                 .filter(json -> targets.stream().anyMatch(target -> StoryEdits.refersTo(json, target)))
                 .count();
-        screen.status(left > 0 ? DevUi.text("status.deleted_refs_left", targets.size(), unlinked.size(), left)
-                : DevUi.text("status.deleted_unlinked", targets.size(), unlinked.size()), DevUi.BAD);
+        if (hiddenScripts == targets.size() && hiddenScripts > 0) {
+            screen.status(DevUi.text("status.script_hidden"), DevUi.OK);
+        } else {
+            screen.status(left > 0 ? DevUi.text("status.deleted_refs_left", targets.size(), unlinked.size(), left)
+                    : DevUi.text("status.deleted_unlinked", targets.size(), unlinked.size()), DevUi.BAD);
+        }
     }
 
     /** A definition changed because a node it pointed at was deleted. */

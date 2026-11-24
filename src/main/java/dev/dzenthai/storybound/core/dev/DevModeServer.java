@@ -258,13 +258,11 @@ public final class DevModeServer {
             player.sendSystemMessage(Component.literal("Save failed for " + id + ": " + e.getMessage()).withStyle(ChatFormatting.RED));
             return;
         }
-        if (sbtText.isPresent()) {
+        if (sbtText.isPresent() && type == DocumentRegistries.DOCUMENTS) {
             ResourceLocation textId = id;
-            if (type == DocumentRegistries.DOCUMENTS) {
-                DocumentDefinition doc = DocumentDefinition.CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, player.server.registryAccess()), JsonParser.parseString(json)).result().orElse(null);
-                if (doc != null) {
-                    textId = doc.contentId(id);
-                }
+            DocumentDefinition doc = DocumentDefinition.CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, player.server.registryAccess()), JsonParser.parseString(json)).result().orElse(null);
+            if (doc != null) {
+                textId = doc.contentId(id);
             }
             writeSbt(root(player), textId, language, sbtText.get());
         }

@@ -669,7 +669,7 @@ abstract class FormCore {
     }
 
     /**
-     * "Villager · tag demo_elder", "Cat · name «Murka»", "entity …a1b2"; "—" when
+     * "Villager · tag demo_elder", "Cat · name «Murka»", "entity …a1b2"; a dash when
      * nothing is set.
      */
     static String entitySummary(@Nullable JsonObject selector) {

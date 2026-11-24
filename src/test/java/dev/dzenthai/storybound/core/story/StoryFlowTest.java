@@ -124,6 +124,31 @@ class StoryFlowTest {
         ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
     }
 
+    @Test
+    void sceneAnchorsTalksAndTriggersAreLinked() {
+        NodeKey arrival = key(StoryLinks.SCENE, "arrival");
+        ClientDevStore.setSnapshot(Map.of(
+                StoryLinks.DIALOGUE, Map.of(ELDER_TALK.id(), """
+                        {"nodes": {"cut": {"type": "scene", "scene": "storybound:arrival", "next": "@end"}}}"""),
+                StoryLinks.EVENT, Map.of(FESTIVAL.id(), """
+                        {"trigger": {"type": "scene_finished", "scene": "storybound:arrival"},
+                         "conditions": [{"type": "in_scene", "scene": "storybound:arrival"}]}"""),
+                StoryLinks.SCENE, Map.of(arrival.id(), """
+                        {"shots": [
+                          {"anchor": {"npc": "storybound:elder"}, "camera": {"from": [0, 1, 0], "duration": 2, "look": {"waypoint": "storybound:den"}}},
+                          {"dialogue": "storybound:report"}
+                        ]}""")
+        ), List.of(), "en_us", List.of("en_us"));
+        List<Edge> edges = ClientDevStore.collectEdges();
+        assertTrue(edges.contains(new Edge(ELDER_TALK, arrival, "plays")), "dialogue scene node links to scene");
+        assertTrue(edges.contains(new Edge(arrival, FESTIVAL, "scene_finished")), "scene_finished links from scene to event");
+        assertTrue(edges.contains(new Edge(arrival, FESTIVAL, "in_scene")), "in_scene links from scene to event");
+        assertTrue(edges.contains(new Edge(arrival, ELDER, "anchor")), "scene anchor links to NPC");
+        assertTrue(edges.contains(new Edge(arrival, DEN, "look")), "scene look target links to waypoint");
+        assertTrue(edges.contains(new Edge(arrival, REPORT, "talk")), "scene talk shot links to dialogue");
+        ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
+    }
+
     private static final NodeKey FESTIVAL = key(StoryLinks.EVENT, "festival");
 
     /** The editor's canvas: quests and story events are its nodes, the rest badges under them. */

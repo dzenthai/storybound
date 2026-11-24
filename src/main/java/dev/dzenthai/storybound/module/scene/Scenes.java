@@ -19,6 +19,7 @@ import dev.dzenthai.storybound.module.dialogue.Dialogues;
 import dev.dzenthai.storybound.module.dialogue.NpcBinding;
 import dev.dzenthai.storybound.module.dialogue.NpcBindings;
 import dev.dzenthai.storybound.module.dialogue.NpcParts;
+import dev.dzenthai.storybound.module.music.StoryMusic;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
 import dev.dzenthai.storybound.module.waypoint.StructureLocator;
 import dev.dzenthai.storybound.module.waypoint.Waypoints;
@@ -34,9 +35,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.game.ClientboundClearTitlesPacket;
 import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
+import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -116,6 +119,9 @@ public final class Scenes {
         /** A talk of the scene is going on: its clock waits. */
         boolean talking;
         Optional<ResourceLocation> music;
+        @Nullable ResourceLocation lastVoice;
+        @Nullable ResourceLocation lastSound;
+        @Nullable SoundSource lastSoundSource;
 
         Session(int id, ResourceLocation scene, SceneDefinition definition, int total, List<Timed> timeline, @Nullable Runnable afterwards) {
             this.id = id;
@@ -187,6 +193,38 @@ public final class Scenes {
         return session != null ? session.music : Optional.empty();
     }
 
+    /** Skips the rest of the scene the player watches, running any remaining cue actions and its on_end. */
+    public static void skip(ServerPlayer player) {
+        Session session = SESSIONS.get(player.getUUID());
+        if (session != null) {
+            skip(player, session.id);
+        }
+    }
+
+    /** Skips the rest of the given scene session when the player is watching it (and not in one of its talks). */
+    public static void skip(ServerPlayer player, int sessionId) {
+        Session session = SESSIONS.get(player.getUUID());
+        if (session == null || session.id != sessionId || session.talking) {
+            return;
+        }
+        if (player.connection != null) {
+            player.connection.send(new ClientboundClearTitlesPacket(true));
+        }
+        while (session.next < session.timeline.size() && SESSIONS.get(player.getUUID()) == session) {
+            Timed due = session.timeline.get(session.next++);
+            if (due.cue() != null && !due.cue().actions().isEmpty()) {
+                try {
+                    Actions.runAll(due.cue().actions(), StoryContext.of(player), "scene " + session.scene, OnFail.ABORT);
+                } catch (RuntimeException e) {
+                    Storybound.LOGGER.error("Storybound: scene {} failed at tick {}", session.scene, due.tick(), e);
+                }
+            }
+        }
+        if (SESSIONS.get(player.getUUID()) == session) {
+            finish(player, session, SceneLogic.Reason.FINISH, true);
+        }
+    }
+
     private static void start(ServerPlayer player, ResourceLocation scene) {
         start(player, scene, null);
     }
@@ -248,9 +286,27 @@ public final class Scenes {
             calm(player);
         }
         if (!shots.isEmpty()) {
+            // Send any instant-black opening fade (tick 0, in == 0) before switching the camera so frame 0 never flashes.
+            ScreenFade openingFade = null;
+            for (Timed entry : timeline) {
+                if (entry.tick() > 0) {
+                    break;
+                }
+                if (entry.fade() != null && entry.fade().in() <= 0f) {
+                    openingFade = entry.fade();
+                } else if (entry.cue() != null && entry.cue().fade().isPresent() && entry.cue().fade().get().in() <= 0f) {
+                    openingFade = entry.cue().fade().get();
+                }
+            }
+            if (openingFade != null) {
+                openingFade.send(player);
+            }
             StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Play(session.id, definition.letterbox(), shots));
         }
         runDue(player, session);
+        if (SESSIONS.get(player.getUUID()) == session) {
+            StoryMusic.sync(player);
+        }
     }
 
     /** A shot placed for this player, or why it cannot be. */
@@ -273,6 +329,7 @@ public final class Scenes {
             return Planned.skip("its anchor " + describe(anchorOf) + " is not found near the player");
         }
         Vec3 from = place(anchor, camera.from());
+        List<Vec3> via = camera.via().stream().map(point -> place(anchor, point)).toList();
         Vec3 to = place(anchor, camera.to());
         int look;
         Vec3 point;
@@ -280,7 +337,8 @@ public final class Scenes {
         switch (camera.look()) {
             case SceneDefinition.AlongPath path -> {
                 look = ScenePayloads.LOOK_PATH;
-                point = to.subtract(from).lengthSqr() > 1.0e-6 ? to.add(to.subtract(from)) : anchor.eye();
+                Vec3 dir = ScenePath.of(from, via, to).tangentAt(0.0);
+                point = dir.lengthSqr() > 1.0e-6 ? from.add(dir) : anchor.eye();
             }
             case SceneDefinition.AtOther other -> {
                 Found target = find(player, other.anchor());
@@ -296,13 +354,19 @@ public final class Scenes {
             }
         }
         double reach = Math.max(2, player.server.getPlayerList().getViewDistance() - MARGIN_CHUNKS) * 16.0;
-        for (Vec3 spot : List.of(from, to, anchor.pos())) {
+        List<Vec3> spots = new ArrayList<>(via.size() + 3);
+        spots.add(from);
+        spots.addAll(via);
+        spots.add(to);
+        spots.add(anchor.pos());
+        for (Vec3 spot : spots) {
             if (Math.hypot(spot.x - player.getX(), spot.z - player.getZ()) > reach) {
                 return Planned.skip("it is " + (int) Math.hypot(spot.x - player.getX(), spot.z - player.getZ())
                         + " blocks away, beyond what the player's world has loaded (" + (int) reach + ")");
             }
         }
-        return new Planned(new ScenePayloads.Shot(from, to, look, point, entity, 0, 1, camera.ease().ordinal(), transition.ordinal()), null);
+        return new Planned(new ScenePayloads.Shot(from, via, to, look, point, entity, 0, 1, camera.ease().ordinal(),
+                transition.ordinal(), camera.fov().orElse(0f)), null);
     }
 
     /** A point given as right, up, forward of the anchor, turned the way it faces. */
@@ -476,6 +540,7 @@ public final class Scenes {
      * scene's clock waits until it is over. A dialogue that does not start (unknown, its NPC not found) is gone past.
      */
     private static void talk(ServerPlayer player, Session session, Talk talk) {
+        stopCueAudio(player, session);
         session.talking = true;
         StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Pause(session.id));
         if (!Dialogues.start(player, talk.dialogue(), talk.speaker() != null && talk.speaker().isAlive() ? talk.speaker() : null)) {
@@ -485,20 +550,43 @@ public final class Scenes {
         }
     }
 
+    private static void stopCueAudio(ServerPlayer player, Session session) {
+        if (player.connection != null) {
+            if (session.lastVoice != null) {
+                player.connection.send(new ClientboundStopSoundPacket(session.lastVoice, SoundSource.VOICE));
+            }
+            if (session.lastSound != null && session.lastSoundSource != null) {
+                player.connection.send(new ClientboundStopSoundPacket(session.lastSound, session.lastSoundSource));
+            }
+        }
+        session.lastVoice = null;
+        session.lastSound = null;
+        session.lastSoundSource = null;
+    }
+
     private static void cue(ServerPlayer player, Session session, SceneDefinition.Cue cue) {
         cue.title().ifPresent(title -> {
-            player.connection.send(new ClientboundSetTitlesAnimationPacket(TITLE_IN, TITLE_STAY, TITLE_OUT));
-            player.connection.send(new ClientboundSetSubtitleTextPacket(title.subtitle()
-                    .map(text -> text.resolve(player).toComponent()).orElse(net.minecraft.network.chat.Component.empty())));
-            player.connection.send(new ClientboundSetTitleTextPacket(title.text().resolve(player).toComponent()));
+            if (player.connection != null) {
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(TITLE_IN, TITLE_STAY, TITLE_OUT));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(title.subtitle()
+                        .map(text -> text.resolve(player).toComponent()).orElse(net.minecraft.network.chat.Component.empty())));
+                player.connection.send(new ClientboundSetTitleTextPacket(title.text().resolve(player).toComponent()));
+            }
         });
         cue.line().ifPresent(line -> {
+            if (session.lastVoice != null && player.connection != null) {
+                player.connection.send(new ClientboundStopSoundPacket(session.lastVoice, SoundSource.VOICE));
+            }
+            session.lastVoice = null;
             net.minecraft.network.chat.Component text = line.text().resolve(player).toComponent();
             int ticks = line.duration().map(seconds -> Math.round(seconds * 20))
                     .orElse(Math.max(LINE_MIN_TICKS, (int) Math.round(text.getString().length() * LINE_TICKS_PER_CHAR)));
             StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Line(session.id,
                     line.speaker().map(speaker -> speaker.resolve(player).toComponent()), text, ticks));
-            line.sound().ifPresent(sound -> player.playNotifySound(SoundEvent.createVariableRangeEvent(sound), SoundSource.VOICE, 1f, 1f));
+            line.sound().ifPresent(sound -> {
+                player.playNotifySound(SoundEvent.createVariableRangeEvent(sound), SoundSource.VOICE, 1f, 1f);
+                session.lastVoice = sound;
+            });
         });
         cue.caption().ifPresent(caption -> {
             net.minecraft.network.chat.Component text = caption.text().resolve(player).toComponent();
@@ -506,8 +594,18 @@ public final class Scenes {
                     .orElse(Math.max(LINE_MIN_TICKS, (int) Math.round(text.getString().length() * LINE_TICKS_PER_CHAR)));
             StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Caption(session.id, text, caption.position().ordinal(), caption.black(), ticks));
         });
-        cue.music().ifPresent(track -> session.music = Optional.of(track));
-        cue.sound().ifPresent(sound -> player.playNotifySound(SoundEvent.createVariableRangeEvent(sound.sound()), sound.source(), sound.volume(), sound.pitch()));
+        cue.music().ifPresent(track -> {
+            session.music = Optional.of(track);
+            StoryMusic.sync(player);
+        });
+        cue.sound().ifPresent(sound -> {
+            if (session.lastSound != null && session.lastSoundSource != null && player.connection != null) {
+                player.connection.send(new ClientboundStopSoundPacket(session.lastSound, session.lastSoundSource));
+            }
+            player.playNotifySound(SoundEvent.createVariableRangeEvent(sound.sound()), sound.source(), sound.volume(), sound.pitch());
+            session.lastSound = sound.sound();
+            session.lastSoundSource = sound.source();
+        });
         cue.fade().ifPresent(fade -> fade.send(player));
         if (!cue.actions().isEmpty()) {
             Actions.runAll(cue.actions(), StoryContext.of(player), "scene " + session.scene, OnFail.ABORT);
@@ -515,9 +613,25 @@ public final class Scenes {
     }
 
     private static void finish(ServerPlayer player, Session session, SceneLogic.Reason reason) {
+        finish(player, session, reason, false);
+    }
+
+    private static void finish(ServerPlayer player, Session session, SceneLogic.Reason reason, boolean skipped) {
         SESSIONS.remove(player.getUUID());
         forgetPending(player);
-        StoryboundNetwork.sendToPlayer(player, new ScenePayloads.End(session.id));
+        stopCueAudio(player, session);
+        if (reason != SceneLogic.Reason.FINISH && player.connection != null) {
+            player.connection.send(new ClientboundClearTitlesPacket(true));
+        }
+        if (skipped) {
+            // Cut scene music immediately while the client still knows it is exiting a scene.
+            StoryMusic.sync(player);
+            StoryboundNetwork.sendToPlayer(player, new ScenePayloads.End(session.id));
+        } else {
+            // End the scene first so post-scene music transitions smoothly.
+            StoryboundNetwork.sendToPlayer(player, new ScenePayloads.End(session.id));
+            StoryMusic.sync(player);
+        }
         StoryTrace.event(player, "scene_finished", "scene", session.scene.toString(), "reason", reason.getSerializedName());
         if (reason == SceneLogic.Reason.FINISH && !session.definition.onEnd().isEmpty()) {
             Actions.runAll(session.definition.onEnd(), StoryContext.of(player), "scene " + session.scene + " on_end", OnFail.ABORT);

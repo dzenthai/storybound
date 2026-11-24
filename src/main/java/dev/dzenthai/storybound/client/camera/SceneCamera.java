@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.client.scene.ClientScene;
 import dev.dzenthai.storybound.mixin.client.CameraAccessor;
 import dev.dzenthai.storybound.module.scene.SceneDefinition;
+import dev.dzenthai.storybound.module.scene.ScenePath;
 import dev.dzenthai.storybound.network.ScenePayloads;
 import java.util.List;
 import net.minecraft.client.Camera;
@@ -15,6 +16,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.event.RenderHandEvent;
 import net.neoforged.neoforge.client.event.RenderHighlightEvent;
+import net.neoforged.neoforge.client.event.ViewportEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,6 +34,8 @@ public final class SceneCamera {
 
     /** The editor's camera view: where the camera is this frame (the partial tick given), or null while it is closed. */
     private static java.util.function.@Nullable Function<Float, Pose> preview;
+    /** Active camera FOV set by the current frame's pose (0 when using the player's own FOV). */
+    private static float activeFov;
 
     private SceneCamera() {}
 
@@ -41,6 +45,7 @@ public final class SceneCamera {
             CameraIntegrations.pause();
         } else if (source == null && preview != null) {
             CameraIntegrations.resume();
+            activeFov = 0f;
         }
         preview = source;
     }
@@ -54,6 +59,7 @@ public final class SceneCamera {
     }
 
     public static void end() {
+        activeFov = 0f;
         CameraIntegrations.resume();
     }
 
@@ -62,8 +68,10 @@ public final class SceneCamera {
         if (preview != null && !ClientScene.framing()) {
             Pose pose = preview.apply(partialTick);
             if (pose == null) {
+                activeFov = 0f;
                 return false;
             }
+            activeFov = pose.fov();
             CameraAccessor accessor = (CameraAccessor) camera;
             accessor.storybound$setDetached(true);
             accessor.storybound$setRotation(pose.yaw(), pose.pitch(), 0f);
@@ -71,10 +79,12 @@ public final class SceneCamera {
             return true;
         }
         if (!ClientScene.framing()) {
+            activeFov = 0f;
             return false;
         }
         List<ScenePayloads.Shot> shots = ClientScene.shots();
         if (shots.isEmpty()) {
+            activeFov = 0f;
             return false;
         }
         double time = ClientScene.time(partialTick);
@@ -90,6 +100,7 @@ public final class SceneCamera {
             Pose from = pose(last, 1, partialTick);
             pose = from.toward(pose, SceneDefinition.Ease.IN_OUT.apply(into / GLIDE));
         }
+        activeFov = pose.fov();
         CameraAccessor accessor = (CameraAccessor) camera;
         accessor.storybound$setDetached(true);
         accessor.storybound$setRotation(pose.yaw(), pose.pitch(), 0f);
@@ -97,10 +108,26 @@ public final class SceneCamera {
         return true;
     }
 
-    public record Pose(Vec3 pos, float yaw, float pitch) {
+    public record Pose(Vec3 pos, float yaw, float pitch, float fov) {
+        public Pose(Vec3 pos, float yaw, float pitch) {
+            this(pos, yaw, pitch, 0f);
+        }
+
+        public Pose withFov(float fov) {
+            return new Pose(pos, yaw, pitch, fov);
+        }
+
         public Pose toward(Pose other, double share) {
+            float blendedFov = 0f;
+            if (fov > 0f || other.fov > 0f) {
+                Minecraft minecraft = Minecraft.getInstance();
+                float fallback = minecraft != null && minecraft.options != null ? minecraft.options.fov().get() : 70f;
+                float a = fov > 0f ? fov : fallback;
+                float b = other.fov > 0f ? other.fov : fallback;
+                blendedFov = (float) Mth.lerp(share, a, b);
+            }
             return new Pose(pos.lerp(other.pos, share), (float) (yaw + Mth.wrapDegrees(other.yaw - yaw) * share),
-                    (float) Mth.lerp(share, pitch, other.pitch));
+                    (float) Mth.lerp(share, pitch, other.pitch), blendedFov);
         }
     }
 
@@ -108,7 +135,8 @@ public final class SceneCamera {
     public static Pose pose(ScenePayloads.Shot shot, double t, float partialTick) {
         SceneDefinition.Ease[] eases = SceneDefinition.Ease.values();
         double gone = eases[Math.max(0, Math.min(eases.length - 1, shot.ease()))].apply(t);
-        Vec3 pos = shot.from().lerp(shot.to(), gone);
+        ScenePath path = ScenePath.of(shot.from(), shot.via(), shot.to());
+        Vec3 pos = path.pointAt(gone);
         Vec3 target = shot.lookPoint();
         if (shot.look() == ScenePayloads.LOOK_ENTITY) {
             Entity entity = entity(shot.lookEntity());
@@ -116,12 +144,12 @@ public final class SceneCamera {
                 target = entity.getEyePosition(partialTick);
             }
         } else if (shot.look() == ScenePayloads.LOOK_PATH) {
-            Vec3 way = shot.to().subtract(shot.from());
+            Vec3 way = path.tangentAt(gone);
             if (way.lengthSqr() > 1.0e-6) {
                 target = pos.add(way);
             }
         }
-        return facing(pos, target);
+        return facing(pos, target).withFov(shot.fov());
     }
 
     /** The yaw and pitch that look from {@code pos} at {@code target}, as Minecraft turns the camera. */
@@ -153,6 +181,16 @@ public final class SceneCamera {
     public static void onRenderHand(RenderHandEvent event) {
         if (framing()) {
             event.setCanceled(true);
+        }
+    }
+
+    /** Applies the shot's custom FOV while a scene or the camera preview frames the view. */
+    public static void onComputeFov(ViewportEvent.ComputeFov event) {
+        if (!event.usedConfiguredFov() || !framing()) {
+            return;
+        }
+        if (activeFov > 0f) {
+            event.setFOV(activeFov);
         }
     }
 

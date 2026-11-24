@@ -46,5 +46,10 @@ class SceneCameraTest {
         assertEquals(180, half.yaw(), 1e-4, "through 180, not back through 0");
         assertEquals(5, half.pitch(), 1e-4);
         assertEquals(1, half.pos().x, 1e-9);
+        assertEquals(0f, half.fov(), 1e-6, "unset FOV stays unset during a glide");
+
+        SceneCamera.Pose wide = new SceneCamera.Pose(Vec3.ZERO, 0, 0, 90f);
+        SceneCamera.Pose tight = new SceneCamera.Pose(Vec3.ZERO, 0, 0, 40f);
+        assertEquals(65f, wide.toward(tight, 0.5).fov(), 1e-4, "explicit FOVs blend smoothly during a glide");
     }
 }

@@ -768,10 +768,19 @@ final class StoryInspector {
         }
         screen.catalog().openList(DevUi.text("vanilla_script.run_in_title"), entries, (kind, entry) -> {
             if (entry.id().startsWith(NEW_CALLER)) {
-                view.createLinked(screen, script, Template.valueOf(entry.id().substring(NEW_CALLER.length())), true);
+                try {
+                    view.createLinked(screen, script, Template.valueOf(entry.id().substring(NEW_CALLER.length())), true);
+                } catch (IllegalArgumentException ignored) {
+                }
             } else {
                 int bar = entry.id().indexOf('|');
-                view.link(screen, new NodeKey(ResourceLocation.parse(entry.id().substring(0, bar)), ResourceLocation.parse(entry.id().substring(bar + 1))), script);
+                if (bar > 0 && bar < entry.id().length() - 1) {
+                    ResourceLocation callerType = ResourceLocation.tryParse(entry.id().substring(0, bar));
+                    ResourceLocation callerId = ResourceLocation.tryParse(entry.id().substring(bar + 1));
+                    if (callerType != null && callerId != null) {
+                        view.link(screen, new NodeKey(callerType, callerId), script);
+                    }
+                }
             }
             screen.rebuild();
         });

@@ -398,6 +398,7 @@ abstract class StoryCards extends GraphView {
             if (selected != null) {
                 selected = moved.apply(selected);
             }
+            movedNamespace = null;
         }
         selection.removeIf(key -> ClientDevStore.getJson(key.type(), key.id()) == null);
         if (selected != null && ClientDevStore.getJson(selected.type(), selected.id()) == null) {

@@ -54,12 +54,20 @@ public final class SceneGameTests {
                 "{ \"shots\": [ { \"camera\": { \"from\": [0, 1, 0], \"duration\": 2, \"speed\": 3 } } ] }",
                 "{ \"shots\": [ { \"anchor\": { \"npc\": \"a:b\", \"waypoint\": \"a:c\" }, \"camera\": { \"from\": [0, 1, 0], \"duration\": 2 } } ] }",
                 "{ \"shots\": [ { \"camera\": { \"from\": [0, 1, 0], \"duration\": 2 }, \"during\": [ { \"title\": { \"text\": { \"literal\": \"a\" } },"
-                        + " \"sound\": { \"sound\": \"minecraft:block.bell.use\" } } ] } ] }"}) {
+                        + " \"sound\": { \"sound\": \"minecraft:block.bell.use\" } } ] } ] }",
+                "{ \"shots\": [ { \"camera\": { \"from\": [0, 1, 0], \"duration\": 2, \"fov\": 15 } } ] }",
+                "{ \"shots\": [ { \"camera\": { \"from\": [0, 1, 0], \"duration\": 2, \"fov\": 130 } } ] }"}) {
             helper.assertTrue(parse(helper, wrong).isError(), "refused: " + wrong);
         }
         SceneDefinition speed = parse(helper, "{ \"shots\": [ { \"camera\": { \"from\": [0, 1, 0], \"to\": [12, 1, 0], \"speed\": 4 } } ] }")
                 .getOrThrow(GameTestAssertException::new);
         helper.assertTrue(Math.abs(speed.shots().getFirst().camera().orElseThrow().seconds() - 3f) < 0.01f, "12 blocks at 4 a second: 3 seconds");
+        SceneDefinition curved = parse(helper, """
+                { "shots": [ { "camera": { "from": [0, 1, 0], "via": [[6, 5, 6], [12, 5, 6]], "to": [12, 1, 0], "speed": 4, "fov": 45 } } ] }
+                """).getOrThrow(GameTestAssertException::new);
+        SceneDefinition.Camera curvedCam = curved.shots().getFirst().camera().orElseThrow();
+        helper.assertTrue(curvedCam.via().size() == 2 && Math.abs(curvedCam.fov().orElse(0f) - 45f) < 0.01f, "spline via points and custom fov loaded");
+        helper.assertTrue(curvedCam.seconds() > 4.0f, "speed uses spline arc length, longer than straight 12-block chord (3s)");
         helper.assertTrue(parse(helper, "{ \"shots\": [ { \"dialogue\": \"gametest:talk\", \"camera\": { \"from\": [0, 1, 0], \"duration\": 1 } } ] }").isError(),
                 "a shot is a flight or a talk, not both");
         SceneDefinition rich = parse(helper, """
@@ -100,6 +108,56 @@ public final class SceneGameTests {
             } finally {
                 CoreDefinitions.EVENTS.serverStore().replace(before);
                 StoryEvents.rebuild();
+                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                remove(helper, player);
+            }
+            helper.succeed();
+        });
+    }
+
+    /** Skipping a scene ends it at once, running any remaining cue actions and its on_end. */
+    @GameTest(template = "empty", batch = "scene_skip", timeoutTicks = 60)
+    public static void aSkippedSceneRunsItsCueActionsAndEnds(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        SceneRegistries.SCENES.serverStore().replace(Map.of(key("skip_me"), parse(helper, ONE_SECOND).getOrThrow(GameTestAssertException::new)));
+        try {
+            Scenes.play(player, key("skip_me"));
+            expect(helper, Scenes.watching(player), key("skip_me"), "watching it");
+            Scenes.skip(player);
+            expect(helper, Scenes.watching(player), null, "skipped at once");
+            expect(helper, stored(player, "scene_cue"), Optional.of(new StoryValue.Int(1)), "its remaining cue action still ran");
+            expect(helper, stored(player, "scene_end"), Optional.of(new StoryValue.Int(1)), "its on_end ran");
+            expect(helper, StoryState.getStored(player, StoryScope.PLAYER, Storybound.id("scene/pending")), Optional.empty(), "forgotten once skipped");
+        } finally {
+            Scenes.clear();
+            SceneRegistries.SCENES.serverStore().replace(Map.of());
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    /** A newer music cue on the timeline immediately switches the active scene track and clears on end. */
+    @GameTest(template = "empty", batch = "scene_music_switch", timeoutTicks = 80)
+    public static void aLaterMusicCueReplacesThePreviousTrack(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        String twoTracks = """
+                { "shots": [ { "camera": { "from": [0, 3, -4], "to": [2, 3, -4], "duration": 1.2 },
+                               "during": [
+                                 { "at": 0, "music": "minecraft:music.menu" },
+                                 { "at": 0.5, "music": "minecraft:music.game" }
+                               ] } ] }
+                """;
+        SceneRegistries.SCENES.serverStore().replace(Map.of(key("music_switch"), parse(helper, twoTracks).getOrThrow(GameTestAssertException::new)));
+        Scenes.play(player, key("music_switch"));
+        expect(helper, Scenes.music(player), Optional.of(ResourceLocation.parse("minecraft:music.menu")), "first track starts at 0s");
+        helper.runAfterDelay(12, () -> expect(helper, Scenes.music(player), Optional.of(ResourceLocation.parse("minecraft:music.game")),
+                "second track replaces the first at 0.5s"));
+        helper.runAfterDelay(32, () -> {
+            try {
+                expect(helper, Scenes.watching(player), null, "scene finished");
+                expect(helper, Scenes.music(player), Optional.empty(), "scene music cleared on end");
+            } finally {
+                Scenes.clear();
                 SceneRegistries.SCENES.serverStore().replace(Map.of());
                 remove(helper, player);
             }

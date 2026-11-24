@@ -373,6 +373,7 @@ abstract class FormPickers extends FormCore {
             case "document" -> ClientDevStore.TYPE_DOCUMENT;
             case "boss" -> ClientDevStore.TYPE_BOSS;
             case "script" -> ClientDevStore.TYPE_VANILLA_SCRIPT;
+            case "scene" -> ClientDevStore.TYPE_SCENE;
             case "phrases", "warning", "busy" -> ClientDevStore.TYPE_PHRASES;
             case "entry" -> ClientDevStore.TYPE_CODEX;
             case "waypoint" -> ClientDevStore.TYPE_WAYPOINT;

@@ -98,6 +98,7 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderGuiLayer);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderHand);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onComputeFov);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderHighlight);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.ScenePreview::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHand);
@@ -240,6 +241,7 @@ public final class StoryboundClient {
         ClientBosses.clear();
         ClientParty.clear();
         ReputationHud.clear();
+        dev.dzenthai.storybound.client.dev.DevSoundPreview.stop();
         dev.dzenthai.storybound.client.sound.ClientStoryMusic.clear();
         ScreenFadeOverlay.clear();
         ClientWaypoints.clear();

@@ -413,10 +413,21 @@ final class StoryEdits {
 
     private static boolean unlinkIn(JsonObject object, NodeKey target, String id) {
         boolean changed = false;
-        if (target.type().equals(ClientDevStore.TYPE_NPC) && isId(object.get("npc"), id)) {
-            // A waypoint pointing at the NPC: its target is left to choose again (the form says "Choose the NPC").
-            object.remove("npc");
-            changed = true;
+        if (target.type().equals(ClientDevStore.TYPE_NPC)) {
+            if (object.get("anchor") instanceof JsonObject anchor && isId(anchor.get("npc"), id)) {
+                // A scene shot anchored on the deleted NPC falls back to the player so the scene stays valid.
+                object.addProperty("anchor", "player");
+                changed = true;
+            }
+            if (object.get("look") instanceof JsonObject look && isId(look.get("npc"), id)) {
+                object.remove("look");
+                changed = true;
+            }
+            if (isId(object.get("npc"), id)) {
+                // A waypoint pointing at the NPC: its target is left to choose again (the form says "Choose the NPC").
+                object.remove("npc");
+                changed = true;
+            }
         }
         if (target.type().equals(ClientDevStore.TYPE_DIALOGUE) && object.get("when_attacked") instanceof JsonObject hit && isId(hit.get("dialogue"), id)) {
             // The scene started on a hit goes, the reaction stays.

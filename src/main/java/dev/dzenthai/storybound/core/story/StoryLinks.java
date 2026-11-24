@@ -155,8 +155,38 @@ public final class StoryLinks {
             }
         });
         source.byType(EVENT).forEach((id, raw) -> collectLogicEdges(new NodeKey(EVENT, id), parseObject(raw), edges, hooks));
-        // What a scene does at its end and its seconds (moves a quest on, gives a document) are its arrows.
-        source.byType(SCENE).forEach((id, raw) -> collectLogicEdges(new NodeKey(SCENE, id), parseObject(raw), edges, hooks));
+        // What a scene does at its end and its seconds (moves a quest on, gives a document) and its shots' anchors/talks are its arrows.
+        source.byType(SCENE).forEach((id, raw) -> {
+            NodeKey from = new NodeKey(SCENE, id);
+            JsonObject obj = parseObject(raw);
+            if (obj.get("shots") instanceof JsonArray shots) {
+                for (JsonElement el : shots) {
+                    if (!(el instanceof JsonObject shot)) {
+                        continue;
+                    }
+                    if (shot.get("dialogue") instanceof JsonPrimitive dialogue) {
+                        parseId(dialogue.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(DIALOGUE, target), "talk")));
+                    }
+                    if (shot.get("anchor") instanceof JsonObject anchor) {
+                        if (anchor.get("npc") instanceof JsonPrimitive npc) {
+                            parseId(npc.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(NPC, target), "anchor")));
+                        }
+                        if (anchor.get("waypoint") instanceof JsonPrimitive waypoint) {
+                            parseId(waypoint.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(WAYPOINT, target), "anchor")));
+                        }
+                    }
+                    if (shot.get("camera") instanceof JsonObject camera && camera.get("look") instanceof JsonObject look) {
+                        if (look.get("npc") instanceof JsonPrimitive npc) {
+                            parseId(npc.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(NPC, target), "look")));
+                        }
+                        if (look.get("waypoint") instanceof JsonPrimitive waypoint) {
+                            parseId(waypoint.getAsString()).ifPresent(target -> edges.add(new Edge(from, new NodeKey(WAYPOINT, target), "look")));
+                        }
+                    }
+                }
+            }
+            collectLogicEdges(from, obj, edges, hooks);
+        });
         for (ResourceLocation type : List.of(NPC, BOSS, CODEX)) {
             source.byType(type).forEach((id, raw) -> collectLogicEdges(new NodeKey(type, id), parseObject(raw), edges, hooks));
         }
@@ -265,10 +295,16 @@ public final class StoryLinks {
                                 .ifPresent(s -> edges.add(new Edge(owner, new NodeKey(VANILLA_SCRIPT, s), "runs")));
                     }
                 }
-                case "play_scene" -> {
+                case "play_scene", "scene" -> {
                     if (obj.has("scene") && obj.get("scene").isJsonPrimitive()) {
                         parseId(obj.get("scene").getAsString())
                                 .ifPresent(s -> edges.add(new Edge(owner, new NodeKey(SCENE, s), "plays")));
+                    }
+                }
+                case "scene_finished", "in_scene" -> {
+                    if (obj.has("scene") && obj.get("scene").isJsonPrimitive()) {
+                        parseId(obj.get("scene").getAsString())
+                                .ifPresent(s -> edges.add(new Edge(new NodeKey(SCENE, s), owner, type)));
                     }
                 }
                 case "start_dialogue" -> {

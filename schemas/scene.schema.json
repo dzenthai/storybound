@@ -106,6 +106,7 @@
           "oneOf": [ { "required": ["duration"] }, { "required": ["speed"] } ],
           "properties": {
             "from": { "$ref": "logic.schema.json#/definitions/vec3" },
+            "via": { "description": "Optional intermediate points between from and to: turns the flight into a smooth 3D spline passing through each point in order.", "type": "array", "maxItems": 16, "items": { "$ref": "logic.schema.json#/definitions/vec3" } },
             "to": { "description": "Where the flight ends; without it the camera stays at from.", "$ref": "logic.schema.json#/definitions/vec3" },
             "look": {
               "description": "anchor: at the anchor (followed when it is an entity); path: the way the camera flies; player; or another anchor.",
@@ -114,7 +115,8 @@
             },
             "duration": { "description": "Seconds the flight takes; the camera's speed follows.", "type": "number", "minimum": 0.05, "maximum": 120 },
             "speed": { "description": "Blocks a second; the flight lasts as long as the way takes.", "type": "number", "minimum": 0.05, "maximum": 200 },
-            "ease": { "description": "How it speeds up and slows down.", "enum": ["in_out", "linear", "in", "out"], "default": "in_out" }
+            "ease": { "description": "How it speeds up and slows down.", "enum": ["in_out", "linear", "in", "out"], "default": "in_out" },
+            "fov": { "description": "Optional camera field of view in degrees (20 to 120); without it, uses the player's own FOV.", "type": "number", "minimum": 20, "maximum": 120 }
           }
         },
         "during": { "description": "What happens while the shot plays.", "type": "array", "items": { "$ref": "#/definitions/cue" } },

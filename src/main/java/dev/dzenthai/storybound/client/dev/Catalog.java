@@ -158,6 +158,7 @@ final class Catalog {
 
     void close() {
         open = false;
+        DevSoundPreview.stop();
     }
 
     private int left(Host screen) {
@@ -188,7 +189,8 @@ final class Catalog {
         }
 
         int searchY = top + 24;
-        EditBox search = new EditBox(screen.font(), left + 8, searchY, WIDTH - 84, 16, DevUi.text("catalog.search"));
+        boolean allowCustom = kind != Kind.LIST;
+        EditBox search = new EditBox(screen.font(), left + 8, searchY, allowCustom ? WIDTH - 84 : WIDTH - 16, 16, DevUi.text("catalog.search"));
         search.setMaxLength(128);
         search.setHint(DevUi.text("catalog.search_hint"));
         search.setValue(filter);
@@ -199,14 +201,16 @@ final class Catalog {
         screen.add(search);
         screen.focus(search);
 
-        screen.add(Button.builder(DevUi.text("catalog.custom"), b -> {
-            String raw = filter.trim();
-            if (!raw.isEmpty()) {
-                // Registry ids default to minecraft:, as in commands; a caller's list takes what was typed.
-                String id = kind == Kind.LIST || raw.contains(":") || raw.startsWith("#") ? raw : "minecraft:" + raw;
-                pick(screen, new Entry(id, id, new ItemStack(Items.NAME_TAG)));
-            }
-        }).bounds(left + WIDTH - 72, searchY - 1, 64, 18).build());
+        if (allowCustom) {
+            screen.add(Button.builder(DevUi.text("catalog.custom"), b -> {
+                String raw = filter.trim();
+                if (!raw.isEmpty()) {
+                    // Registry ids default to minecraft:, as in commands.
+                    String id = raw.contains(":") || raw.startsWith("#") ? raw : "minecraft:" + raw;
+                    pick(screen, new Entry(id, id, new ItemStack(Items.NAME_TAG)));
+                }
+            }).bounds(left + WIDTH - 72, searchY - 1, 64, 18).build());
+        }
     }
 
     /**
@@ -226,14 +230,19 @@ final class Catalog {
             }
         }).tooltip(Tooltip.create(DevUi.text("sound.open_folder"))).bounds(left + WIDTH - 24 - folderW, top + 3, folderW, 16).build());
         screen.add(Button.builder(Component.literal("↻ ").append(DevUi.text("sound.refresh")), b -> {
+            Kind reloadedKind = kind;
+            DevSoundPreview.stop();
             screen.status(DevUi.text("sound.reloading"), DevUi.NEUTRAL);
             Minecraft minecraft = Minecraft.getInstance();
             minecraft.reloadResourcePacks().thenRun(() -> minecraft.execute(() -> {
-                if (open && (kind == Kind.SOUND || kind == Kind.MUSIC || kind == Kind.ICON)) {
-                    entries = withSelection(entries(kind, minecraft.level));
+                if (minecraft.screen != screen) {
+                    return;
+                }
+                if (open && kind == reloadedKind && (reloadedKind == Kind.SOUND || reloadedKind == Kind.MUSIC || reloadedKind == Kind.ICON)) {
+                    entries = withSelection(entries(reloadedKind, minecraft.level));
                     scroll = 0;
                 }
-                screen.status(kind == Kind.ICON ? DevUi.text("icon.reloaded", StoryAssets.icons().icons().size())
+                screen.status(reloadedKind == Kind.ICON ? DevUi.text("icon.reloaded", StoryAssets.icons().icons().size())
                         : DevUi.text("sound.reloaded", StoryAssets.last().sounds().size()), DevUi.OK);
                 screen.rebuild();
             }));
@@ -304,6 +313,9 @@ final class Catalog {
                 graphics.drawString(font, font.plainSubstrByWidth(entry.label(), WIDTH - 40), left + 30, y + 5, DevUi.MUTED, false);
                 continue;
             }
+            boolean canPreview = (kind == Kind.SOUND || kind == Kind.MUSIC) && !entry.id().equals(CLEAR) && !entry.id().startsWith(PROBLEM);
+            int playX = left + WIDTH - 26;
+            boolean hoverPlay = canPreview && DevUi.inside(mouseX, mouseY, playX, y, 18, ROW_H);
             boolean hover = DevUi.inside(mouseX, mouseY, left + 8, y, WIDTH - 16, ROW_H);
             boolean chosen = entry.id().equals(selected);
             if (hover || chosen) {
@@ -312,11 +324,22 @@ final class Catalog {
             if (chosen) {
                 graphics.fill(left + 7, y, left + 9, y + ROW_H - 1, DevUi.ACCENT);
             }
+            graphics.pose().pushPose();
+            // Keep modal item icons behind tooltips (renderItem adds +150 Z internally).
+            graphics.pose().translate(0, 0, -140);
             graphics.renderItem(entry.icon(), left + 10, y + 1);
-            String label = font.plainSubstrByWidth(entry.label(), 155);
-            graphics.drawString(font, label, left + 30, y + 5, hover ? DevUi.WARN : chosen ? DevUi.ACCENT : entry.id().equals(CLEAR) ? DevUi.MUTED : DevUi.TEXT, false);
-            String id = font.plainSubstrByWidth(entry.id(), 118);
-            graphics.drawString(font, id, left + WIDTH - 12 - font.width(id), y + 5, DevUi.MUTED, false);
+            graphics.pose().popPose();
+            String label = font.plainSubstrByWidth(entry.label(), canPreview ? 140 : 155);
+            graphics.drawString(font, label, left + 30, y + 5, (hover && !hoverPlay) ? DevUi.WARN : chosen ? DevUi.ACCENT : entry.id().equals(CLEAR) ? DevUi.MUTED : DevUi.TEXT, false);
+            String id = font.plainSubstrByWidth(entry.id(), canPreview ? 102 : 118);
+            graphics.drawString(font, id, (canPreview ? playX - 4 : left + WIDTH - 12) - font.width(id), y + 5, DevUi.MUTED, false);
+            if (canPreview) {
+                boolean active = DevSoundPreview.isPlaying(entry.id());
+                graphics.fill(playX, y + 1, playX + 16, y + ROW_H - 2, hoverPlay ? DevUi.ROW_HOVER : DevUi.CARD);
+                DevUi.frame(graphics, playX, y + 1, 16, ROW_H - 3, hoverPlay || active ? DevUi.ACCENT : DevUi.CARD_EDGE);
+                DevIcons.draw(graphics, active ? "stop" : "play", playX + 3, y + (ROW_H - DevIcons.SIZE) / 2,
+                        active ? DevUi.ACCENT : hoverPlay ? DevUi.WARN : DevUi.LABEL);
+            }
         }
     }
 
@@ -332,9 +355,17 @@ final class Catalog {
         List<Entry> shown = filtered();
         int listTop = listTop(screen);
         for (int i = 0; i < rows() && scroll + i < shown.size(); i++) {
-            if (DevUi.inside(mouseX, mouseY, left + 8, listTop + i * ROW_H, WIDTH - 16, ROW_H)) {
-                if (pickable(shown.get(scroll + i))) {
-                    pick(screen, shown.get(scroll + i));
+            int rowY = listTop + i * ROW_H;
+            if (DevUi.inside(mouseX, mouseY, left + 8, rowY, WIDTH - 16, ROW_H)) {
+                Entry entry = shown.get(scroll + i);
+                boolean canPreview = (kind == Kind.SOUND || kind == Kind.MUSIC) && pickable(entry)
+                        && !entry.id().equals(CLEAR) && !entry.id().startsWith(PROBLEM);
+                if (canPreview && DevUi.inside(mouseX, mouseY, left + WIDTH - 26, rowY, 18, ROW_H)) {
+                    DevSoundPreview.toggle(entry.id());
+                    return true;
+                }
+                if (pickable(entry)) {
+                    pick(screen, entry);
                 }
                 return true;
             }

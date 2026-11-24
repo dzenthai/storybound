@@ -188,28 +188,36 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
     public record AtOther(Anchor anchor) implements Look {}
 
     /**
-     * The flight: {@code from} and {@code to} are offsets from the anchor (right, up, forward, as the anchor faces; a
-     * structure faces south), flown in {@code duration} seconds or at {@code speed} blocks a second, one of them.
+     * The flight: {@code from}, optional intermediate spline points {@code via}, and {@code to} are offsets from the
+     * anchor (right, up, forward, as the anchor faces; a structure faces south), flown in {@code duration} seconds or
+     * at {@code speed} blocks a second, one of them. Optional {@code fov} overrides the camera's field of view.
      */
-    public record Camera(Vec3 from, Vec3 to, Look look, Optional<Float> duration, Optional<Float> speed, Ease ease) {
+    public record Camera(Vec3 from, List<Vec3> via, Vec3 to, Look look, Optional<Float> duration, Optional<Float> speed,
+                         Ease ease, Optional<Float> fov) {
         /** The longest shot: a scene is watched, not waited out. */
         public static final float MAX_SECONDS = 120;
+        public static final int MAX_VIA = 16;
+        public static final float MIN_FOV = 20;
+        public static final float MAX_FOV = 120;
         public static final MapCodec<Camera> MAP_CODEC = RecordCodecBuilder.<Camera>mapCodec(instance -> instance.group(
                 Vec3.CODEC.fieldOf("from").forGetter(Camera::from),
+                Vec3.CODEC.listOf(0, MAX_VIA).optionalFieldOf("via", List.of()).forGetter(Camera::via),
                 Vec3.CODEC.optionalFieldOf("to").forGetter(camera -> Optional.of(camera.to())),
                 Look.CODEC.optionalFieldOf("look", new AtAnchor()).forGetter(Camera::look),
                 Codec.floatRange(0.05f, MAX_SECONDS).optionalFieldOf("duration").forGetter(Camera::duration),
                 Codec.floatRange(0.05f, 200f).optionalFieldOf("speed").forGetter(Camera::speed),
-                Ease.CODEC.optionalFieldOf("ease", Ease.IN_OUT).forGetter(Camera::ease)
-        ).apply(instance, (from, to, look, duration, speed, ease) -> new Camera(from, to.orElse(from), look, duration, speed, ease)))
+                Ease.CODEC.optionalFieldOf("ease", Ease.IN_OUT).forGetter(Camera::ease),
+                Codec.floatRange(MIN_FOV, MAX_FOV).optionalFieldOf("fov").forGetter(Camera::fov)
+        ).apply(instance, (from, via, to, look, duration, speed, ease, fov) ->
+                new Camera(from, List.copyOf(via), to.orElse(from), look, duration, speed, ease, fov)))
                 .validate(camera -> camera.duration().isPresent() == camera.speed().isPresent()
                         ? DataResult.error(() -> "A shot's camera has either 'duration' or 'speed'")
                         : DataResult.success(camera));
         public static final Codec<Camera> CODEC = MAP_CODEC.codec();
 
-        /** How long the flight takes: as written, or by the distance at the speed; never longer than {@link #MAX_SECONDS}. */
+        /** How long the flight takes: as written, or by the curve's arc length at the speed; never longer than {@link #MAX_SECONDS}. */
         public float seconds() {
-            float length = duration.orElseGet(() -> (float) (from.distanceTo(to) / speed.orElseThrow()));
+            float length = duration.orElseGet(() -> (float) (ScenePath.of(from, via, to).length() / speed.orElseThrow()));
             return Math.max(0.05f, Math.min(MAX_SECONDS, length));
         }
     }

@@ -95,7 +95,7 @@ abstract class FormEntities extends FormInputs {
         }
     }
 
-    /** "Villager · Smith, male · The Nether": the kind, the values of its data, where it is; "—" with no kind. */
+    /** "Villager · Smith, male · The Nether": the kind, the values of its data, where it is; a dash with no kind. */
     private static String variantSummary(JsonObject selector) {
         List<String> parts = new ArrayList<>();
         String kinds = entitySummary(selector.has("type") ? typeOnly(selector) : null);

@@ -30,12 +30,15 @@ public final class ScenePayloads {
     public static final int LOOK_PATH = 2;
 
     /**
-     * One shot as the client flies it: absolute points, {@code start} and {@code ticks} on the scene's clock, the ease
-     * and the transition by their ordinal.
+     * One shot as the client flies it: absolute points ({@code from}, optional spline {@code via}, {@code to}),
+     * {@code start} and {@code ticks} on the scene's clock, the ease and the transition by their ordinal, and optional
+     * {@code fov} ({@code 0} for the player's own FOV).
      */
-    public record Shot(Vec3 from, Vec3 to, int look, Vec3 lookPoint, int lookEntity, int start, int ticks, int ease, int transition) {
+    public record Shot(Vec3 from, List<Vec3> via, Vec3 to, int look, Vec3 lookPoint, int lookEntity, int start, int ticks, int ease, int transition, float fov) {
+        private static final StreamCodec<ByteBuf, List<Vec3>> VEC3_LIST = VEC3.apply(ByteBufCodecs.list());
         public static final StreamCodec<ByteBuf, Shot> STREAM_CODEC = StreamCodec.of((buf, shot) -> {
             VEC3.encode(buf, shot.from);
+            VEC3_LIST.encode(buf, shot.via);
             VEC3.encode(buf, shot.to);
             buf.writeByte(shot.look);
             VEC3.encode(buf, shot.lookPoint);
@@ -44,12 +47,13 @@ public final class ScenePayloads {
             ByteBufCodecs.VAR_INT.encode(buf, shot.ticks);
             buf.writeByte(shot.ease);
             buf.writeByte(shot.transition);
-        }, buf -> new Shot(VEC3.decode(buf), VEC3.decode(buf), buf.readByte(), VEC3.decode(buf), ByteBufCodecs.VAR_INT.decode(buf),
-                ByteBufCodecs.VAR_INT.decode(buf), ByteBufCodecs.VAR_INT.decode(buf), buf.readByte(), buf.readByte()));
+            buf.writeFloat(shot.fov);
+        }, buf -> new Shot(VEC3.decode(buf), List.copyOf(VEC3_LIST.decode(buf)), VEC3.decode(buf), buf.readByte(), VEC3.decode(buf), ByteBufCodecs.VAR_INT.decode(buf),
+                ByteBufCodecs.VAR_INT.decode(buf), ByteBufCodecs.VAR_INT.decode(buf), buf.readByte(), buf.readByte(), buf.readFloat()));
 
         /** The same shot at its place on the scene's clock. */
         public Shot withTime(int at, int length) {
-            return new Shot(from, to, look, lookPoint, lookEntity, at, length, ease, transition);
+            return new Shot(from, via, to, look, lookPoint, lookEntity, at, length, ease, transition, fov);
         }
     }
 
@@ -213,6 +217,23 @@ public final class ScenePayloads {
 
         public static void handleOnClient(End payload, IPayloadContext context) {
             ClientScene.end(payload.session());
+        }
+    }
+
+    /** The watcher pressed Space to skip the rest of the scene. */
+    public record Skip(int session) implements CustomPacketPayload {
+        public static final Type<Skip> TYPE = new Type<>(Storybound.id("scene_skip"));
+        public static final StreamCodec<ByteBuf, Skip> STREAM_CODEC = ByteBufCodecs.VAR_INT.map(Skip::new, Skip::session);
+
+        @Override
+        public Type<Skip> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(Skip payload, IPayloadContext context) {
+            if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                dev.dzenthai.storybound.module.scene.Scenes.skip(player, payload.session());
+            }
         }
     }
 }

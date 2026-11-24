@@ -252,8 +252,15 @@ abstract class FormScenes extends FormStory {
                     yield sound;
                 }
                 case "fade" -> {
+                    double at = 0;
+                    if (object.get("at") instanceof JsonPrimitive num && num.isNumber()) {
+                        try {
+                            at = num.getAsDouble();
+                        } catch (RuntimeException ignored) {
+                        }
+                    }
                     JsonObject fade = new JsonObject();
-                    fade.addProperty("in", 0.5);
+                    fade.addProperty("in", at <= 0.05 ? 0 : 0.5);
                     fade.addProperty("stay", 1);
                     fade.addProperty("out", 0.5);
                     yield fade;

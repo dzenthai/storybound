@@ -106,7 +106,7 @@ abstract class FormDialogues extends FormWaypoints {
             // last; what the flag holds, then where.
             Map.entry("event", List.of("trigger", "conditions", "once", "cooldown", "actions", "on_fail")),
             // A scene: its shots; how it is watched; what follows. A shot: against what, the flight, what happens.
-            Map.entry("scene", List.of("shots", "music", "letterbox", "world", "invulnerable", "on_end")),
+            Map.entry("scene", List.of("shots", "letterbox", "world", "invulnerable", "on_end")),
             Map.entry("scene.shot", List.of("anchor", "dialogue", "camera", "during", "transition")),
             Map.entry("scene.camera", List.of("from", "to", "look", "duration", "speed", "ease")),
             Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
@@ -144,6 +144,10 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("chapter", Map.of("title", "chapter.group.chapter")));
 
     static boolean nodeFieldShown(String form, String name, @Nullable JsonObject object, @Nullable JsonObject dialogue) {
+        if (form.equals("scene") && name.equals("music")) {
+            // Scene music lives on shot timeline cues; only reveal legacy top-level music if already set in JSON.
+            return object != null && object.has("music");
+        }
         if (form.equals("node.line") && name.equals("sound")) {
             // The voice-over is the 🎤 beside the line's text.
             return false;
@@ -216,6 +220,9 @@ abstract class FormDialogues extends FormWaypoints {
     /** The phrase as an object holding its voice-over: the line becomes {@code { "text": ... }} if it is a text alone. */
     private JsonObject phraseHolder(List<Object> path, int index) {
         JsonArray list = ensureArray(path);
+        if (index < 0 || index >= list.size()) {
+            return new JsonObject();
+        }
         if (list.get(index) instanceof JsonObject object && object.has("text")) {
             return object;
         }
@@ -238,7 +245,8 @@ abstract class FormDialogues extends FormWaypoints {
         int rightW = width;
         String key = listKey(path, field) + "." + index;
         JsonObject voiced = array.get(index) instanceof JsonObject object && object.has("text") ? object : null;
-        EditBox box = new EditBox(screen.font(), right, rowY + 1, rightW - 40, CONTROL_H - 2, Component.empty());
+        int voiceCols = hasVoiceOver(voiced) ? 40 : 20;
+        EditBox box = new EditBox(screen.font(), right, rowY + 1, rightW - 20 - voiceCols, CONTROL_H - 2, Component.empty());
         box.setMaxLength(1024);
         box.setValue(readPhrase(array, index, ClientDevStore.activeLanguage()));
         String source = readPhrase(array, index, ClientDevStore.sourceLanguage());

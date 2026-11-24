@@ -129,7 +129,11 @@ final class StoryPanel {
             int edge = open ? DevUi.ACCENT : hover ? DevUi.NEUTRAL : DevUi.CARD_EDGE;
             DevUi.frame(graphics, slotX, y, SLOT, SLOT, edge);
             if (!row.icon().isEmpty()) {
+                graphics.pose().pushPose();
+                // Keep expanded panel item icons behind context menus (renderItem adds +150 Z internally).
+                graphics.pose().translate(0, 0, -140);
                 graphics.renderItem(row.icon(), slotX + 2, y + 2);
+                graphics.pose().popPose();
             } else {
                 int color = row.chapter() == null ? DevUi.LINK : open ? DevUi.ACCENT : hover ? DevUi.TEXT : DevUi.LABEL;
                 String icon = DevIcons.split(row.sign()).icon();
