@@ -152,7 +152,7 @@ final class DialogueGraph {
         switch (type(node)) {
             case "line" -> edges.add(new Edge(from, next(node), EdgeKind.NEXT, ""));
             case "action" -> edges.add(new Edge(from, next(node), EdgeKind.ACTION, ""));
-            case "call" -> edges.add(new Edge(from, next(node), EdgeKind.RETURN, ""));
+            case "call", "scene" -> edges.add(new Edge(from, next(node), EdgeKind.RETURN, ""));
             case "jump" -> {
                 // Only a jump within this dialogue is an arrow: with "dialogue" set, its node is the other dialogue's.
                 if (node.has("node") && !jumpsElsewhere(node)) {
@@ -290,7 +290,7 @@ final class DialogueGraph {
             // Back to the first node until its arrow is drawn elsewhere (the usual way back to a hub of topics).
             case "jump" -> node.addProperty("node", start(dialogue).isBlank() ? END : start(dialogue));
             // The dialogue it runs is picked in its form; until then it is not saved.
-            case "call" -> node.addProperty("next", END);
+            case "call", "scene" -> node.addProperty("next", END);
             default -> {}
         }
         nodes.add(id, node);
@@ -311,7 +311,7 @@ final class DialogueGraph {
             return;
         }
         switch (type(node)) {
-            case "line", "action", "call" -> node.addProperty("next", to);
+            case "line", "action", "call", "scene" -> node.addProperty("next", to);
             case "random" -> {
                 // The first branch that ends, or a new one.
                 for (JsonElement element : options(node)) {

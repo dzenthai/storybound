@@ -30,6 +30,19 @@
   a waypoint) so they work in any world; titles, lines with voice-over, sounds, fades and actions at given seconds;
   black bars; the player kept safe and the mobs nearby calm; `play_scene`, `scene_finished`, `in_scene`. A scene left
   unfinished plays again when the player comes back. Debug scenario `scene`.
+- Scenes in the editor: a scene node (a badge under what plays it on the map), "+ Scene" from a quest, an event or a
+  dialogue, "Watch", and a camera view that sets the shots in the world: the editor as a side panel, the screen showing
+  what the camera sees, the flight drawn as a line, a free view turned around the anchor with the mouse, "📷" to put a
+  point where the view is, a slider through the shot's time and a play button.
+- Scenes: a shot can be a talk (`"dialogue"` instead of `"camera"`): the dialogue plays, the scene goes on after it.
+  A dialogue can play a scene in the middle of the talk with a `scene` node. Captions (`caption`: a place, a time) in a
+  corner, in the middle or on black. A scene's own `music`, changed by a `music` thing during a shot; it comes before
+  every other track.
+- Scenes in the editor: "Placed against" and "The camera looks" are pickers (the player, an NPC, an entity, a
+  structure, a waypoint), shots switch between a flight and a talk; "+ Quest after the scene" and "+ Talk after the
+  scene"; "Scene in the talk" in the dialogue editor. The camera view is drawn like the editor and has a time line of
+  the whole scene: shots as blocks, things as marks to pick, drag in time or remove, a right click on an empty place
+  to add one there.
 - The client and the server must both be on this version: what they send each other has changed.
 - Fixed: a selector naming an entity tag (`"#minecraft:zombies"` in a waypoint, an objective or an NPC binding) failed
   with "Missing tag" when a world loaded, and its definition was left out.

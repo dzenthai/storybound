@@ -60,6 +60,7 @@ final class SceneScreen extends Screen {
             graphics.fill(0, 0, width, bar, 0xFF000000);
             graphics.fill(0, height - bar, width, height, 0xFF000000);
         }
+        caption(graphics, bar, partialTick);
         Component line = ClientScene.line();
         if (line == null) {
             return;
@@ -78,6 +79,41 @@ final class SceneScreen extends Screen {
         }
         for (FormattedCharSequence row : rows) {
             graphics.drawString(client.font, row, (width - client.font.width(row)) / 2, y, 0xFFFFFFFF, true);
+            y += rowHeight;
+        }
+    }
+
+    /**
+     * The caption: in the lower or upper left corner (inside the bars) or in the middle, fading in and out; on black, the
+     * screen goes black under it as a silent film's title card.
+     */
+    private void caption(GuiGraphics graphics, int bar, float partialTick) {
+        Component caption = ClientScene.caption();
+        if (caption == null) {
+            return;
+        }
+        float alpha = ClientScene.captionAlpha(partialTick);
+        if (alpha <= 0.02f) {
+            return;
+        }
+        Minecraft client = Minecraft.getInstance();
+        if (ClientScene.captionBlack()) {
+            graphics.fill(0, 0, width, height, ((int) (alpha * 255) << 24));
+        }
+        int textColor = ((int) (alpha * 255) << 24) | 0xF2EAD8;
+        int position = ClientScene.captionPosition();
+        List<FormattedCharSequence> rows = client.font.split(caption, Math.min(LINE_WIDTH, width - 48));
+        int rowHeight = client.font.lineHeight + 3;
+        int blockHeight = rows.size() * rowHeight;
+        int margin = 24;
+        int y = switch (position) {
+            case 1 -> Math.max(bar, 12) + 12;
+            case 2 -> (height - blockHeight) / 2;
+            default -> height - Math.max(bar, 12) - 12 - blockHeight;
+        };
+        for (FormattedCharSequence row : rows) {
+            int x = position == 2 ? (width - client.font.width(row)) / 2 : margin;
+            graphics.drawString(client.font, row, x, y, textColor, !ClientScene.captionBlack());
             y += rowHeight;
         }
     }

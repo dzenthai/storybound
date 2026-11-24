@@ -35,7 +35,7 @@ import org.lwjgl.glfw.GLFW;
  * status line, the context menu and the modal windows (the catalog, adding a language). Every change is sent to the
  * server at once, which writes the story folder and answers with a new snapshot.
  */
-public class DevModeScreen extends Screen {
+public class DevModeScreen extends Screen implements Catalog.Host {
     private static final int MENU_W = 216;
     private static final int MENU_ITEM_H = 16;
     private static final int LANGUAGE_W = 240;
@@ -167,7 +167,8 @@ public class DevModeScreen extends Screen {
     // --- services for the views
 
     /** Adds a widget; a Minecraft button becomes the editor's own, flat with its icon ({@link DevButton}). */
-    <T extends GuiEventListener & Renderable & NarratableEntry> T add(T widget) {
+    @Override
+    public <T extends GuiEventListener & Renderable & NarratableEntry> T add(T widget) {
         if (widget instanceof Button button && !(widget instanceof DevButton)) {
             addRenderableWidget(new DevButton(button));
             return widget;
@@ -175,11 +176,23 @@ public class DevModeScreen extends Screen {
         return addRenderableWidget(widget);
     }
 
-    Font font() {
+    @Override
+    public Font font() {
         return font;
     }
 
-    void focus(EditBox box) {
+    @Override
+    public int hostWidth() {
+        return width;
+    }
+
+    @Override
+    public int hostHeight() {
+        return height;
+    }
+
+    @Override
+    public void focus(EditBox box) {
         setFocused(box);
         box.setFocused(true);
     }
@@ -206,7 +219,8 @@ public class DevModeScreen extends Screen {
     }
 
     /** Builds the widgets again: those of an open modal window, or the top bar's and the view's. */
-    void rebuild() {
+    @Override
+    public void rebuild() {
         builtFor = modalNow();
         // A removed text box must not keep the keyboard (Delete would go nowhere, snapshots would wait forever).
         setFocused(null);
@@ -240,7 +254,8 @@ public class DevModeScreen extends Screen {
         view().addWidgets(this);
     }
 
-    void status(Component text, int color) {
+    @Override
+    public void status(Component text, int color) {
         statusText = text;
         statusColor = color;
         statusAt = Util.getMillis();
@@ -284,6 +299,20 @@ public class DevModeScreen extends Screen {
         view().saveEdits(this);
         minecraft.setScreen(null);
         DevRequests.quickAction(action, target);
+    }
+
+    /** Saves and plays the scene to the author; the editor comes back when it is over. */
+    void watchScene(ResourceLocation scene) {
+        view().saveEdits(this);
+        dev.dzenthai.storybound.client.scene.ClientScene.returnTo(this);
+        minecraft.setScreen(null);
+        DevRequests.quickAction("scene_play", scene);
+    }
+
+    /** The scene's camera view: the editor becomes a side panel over the world as the scene's camera sees it. */
+    void openSceneCamera(ResourceLocation scene) {
+        view().saveEdits(this);
+        minecraft.setScreen(new ScenePreview(this, scene));
     }
 
     /** Shows a document with a text not saved yet on its real reading screen; closing it comes back here, the text window still open. */

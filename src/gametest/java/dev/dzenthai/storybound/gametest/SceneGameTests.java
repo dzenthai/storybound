@@ -59,7 +59,17 @@ public final class SceneGameTests {
         }
         SceneDefinition speed = parse(helper, "{ \"shots\": [ { \"camera\": { \"from\": [0, 1, 0], \"to\": [12, 1, 0], \"speed\": 4 } } ] }")
                 .getOrThrow(GameTestAssertException::new);
-        helper.assertTrue(Math.abs(speed.shots().getFirst().camera().seconds() - 3f) < 0.01f, "12 blocks at 4 a second: 3 seconds");
+        helper.assertTrue(Math.abs(speed.shots().getFirst().camera().orElseThrow().seconds() - 3f) < 0.01f, "12 blocks at 4 a second: 3 seconds");
+        helper.assertTrue(parse(helper, "{ \"shots\": [ { \"dialogue\": \"gametest:talk\", \"camera\": { \"from\": [0, 1, 0], \"duration\": 1 } } ] }").isError(),
+                "a shot is a flight or a talk, not both");
+        SceneDefinition rich = parse(helper, """
+                { "music": "minecraft:music.menu", "shots": [ { "dialogue": "gametest:talk" },
+                  { "camera": { "from": [0, 1, 0], "duration": 1 }, "during": [
+                    { "caption": { "text": { "literal": "Three days later" }, "position": "center", "black": true } },
+                    { "at": 0.5, "music": "minecraft:music.game" } ] } ] }
+                """).getOrThrow(GameTestAssertException::new);
+        helper.assertTrue(rich.shots().getFirst().talk() && rich.music().isPresent()
+                && rich.shots().get(1).during().getFirst().caption().map(caption -> caption.black()).orElse(false), "a talk, a caption on black, music");
         helper.succeed();
     }
 
@@ -181,6 +191,83 @@ public final class SceneGameTests {
             } finally {
                 Scenes.clear();
                 SceneRegistries.SCENES.serverStore().replace(Map.of());
+                remove(helper, player);
+            }
+            helper.succeed();
+        });
+    }
+
+    /**
+     * A talk inside a scene: the dialogue starts (a scene's own talk is let through), the scene's clock waits while it
+     * goes on, and once it ends the scene goes on to its end.
+     */
+    @GameTest(template = "empty", batch = "scene_talk", timeoutTicks = 120)
+    public static void aSceneWaitsForItsTalk(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        var dialogues = dev.dzenthai.storybound.module.dialogue.DialogueRegistries.DIALOGUES.serverStore();
+        Map<ResourceLocation, dev.dzenthai.storybound.module.dialogue.DialogueDefinition> before = Map.copyOf(dialogues.all());
+        Map<ResourceLocation, dev.dzenthai.storybound.module.dialogue.DialogueDefinition> installed = new LinkedHashMap<>(before);
+        installed.put(key("talk"), dev.dzenthai.storybound.module.dialogue.DialogueDefinition.CODEC.parse(
+                RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()), JsonParser.parseString(
+                        "{ \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"player\", \"text\": { \"literal\": \"Hm.\" } } } }"))
+                .getOrThrow(GameTestAssertException::new));
+        dialogues.replace(installed);
+        SceneRegistries.SCENES.serverStore().replace(Map.of(key("talking"), parse(helper, """
+                { "shots": [ { "dialogue": "gametest:talk" }, { "camera": { "from": [0, 2, 0], "duration": 1 } } ],
+                  "on_end": { "type": "add_var", "key": "gametest:talk_end", "amount": 1 } }
+                """).getOrThrow(GameTestAssertException::new)));
+        Scenes.play(player, key("talking"));
+        expect(helper, Scenes.watching(player), key("talking"), "the scene plays");
+        helper.assertTrue(dev.dzenthai.storybound.module.dialogue.Dialogues.state(player).isPresent(), "its talk started inside it");
+        helper.runAfterDelay(30, () -> {
+            expect(helper, Scenes.tickOf(player), 0, "the scene's clock waits while they talk");
+            dev.dzenthai.storybound.module.dialogue.Dialogues.interrupt(player, dev.dzenthai.storybound.core.event.DialogueEvent.EndReason.STOPPED);
+        });
+        helper.runAfterDelay(70, () -> {
+            try {
+                expect(helper, Scenes.watching(player), null, "after the talk the scene went on to its end");
+                expect(helper, stored(player, "talk_end"), Optional.of(new StoryValue.Int(1)), "and its on_end ran");
+            } finally {
+                Scenes.clear();
+                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                dialogues.replace(before);
+                remove(helper, player);
+            }
+            helper.succeed();
+        });
+    }
+
+    /** A dialogue's scene node: the talk waits while the scene plays, then goes on at the node's next. */
+    @GameTest(template = "empty", batch = "scene_in_talk", timeoutTicks = 120)
+    public static void aDialogueWaitsForItsScene(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        var dialogues = dev.dzenthai.storybound.module.dialogue.DialogueRegistries.DIALOGUES.serverStore();
+        Map<ResourceLocation, dev.dzenthai.storybound.module.dialogue.DialogueDefinition> before = Map.copyOf(dialogues.all());
+        Map<ResourceLocation, dev.dzenthai.storybound.module.dialogue.DialogueDefinition> installed = new LinkedHashMap<>(before);
+        installed.put(key("story"), dev.dzenthai.storybound.module.dialogue.DialogueDefinition.CODEC.parse(
+                RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()), JsonParser.parseString("""
+                        { "start": "show", "nodes": {
+                          "show": { "type": "scene", "scene": "gametest:memory", "next": "after" },
+                          "after": { "type": "action", "actions": { "type": "add_var", "key": "gametest:after_scene", "amount": 1 }, "next": "line" },
+                          "line": { "type": "line", "speaker": "player", "text": { "literal": "So that is how it was." } } } }
+                        """)).getOrThrow(GameTestAssertException::new));
+        dialogues.replace(installed);
+        SceneRegistries.SCENES.serverStore().replace(Map.of(key("memory"), parse(helper,
+                "{ \"shots\": [ { \"camera\": { \"from\": [0, 3, 0], \"duration\": 1 } } ] }").getOrThrow(GameTestAssertException::new)));
+        helper.assertTrue(dev.dzenthai.storybound.module.dialogue.Dialogues.start(player, key("story"), null), "the talk starts");
+        expect(helper, Scenes.watching(player), key("memory"), "its scene plays at once");
+        expect(helper, stored(player, "after_scene"), Optional.empty(), "the talk waits for it");
+        helper.runAfterDelay(30, () -> {
+            try {
+                expect(helper, Scenes.watching(player), null, "the scene is over");
+                expect(helper, stored(player, "after_scene"), Optional.of(new StoryValue.Int(1)), "the talk went on after it");
+                helper.assertTrue(dev.dzenthai.storybound.module.dialogue.Dialogues.state(player).map(state -> state.node().equals("line")).orElse(false),
+                        "at its next line");
+            } finally {
+                dev.dzenthai.storybound.module.dialogue.Dialogues.interrupt(player, dev.dzenthai.storybound.core.event.DialogueEvent.EndReason.STOPPED);
+                Scenes.clear();
+                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                dialogues.replace(before);
                 remove(helper, player);
             }
             helper.succeed();

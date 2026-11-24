@@ -583,6 +583,7 @@ public final class DevModeServer {
             case "quest_reset" -> Quests.setStatus(player, targetId, null);
             // No speaker: the dialogue's own participants play it out; the player cannot be its bound NPC.
             case "dialogue_start" -> Dialogues.start(player, targetId, null);
+            case "scene_play" -> dev.dzenthai.storybound.module.scene.Scenes.play(player, targetId);
             case "document_give" -> Documents.give(player, targetId, 1);
             // At the player, as if a node ran it with no "at".
             case "script_run" -> {

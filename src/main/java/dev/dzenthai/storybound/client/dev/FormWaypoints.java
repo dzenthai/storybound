@@ -275,7 +275,7 @@ abstract class FormWaypoints extends FormNpc {
      * A switch as every form has it (an NPC's "Rule", "How many"): its label above, one button "Value ▸" across the row
      * that goes to the next value on a click, and a tooltip saying what the value is.
      */
-    private void switchRow(Component label, Component value, Component tooltip, Runnable next) {
+    void switchRow(Component label, Component value, Component tooltip, Runnable next) {
         if (!row(LABEL_H + CONTROL_H)) {
             return;
         }

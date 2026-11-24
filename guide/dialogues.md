@@ -57,6 +57,7 @@ answer is greyed out until the player has five emeralds, and can only be picked 
 | `random` | `options: [{ "weight"?, "next" }]` | Goes down a random branch. |
 | `jump` | `node` and/or `dialogue` | Continues at another node or dialogue, without coming back. |
 | `call` | `dialogue`, `node?`, `next?` | Runs another dialogue, such as a shared greeting or trading, then continues at `next`. |
+| `scene` | `scene`, `next?` | Plays a [scene](scenes.md) in the middle of the talk: its screen closes, the scene plays, then the talk goes on at `next`. |
 | `end` | `actions?` | Ends the dialogue. |
 
 `next` is `@end` by default, which ends the dialogue, or returns to the caller after a `call`. `@exit` ends the whole
@@ -438,6 +439,7 @@ lowercase, with `_` in place of anything else: `Ragnar Meets.ogg` becomes `ragna
 
 Then name the track where it should play:
 
+- In a scene, `"music"` plays while the scene does, and a `music` thing during a shot changes it, see [Scenes](scenes.md).
 - In a dialogue, `"music": "mypack:iva_theme"` plays while the conversation runs.
 - In a quest stage, `"music": "mypack:night_watch"` plays while that is the current stage of the quest the player
   tracks.
@@ -447,7 +449,7 @@ Then name the track where it should play:
 { "track": "mypack:deep_dark", "conditions": { "type": "location", "structure": "minecraft:ancient_city" }, "priority": 10 }
 ```
 
-If several tracks apply, the dialogue's plays first, then the quest stage's, then the place with the highest
+If several tracks apply, the scene's plays first, then the dialogue's, then the quest stage's, then the place with the highest
 `priority`.
 
 One track plays at a time. It loops, follows the game's Music volume, and fades into the next track. Minecraft's own

@@ -33,9 +33,9 @@ import org.jetbrains.annotations.Nullable;
 
  * <p>
  * One layer of the form, split by topic, each seeing the ones below it; the rest of the editor uses FormView:
- * FormCore &larr; FormPickers &larr; FormInputs &larr; FormEntities &larr; FormNpc &larr; FormWaypoints &larr; FormDialogues &larr; FormStory &larr; FormView.
+ * FormCore &larr; FormPickers &larr; FormInputs &larr; FormEntities &larr; FormNpc &larr; FormWaypoints &larr; FormDialogues &larr; FormStory &larr; FormScenes &larr; FormView.
  */
-final class FormView extends FormStory {
+final class FormView extends FormScenes {
     FormView(Host host) {
         super(host);
     }
@@ -67,6 +67,14 @@ final class FormView extends FormStory {
     }
 
     void objectPage(List<Object> path, Node schema, Set<String> skip, @Nullable String typeField) {
+        if (!skip.contains(SCENE_PAGE) && isSceneShot(schema)) {
+            sceneShotPage(path, schema, skip);
+            return;
+        }
+        if (!skip.contains(SCENE_PAGE) && isSceneCue(schema)) {
+            sceneCuePage(path, schema, skip);
+            return;
+        }
         Set<String> required = Schemas.required(schema);
         boolean npc = path.isEmpty() && host.npcBinding() != null;
         boolean waypoint = path.isEmpty() && Schemas.properties(schema).containsKey("target") && Schemas.properties(schema).containsKey("show_ring");
@@ -86,8 +94,12 @@ final class FormView extends FormStory {
         boolean observed = Schemas.properties(schema).containsKey("time") && Schemas.properties(schema).containsKey("distance")
                 && Schemas.properties(schema).containsKey("block");
         String rootForm = path.isEmpty() && inDialogue == null && host.node() != null ? ROOT_FORMS.get(host.node().type()) : null;
+        // A scene's shot and its camera: what the shot is against first, then how the camera flies.
+        boolean shot = Schemas.properties(schema).containsKey("camera") && Schemas.properties(schema).containsKey("transition");
+        boolean camera = Schemas.properties(schema).containsKey("from") && Schemas.properties(schema).containsKey("speed");
         String form = node != null ? "node." + node : option ? "option" : document ? "document" : journal ? "journal" : quest ? "quest"
-                : inside != null ? inside : boss ? "boss" : codex ? "codex" : section ? "codex.section" : unlock ? "unlock" : observed ? "observed" : rootForm;
+                : inside != null ? inside : boss ? "boss" : codex ? "codex" : section ? "codex.section" : unlock ? "unlock" : observed ? "observed"
+                : shot ? "scene.shot" : camera ? "scene.camera" : rootForm;
         Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
                 : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
         JsonObject object = objectAt(path);
@@ -199,6 +211,14 @@ final class FormView extends FormStory {
         // A quest's difficulty; in the story's settings "difficulty" is the scale itself, an ordinary page.
         if (name.equals("difficulty") && path.isEmpty() && !Schemas.properties(owner).containsKey("track_given_quests")) {
             difficultyField(name, value, label);
+            return;
+        }
+        if (isSceneAnchor(name, owner)) {
+            sceneAnchorField(with(path, name), node, true, "scene.anchor");
+            return;
+        }
+        if (isSceneLook(name, owner)) {
+            sceneLookField(with(path, name), node);
             return;
         }
         if (isEntitySelector(node)) {

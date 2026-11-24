@@ -98,8 +98,11 @@ public final class Scenes {
 
     private Scenes() {}
 
-    /** Something of the scene at its tick: a title, a line, a sound, a fade, actions. */
-    record Timed(int tick, SceneDefinition.Cue cue, @Nullable ScreenFade fade) {}
+    /** Something of the scene at its tick: a cue (a title, a line...), a fade between shots, or a talk. */
+    record Timed(int tick, SceneDefinition.@Nullable Cue cue, @Nullable ScreenFade fade, @Nullable Talk talk) {}
+
+    /** A talk of the scene: the dialogue, and who the player talks to (the shot's anchor), or nobody found. */
+    record Talk(ResourceLocation dialogue, @Nullable Entity speaker) {}
 
     static final class Session {
         final int id;
@@ -107,15 +110,21 @@ public final class Scenes {
         final SceneDefinition definition;
         final int total;
         final List<Timed> timeline;
+        final @Nullable Runnable afterwards;
         int tick;
         int next;
+        /** A talk of the scene is going on: its clock waits. */
+        boolean talking;
+        Optional<ResourceLocation> music;
 
-        Session(int id, ResourceLocation scene, SceneDefinition definition, int total, List<Timed> timeline) {
+        Session(int id, ResourceLocation scene, SceneDefinition definition, int total, List<Timed> timeline, @Nullable Runnable afterwards) {
             this.id = id;
             this.scene = scene;
             this.definition = definition;
             this.total = total;
             this.timeline = timeline;
+            this.afterwards = afterwards;
+            this.music = definition.music();
         }
     }
 
@@ -152,43 +161,85 @@ public final class Scenes {
         return SESSIONS.containsKey(player.getUUID()) || Dialogues.state(player).isPresent() || Cutscenes.watching(player) != null;
     }
 
+    /**
+     * A dialogue's scene node: the scene plays now, in the middle of the talk (which waits), and {@code afterwards} goes
+     * on with the talk however the scene ends. An unknown scene goes on at once.
+     */
+    public static void playInDialogue(ServerPlayer player, ResourceLocation scene, Runnable afterwards) {
+        if (SESSIONS.containsKey(player.getUUID()) || SceneRegistries.SCENES.serverStore().getOrNull(scene) == null) {
+            StoryTrace.note(player, "scene " + scene, "not played in the dialogue: " + (SESSIONS.containsKey(player.getUUID())
+                    ? "another scene plays" : "no such scene is loaded"));
+            afterwards.run();
+            return;
+        }
+        start(player, scene, afterwards);
+    }
+
+    /** Whether a dialogue may not start now: the player watches a scene that is not in one of its own talks. */
+    public static boolean keepsFromTalking(ServerPlayer player) {
+        Session session = SESSIONS.get(player.getUUID());
+        return session != null && !session.talking;
+    }
+
+    /** The music of the scene the player watches, over every other track; empty when none plays or it has none. */
+    public static Optional<ResourceLocation> music(ServerPlayer player) {
+        Session session = SESSIONS.get(player.getUUID());
+        return session != null ? session.music : Optional.empty();
+    }
+
     private static void start(ServerPlayer player, ResourceLocation scene) {
+        start(player, scene, null);
+    }
+
+    private static void start(ServerPlayer player, ResourceLocation scene, @Nullable Runnable afterwards) {
         SceneDefinition definition = SceneRegistries.SCENES.serverStore().getOrNull(scene);
         if (definition == null) {
             StoryTrace.note(player, "scene " + scene, "not played: no such scene is loaded");
             forgetPending(player);
+            if (afterwards != null) {
+                afterwards.run();
+            }
             return;
         }
         List<ScenePayloads.Shot> shots = new ArrayList<>();
         List<Timed> timeline = new ArrayList<>();
         int at = 0;
+        boolean talks = false;
         for (int index = 0; index < definition.shots().size(); index++) {
             SceneDefinition.Shot shot = definition.shots().get(index);
-            Planned planned = plan(player, shot);
+            if (shot.talk()) {
+                // A talk takes no time of the scene's clock: the clock waits while it goes on.
+                Found anchor = shot.anchor() instanceof SceneDefinition.PlayerAnchor ? null : find(player, shot.anchor());
+                timeline.add(new Timed(at, null, null, new Talk(shot.dialogue().orElseThrow(), anchor != null ? anchor.entity() : null)));
+                talks = true;
+                continue;
+            }
+            SceneDefinition.Camera camera = shot.camera().orElseThrow();
+            Planned planned = plan(player, shot.anchor(), camera, shot.transition());
             if (planned.skipped() != null) {
                 StoryTrace.note(player, "scene " + scene, "shot " + (index + 1) + " left out: " + planned.skipped());
                 continue;
             }
-            int ticks = Math.max(1, Math.round(shot.camera().seconds() * 20));
+            int ticks = Math.max(1, Math.round(camera.seconds() * 20));
             boolean first = shots.isEmpty();
             shots.add(planned.shot().withTime(at, ticks));
             if (shot.transition() == SceneDefinition.Transition.FADE) {
                 float edge = FADE_TICKS / 20f;
                 // Down to black just before the cut, up after it; the first shot comes up out of black.
                 timeline.add(new Timed(Math.max(0, at - (first ? 0 : FADE_TICKS)), null,
-                        new ScreenFade(first ? 0 : edge, 0.05f, edge, ScreenFade.BLACK)));
+                        new ScreenFade(first ? 0 : edge, 0.05f, edge, ScreenFade.BLACK), null));
             }
             for (SceneDefinition.Cue cue : shot.during()) {
-                timeline.add(new Timed(at + Math.min(ticks, Math.round(cue.at() * 20)), cue, null));
+                timeline.add(new Timed(at + Math.min(ticks, Math.round(cue.at() * 20)), cue, null, null));
             }
             at += ticks;
         }
         timeline.sort(Comparator.comparingInt(Timed::tick));
-        Session session = new Session(nextSession++, scene, definition, at, timeline);
+        Session session = new Session(nextSession++, scene, definition, at, timeline, afterwards);
         StoryTrace.event(player, "scene_started", "scene", scene.toString(), "shots", shots.size() + " of " + definition.shots().size());
         setPending(player, scene);
         SESSIONS.put(player.getUUID(), session);
-        if (shots.isEmpty()) {
+        if (shots.isEmpty() && !talks) {
             // Nothing could be shown: it still happened, so what waits for its end does not wait for ever.
             finish(player, session, SceneLogic.Reason.FINISH);
             return;
@@ -196,7 +247,9 @@ public final class Scenes {
         if (definition.world() == SceneDefinition.World.CALM) {
             calm(player);
         }
-        StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Play(session.id, definition.letterbox(), shots));
+        if (!shots.isEmpty()) {
+            StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Play(session.id, definition.letterbox(), shots));
+        }
         runDue(player, session);
     }
 
@@ -208,18 +261,17 @@ public final class Scenes {
     }
 
     /** An anchor found: where it is, which way it faces, the entity it is (or none). */
-    record Found(Vec3 pos, float yaw, @Nullable Entity entity) {
-        Vec3 eye() {
+    public record Found(Vec3 pos, float yaw, @Nullable Entity entity) {
+        public Vec3 eye() {
             return entity != null ? entity.getEyePosition() : pos;
         }
     }
 
-    private static Planned plan(ServerPlayer player, SceneDefinition.Shot shot) {
-        Found anchor = find(player, shot.anchor());
+    private static Planned plan(ServerPlayer player, SceneDefinition.Anchor anchorOf, SceneDefinition.Camera camera, SceneDefinition.Transition transition) {
+        Found anchor = find(player, anchorOf);
         if (anchor == null) {
-            return Planned.skip("its anchor " + describe(shot.anchor()) + " is not found near the player");
+            return Planned.skip("its anchor " + describe(anchorOf) + " is not found near the player");
         }
-        SceneDefinition.Camera camera = shot.camera();
         Vec3 from = place(anchor, camera.from());
         Vec3 to = place(anchor, camera.to());
         int look;
@@ -250,7 +302,7 @@ public final class Scenes {
                         + " blocks away, beyond what the player's world has loaded (" + (int) reach + ")");
             }
         }
-        return new Planned(new ScenePayloads.Shot(from, to, look, point, entity, 0, 1, camera.ease().ordinal(), shot.transition().ordinal()), null);
+        return new Planned(new ScenePayloads.Shot(from, to, look, point, entity, 0, 1, camera.ease().ordinal(), transition.ordinal()), null);
     }
 
     /** A point given as right, up, forward of the anchor, turned the way it faces. */
@@ -272,7 +324,7 @@ public final class Scenes {
     }
 
     /** Where the anchor is for this player, in their dimension; null when it is not there. */
-    static @Nullable Found find(ServerPlayer player, SceneDefinition.Anchor anchor) {
+    public static @Nullable Found find(ServerPlayer player, SceneDefinition.Anchor anchor) {
         ServerLevel level = player.serverLevel();
         return switch (anchor) {
             case SceneDefinition.PlayerAnchor own -> new Found(player.position(), player.getYRot(), player);
@@ -367,12 +419,24 @@ public final class Scenes {
             }
             Session session = SESSIONS.get(uuid);
             if (session != null) {
-                session.tick++;
+                if (session.talking) {
+                    if (Dialogues.state(player).isPresent()) {
+                        // The scene's clock waits for its talk; the world stays calm meanwhile.
+                        if (session.definition.world() == SceneDefinition.World.CALM && server.getTickCount() % 20 == 0) {
+                            calm(player);
+                        }
+                        continue;
+                    }
+                    session.talking = false;
+                    StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Resume(session.id));
+                } else {
+                    session.tick++;
+                }
                 if (session.definition.world() == SceneDefinition.World.CALM && session.tick % 20 == 0) {
                     calm(player);
                 }
                 runDue(player, session);
-                if (session.tick >= session.total && SESSIONS.get(uuid) == session) {
+                if (!session.talking && session.tick >= session.total && session.next >= session.timeline.size() && SESSIONS.get(uuid) == session) {
                     finish(player, session, SceneLogic.Reason.FINISH);
                 }
             } else {
@@ -391,17 +455,33 @@ public final class Scenes {
     }
 
     private static void runDue(ServerPlayer player, Session session) {
-        while (session.next < session.timeline.size() && session.timeline.get(session.next).tick() <= session.tick) {
+        while (!session.talking && session.next < session.timeline.size() && session.timeline.get(session.next).tick() <= session.tick) {
             Timed due = session.timeline.get(session.next++);
             try {
-                if (due.fade() != null) {
+                if (due.talk() != null) {
+                    talk(player, session, due.talk());
+                } else if (due.fade() != null) {
                     due.fade().send(player);
-                } else {
+                } else if (due.cue() != null) {
                     cue(player, session, due.cue());
                 }
             } catch (RuntimeException e) {
                 Storybound.LOGGER.error("Storybound: scene {} failed at tick {}", session.scene, due.tick(), e);
             }
+        }
+    }
+
+    /**
+     * A talk of the scene: the client lets go of the scene's camera and screen, the dialogue plays with its own, and the
+     * scene's clock waits until it is over. A dialogue that does not start (unknown, its NPC not found) is gone past.
+     */
+    private static void talk(ServerPlayer player, Session session, Talk talk) {
+        session.talking = true;
+        StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Pause(session.id));
+        if (!Dialogues.start(player, talk.dialogue(), talk.speaker() != null && talk.speaker().isAlive() ? talk.speaker() : null)) {
+            StoryTrace.note(player, "scene " + session.scene, "its talk " + talk.dialogue() + " did not start; going on");
+            session.talking = false;
+            StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Resume(session.id));
         }
     }
 
@@ -420,6 +500,13 @@ public final class Scenes {
                     line.speaker().map(speaker -> speaker.resolve(player).toComponent()), text, ticks));
             line.sound().ifPresent(sound -> player.playNotifySound(SoundEvent.createVariableRangeEvent(sound), SoundSource.VOICE, 1f, 1f));
         });
+        cue.caption().ifPresent(caption -> {
+            net.minecraft.network.chat.Component text = caption.text().resolve(player).toComponent();
+            int ticks = caption.duration().map(seconds -> Math.round(seconds * 20))
+                    .orElse(Math.max(LINE_MIN_TICKS, (int) Math.round(text.getString().length() * LINE_TICKS_PER_CHAR)));
+            StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Caption(session.id, text, caption.position().ordinal(), caption.black(), ticks));
+        });
+        cue.music().ifPresent(track -> session.music = Optional.of(track));
         cue.sound().ifPresent(sound -> player.playNotifySound(SoundEvent.createVariableRangeEvent(sound.sound()), sound.source(), sound.volume(), sound.pitch()));
         cue.fade().ifPresent(fade -> fade.send(player));
         if (!cue.actions().isEmpty()) {
@@ -436,6 +523,10 @@ public final class Scenes {
             Actions.runAll(session.definition.onEnd(), StoryContext.of(player), "scene " + session.scene + " on_end", OnFail.ABORT);
         }
         TriggerDispatcher.fire(SceneLogic.SCENE_FINISHED.get(), StoryContext.of(player), new SceneLogic.Finished(session.scene, reason));
+        if (session.afterwards != null) {
+            // The dialogue that played it goes on.
+            session.afterwards.run();
+        }
     }
 
     private static void setPending(ServerPlayer player, ResourceLocation scene) {

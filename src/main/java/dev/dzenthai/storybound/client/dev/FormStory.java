@@ -40,7 +40,8 @@ abstract class FormStory extends FormDialogues {
             ClientDevStore.TYPE_EVENT, "event",
             ClientDevStore.TYPE_SCRIPT, "script",
             ClientDevStore.TYPE_FLAG, "flag",
-            ClientDevStore.TYPE_CHAPTER, "chapter");
+            ClientDevStore.TYPE_CHAPTER, "chapter",
+            ClientDevStore.TYPE_SCENE, "scene");
 
     /** A boss's sections, each shown in its form under a heading of its own, with whether the entry has it. */
     static final Set<String> BOSS_PARTS = Set.of("lore", "tactics", "rewards");

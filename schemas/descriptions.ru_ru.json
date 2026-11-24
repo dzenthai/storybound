@@ -361,7 +361,6 @@
   "The nearest entity this selector matches within 64 blocks.": "Ближайшее существо под этот селектор в 64 блоках.",
   "The structure the player stands in, else the nearest one the waypoints have found: its middle, on the ground. It faces south.": "Постройка, в которой стоит игрок, иначе ближайшая из найденных метками: её середина, на земле. Смотрит на юг.",
   "Where the player sees this waypoint.": "Где игрок видит эту метку.",
-  "One thing in the shot at its second: exactly one of title, line, sound, fade or actions.": "Одно событие плана в свою секунду: ровно одно из title, line, sound, fade или actions.",
   "Seconds from the shot's start; past its end, at its end.": "Секунды от начала плана; если больше его длины — в конце плана.",
   "Big in the middle of the screen, as a quest's title when it starts: a chapter's name.": "Крупно посреди экрана, как название квеста при его начале: название главы.",
   "A line in subtitles over the lower bar.": "Реплика в субтитрах над нижней полосой.",
@@ -384,5 +383,13 @@
   "Run when the scene has played to its end (not when a death or a teleport cut it short).": "Выполняется, когда сцена дошла до конца (не когда её оборвали смерть или телепорт).",
   "The player watches the scene now (any scene without an id).": "Игрок сейчас смотрит сцену (любую, если id не задан).",
   "The player watches the scene (scenes/); while they talk or watch another one, it waits its turn.": "Игрок смотрит сцену (scenes/); если он разговаривает или смотрит другую, сцена ждёт очереди.",
-  "A scene the player watched ended: finish (played to the end), died, moved (teleported, another dimension); any without reason. Not when the player left the game: the scene plays again when they come back.": "Сцена, которую смотрел игрок, кончилась: finish (до конца), died, moved (телепорт, другое измерение); без reason — любая. Не когда игрок вышел из игры: тогда сцена покажется снова, когда он вернётся."
+  "A scene the player watched ended: finish (played to the end), died, moved (teleported, another dimension); any without reason. Not when the player left the game: the scene plays again when they come back.": "Сцена, которую смотрел игрок, кончилась: finish (до конца), died, moved (телепорт, другое измерение); без reason — любая. Не когда игрок вышел из игры: тогда сцена покажется снова, когда он вернётся.",
+  "Plays a scene in the middle of the talk: the dialogue steps aside, the scene plays, and the talk goes on at next however the scene ends.": "Показывает сцену посреди разговора: диалог уступает место, сцена играет, и разговор продолжается с next, чем бы сцена ни кончилась.",
+  "Instead of a camera, a talk: the dialogue plays with its own camera, the anchor as the one the player talks to; the scene goes on once it is over.": "Вместо полёта камеры — разговор: диалог идёт со своей камерой, собеседник — привязка; сцена продолжается, когда он кончится.",
+  "One thing in the shot at its second: exactly one of title, caption, line, sound, music, fade or actions.": "Одно событие плана в свою секунду: ровно одно из title, caption, line, sound, music, fade или actions.",
+  "A place and a time (\"A village by the river. Three days later.\") fading in and out at its position; on black, as a silent film's title card.": "Место и время («Деревня у реки. Три дня спустя.»), плавно появляются и исчезают на своём месте; на чёрном — как титр немого кино.",
+  "Where it stands: in the lower or upper left corner, or in the middle.": "Где стоит: в нижнем или верхнем левом углу или посередине.",
+  "On a black screen, as a title card.": "На чёрном экране, как титр.",
+  "The scene's music changes to this track from here.": "Отсюда музыка сцены меняется на этот трек.",
+  "The scene's music, over every other track while it plays.": "Музыка сцены: пока она идёт, звучит поверх всех других треков."
 }

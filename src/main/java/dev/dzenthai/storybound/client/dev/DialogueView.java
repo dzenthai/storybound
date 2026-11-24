@@ -81,7 +81,7 @@ final class DialogueView extends GraphView {
     private static StoryView.Look look(String type, boolean player) {
         return switch (type) {
             case "choice", "condition" -> new StoryView.Look(NodeShapes.Shape.DIAMOND, 15);
-            case "action", "random", "jump", "call", "end", "start" -> new StoryView.Look(NodeShapes.Shape.SQUARE, 11);
+            case "action", "random", "jump", "call", "scene", "end", "start" -> new StoryView.Look(NodeShapes.Shape.SQUARE, 11);
             default -> new StoryView.Look(NodeShapes.Shape.CIRCLE, 13);
         };
     }
@@ -350,6 +350,8 @@ final class DialogueView extends GraphView {
                     DevUi.str("node.jump"), 0xFF92AACC, look("jump", false), new ItemStack(Items.ENDER_PEARL), x, y, start, false);
             case "call" -> new Card(id, type, node.has("dialogue") ? "⤷ " + node.get("dialogue").getAsString() + shownAs(node.get("dialogue").getAsString()) : "?",
                     DevUi.str("node.call"), 0xFF6480AE, look("call", false), new ItemStack(Items.BELL), x, y, start, false);
+            case "scene" -> new Card(id, type, node.has("scene") ? "🎬 " + node.get("scene").getAsString() : "?",
+                    DevUi.str("node.scene"), 0xFF6FA8B8, look("scene", false), new ItemStack(Items.SPYGLASS), x, y, start, false);
             case "end" -> new Card(id, type, DialogueGraph.END, DevUi.str("node.end"), 0xFFB33A2F, look("end", false), new ItemStack(Items.BARRIER), x, y, start, false);
             default -> {
                 boolean player = "player".equalsIgnoreCase(node.has("speaker") ? node.get("speaker").getAsString() : "");
@@ -985,6 +987,7 @@ final class DialogueView extends GraphView {
         items.add(MenuItem.of(Component.literal("🎲 ").append(DevUi.text("dialogue.add_random")), () -> createNode(screen, "random", null, x, y, null)));
         items.add(MenuItem.of(Component.literal("↪ ").append(DevUi.text("dialogue.add_jump")), () -> createNode(screen, "jump", null, x, y, null)));
         items.add(MenuItem.of(Component.literal("📞 ").append(DevUi.text("dialogue.add_call")), () -> createNode(screen, "call", null, x, y, null)));
+        items.add(MenuItem.of(Component.literal("🎬 ").append(DevUi.text("dialogue.add_scene")), () -> createNode(screen, "scene", null, x, y, null)));
         items.add(MenuItem.of(Component.literal("🏁 ").append(DevUi.text("dialogue.add_end")), () -> createNode(screen, "end", null, x, y, null)));
         items.add(MenuItem.of(Component.literal("📐 ").append(DevUi.text("dialogue.auto_layout")), () -> {
             edit(screen, DevUi.str("history.dialogue_layout"), () -> {

@@ -214,6 +214,16 @@
           "additionalProperties": false
         },
         {
+          "description": "Plays a scene in the middle of the talk: the dialogue steps aside, the scene plays, and the talk goes on at next however the scene ends.",
+          "properties": {
+            "type": { "const": "scene" },
+            "scene": { "$ref": "logic.schema.json#/definitions/id" },
+            "next": { "$ref": "#/definitions/target", "default": "@end" }
+          },
+          "required": ["scene"],
+          "additionalProperties": false
+        },
+        {
           "description": "Ends the dialogue after running its actions.",
           "properties": {
             "type": { "const": "end" },

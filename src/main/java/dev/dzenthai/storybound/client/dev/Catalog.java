@@ -68,6 +68,24 @@ final class Catalog {
         }
     }
 
+    /** The screen the window opens over: the editor, or the scene's camera view. */
+    interface Host {
+        int hostWidth();
+
+        int hostHeight();
+
+        Font font();
+
+        <T extends net.minecraft.client.gui.components.events.GuiEventListener & net.minecraft.client.gui.components.Renderable
+                & net.minecraft.client.gui.narration.NarratableEntry> T add(T widget);
+
+        void focus(EditBox box);
+
+        void rebuild();
+
+        void status(Component text, int color);
+    }
+
     @FunctionalInterface
     interface Callback {
         void picked(Kind kind, Entry entry);
@@ -142,15 +160,15 @@ final class Catalog {
         open = false;
     }
 
-    private int left(DevModeScreen screen) {
-        return (screen.width - WIDTH) / 2;
+    private int left(Host screen) {
+        return (screen.hostWidth() - WIDTH) / 2;
     }
 
-    private int top(DevModeScreen screen) {
-        return (screen.height - HEIGHT) / 2;
+    private int top(Host screen) {
+        return (screen.hostHeight() - HEIGHT) / 2;
     }
 
-    private int listTop(DevModeScreen screen) {
+    private int listTop(Host screen) {
         return top(screen) + 44;
     }
 
@@ -158,7 +176,7 @@ final class Catalog {
         return (HEIGHT - 44 - 8) / ROW_H;
     }
 
-    void addWidgets(DevModeScreen screen) {
+    void addWidgets(Host screen) {
         int left = left(screen);
         int top = top(screen);
         screen.add(Button.builder(Component.literal("✕"), b -> {
@@ -195,7 +213,7 @@ final class Catalog {
      * The sound list's own buttons, in its title bar: reloading the sounds keeps the window open and lists them again
      * once loaded; the folder opens in the system's file manager.
      */
-    private void soundButtons(DevModeScreen screen, int left, int top) {
+    private void soundButtons(Host screen, int left, int top) {
         int folderW = 64;
         int reloadW = 76;
         screen.add(Button.builder(Component.literal("📂 ").append(DevUi.text("sound.folder")), b -> {
@@ -222,7 +240,7 @@ final class Catalog {
         }).tooltip(Tooltip.create(DevUi.text("sound.reload"))).bounds(left + WIDTH - 26 - folderW - reloadW, top + 3, reloadW, 16).build());
     }
 
-    private void pick(DevModeScreen screen, Entry entry) {
+    private void pick(Host screen, Entry entry) {
         Callback picked = callback;
         close();
         if (picked != null) {
@@ -256,11 +274,11 @@ final class Catalog {
     }
 
     /** The window under the widgets; the screen draws the widgets on top. */
-    void render(DevModeScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
+    void render(Host screen, GuiGraphics graphics, int mouseX, int mouseY) {
         Font font = screen.font();
         int left = left(screen);
         int top = top(screen);
-        graphics.fill(0, 0, screen.width, screen.height, 0xAA0C0C0C);
+        graphics.fill(0, 0, screen.hostWidth(), screen.hostHeight(), 0xAA0C0C0C);
         graphics.fill(left - 1, top - 1, left + WIDTH + 1, top + HEIGHT + 1, DevUi.ACCENT);
         graphics.fill(left, top, left + WIDTH, top + HEIGHT, DevUi.PANEL);
         graphics.fill(left, top, left + WIDTH, top + 20, DevUi.BAR);
@@ -303,7 +321,7 @@ final class Catalog {
     }
 
     /** Called after the widgets had their chance; a click outside the window closes it. */
-    boolean mouseClicked(DevModeScreen screen, double mouseX, double mouseY) {
+    boolean mouseClicked(Host screen, double mouseX, double mouseY) {
         int left = left(screen);
         int top = top(screen);
         if (!DevUi.inside(mouseX, mouseY, left, top, WIDTH, HEIGHT)) {
@@ -325,7 +343,7 @@ final class Catalog {
     }
 
     /** ESC closes, Enter picks the first match; other keys go to the search box. */
-    boolean keyPressed(DevModeScreen screen, int keyCode) {
+    boolean keyPressed(Host screen, int keyCode) {
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             close();
             screen.rebuild();

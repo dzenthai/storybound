@@ -92,6 +92,115 @@ public final class ScenePayloads {
         }
     }
 
+    /**
+     * A caption of the scene: the words, where they stand ({@code position}: the ordinal of
+     * {@link dev.dzenthai.storybound.module.scene.SceneDefinition.Position}), on black or over the picture, for {@code ticks}.
+     */
+    public record Caption(int session, Component text, int position, boolean black, int ticks) implements CustomPacketPayload {
+        public static final Type<Caption> TYPE = new Type<>(Storybound.id("scene_caption"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Caption> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, Caption::session,
+                ComponentSerialization.STREAM_CODEC, Caption::text,
+                ByteBufCodecs.VAR_INT, Caption::position,
+                ByteBufCodecs.BOOL, Caption::black,
+                ByteBufCodecs.VAR_INT, Caption::ticks,
+                Caption::new);
+
+        @Override
+        public Type<Caption> type() {
+            return TYPE;
+        }
+
+        public static void handleOnClient(Caption payload, IPayloadContext context) {
+            ClientScene.caption(payload.session(), payload.text(), payload.position(), payload.black(), payload.ticks());
+        }
+    }
+
+    /** A talk of the scene begins: the client lets go of the scene's camera and screen, its clock waits. */
+    public record Pause(int session) implements CustomPacketPayload {
+        public static final Type<Pause> TYPE = new Type<>(Storybound.id("scene_pause"));
+        public static final StreamCodec<ByteBuf, Pause> STREAM_CODEC = ByteBufCodecs.VAR_INT.map(Pause::new, Pause::session);
+
+        @Override
+        public Type<Pause> type() {
+            return TYPE;
+        }
+
+        public static void handleOnClient(Pause payload, IPayloadContext context) {
+            ClientScene.pause(payload.session(), true);
+        }
+    }
+
+    /** The talk is over: the scene's camera, screen and clock go on. */
+    public record Resume(int session) implements CustomPacketPayload {
+        public static final Type<Resume> TYPE = new Type<>(Storybound.id("scene_resume"));
+        public static final StreamCodec<ByteBuf, Resume> STREAM_CODEC = ByteBufCodecs.VAR_INT.map(Resume::new, Resume::session);
+
+        @Override
+        public Type<Resume> type() {
+            return TYPE;
+        }
+
+        public static void handleOnClient(Resume payload, IPayloadContext context) {
+            ClientScene.pause(payload.session(), false);
+        }
+    }
+
+    /**
+     * The editor's camera view asks where an anchor is for its author (an operator), as a scene would find it; the
+     * answer comes back as {@link AnchorAnswer} with the same {@code request}.
+     */
+    public record AnchorQuery(int request, String anchor) implements CustomPacketPayload {
+        public static final Type<AnchorQuery> TYPE = new Type<>(Storybound.id("scene_anchor_query"));
+        public static final StreamCodec<ByteBuf, AnchorQuery> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, AnchorQuery::request,
+                ByteBufCodecs.stringUtf8(4096), AnchorQuery::anchor,
+                AnchorQuery::new);
+
+        @Override
+        public Type<AnchorQuery> type() {
+            return TYPE;
+        }
+
+        public static void handleOnServer(AnchorQuery payload, IPayloadContext context) {
+            if (!(context.player() instanceof net.minecraft.server.level.ServerPlayer player) || !player.hasPermissions(2)) {
+                return;
+            }
+            dev.dzenthai.storybound.module.scene.Scenes.Found found = null;
+            try {
+                var anchor = dev.dzenthai.storybound.module.scene.SceneDefinition.Anchor.CODEC.parse(
+                        net.minecraft.resources.RegistryOps.create(com.mojang.serialization.JsonOps.INSTANCE, player.registryAccess()),
+                        com.google.gson.JsonParser.parseString(payload.anchor())).result().orElse(null);
+                found = anchor != null ? dev.dzenthai.storybound.module.scene.Scenes.find(player, anchor) : null;
+            } catch (RuntimeException e) {
+                Storybound.LOGGER.debug("Storybound: the camera view asked for an anchor that does not read: {}", payload.anchor());
+            }
+            StoryboundNetwork.sendToPlayer(player, found == null ? new AnchorAnswer(payload.request(), false, Vec3.ZERO, 0, -1)
+                    : new AnchorAnswer(payload.request(), true, found.pos(), found.yaw(), found.entity() != null ? found.entity().getId() : -1));
+        }
+    }
+
+    /** Where an anchor is for the author: its place, its facing, the entity it is (-1 for none); {@code found} false when it is not near. */
+    public record AnchorAnswer(int request, boolean found, Vec3 pos, float yaw, int entity) implements CustomPacketPayload {
+        public static final Type<AnchorAnswer> TYPE = new Type<>(Storybound.id("scene_anchor_answer"));
+        public static final StreamCodec<ByteBuf, AnchorAnswer> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, AnchorAnswer::request,
+                ByteBufCodecs.BOOL, AnchorAnswer::found,
+                VEC3, AnchorAnswer::pos,
+                ByteBufCodecs.FLOAT, AnchorAnswer::yaw,
+                ByteBufCodecs.VAR_INT, AnchorAnswer::entity,
+                AnchorAnswer::new);
+
+        @Override
+        public Type<AnchorAnswer> type() {
+            return TYPE;
+        }
+
+        public static void handleOnClient(AnchorAnswer payload, IPayloadContext context) {
+            dev.dzenthai.storybound.client.dev.ScenePreview.answer(payload);
+        }
+    }
+
     /** The scene is over (or cut short): the camera, the controls and the HUD come back. */
     public record End(int session) implements CustomPacketPayload {
         public static final Type<End> TYPE = new Type<>(Storybound.id("scene_end"));

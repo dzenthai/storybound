@@ -47,6 +47,7 @@ public final class ClientDevStore {
     public static final ResourceLocation TYPE_SCRIPT = StoryLinks.SCRIPT;
     /** A script of vanilla commands. */
     public static final ResourceLocation TYPE_VANILLA_SCRIPT = StoryLinks.VANILLA_SCRIPT;
+    public static final ResourceLocation TYPE_SCENE = StoryLinks.SCENE;
     public static final ResourceLocation TYPE_PHRASES = StoryLinks.PHRASES;
 
     private static volatile Map<ResourceLocation, Map<ResourceLocation, String>> definitions = Map.of();

@@ -99,6 +99,7 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderGuiLayer);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderHand);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderHighlight);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.ScenePreview::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHand);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onComputeFov);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHighlight);

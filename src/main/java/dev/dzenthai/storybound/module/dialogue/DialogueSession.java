@@ -78,7 +78,9 @@ final class DialogueSession {
     enum Waiting {
         NONE,
         LINE,
-        CHOICE
+        CHOICE,
+        /** A scene node plays: the talk waits for it, its screen closed meanwhile. */
+        SCENE
     }
 
     /** Whether a resume is playing: one paused again goes back to its line without another "Where was I". */

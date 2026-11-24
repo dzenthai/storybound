@@ -108,6 +108,22 @@ class StoryFlowTest {
         ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
     }
 
+    @Test
+    void aQuestPlayingASceneAndTheSceneMovingTheQuestAreLinks() {
+        NodeKey arrival = key(StoryLinks.SCENE, "arrival");
+        ClientDevStore.setSnapshot(Map.of(
+                StoryLinks.QUEST, Map.of(ALPHA.id(), """
+                        {"on_start": [{"type": "play_scene", "scene": "storybound:arrival"}]}"""),
+                StoryLinks.SCENE, Map.of(arrival.id(), """
+                        {"shots": [{"camera": {"from": [0, 1, 0], "duration": 2}}],
+                         "on_end": {"type": "set_quest_stage", "quest": "storybound:fire", "stage": "talk"}}""")
+        ), List.of(), "en_us", List.of("en_us"));
+        List<Edge> edges = ClientDevStore.collectEdges();
+        assertTrue(edges.contains(new Edge(ALPHA, arrival, "plays")), "the quest plays the scene");
+        assertTrue(edges.contains(new Edge(arrival, FIRE, "set_quest_stage")), "the scene's end moves the other quest");
+        ClientDevStore.setSnapshot(Map.of(), List.of(), "en_us", List.of("en_us"));
+    }
+
     private static final NodeKey FESTIVAL = key(StoryLinks.EVENT, "festival");
 
     /** The editor's canvas: quests and story events are its nodes, the rest badges under them. */

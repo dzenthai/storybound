@@ -30,7 +30,24 @@ public final class SceneCamera {
     private static final double GLIDE = 10;
     private static final ResourceLocation FADE_LAYER = Storybound.id("screen_fade");
 
+    /** The editor's camera view: where the camera is this frame (the partial tick given), or null while it is closed. */
+    private static java.util.function.@Nullable Function<Float, Pose> preview;
+
     private SceneCamera() {}
+
+    /** The editor's camera view takes the frame; null gives it back. */
+    public static void preview(java.util.function.@Nullable Function<Float, Pose> source) {
+        if (source != null && preview == null) {
+            CameraIntegrations.pause();
+        } else if (source == null && preview != null) {
+            CameraIntegrations.resume();
+        }
+        preview = source;
+    }
+
+    private static boolean framing() {
+        return ClientScene.framing() || preview != null;
+    }
 
     public static void begin() {
         CameraIntegrations.pause();
@@ -42,7 +59,18 @@ public final class SceneCamera {
 
     /** Places the frame for the scene; false when no scene plays and the camera is someone else's. */
     public static boolean apply(Camera camera, float partialTick) {
-        if (!ClientScene.playing()) {
+        if (preview != null && !ClientScene.framing()) {
+            Pose pose = preview.apply(partialTick);
+            if (pose == null) {
+                return false;
+            }
+            CameraAccessor accessor = (CameraAccessor) camera;
+            accessor.storybound$setDetached(true);
+            accessor.storybound$setRotation(pose.yaw(), pose.pitch(), 0f);
+            accessor.storybound$setPosition(pose.pos());
+            return true;
+        }
+        if (!ClientScene.framing()) {
             return false;
         }
         List<ScenePayloads.Shot> shots = ClientScene.shots();
@@ -69,15 +97,15 @@ public final class SceneCamera {
         return true;
     }
 
-    record Pose(Vec3 pos, float yaw, float pitch) {
-        Pose toward(Pose other, double share) {
+    public record Pose(Vec3 pos, float yaw, float pitch) {
+        public Pose toward(Pose other, double share) {
             return new Pose(pos.lerp(other.pos, share), (float) (yaw + Mth.wrapDegrees(other.yaw - yaw) * share),
                     (float) Mth.lerp(share, pitch, other.pitch));
         }
     }
 
     /** Where the camera is at {@code t} (0 to 1) of the shot, and where it looks. */
-    static Pose pose(ScenePayloads.Shot shot, double t, float partialTick) {
+    public static Pose pose(ScenePayloads.Shot shot, double t, float partialTick) {
         SceneDefinition.Ease[] eases = SceneDefinition.Ease.values();
         double gone = eases[Math.max(0, Math.min(eases.length - 1, shot.ease()))].apply(t);
         Vec3 pos = shot.from().lerp(shot.to(), gone);
@@ -97,7 +125,7 @@ public final class SceneCamera {
     }
 
     /** The yaw and pitch that look from {@code pos} at {@code target}, as Minecraft turns the camera. */
-    static Pose facing(Vec3 pos, Vec3 target) {
+    public static Pose facing(Vec3 pos, Vec3 target) {
         double dx = target.x - pos.x;
         double dy = target.y - pos.y;
         double dz = target.z - pos.z;
@@ -117,19 +145,19 @@ public final class SceneCamera {
 
     /** Only the titles and the screen's fade show over a scene. */
     public static void onRenderGuiLayer(RenderGuiLayerEvent.Pre event) {
-        if (ClientScene.playing() && !event.getName().equals(VanillaGuiLayers.TITLE) && !event.getName().equals(FADE_LAYER)) {
+        if (framing() && !event.getName().equals(VanillaGuiLayers.TITLE) && !event.getName().equals(FADE_LAYER)) {
             event.setCanceled(true);
         }
     }
 
     public static void onRenderHand(RenderHandEvent event) {
-        if (ClientScene.playing()) {
+        if (framing()) {
             event.setCanceled(true);
         }
     }
 
     public static void onRenderHighlight(RenderHighlightEvent.Block event) {
-        if (ClientScene.playing()) {
+        if (framing()) {
             event.setCanceled(true);
         }
     }

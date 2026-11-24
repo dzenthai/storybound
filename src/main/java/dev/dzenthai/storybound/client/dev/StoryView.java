@@ -230,6 +230,7 @@ final class StoryView extends StoryDrawing {
             items.add(linked(screen, target, "📖", "menu.link.give_document", Template.DOCUMENT, false));
             items.add(linked(screen, target, "🧑", "menu.link.new_npc", Template.NPC, true));
             items.add(linked(screen, target, "📄", "menu.link.runs_vanilla_script", Template.VANILLA_SCRIPT, false));
+            items.add(linked(screen, target, "🎬", "menu.link.plays_scene", Template.SCENE, false));
             if (ClientDevStore.kubejs()) {
                 items.add(linked(screen, target, "⚙", "menu.link.runs_script", Template.SCRIPT, false));
             }
@@ -245,6 +246,7 @@ final class StoryView extends StoryDrawing {
             items.add(linked(screen, target, "💬", "menu.link.started_by_dialogue", Template.DIALOGUE_SCREEN, true));
             items.add(linked(screen, target, "📖", "menu.link.started_by_document", Template.DOCUMENT, true));
             items.add(linked(screen, target, "📄", "menu.link.runs_vanilla_script_on_start", Template.VANILLA_SCRIPT, false));
+            items.add(linked(screen, target, "🎬", "menu.link.plays_scene_on_start", Template.SCENE, false));
             if (ClientDevStore.kubejs()) {
                 items.add(linked(screen, target, "⚙", "menu.link.runs_script_on_complete", Template.SCRIPT, false));
             }
@@ -257,11 +259,20 @@ final class StoryView extends StoryDrawing {
             items.add(linked(screen, target, "💬", "menu.link.script_run_by_dialogue", Template.DIALOGUE_SCREEN, true));
         } else if (type.equals(ClientDevStore.TYPE_EVENT)) {
             items.add(linked(screen, target, "📄", "menu.link.runs_vanilla_script_event", Template.VANILLA_SCRIPT, false));
+            items.add(linked(screen, target, "🎬", "menu.link.plays_scene_event", Template.SCENE, false));
         } else if (type.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
             // Nothing runs a script by itself: what makes one run.
             items.add(linked(screen, target, "📜", "menu.link.script_run_by_quest", Template.QUEST_MAIN, true));
             items.add(linked(screen, target, "💬", "menu.link.script_run_by_dialogue", Template.DIALOGUE_SCREEN, true));
             items.add(linked(screen, target, "⚡", "menu.link.script_run_by_event", Template.EVENT, true));
+        } else if (type.equals(ClientDevStore.TYPE_SCENE)) {
+            // Nothing plays a scene by itself: what makes it play.
+            items.add(linked(screen, target, "📜", "menu.link.scene_played_by_quest", Template.QUEST_MAIN, true));
+            items.add(linked(screen, target, "💬", "menu.link.scene_played_by_dialogue", Template.DIALOGUE_SCREEN, true));
+            items.add(linked(screen, target, "⚡", "menu.link.scene_played_by_event", Template.EVENT, true));
+            // What follows it: its end starts a quest or a talk.
+            items.add(linked(screen, target, "📜", "menu.link.quest_after_scene", Template.QUEST_MAIN, false));
+            items.add(linked(screen, target, "💬", "menu.link.dialogue_after_scene", Template.DIALOGUE_SCREEN, false));
         }
         return items;
     }

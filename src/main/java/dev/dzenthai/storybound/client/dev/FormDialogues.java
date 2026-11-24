@@ -105,6 +105,10 @@ abstract class FormDialogues extends FormWaypoints {
             // A story event, a script block, a flag: when and what; what the block is and where it leads, its file
             // last; what the flag holds, then where.
             Map.entry("event", List.of("trigger", "conditions", "once", "cooldown", "actions", "on_fail")),
+            // A scene: its shots; how it is watched; what follows. A shot: against what, the flight, what happens.
+            Map.entry("scene", List.of("shots", "music", "letterbox", "world", "invulnerable", "on_end")),
+            Map.entry("scene.shot", List.of("anchor", "dialogue", "camera", "during", "transition")),
+            Map.entry("scene.camera", List.of("from", "to", "look", "duration", "speed", "ease")),
             Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
             Map.entry("flag", List.of("description", "type", "default", "scope", "sync")),
             // The trigger "observed": what is looked at, how long and from how far, what the bar says.
@@ -134,6 +138,7 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("stage", Map.of("id", "stage.group.stage", "objectives", "stage.group.objectives", "waypoints", "stage.group.during")),
             Map.entry("objective", Map.of("id", "objective.group.what", "trigger", "objective.group.counts", "optional", "objective.group.shown")),
             Map.entry("event", Map.of("trigger", "event.group.when", "actions", "event.group.does")),
+            Map.entry("scene", Map.of("shots", "scene.group.shots", "letterbox", "scene.group.watching", "on_end", "scene.group.after")),
             Map.entry("script", Map.of("title", "script.group.block", "leads_to", "script.group.leads", "file", "script.group.file")),
             Map.entry("flag", Map.of("description", "flag.group.what", "scope", "flag.group.where")),
             Map.entry("chapter", Map.of("title", "chapter.group.chapter")));

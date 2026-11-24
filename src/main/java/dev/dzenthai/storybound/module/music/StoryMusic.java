@@ -20,8 +20,9 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
- * The story's music for each player: the track of the dialogue they are in, else of the current stage of their tracked
- * quest, else of a place whose conditions hold (the highest priority); none, and vanilla's music plays. Worked out every
+ * The story's music for each player: the track of the scene they watch, else of the dialogue they are in, else of the
+ * current stage of their tracked quest, else of a place whose conditions hold (the highest priority); none, and
+ * vanilla's music plays. Worked out every
  * half second and sent to the client when it changes; the client fades from one track to the next.
  */
 public final class StoryMusic {
@@ -51,6 +52,10 @@ public final class StoryMusic {
 
     /** The track the player should hear now: a dialogue's, a stage's, a place's; empty for vanilla's own music. */
     public static Optional<ResourceLocation> track(ServerPlayer player) {
+        Optional<ResourceLocation> scene = dev.dzenthai.storybound.module.scene.Scenes.music(player);
+        if (scene.isPresent()) {
+            return scene;
+        }
         Optional<ResourceLocation> dialogue = Dialogues.music(player);
         if (dialogue.isPresent()) {
             return dialogue;

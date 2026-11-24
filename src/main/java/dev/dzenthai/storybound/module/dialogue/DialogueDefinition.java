@@ -205,6 +205,7 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
             RANDOM("random", () -> RandomNode.CODEC),
             JUMP("jump", () -> Jump.CODEC),
             CALL("call", () -> Call.CODEC),
+            SCENE("scene", () -> SceneNode.CODEC),
             END("end", () -> End.CODEC);
 
             public static final Codec<Kind> CODEC = StringRepresentable.fromEnum(Kind::values);
@@ -443,6 +444,27 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
         @Override
         public Kind kind() {
             return Kind.CALL;
+        }
+
+        @Override
+        public void targets(Consumer<String> sink) {
+            sink.accept(next);
+        }
+    }
+
+    /**
+     * Plays a scene in the middle of the talk (the elder tells, and the player sees it): the dialogue steps aside, the
+     * scene plays, and the talk goes on at {@code next} however the scene ends.
+     */
+    public record SceneNode(ResourceLocation scene, String next) implements Node {
+        public static final MapCodec<SceneNode> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                ResourceLocation.CODEC.fieldOf("scene").forGetter(SceneNode::scene),
+                Codec.STRING.optionalFieldOf("next", END).forGetter(SceneNode::next)
+        ).apply(instance, SceneNode::new));
+
+        @Override
+        public Kind kind() {
+            return Kind.SCENE;
         }
 
         @Override

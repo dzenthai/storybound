@@ -207,6 +207,23 @@ final class StoryEdits {
             addGiveDocument(from, target.id());
         } else if (b.equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
             return runVanillaScript(from, a, target.id());
+        } else if (b.equals(ClientDevStore.TYPE_SCENE)) {
+            return playScene(from, a, target.id());
+        } else if (a.equals(ClientDevStore.TYPE_SCENE) && (b.equals(ClientDevStore.TYPE_QUEST) || b.equals(ClientDevStore.TYPE_DIALOGUE))) {
+            // After the scene: its end starts the quest or the talk.
+            JsonObject action = new JsonObject();
+            if (b.equals(ClientDevStore.TYPE_QUEST)) {
+                action.addProperty("type", "set_quest_state");
+                action.addProperty("quest", id);
+                action.addProperty("state", "active");
+            } else {
+                action.addProperty("type", "start_dialogue");
+                action.addProperty("dialogue", id);
+            }
+            JsonArray onEnd = array(from, "on_end");
+            if (!onEnd.contains(action)) {
+                onEnd.add(action);
+            }
         } else if (b.equals(ClientDevStore.TYPE_SCRIPT)) {
             return runScript(from, a, ClientDevStore.scriptHook(target.id()));
         } else if (a.equals(ClientDevStore.TYPE_SCRIPT)) {
@@ -251,6 +268,26 @@ final class StoryEdits {
      * The node runs the script of commands: a quest when it starts, a dialogue at its end, a story event with its
      * actions, a document on its first read, a boss on every victory. A node already running it there stays as it is.
      */
+    /** The node plays the scene: at a talk's end, as a quest starts, among an event's actions. */
+    private static boolean playScene(JsonObject from, ResourceLocation type, ResourceLocation scene) {
+        JsonObject action = new JsonObject();
+        action.addProperty("type", "play_scene");
+        action.addProperty("scene", scene.toString());
+        if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
+            addEnding(from, "scene_" + scene.getPath().replace('/', '_'), action);
+            return true;
+        }
+        String field = type.equals(ClientDevStore.TYPE_QUEST) ? "on_start" : type.equals(ClientDevStore.TYPE_EVENT) ? "actions" : null;
+        if (field == null) {
+            return false;
+        }
+        JsonArray actions = array(from, field);
+        if (!actions.contains(action)) {
+            actions.add(action);
+        }
+        return true;
+    }
+
     private static boolean runVanillaScript(JsonObject from, ResourceLocation type, ResourceLocation script) {
         JsonObject action = new JsonObject();
         action.addProperty("type", "run_script");
@@ -317,23 +354,25 @@ final class StoryEdits {
             ClientDevStore.TYPE_BOSS, Set.of("unlock_boss_section"),
             ClientDevStore.TYPE_CODEX, Set.of("unlock_codex"),
             ClientDevStore.TYPE_SCRIPT, Set.of("kubejs"),
-            ClientDevStore.TYPE_VANILLA_SCRIPT, Set.of("run_script"));
-    private static final Map<ResourceLocation, String> ID_FIELD = Map.of(
-            ClientDevStore.TYPE_QUEST, "quest",
-            ClientDevStore.TYPE_DIALOGUE, "dialogue",
-            ClientDevStore.TYPE_DOCUMENT, "document",
-            ClientDevStore.TYPE_BOSS, "boss",
-            ClientDevStore.TYPE_CODEX, "entry",
-            ClientDevStore.TYPE_SCRIPT, "id",
-            ClientDevStore.TYPE_VANILLA_SCRIPT, "script",
-            ClientDevStore.TYPE_PHRASES, "phrases",
+            ClientDevStore.TYPE_VANILLA_SCRIPT, Set.of("run_script"),
+            ClientDevStore.TYPE_SCENE, Set.of("play_scene"));
+    private static final Map<ResourceLocation, String> ID_FIELD = Map.ofEntries(
+            Map.entry(ClientDevStore.TYPE_SCENE, "scene"),
+            Map.entry(ClientDevStore.TYPE_QUEST, "quest"),
+            Map.entry(ClientDevStore.TYPE_DIALOGUE, "dialogue"),
+            Map.entry(ClientDevStore.TYPE_DOCUMENT, "document"),
+            Map.entry(ClientDevStore.TYPE_BOSS, "boss"),
+            Map.entry(ClientDevStore.TYPE_CODEX, "entry"),
+            Map.entry(ClientDevStore.TYPE_SCRIPT, "id"),
+            Map.entry(ClientDevStore.TYPE_VANILLA_SCRIPT, "script"),
+            Map.entry(ClientDevStore.TYPE_PHRASES, "phrases"),
             // A waypoint's target { "npc"... }.
-            ClientDevStore.TYPE_NPC, "npc");
+            Map.entry(ClientDevStore.TYPE_NPC, "npc"));
     /** Fields holding conditions: a condition naming the target stays, even of a type that is also an action ("Script"). */
     private static final Set<String> CONDITION_FIELDS = Set.of("conditions", "condition", "fail_when");
     /** Fields holding a list of actions: a matching single action becomes an empty list, which every one of them takes. */
     private static final Set<String> ACTION_LISTS = Set.of("actions", "on_start", "on_complete", "on_failed", "on_read", "on_enter",
-            "on_kill", "on_first_kill", "on_abort", "rewards");
+            "on_kill", "on_first_kill", "on_abort", "rewards", "on_end");
 
     /**
      * Removes what in this definition points at the target, where that can go without breaking the definition:

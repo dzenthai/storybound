@@ -207,7 +207,7 @@ final class QuestOutline {
         }
     }
 
-    /** The nodes an action list names: dialogues started, documents given, quests, scripts run, Codex and bosses opened. */
+    /** The nodes an action list names: dialogues started, documents given, quests, scripts run, Codex and bosses opened, scenes played. */
     private static void refs(@Nullable JsonElement element, Map<String, NodeKey> hooks, Consumer<NodeKey> out) {
         if (element instanceof JsonArray array) {
             array.forEach(child -> refs(child, hooks, out));
@@ -223,6 +223,7 @@ final class QuestOutline {
             case "set_quest_state", "set_quest_stage" -> id(object.get("quest")).ifPresent(id -> out.accept(new NodeKey(StoryLinks.QUEST, id)));
             case "unlock_codex" -> id(object.get("entry")).ifPresent(id -> out.accept(new NodeKey(StoryLinks.CODEX, id)));
             case "unlock_boss_section" -> id(object.get("boss")).ifPresent(id -> out.accept(new NodeKey(StoryLinks.BOSS, id)));
+            case "play_scene" -> id(object.get("scene")).ifPresent(id -> out.accept(new NodeKey(StoryLinks.SCENE, id)));
             case "kubejs" -> {
                 if (object.get("id") instanceof JsonPrimitive hook && hooks.containsKey(hook.getAsString())) {
                     out.accept(hooks.get(hook.getAsString()));

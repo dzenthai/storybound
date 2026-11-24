@@ -377,7 +377,8 @@ abstract class FormPickers extends FormCore {
             case "entry" -> ClientDevStore.TYPE_CODEX;
             case "waypoint" -> ClientDevStore.TYPE_WAYPOINT;
             case "key", "variant_by" -> ClientDevStore.TYPE_FLAG;
-            case "npc" -> Schemas.properties(owner).containsKey("range") ? ClientDevStore.TYPE_NPC : null;
+            // A waypoint's target, add_waypoint, a scene's anchor (with its waypoint beside it).
+            case "npc" -> Schemas.properties(owner).containsKey("range") || Schemas.properties(owner).containsKey("waypoint") ? ClientDevStore.TYPE_NPC : null;
             default -> null;
         };
         if (story != null) {

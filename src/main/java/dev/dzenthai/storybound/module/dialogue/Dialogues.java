@@ -145,7 +145,7 @@ public final class Dialogues {
         DialogueSession paused = PAUSED.get(player.getUUID());
         String refused = dialogue == null ? "unknown dialogue" : !isEnabled() ? "the dialogues module is disabled"
                 : SESSIONS.containsKey(player.getUUID()) ? "the player is already talking" : !player.isAlive() ? "the player is dead"
-                : dev.dzenthai.storybound.module.scene.Scenes.watching(player) != null ? "the player watches a scene"
+                : dev.dzenthai.storybound.module.scene.Scenes.keepsFromTalking(player) ? "the player watches a scene"
                 : paused != null && paused.baseId().equals(dialogueId) ? "it waits paused by a fight already"
                 : paused != null && dialogue.pausesForFights() ? "another dialogue a fight paused waits (" + paused.baseId() + ")" : null;
         if (refused != null) {
@@ -512,6 +512,10 @@ public final class Dialogues {
                 abort(session, EndReason.STOPPED);
                 continue;
             }
+            if (session.waiting == Waiting.SCENE) {
+                // A scene of the talk plays: no distance, fight or timer counts until it is over.
+                continue;
+            }
             Entity bound = session.bound;
             if (bound != null && bound != session.player) {
                 if (!bound.isAlive()) {
@@ -703,6 +707,10 @@ public final class Dialogues {
                     session.dialogue = other;
                     target = call.node().orElse(other.start());
                 }
+                case DialogueDefinition.SceneNode scene -> {
+                    playScene(session, scene);
+                    return;
+                }
                 case DialogueDefinition.End end -> {
                     Actions.runAll(end.actions(), context(session), origin(session, target), OnFail.ABORT);
                     target = DialogueDefinition.END;
@@ -710,6 +718,23 @@ public final class Dialogues {
             }
         }
         fail(session, "more than " + MAX_STEPS + " nodes in a row without showing anything (a loop?)");
+    }
+
+    /**
+     * A scene node: the talk's screen closes (its session stays), the scene plays, and the talk goes on at the node's
+     * {@code next} once it is over, unless the talk ended meanwhile (the player left).
+     */
+    private static void playScene(DialogueSession session, DialogueDefinition.SceneNode scene) {
+        session.waiting = Waiting.SCENE;
+        session.deadline = -1;
+        StoryboundNetwork.sendToPlayer(session.player, new DialogueClosePayload(session.id));
+        dev.dzenthai.storybound.module.scene.Scenes.playInDialogue(session.player, scene.scene(), () -> {
+            if (session.closed || SESSIONS.get(session.player.getUUID()) != session || session.waiting != Waiting.SCENE) {
+                return;
+            }
+            session.waiting = Waiting.NONE;
+            proceed(session, scene.next());
+        });
     }
 
     private static void moveOn(DialogueSession session) {

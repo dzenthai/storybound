@@ -26,11 +26,54 @@ public final class ClientScene {
     private static @Nullable Component speaker;
     private static @Nullable Component line;
     private static int lineUntil;
+    /** A talk of the scene goes on: the scene's camera, screen and clock wait, the dialogue has the screen. */
+    private static boolean paused;
+    private static @Nullable Component caption;
+    private static int captionPosition;
+    private static boolean captionBlack;
+    private static int captionFrom;
+    private static int captionUntil;
+    /** The editor to open again once the scene is over, when the author watched it from there. */
+    private static net.minecraft.client.gui.screens.@Nullable Screen returnTo;
 
     private ClientScene() {}
 
     public static boolean playing() {
         return session >= 0;
+    }
+
+    /** Whether the scene has the camera now: it plays and no talk of it goes on. */
+    public static boolean framing() {
+        return session >= 0 && !paused;
+    }
+
+    /** A talk of the scene begins ({@code on}) or is over: the dialogue takes the screen, then gives it back. */
+    public static void pause(int id, boolean on) {
+        if (id != session || paused == on) {
+            return;
+        }
+        paused = on;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (on) {
+            SceneCamera.end();
+            if (minecraft.screen instanceof SceneScreen) {
+                minecraft.setScreen(null);
+            }
+        } else {
+            SceneCamera.begin();
+            open();
+        }
+    }
+
+    public static void caption(int id, Component text, int position, boolean black, int ticks) {
+        if (id != session) {
+            return;
+        }
+        caption = text;
+        captionPosition = position;
+        captionBlack = black;
+        captionFrom = tick;
+        captionUntil = tick + ticks;
     }
 
     public static void play(int id, boolean bars, List<ScenePayloads.Shot> planned) {
@@ -77,12 +120,19 @@ public final class ClientScene {
             stop();
             return;
         }
+        if (paused) {
+            // A talk of the scene: its clock waits, the dialogue has the screen.
+            return;
+        }
         if (!minecraft.isPaused()) {
             tick++;
         }
         if (line != null && tick >= lineUntil) {
             line = null;
             speaker = null;
+        }
+        if (caption != null && tick >= captionUntil) {
+            caption = null;
         }
         if (tick > total + OVERRUN) {
             stop();
@@ -105,15 +155,24 @@ public final class ClientScene {
         shots = List.of();
         line = null;
         speaker = null;
+        caption = null;
+        paused = false;
         SceneCamera.end();
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.screen instanceof SceneScreen) {
-            minecraft.setScreen(null);
+            minecraft.setScreen(returnTo);
         }
+        returnTo = null;
+    }
+
+    /** The author watches a scene from the editor: it comes back when the scene is over. */
+    public static void returnTo(net.minecraft.client.gui.screens.Screen editor) {
+        returnTo = editor;
     }
 
     /** Leaving a world: nothing of its scene stays. */
     public static void reset() {
+        returnTo = null;
         if (playing()) {
             stop();
         }
@@ -138,5 +197,26 @@ public final class ClientScene {
 
     static @Nullable Component line() {
         return line;
+    }
+
+    static @Nullable Component caption() {
+        return caption;
+    }
+
+    static int captionPosition() {
+        return captionPosition;
+    }
+
+    static boolean captionBlack() {
+        return captionBlack;
+    }
+
+    /** How much of the caption shows (0 to 1): it fades in over its first ticks and out over its last. */
+    static float captionAlpha(float partialTick) {
+        double now = tick + partialTick;
+        double fade = Math.min(15, (captionUntil - captionFrom) / 3.0);
+        double in = (now - captionFrom) / fade;
+        double out = (captionUntil - now) / fade;
+        return (float) Math.max(0, Math.min(1, Math.min(in, out)));
     }
 }

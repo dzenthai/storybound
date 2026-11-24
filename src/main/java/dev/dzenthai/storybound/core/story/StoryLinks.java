@@ -36,6 +36,8 @@ public final class StoryLinks {
     public static final ResourceLocation SCRIPT = Storybound.id("script");
     /** A script of vanilla commands. */
     public static final ResourceLocation VANILLA_SCRIPT = Storybound.id("vanilla_script");
+    /** A scene: a cutscene of shots placed against anchors. */
+    public static final ResourceLocation SCENE = Storybound.id("scene");
     /** An NPC's phrases: its chatter and what it says when hit. */
     public static final ResourceLocation PHRASES = Storybound.id("phrases");
 
@@ -153,6 +155,8 @@ public final class StoryLinks {
             }
         });
         source.byType(EVENT).forEach((id, raw) -> collectLogicEdges(new NodeKey(EVENT, id), parseObject(raw), edges, hooks));
+        // What a scene does at its end and its seconds (moves a quest on, gives a document) are its arrows.
+        source.byType(SCENE).forEach((id, raw) -> collectLogicEdges(new NodeKey(SCENE, id), parseObject(raw), edges, hooks));
         for (ResourceLocation type : List.of(NPC, BOSS, CODEX)) {
             source.byType(type).forEach((id, raw) -> collectLogicEdges(new NodeKey(type, id), parseObject(raw), edges, hooks));
         }
@@ -259,6 +263,12 @@ public final class StoryLinks {
                     if (obj.has("script") && obj.get("script").isJsonPrimitive()) {
                         parseId(obj.get("script").getAsString())
                                 .ifPresent(s -> edges.add(new Edge(owner, new NodeKey(VANILLA_SCRIPT, s), "runs")));
+                    }
+                }
+                case "play_scene" -> {
+                    if (obj.has("scene") && obj.get("scene").isJsonPrimitive()) {
+                        parseId(obj.get("scene").getAsString())
+                                .ifPresent(s -> edges.add(new Edge(owner, new NodeKey(SCENE, s), "plays")));
                     }
                 }
                 case "start_dialogue" -> {

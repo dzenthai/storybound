@@ -424,6 +424,11 @@ final class StoryInspector {
             // At the player: what runs it may run it elsewhere (its "at").
             buttons.add(Button.builder(Component.literal("▶ ").append(DevUi.text("vanilla_script.run_now")), b -> screen.playtest("script_run", key.id()))
                     .tooltip(Tooltip.create(DevUi.text("vanilla_script.run_now_tooltip"))).build());
+        } else if (type.equals(ClientDevStore.TYPE_SCENE)) {
+            buttons.add(Button.builder(Component.literal("🎥 ").append(DevUi.text("scene.camera")), b -> screen.openSceneCamera(key.id()))
+                    .tooltip(Tooltip.create(DevUi.text("scene.camera_tooltip"))).build());
+            buttons.add(Button.builder(Component.literal("▶ ").append(DevUi.text("scene.watch")), b -> screen.watchScene(key.id()))
+                    .tooltip(Tooltip.create(DevUi.text("scene.watch_tooltip"))).build());
         }
         testsY = -1;
         if (buttons.isEmpty()) {

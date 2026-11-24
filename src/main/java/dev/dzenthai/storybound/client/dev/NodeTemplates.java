@@ -17,7 +17,7 @@ final class NodeTemplates {
     }
 
     enum Template {
-        QUEST_MAIN, QUEST_SIDE, CONTRACT, DIALOGUE_SCREEN, DIALOGUE_BUBBLE, NPC, PHRASES, DOCUMENT, WAYPOINT, BOSS, CODEX, EVENT, SCRIPT, VANILLA_SCRIPT
+        QUEST_MAIN, QUEST_SIDE, CONTRACT, DIALOGUE_SCREEN, DIALOGUE_BUBBLE, NPC, PHRASES, DOCUMENT, WAYPOINT, BOSS, CODEX, EVENT, SCRIPT, VANILLA_SCRIPT, SCENE
     }
 
     /**
@@ -201,7 +201,32 @@ final class NodeTemplates {
                 script.add("lines", lines);
                 yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_VANILLA_SCRIPT, id), script, Optional.empty(), 0));
             }
+            case SCENE -> {
+                // One shot to start from: a slow pass around the player, to be set in the camera view.
+                ResourceLocation id = ClientDevStore.id("scene_" + number);
+                JsonObject camera = new JsonObject();
+                camera.add("from", vec(-4, 2.5, -4));
+                camera.add("to", vec(4, 2.5, -4));
+                camera.addProperty("duration", 5);
+                JsonObject shot = new JsonObject();
+                shot.addProperty("anchor", "player");
+                shot.add("camera", camera);
+                JsonArray shots = new JsonArray();
+                shots.add(shot);
+                JsonObject scene = new JsonObject();
+                scene.add("shots", shots);
+                scene.addProperty("letterbox", true);
+                yield List.of(new Created(new NodeKey(ClientDevStore.TYPE_SCENE, id), scene, Optional.empty(), 0));
+            }
         };
+    }
+
+    private static JsonArray vec(double x, double y, double z) {
+        JsonArray array = new JsonArray();
+        array.add(x);
+        array.add(y);
+        array.add(z);
+        return array;
     }
 
     private static JsonObject quest(ResourceLocation id, String category, String title, String description, String stageId, String log) {

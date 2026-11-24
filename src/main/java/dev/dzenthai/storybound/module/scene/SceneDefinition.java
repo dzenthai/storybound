@@ -30,13 +30,15 @@ import net.minecraft.world.phys.Vec3;
  * @param invulnerable nothing hurts the watcher but the void and {@code /kill}
  * @param world {@code calm}: mobs near do nothing to the watcher and villagers, no monster spawns near; {@code live}: the world goes on
  */
-public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invulnerable, World world, List<Action> onEnd) {
+public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invulnerable, World world, List<Action> onEnd,
+                              Optional<ResourceLocation> music) {
     public static final Codec<SceneDefinition> CODEC = RecordCodecBuilder.<SceneDefinition>create(instance -> instance.group(
             Shot.CODEC.listOf().fieldOf("shots").forGetter(SceneDefinition::shots),
             Codec.BOOL.optionalFieldOf("letterbox", false).forGetter(SceneDefinition::letterbox),
             Codec.BOOL.optionalFieldOf("invulnerable", true).forGetter(SceneDefinition::invulnerable),
             World.CODEC.optionalFieldOf("world", World.CALM).forGetter(SceneDefinition::world),
-            LogicCodecs.ACTIONS.optionalFieldOf("on_end", List.of()).forGetter(SceneDefinition::onEnd)
+            LogicCodecs.ACTIONS.optionalFieldOf("on_end", List.of()).forGetter(SceneDefinition::onEnd),
+            ResourceLocation.CODEC.optionalFieldOf("music").forGetter(SceneDefinition::music)
     ).apply(instance, SceneDefinition::new)).validate(scene -> scene.shots().isEmpty()
             ? DataResult.error(() -> "A scene needs at least one shot")
             : DataResult.success(scene));
@@ -212,19 +214,58 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
         }
     }
 
-    /** One thing in a shot, at {@code at} seconds from its start (past the shot's end: at its end). */
-    public record Cue(float at, Optional<Title> title, Optional<Line> line, Optional<Sound> sound, Optional<ScreenFade> fade, List<Action> actions) {
+    /**
+     * One thing in a shot, at {@code at} seconds from its start (past the shot's end: at its end): a title, a caption,
+     * a line, a sound, the music changed, a fade, actions.
+     */
+    public record Cue(float at, Optional<Title> title, Optional<Caption> caption, Optional<Line> line, Optional<Sound> sound,
+                      Optional<ResourceLocation> music, Optional<ScreenFade> fade, List<Action> actions) {
         public static final Codec<Cue> CODEC = RecordCodecBuilder.<Cue>create(instance -> instance.group(
                 Codec.floatRange(0, Camera.MAX_SECONDS).optionalFieldOf("at", 0f).forGetter(Cue::at),
                 Title.CODEC.optionalFieldOf("title").forGetter(Cue::title),
+                Caption.CODEC.optionalFieldOf("caption").forGetter(Cue::caption),
                 Line.CODEC.optionalFieldOf("line").forGetter(Cue::line),
                 Sound.CODEC.optionalFieldOf("sound").forGetter(Cue::sound),
+                ResourceLocation.CODEC.optionalFieldOf("music").forGetter(Cue::music),
                 ScreenFade.CODEC.optionalFieldOf("fade").forGetter(Cue::fade),
                 LogicCodecs.ACTIONS.optionalFieldOf("actions", List.of()).forGetter(Cue::actions)
-        ).apply(instance, Cue::new)).validate(cue -> (cue.title.isPresent() ? 1 : 0) + (cue.line.isPresent() ? 1 : 0) + (cue.sound.isPresent() ? 1 : 0)
-                + (cue.fade.isPresent() ? 1 : 0) + (cue.actions.isEmpty() ? 0 : 1) == 1
+        ).apply(instance, Cue::new)).validate(cue -> (cue.title.isPresent() ? 1 : 0) + (cue.caption.isPresent() ? 1 : 0) + (cue.line.isPresent() ? 1 : 0)
+                + (cue.sound.isPresent() ? 1 : 0) + (cue.music.isPresent() ? 1 : 0) + (cue.fade.isPresent() ? 1 : 0) + (cue.actions.isEmpty() ? 0 : 1) == 1
                 ? DataResult.success(cue)
-                : DataResult.error(() -> "A cue in 'during' is exactly one of title, line, sound, fade or actions"));
+                : DataResult.error(() -> "A cue in 'during' is exactly one of title, caption, line, sound, music, fade or actions"));
+    }
+
+    /** Where a caption stands on the screen. */
+    public enum Position implements StringRepresentable {
+        BOTTOM_LEFT("bottom_left"),
+        TOP_LEFT("top_left"),
+        CENTER("center");
+
+        public static final Codec<Position> CODEC = StringRepresentable.fromEnum(Position::values);
+        private final String name;
+
+        Position(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getSerializedName() {
+            return name;
+        }
+    }
+
+    /**
+     * A caption: a place and a time ("A village by the river. Three days later."), fading in and out at its
+     * {@code position}; with {@code black}, on a black screen, as a silent film's title card. Shown for {@code duration}
+     * seconds, else for as long as the words take to read.
+     */
+    public record Caption(StoryText text, Position position, boolean black, Optional<Float> duration) {
+        public static final Codec<Caption> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                StoryText.CODEC.fieldOf("text").forGetter(Caption::text),
+                Position.CODEC.optionalFieldOf("position", Position.BOTTOM_LEFT).forGetter(Caption::position),
+                Codec.BOOL.optionalFieldOf("black", false).forGetter(Caption::black),
+                Codec.floatRange(0.5f, Camera.MAX_SECONDS).optionalFieldOf("duration").forGetter(Caption::duration)
+        ).apply(instance, Caption::new));
     }
 
     /** Big in the middle of the screen, as a quest's title when it starts. */
@@ -258,13 +299,24 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
         ).apply(instance, Sound::new));
     }
 
-    /** One shot: an anchor, the camera's flight against it, what happens meanwhile, how it follows the one before. */
-    public record Shot(Anchor anchor, Camera camera, List<Cue> during, Transition transition) {
-        public static final Codec<Shot> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+    /**
+     * One shot: an anchor, the camera's flight against it, what happens meanwhile, how it follows the one before. Or,
+     * with {@code dialogue} instead of a camera, a talk: the dialogue plays with its own camera, the anchor (an NPC or an
+     * entity) as the one the player talks to, and the scene goes on with the next shot once it is over.
+     */
+    public record Shot(Anchor anchor, Optional<Camera> camera, Optional<ResourceLocation> dialogue, List<Cue> during, Transition transition) {
+        public static final Codec<Shot> CODEC = RecordCodecBuilder.<Shot>create(instance -> instance.group(
                 Anchor.CODEC.optionalFieldOf("anchor", new PlayerAnchor()).forGetter(Shot::anchor),
-                Camera.CODEC.fieldOf("camera").forGetter(Shot::camera),
+                Camera.CODEC.optionalFieldOf("camera").forGetter(Shot::camera),
+                ResourceLocation.CODEC.optionalFieldOf("dialogue").forGetter(Shot::dialogue),
                 Cue.CODEC.listOf().optionalFieldOf("during", List.of()).forGetter(Shot::during),
                 Transition.CODEC.optionalFieldOf("transition", Transition.CUT).forGetter(Shot::transition)
-        ).apply(instance, Shot::new));
+        ).apply(instance, Shot::new)).validate(shot -> shot.camera().isPresent() == shot.dialogue().isPresent()
+                ? DataResult.error(() -> "A shot has either a 'camera' (a flight) or a 'dialogue' (a talk)")
+                : DataResult.success(shot));
+
+        public boolean talk() {
+            return dialogue.isPresent();
+        }
     }
 }

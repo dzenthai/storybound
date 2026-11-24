@@ -25,6 +25,11 @@ public final class StoryboundNetwork {
         registrar.playToClient(ScenePayloads.Play.TYPE, ScenePayloads.Play.STREAM_CODEC, ScenePayloads.Play::handleOnClient);
         registrar.playToClient(ScenePayloads.Line.TYPE, ScenePayloads.Line.STREAM_CODEC, ScenePayloads.Line::handleOnClient);
         registrar.playToClient(ScenePayloads.End.TYPE, ScenePayloads.End.STREAM_CODEC, ScenePayloads.End::handleOnClient);
+        registrar.playToClient(ScenePayloads.Caption.TYPE, ScenePayloads.Caption.STREAM_CODEC, ScenePayloads.Caption::handleOnClient);
+        registrar.playToClient(ScenePayloads.Pause.TYPE, ScenePayloads.Pause.STREAM_CODEC, ScenePayloads.Pause::handleOnClient);
+        registrar.playToClient(ScenePayloads.Resume.TYPE, ScenePayloads.Resume.STREAM_CODEC, ScenePayloads.Resume::handleOnClient);
+        registrar.playToServer(ScenePayloads.AnchorQuery.TYPE, ScenePayloads.AnchorQuery.STREAM_CODEC, ScenePayloads.AnchorQuery::handleOnServer);
+        registrar.playToClient(ScenePayloads.AnchorAnswer.TYPE, ScenePayloads.AnchorAnswer.STREAM_CODEC, ScenePayloads.AnchorAnswer::handleOnClient);
         registrar.playToServer(JournalBookActionPayload.TYPE, JournalBookActionPayload.STREAM_CODEC, JournalBookActionPayload::handleOnServer);
         registrar.playToClient(OpenDocumentPayload.TYPE, OpenDocumentPayload.STREAM_CODEC, OpenDocumentPayload::handleOnClient);
         registrar.playToClient(ModulesPayload.TYPE, ModulesPayload.STREAM_CODEC, ModulesPayload::handleOnClient);
