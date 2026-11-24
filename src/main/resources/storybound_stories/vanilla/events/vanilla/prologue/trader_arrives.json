@@ -1,0 +1,50 @@
+{
+  "trigger": {
+    "type": "logged_in",
+    "first_time": true
+  },
+  "conditions": [
+    {
+      "type": "location",
+      "dimension": "minecraft:overworld"
+    },
+    {
+      "type": "quest",
+      "quest": "vanilla:prologue/night_guests",
+      "state": "unknown"
+    }
+  ],
+  "actions": [
+    {
+      "type": "wait",
+      "seconds": 3
+    },
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:wandering_trader",
+      "offset": [
+        6,
+        0,
+        4
+      ],
+      "tag": "prologue_trader",
+      "nbt": {
+        "DespawnDelay": 24000
+      }
+    },
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:trader_llama",
+      "count": 2,
+      "offset": [
+        8,
+        0,
+        6
+      ],
+      "leashed_to": {
+        "tag": "prologue_trader"
+      }
+    }
+  ],
+  "once": "player"
+}

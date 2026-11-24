@@ -1,0 +1,26 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:scene"
+  },
+  "actions": [
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:scene/quest",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:scene/quest",
+      "state": "active"
+    },
+    {
+      "type": "track_quest",
+      "quest": "scenario:scene/quest"
+    },
+    {
+      "type": "play_scene",
+      "scene": "scenario:scene/demo"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.command;
 
 import com.mojang.brigadier.context.CommandContext;
+import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationReport;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import net.minecraft.ChatFormatting;
@@ -34,7 +35,8 @@ public final class StoryboundCommands {
                 .then(CodexCommands.codex())
                 .then(CodexCommands.boss())
                 .then(WaypointCommands.waypoint())
-                .then(PartyCommands.party()));
+                .then(PartyCommands.party())
+                .then(StoryCommands.story()));
     }
 
     private static int validate(CommandContext<CommandSourceStack> context) {

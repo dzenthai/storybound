@@ -1,0 +1,11 @@
+{
+  "title": "Ванильная история",
+  "namespace": "vanilla",
+  "enabled": true,
+  "source_language": "ru_ru",
+  "languages": [
+    "ru_ru",
+    "en_us"
+  ],
+  "track_given_quests": true
+}

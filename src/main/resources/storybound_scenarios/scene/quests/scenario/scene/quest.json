@@ -1,0 +1,24 @@
+{
+  "category": "side",
+  "title": "scenario.scene.quest.title",
+  "text": {
+    "active": "scenario.scene.quest.text",
+    "completed": "scenario.scene.quest.done"
+  },
+  "stages": [
+    {
+      "id": "watch",
+      "objectives": [
+        {
+          "id": "seen",
+          "text": "scenario.scene.quest.watch",
+          "trigger": {
+            "type": "scene_finished",
+            "scene": "scenario:scene/demo",
+            "reason": "finish"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -876,6 +876,90 @@ public final class LogicGameTests {
         helper.succeed();
     }
 
+    /**
+     * A place's "at" takes a selector: the spawn lands by the nearest matching entity (a village's Elder, found by his
+     * tag), and fails when none is near; "leashed_to" puts each spawned llama on a lead held by the trader, and spawns
+     * it loose when no holder is near.
+     */
+    @GameTest(template = "empty")
+    public static void aPlaceFindsAnNpcAndLlamasFollowTheirTrader(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        player.moveTo(origin.getX() + 0.5, origin.getY() + 1, origin.getZ() + 0.5);
+        StoryContext context = StoryContext.of(player);
+        var ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        net.minecraft.world.entity.npc.Villager elder = new net.minecraft.world.entity.npc.Villager(net.minecraft.world.entity.EntityType.VILLAGER, helper.getLevel());
+        elder.moveTo(player.getX() + 20, player.getY(), player.getZ());
+        elder.setNoAi(true);
+        elder.addTag("gametest_elder");
+        helper.getLevel().addFreshEntity(elder);
+        // A tick or two later: in a batch of many tests the elder's chunk may still be loading, and a search does not see him yet.
+        helper.runAfterDelay(2, () -> placeAndLeash(helper, player, context, ops, elder));
+    }
+
+    private static void placeAndLeash(GameTestHelper helper, ServerPlayer player, StoryContext context,
+                                      RegistryOps<com.google.gson.JsonElement> ops, net.minecraft.world.entity.npc.Villager elder) {
+        List<Entity> spawned = new ArrayList<>();
+        try {
+            var atElder = LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString(
+                    "{ \"type\": \"spawn_entity\", \"entity\": \"minecraft:pillager\", \"at\": { \"tag\": \"gametest_elder\" }, \"offset\": [2, 0, 0],"
+                            + " \"tag\": \"gametest_near_elder\", \"nbt\": { \"NoAI\": true } }")).getOrThrow(GameTestAssertException::new);
+            helper.assertTrue(Actions.runAll(atElder, context, "gametest place", OnFail.ABORT), "spawned by the elder");
+            spawned.addAll(helper.getLevel().getEntities((Entity) null, player.getBoundingBox().inflate(64), entity -> entity.getTags().contains("gametest_near_elder")));
+            helper.assertTrue(spawned.size() == 1 && spawned.getFirst().distanceTo(elder) < 3, "two blocks from the elder, 20 from the player: " + spawned);
+
+            elder.discard();
+            helper.assertFalse(Actions.runAll(atElder, context, "gametest place", OnFail.ABORT), "no elder near: the spawn fails");
+
+            var trader = LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString(
+                    "[ { \"type\": \"spawn_entity\", \"entity\": \"minecraft:wandering_trader\", \"offset\": [3, 0, 0], \"tag\": \"gametest_trader\", \"nbt\": { \"NoAI\": true } },"
+                            + " { \"type\": \"spawn_entity\", \"entity\": \"minecraft:trader_llama\", \"count\": 2, \"offset\": [5, 0, 0], \"tag\": \"gametest_llama\","
+                            + " \"leashed_to\": { \"tag\": \"gametest_trader\" } } ]")).getOrThrow(GameTestAssertException::new);
+            helper.assertTrue(Actions.runAll(trader, context, "gametest leash", OnFail.ABORT), "the trader and his llamas");
+            List<Entity> traders = helper.getLevel().getEntities((Entity) null, player.getBoundingBox().inflate(16), entity -> entity.getTags().contains("gametest_trader"));
+            List<Entity> llamas = helper.getLevel().getEntities((Entity) null, player.getBoundingBox().inflate(16), entity -> entity.getTags().contains("gametest_llama"));
+            spawned.addAll(traders);
+            spawned.addAll(llamas);
+            helper.assertTrue(traders.size() == 1 && llamas.size() == 2, "one trader, two llamas: " + traders + " " + llamas);
+            helper.assertTrue(llamas.stream().allMatch(llama -> llama instanceof net.minecraft.world.entity.Leashable leashable && leashable.getLeashHolder() == traders.getFirst()),
+                    "both on his leads");
+
+            traders.getFirst().discard();
+            var loose = LogicCodecs.ACTIONS.parse(ops, JsonParser.parseString(
+                    "{ \"type\": \"spawn_entity\", \"entity\": \"minecraft:trader_llama\", \"offset\": [5, 0, 0], \"tag\": \"gametest_loose\","
+                            + " \"leashed_to\": { \"tag\": \"gametest_trader\" } }")).getOrThrow(GameTestAssertException::new);
+            helper.assertTrue(Actions.runAll(loose, context, "gametest leash", OnFail.ABORT), "no holder is not a failure");
+            List<Entity> looseOnes = helper.getLevel().getEntities((Entity) null, player.getBoundingBox().inflate(16), entity -> entity.getTags().contains("gametest_loose"));
+            spawned.addAll(looseOnes);
+            helper.assertTrue(looseOnes.size() == 1 && looseOnes.getFirst() instanceof net.minecraft.world.entity.Leashable leashable && !leashable.isLeashed(),
+                    "spawned loose");
+        } finally {
+            spawned.forEach(Entity::discard);
+            elder.discard();
+        }
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    /** has_item counts the armour slots too; with "worn" only what is on, so armour in the bag does not count. */
+    @GameTest(template = "empty")
+    public static void hasItemTellsWornArmourFromCarried(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        StoryContext context = StoryContext.of(player);
+        Condition carried = condition(helper, "{ \"type\": \"has_item\", \"tag\": \"minecraft:chest_armor\" }");
+        Condition worn = condition(helper, "{ \"type\": \"has_item\", \"tag\": \"minecraft:chest_armor\", \"worn\": true }");
+        Condition sword = condition(helper, "{ \"type\": \"has_item\", \"tag\": \"minecraft:swords\" }");
+        expect(helper, List.of(carried.test(context), worn.test(context), sword.test(context)), List.of(false, false, false), "nothing yet");
+        player.getInventory().add(new ItemStack(Items.LEATHER_CHESTPLATE));
+        player.getInventory().add(new ItemStack(Items.WOODEN_SWORD));
+        expect(helper, List.of(carried.test(context), worn.test(context), sword.test(context)), List.of(true, false, true), "in the bag: carried, not worn; any sword");
+        player.getInventory().clearOrCountMatchingItems(stack -> stack.is(Items.LEATHER_CHESTPLATE), -1, player.inventoryMenu.getCraftSlots());
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new ItemStack(Items.LEATHER_CHESTPLATE));
+        expect(helper, List.of(carried.test(context), worn.test(context)), List.of(true, true), "put on: both");
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
     private static void fireCustom(ServerPlayer player, String id) {
         TriggerDispatcher.fire(BuiltinTriggers.CUSTOM.get(), StoryContext.of(player), key(id));
     }

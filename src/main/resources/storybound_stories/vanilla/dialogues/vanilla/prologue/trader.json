@@ -1,0 +1,215 @@
+{
+  "presentation": "screen",
+  "camera": "auto",
+  "start": "hail",
+  "participants": {
+    "npc": {
+      "type": "bound"
+    }
+  },
+  "nodes": {
+    "hail": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.hail.text",
+      "next": "news"
+    },
+    "news": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.news.text",
+      "next": "need"
+    },
+    "need": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.need.text",
+      "next": "offer"
+    },
+    "offer": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.offer.text",
+      "next": "choose"
+    },
+    "choose": {
+      "type": "choice",
+      "options": [
+        {
+          "id": "all",
+          "text": "vanilla.dialogue.prologue.trader.node.choose.options.all.text",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:prologue/night_guests",
+              "state": "active"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:leather_helmet"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:leather_chestplate"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:leather_leggings"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:leather_boots"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:wooden_pickaxe"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:wooden_sword"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:wooden_axe"
+            },
+            {
+              "type": "add_var",
+              "key": "vanilla:prologue/debt",
+              "amount": 2
+            }
+          ],
+          "next": "took"
+        },
+        {
+          "id": "armour",
+          "text": "vanilla.dialogue.prologue.trader.node.choose.options.armour.text",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:prologue/night_guests",
+              "state": "active"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:leather_helmet"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:leather_chestplate"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:leather_leggings"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:leather_boots"
+            },
+            {
+              "type": "add_var",
+              "key": "vanilla:prologue/debt",
+              "amount": 1
+            }
+          ],
+          "next": "took"
+        },
+        {
+          "id": "tools",
+          "text": "vanilla.dialogue.prologue.trader.node.choose.options.tools.text",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:prologue/night_guests",
+              "state": "active"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:wooden_pickaxe"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:wooden_sword"
+            },
+            {
+              "type": "give_item",
+              "item": "minecraft:wooden_axe"
+            },
+            {
+              "type": "add_var",
+              "key": "vanilla:prologue/debt",
+              "amount": 1
+            }
+          ],
+          "next": "took"
+        },
+        {
+          "id": "none",
+          "text": "vanilla.dialogue.prologue.trader.node.choose.options.none.text",
+          "next": "refused",
+          "actions": [
+            {
+              "type": "set_quest_state",
+              "quest": "vanilla:prologue/night_guests",
+              "state": "active"
+            }
+          ]
+        }
+      ]
+    },
+    "took": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.took.text",
+      "next": "armed"
+    },
+    "refused": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.refused.text",
+      "next": "armed"
+    },
+    "armed": {
+      "type": "condition",
+      "conditions": {
+        "type": "has_item",
+        "tag": "minecraft:swords"
+      },
+      "then": "advice_armed",
+      "else": "advice_unarmed"
+    },
+    "advice_armed": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.advice_armed.text",
+      "next": "advice_armour"
+    },
+    "advice_unarmed": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.advice_unarmed.text",
+      "next": "advice_armour"
+    },
+    "advice_armour": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.advice_armour.text",
+      "next": "send"
+    },
+    "send": {
+      "type": "action",
+      "actions": [
+        {
+          "type": "track_quest",
+          "quest": "vanilla:prologue/night_guests"
+        }
+      ],
+      "next": "farewell"
+    },
+    "farewell": {
+      "type": "line",
+      "speaker": "npc",
+      "text": "vanilla.dialogue.prologue.trader.node.farewell.text",
+      "next": "@end"
+    }
+  }
+}

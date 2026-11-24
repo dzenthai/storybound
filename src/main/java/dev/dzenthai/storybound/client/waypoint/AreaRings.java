@@ -118,7 +118,7 @@ public final class AreaRings {
         if (event.getStage() != ShaderPacks.worldOverlayStage() || ShaderPacks.renderingShadowPass()
                 || minecraft.level == null || minecraft.player == null
                 || minecraft.options.hideGui || !StoryboundClientConfig.INSTANCE.waypointAreaRings.get()
-                || !ClientModules.isEnabled("waypoints") || CutsceneClient.playing()) {
+                || !ClientModules.isEnabled("waypoints") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())) {
             return;
         }
         ClientLevel level = minecraft.level;

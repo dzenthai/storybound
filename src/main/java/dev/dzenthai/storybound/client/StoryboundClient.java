@@ -92,9 +92,13 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.sound.ClientStoryMusic::onSelectMusic);
         NeoForge.EVENT_BUS.addListener(ScreenProjection::capture);
         NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
+        WorldStoryButton.register();
         NeoForge.EVENT_BUS.addListener(AreaRings::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.waypoint.ScentStrands::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderGuiLayer);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderHand);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderHighlight);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHand);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onComputeFov);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHighlight);
@@ -190,6 +194,7 @@ public final class StoryboundClient {
         ClientWaypoints.tick();
         ClientDialogue.tick();
         DialogueCamera.tick();
+        dev.dzenthai.storybound.client.scene.ClientScene.tick();
         ClientConfigTexts.install();
     }
 
@@ -226,6 +231,7 @@ public final class StoryboundClient {
             type.clientStore().clear();
         }
         ClientStoryState.clear();
+        dev.dzenthai.storybound.client.scene.ClientScene.reset();
         ClientJournal.clear();
         ClientQuests.clear();
         DebugOverlay.clear();

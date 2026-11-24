@@ -45,12 +45,32 @@ public final class WorldConditions {
         return count;
     }
 
-    /** {@code { "type": "has_item", "item": "minecraft:emerald", "count": 5 }} or with {@code "tag"}. */
-    public record HasItem(ItemMatcher matcher, int count) implements Condition {
+    /** The pieces of armour the player wears that match: only the four armour slots, not what is carried. */
+    public static int countWorn(Player player, ItemMatcher matcher) {
+        int count = 0;
+        for (net.minecraft.world.item.ItemStack worn : player.getInventory().armor) {
+            if (matcher.test(worn)) {
+                count += worn.getCount();
+            }
+        }
+        return count;
+    }
+
+    /**
+     * {@code { "type": "has_item", "item": "minecraft:emerald", "count": 5 }} or with {@code "tag"}: carried anywhere in
+     * the inventory, armour slots too. With {@code "worn": true}, only what the player has on
+     * ({@code { "type": "has_item", "tag": "minecraft:chest_armor", "worn": true }}).
+     */
+    public record HasItem(ItemMatcher matcher, int count, boolean worn) implements Condition {
         public static final MapCodec<HasItem> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 ItemMatcher.MAP_CODEC.forGetter(HasItem::matcher),
-                Codec.intRange(1, Integer.MAX_VALUE).optionalFieldOf("count", 1).forGetter(HasItem::count)
+                Codec.intRange(1, Integer.MAX_VALUE).optionalFieldOf("count", 1).forGetter(HasItem::count),
+                Codec.BOOL.optionalFieldOf("worn", false).forGetter(HasItem::worn)
         ).apply(instance, HasItem::new));
+
+        private int found(StoryContext context) {
+            return worn ? countWorn(context.player(), matcher) : countItems(context.player(), matcher);
+        }
 
         @Override
         public ConditionType<?> type() {
@@ -59,12 +79,12 @@ public final class WorldConditions {
 
         @Override
         public boolean test(StoryContext context) {
-            return countItems(context.player(), matcher) >= count;
+            return found(context) >= count;
         }
 
         @Override
         public String describe(StoryContext context) {
-            return "has " + countItems(context.player(), matcher) + ", wanted " + count;
+            return (worn ? "wears " : "has ") + found(context) + ", wanted " + count;
         }
     }
 

@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.mixin.client;
 
 import dev.dzenthai.storybound.client.camera.DialogueCamera;
+import dev.dzenthai.storybound.client.camera.SceneCamera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.renderer.GameRenderer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -9,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Right after the camera is set up for a frame, the dialogue camera may move it. Injected here rather than into
+ * Right after the camera is set up for a frame, a scene's camera or else the dialogue camera may move it. Injected here rather than into
  * {@code Camera.setup}: camera mods may cancel {@code setup} (Epic Fight does with its own camera), and nothing
  * else moves the camera between this point and drawing. The high priority puts our call after other mods'
  * injections at the same point. {@code require = 0}: if another mod rewrites this method, the camera is simply off.
@@ -22,6 +23,9 @@ public abstract class GameRendererMixin {
                     shift = At.Shift.AFTER),
             require = 0)
     private void storybound$dialogueCamera(DeltaTracker deltaTracker, CallbackInfo info) {
-        DialogueCamera.apply(((GameRenderer) (Object) this).getMainCamera());
+        net.minecraft.client.Camera camera = ((GameRenderer) (Object) this).getMainCamera();
+        if (!SceneCamera.apply(camera, deltaTracker.getGameTimeDeltaPartialTick(true))) {
+            DialogueCamera.apply(camera);
+        }
     }
 }

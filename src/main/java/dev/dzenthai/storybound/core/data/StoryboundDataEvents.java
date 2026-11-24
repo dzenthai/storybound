@@ -24,6 +24,7 @@ public final class StoryboundDataEvents {
         gameBus.addListener(StoryboundDataEvents::onTagsUpdated);
         // HIGH: before the headless validation (LOWEST), which validates on its own.
         gameBus.addListener(net.neoforged.bus.api.EventPriority.HIGH, StoryboundDataEvents::onServerStarted);
+        gameBus.addListener(StoryboundDataEvents::onServerAboutToStart);
         gameBus.addListener(StoryboundDataEvents::onDatapackSync);
         gameBus.addListener(StoryboundDataEvents::onPlayerLoggedIn);
     }
@@ -61,6 +62,23 @@ public final class StoryboundDataEvents {
             }
             ValidationService.publish(ValidationService.validate());
         }
+    }
+
+    /**
+     * The world's story ({@link WorldStory}): a world's first data load comes before its server, when the world's rule
+     * cannot be read, and leaves the story out; with the rule on, the definitions and texts load again now, before the
+     * worlds are made and anyone joins (only the story's JSON, not a whole {@code /reload}).
+     */
+    private static void onServerAboutToStart(net.neoforged.neoforge.event.server.ServerAboutToStartEvent event) {
+        if (!WorldStory.on()) {
+            return;
+        }
+        net.minecraft.server.MinecraftServer server = event.getServer();
+        for (DefinitionType<?> type : DefinitionTypes.all()) {
+            loader(type, server.registryAccess()).loadNow(server.getResourceManager());
+        }
+        ConfigTexts.reload();
+        DevModeServer.rebuild();
     }
 
     private static void onServerStarted(net.neoforged.neoforge.event.server.ServerStartedEvent event) {

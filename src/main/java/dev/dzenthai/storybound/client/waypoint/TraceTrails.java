@@ -83,7 +83,7 @@ public final class TraceTrails {
     public static void tick() {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
-        boolean running = level != null && minecraft.player != null && ClientModules.isEnabled("waypoints") && !CutsceneClient.playing();
+        boolean running = level != null && minecraft.player != null && ClientModules.isEnabled("waypoints") && !(CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing());
         if (!running) {
             ScentStrands.tick(false);
             return;

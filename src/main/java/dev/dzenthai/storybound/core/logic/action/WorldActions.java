@@ -35,7 +35,7 @@ import net.neoforged.neoforge.items.ItemHandlerHelper;
 
 /** Effects on the player and the world. */
 public final class WorldActions {
-    static final Codec<SoundSource> SOUND_SOURCE_CODEC = Codec.STRING.comapFlatMap(
+    public static final Codec<SoundSource> SOUND_SOURCE_CODEC = Codec.STRING.comapFlatMap(
             name -> Arrays.stream(SoundSource.values())
                     .filter(source -> source.getName().equals(name))
                     .findFirst()

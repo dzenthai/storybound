@@ -145,6 +145,7 @@ public final class Dialogues {
         DialogueSession paused = PAUSED.get(player.getUUID());
         String refused = dialogue == null ? "unknown dialogue" : !isEnabled() ? "the dialogues module is disabled"
                 : SESSIONS.containsKey(player.getUUID()) ? "the player is already talking" : !player.isAlive() ? "the player is dead"
+                : dev.dzenthai.storybound.module.scene.Scenes.watching(player) != null ? "the player watches a scene"
                 : paused != null && paused.baseId().equals(dialogueId) ? "it waits paused by a fight already"
                 : paused != null && dialogue.pausesForFights() ? "another dialogue a fight paused waits (" + paused.baseId() + ")" : null;
         if (refused != null) {

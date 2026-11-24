@@ -125,6 +125,7 @@ happen and never from the past.
 | `dimension_changed` | `from?`, `to?` | The player goes to another dimension. |
 | `level_reached` | `level` | The player's experience level reaches the value. |
 | `stat_reached` | `stat`, `stat_type?`, `value` | A vanilla statistic reaches the value (see the `stat` condition below). |
+| `scene_finished` | `scene?`, `reason?` | A [scene](scenes.md) ends, with the reason `finish`, `died` or `moved`. Not when the player left the game: then the scene plays again when they come back. |
 | `cutscene_finished` | `cutscene?`, `reason?` | A cutscene ends, with the reason `finish`, `interrupt`, `command` or `error`. Needs Cutscene API. |
 
 In `entity_killed`, `entity_seen` and `entity_interacted`, `entity` is a type (`"minecraft:pillager"`), a `#tag` or
@@ -152,7 +153,7 @@ depth of 16 and writes an error to the log.
 | --- | --- | --- |
 | `flag` | `key`, `scope?`, `value?` (true) | The flag equals `value`. |
 | `var` | `key`, `scope?`, `op?` (`=`, `!=`, `>`, `>=`, `<`, `<=`), `value` | The variable compares to `value` this way. Texts and true/false values only work with `=` and `!=`. |
-| `has_item` | `item` or `tag`, `count?` (1) | The player carries at least that many. |
+| `has_item` | `item` or `tag`, `count?` (1), `worn?` | The player carries at least that many, armour slots included. With `"worn": true`, only what the player has on: `{ "type": "has_item", "tag": "minecraft:chest_armor", "worn": true }`. |
 | `location` | `dimension?`, `biome?`, `area?`, `structure?` | The player is in a place where every part you gave matches. |
 | `in_party` | `min_size?` (1) | The player is in a real party with at least that many members. |
 | `time` | `period?` (`day`, `sunset`, `night`, `sunrise`), `min?`, `max?` (ticks from 0 to 24000) | The time of day fits. If `min` is larger than `max`, the range goes over midnight. |
@@ -168,6 +169,7 @@ depth of 16 and writes an error to the log.
 | `advancement` | `advancement`, `done?` (true) | The player has the advancement, or doesn't have it when `done` is false. |
 | `level` | `min?`, `max?` | The player's experience level is in the range. |
 | `stat` | `stat`, `stat_type?`, `min?` (1) | A statistic is at least `min`. See below. |
+| `in_scene` | `scene?` | The player is watching a [scene](scenes.md). |
 | `in_cutscene` | `cutscene?` | The player is watching a cutscene. Needs Cutscene API. |
 | `kubejs` | `id`, `args?` | A KubeJS script says yes (see [Integrations](integrations.md#kubejs)). |
 
@@ -196,7 +198,7 @@ Values in `var`, `set_var` and `flag_changed` are plain JSON: `true`, `5` or `"n
 | `sound_at` | `sound`, a place¹, `source?`, `volume?`, `pitch?` | Plays a sound at a place, heard by everyone nearby. |
 | `fade` | `in?` (0.5), `stay?` (1, at most 60), `out?` (0.5), `color?` (`#000000`) | Fades the player's screen to a colour and back. Times are in seconds. Use it for a time skip, waking up or the start of a scene. Titles and subtitles still show on top of it. |
 | `effect` | `effect`, `target?`, `duration?` (30 seconds, -1 for forever), `amplifier?`, `particles?`, `clear?` | Gives an effect, or takes it away. |
-| `spawn_entity` | `entity`, `count?`, a place¹, `tag?`, `name?`, `nbt?`, `persistent?` (true), `unique?` | Spawns entities. See below. |
+| `spawn_entity` | `entity`, `count?`, a place¹, `tag?`, `name?`, `nbt?`, `persistent?` (true), `unique?`, `leashed_to?` | Spawns entities. See below. |
 | `teleport` | `target?` (`player` or `entity`), a place¹, `yaw?`, `pitch?` | Moves the player, or the entity, also to another dimension. |
 | `set_quest_state` | `quest`, `state` | Starts a quest (`active`), completes it, fails it or resets it (`unknown`). See below. |
 | `set_quest_stage` | `quest`, `stage` | Moves a quest to a stage. |
@@ -208,14 +210,17 @@ Values in `var`, `set_var` and `flag_changed` are plain JSON: `true`, `5` or `"n
 | `add_waypoint`, `remove_waypoint` | See [Waypoints](waypoints.md#added-by-actions) | Adds or removes a waypoint for the player, the party or everyone. |
 | `wait` | `seconds` | Runs the rest of the list that much later. |
 | `schedule` | `seconds`, `actions`, `on_fail?` | Runs these actions later. The rest of the list goes on right away. |
+| `play_scene` | `scene` | Plays a [scene](scenes.md) for the player; it waits while they talk or watch another one. |
 | `play_cutscene` | `cutscene`, a place¹, `rotation?`, `path_rotation?` | Plays a cutscene. Needs Cutscene API. |
 | `run_command` | `command` | Runs a command as the player (`@s`), at the permission level set by `actions.commandPermissionLevel`. |
 | `run_script` | `script`, `at?` | Runs a script of vanilla commands. See [Scripts of vanilla commands](#scripts-of-vanilla-commands). |
 | `kubejs` | `id`, `args?` | Runs a KubeJS handler (see [Integrations](integrations.md#kubejs)). |
 
 ¹ A place is either a position, `pos` (`[x, y, z]`) with an optional `dimension`, or an `offset` (`[dx, dy, dz]`)
-from `at`. `at` is `player` (the default) or `entity`, the entity of the moment: the NPC being talked to or the mob
-that was killed.
+from `at`. `at` is `player` (the default), `entity` (the entity of the moment: the NPC being talked to or the mob
+that was killed), or a selector: the nearest entity it matches within 64 blocks of the player. `"at": { "tag":
+"prologue_elder" }` puts raiders by the village's Elder even when the trigger is the night falling. A selector that
+finds no one near fails the action.
 
 An `actions` field takes one action or a list, and the actions run in order. `wait` and `schedule` count game time,
 keep counting after a server restart, and run when the player is online.
@@ -229,6 +234,10 @@ A few actions need more explanation.
 nothing while a mob with those tags already exists. Use this for a story NPC, because otherwise every player's scene
 would spawn another copy. `"unique": false` says that each player should get their own. If you leave `unique` out for
 an NPC that a binding talks to, the validator asks which one you meant.
+
+With `leashed_to` (a selector), each spawned mob is put on a lead held by the nearest entity it matches within 8
+blocks: a wandering trader's llamas, `{ "type": "spawn_entity", "entity": "minecraft:trader_llama", "count": 2,
+"leashed_to": { "tag": "my_trader" } }`. A mob that cannot be leashed, or with no one to hold it, is spawned loose.
 
 `set_quest_state` with `active` on a failed quest continues the quest where it failed and does not run its `on_start`
 again. To start it over from the beginning, reset it to `unknown` first.

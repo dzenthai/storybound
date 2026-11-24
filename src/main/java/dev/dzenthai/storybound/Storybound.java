@@ -55,9 +55,11 @@ public final class Storybound {
         CodexRegistries.register(modBus);
         BossRegistries.register(modBus);
         WaypointRegistries.register(modBus);
+        dev.dzenthai.storybound.module.scene.SceneRegistries.register(modBus);
         Cutscenes.register(modBus);
         // After every definition type is known: the story folder gets a folder for each.
         StoryFolder.createIfMissing();
+        dev.dzenthai.storybound.core.data.WorldStory.register();
         ValidationService.registerValidator(StoryFolder::validate);
         dev.dzenthai.storybound.core.logic.VanillaScripts.register();
 
@@ -77,6 +79,7 @@ public final class Storybound {
         CodexEvents.register(NeoForge.EVENT_BUS);
         BossEvents.register(NeoForge.EVENT_BUS);
         WaypointEvents.register(NeoForge.EVENT_BUS);
+        dev.dzenthai.storybound.module.scene.Scenes.register(NeoForge.EVENT_BUS);
         dev.dzenthai.storybound.module.music.MusicRegistries.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(StoryboundCommands::register);
     }

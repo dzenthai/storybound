@@ -35,7 +35,7 @@ public final class QuestHud {
         Minecraft minecraft = Minecraft.getInstance();
         StoryboundClientConfig config = StoryboundClientConfig.INSTANCE;
         if (minecraft.options.hideGui || minecraft.player == null || minecraft.gui.getDebugOverlay().showDebugScreen()
-                || !config.questTracker.get() || !ClientModules.isEnabled("quests") || CutsceneClient.playing()) {
+                || !config.questTracker.get() || !ClientModules.isEnabled("quests") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())) {
             return;
         }
         MenuTheme theme = MenuThemes.INSTANCE.theme();

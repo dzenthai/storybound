@@ -274,6 +274,11 @@ public final class DialogueGameTests {
         pig.addTag("gametest_look");
         ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 0.5, 2, 1.5);
         ResourceLocation scene = key("look_scene");
+        // A tick or two later: in a batch of many tests the pig's chunk may still be loading, and a search does not see it yet.
+        helper.runAfterDelay(2, () -> lookAround(helper, npc, pig, player, scene));
+    }
+
+    private static void lookAround(GameTestHelper helper, Villager npc, net.minecraft.world.entity.LivingEntity pig, ServerPlayer player, ResourceLocation scene) {
         with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(scene, """
                 { "start": "a", "nodes": {
                     "a": { "type": "line", "speaker": "npc", "text": "gametest.a", "look_at": { "entity": { "type": "minecraft:pig", "tag": "gametest_look" } }, "next": "b" },

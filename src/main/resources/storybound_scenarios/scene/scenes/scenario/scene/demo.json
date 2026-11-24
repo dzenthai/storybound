@@ -1,0 +1,62 @@
+{
+  "letterbox": true,
+  "shots": [
+    {
+      "anchor": "player",
+      "camera": {
+        "from": [-8, 5, -8],
+        "to": [8, 6, -8],
+        "look": "anchor",
+        "duration": 7,
+        "ease": "in_out"
+      },
+      "during": [
+        {
+          "at": 1,
+          "title": {
+            "text": "scenario.scene.chapter",
+            "subtitle": "scenario.scene.chapter_sub"
+          }
+        }
+      ],
+      "transition": "fade"
+    },
+    {
+      "anchor": "player",
+      "camera": {
+        "from": [1.2, 1.7, 3],
+        "to": [0.6, 1.7, 2.2],
+        "look": "anchor",
+        "duration": 5
+      },
+      "during": [
+        {
+          "at": 0.5,
+          "line": {
+            "speaker": "scenario.scene.narrator",
+            "text": "scenario.scene.line"
+          }
+        }
+      ],
+      "transition": "fade"
+    },
+    {
+      "anchor": "player",
+      "camera": {
+        "from": [0, 3, 6],
+        "to": [0, 18, 14],
+        "look": "anchor",
+        "speed": 3
+      },
+      "during": [
+        {
+          "at": 1,
+          "line": {
+            "text": "scenario.scene.line_two"
+          }
+        }
+      ],
+      "transition": "ease"
+    }
+  ]
+}

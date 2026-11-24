@@ -79,6 +79,12 @@ public final class DefinitionLoader<T> extends SimplePreparableReloadListener<De
         ValidationService.recordLoad(type, issues);
     }
 
+    /** Loads the type again from these resources at once, outside a reload (the world's story, once the server is there). */
+    public void loadNow(ResourceManager resourceManager) {
+        apply(prepare(resourceManager, net.minecraft.util.profiling.InactiveProfiler.INSTANCE), resourceManager,
+                net.minecraft.util.profiling.InactiveProfiler.INSTANCE);
+    }
+
     public static <T> ParseResult<T> parse(DefinitionType<T> type, Map<ResourceLocation, JsonElement> files, DynamicOps<JsonElement> ops) {
         Map<ResourceLocation, T> definitions = new LinkedHashMap<>();
         List<ValidationIssue> issues = new ArrayList<>();

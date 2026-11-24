@@ -139,7 +139,7 @@ public final class WaypointMarkers {
         Minecraft minecraft = Minecraft.getInstance();
         StoryboundClientConfig config = StoryboundClientConfig.INSTANCE;
         if (minecraft.level == null || minecraft.player == null || view == null || projection == null
-                || !config.waypointMarkers.get() || !ClientModules.isEnabled("waypoints") || CutsceneClient.playing()) {
+                || !config.waypointMarkers.get() || !ClientModules.isEnabled("waypoints") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())) {
             return;
         }
         long now = Util.getMillis();

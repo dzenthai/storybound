@@ -1,0 +1,17 @@
+{
+  "display_name": "vanilla.npc_binding.prologue.elder.display_name",
+  "show_name": true,
+  "entity": {
+    "type": "minecraft:villager",
+    "baby": false,
+    "in_village": true
+  },
+  "one": true,
+  "interact": true,
+  "override_interact": true,
+  "dialogues": [
+    {
+      "dialogue": "vanilla:prologue/elder"
+    }
+  ]
+}

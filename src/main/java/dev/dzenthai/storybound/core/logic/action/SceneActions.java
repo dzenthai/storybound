@@ -83,15 +83,17 @@ public final class SceneActions {
     }
 
     /**
-     * Where: {@code pos} (with {@code dimension}, else the player's), or {@code offset} from {@code at}, the player
-     * by default or the context entity, in its dimension.
+     * Where: {@code pos} (with {@code dimension}, else the player's), or {@code offset} from {@code at}: the player by
+     * default, the context entity, or the nearest entity a selector matches within {@link RunScript#RANGE} blocks of the
+     * player ({@code { "tag": "elder" }}: the village's Elder, wherever the story's trigger came from), in its dimension.
+     * A selector that finds no one near fails the action.
      */
-    public record Place(Optional<Vec3> pos, Optional<ResourceKey<Level>> dimension, Target at, Vec3 offset) {
-        static final Place HERE = new Place(Optional.empty(), Optional.empty(), Target.PLAYER, Vec3.ZERO);
+    public record Place(Optional<Vec3> pos, Optional<ResourceKey<Level>> dimension, Either<Target, EntitySelector> at, Vec3 offset) {
+        static final Place HERE = new Place(Optional.empty(), Optional.empty(), Either.left(Target.PLAYER), Vec3.ZERO);
         public static final MapCodec<Place> MAP_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Vec3.CODEC.optionalFieldOf("pos").forGetter(Place::pos),
                 Level.RESOURCE_KEY_CODEC.optionalFieldOf("dimension").forGetter(Place::dimension),
-                Target.CODEC.optionalFieldOf("at", Target.PLAYER).forGetter(Place::at),
+                Codec.either(Target.CODEC, EntitySelector.CODEC).optionalFieldOf("at", Either.left(Target.PLAYER)).forGetter(Place::at),
                 Vec3.CODEC.optionalFieldOf("offset", Vec3.ZERO).forGetter(Place::offset)
         ).apply(instance, Place::new));
 
@@ -105,19 +107,42 @@ public final class SceneActions {
                 }
                 return new Resolved(level, pos.get().add(offset));
             }
-            Entity anchor = at.resolve(context);
+            Entity anchor = at.left().isPresent() ? at.left().get().resolve(context) : nearest(context, at.right().orElseThrow());
+            if (anchor == null) {
+                throw new StoryException(Component.literal("No entity matching the place's selector within " + (int) RunScript.RANGE + " blocks"));
+            }
             return new Resolved((ServerLevel) anchor.level(), anchor.position().add(offset));
         }
+    }
+
+    /** The living entity a selector matches nearest the player, within {@link RunScript#RANGE} blocks; null when none. */
+    public static @Nullable Entity nearest(StoryContext context, EntitySelector selector) {
+        ServerPlayer player = context.player();
+        Entity best = null;
+        double bestDistance = RunScript.RANGE * RunScript.RANGE;
+        for (Entity candidate : player.serverLevel().getEntities(player, player.getBoundingBox().inflate(RunScript.RANGE),
+                candidate -> candidate.isAlive() && selector.matches(candidate))) {
+            double distance = candidate.distanceToSqr(player);
+            if (distance <= bestDistance) {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     /**
      * {@code { "type": "spawn_entity", "entity": "minecraft:zombie", "pos": [10, 64, 20], "tag": "mypack_kairen" }}:
      * {@code count} entities (1 by default) at the place, with the tags (a waypoint at the nearest tagged entity or an
      * NPC binding can find them), a custom {@code name}, NBT as {@code /summon} takes it, and kept from despawning
-     * unless {@code persistent} is false.
+     * unless {@code persistent} is false. With {@code leashed_to} (a selector), each is put on a lead held by the
+     * nearest such entity within {@link #LEASH_RANGE} blocks of the place: a wandering trader's llamas, a farmer's cow.
+     * One that cannot be leashed, or with no holder near, is spawned loose (the trace says why).
      */
     public record SpawnEntity(EntityType<?> entity, int count, Place place, List<String> tags, Optional<StoryText> name, Optional<CompoundTag> nbt,
-                              boolean persistent, Optional<Boolean> unique) implements Action {
+                              boolean persistent, Optional<Boolean> unique, Optional<EntitySelector> leashedTo) implements Action {
+        /** How far from the place a lead's holder is looked for: a lead breaks beyond 10 blocks. */
+        static final double LEASH_RANGE = 8;
         private static final Codec<List<String>> TAGS = Codec.either(Codec.STRING, Codec.STRING.listOf())
                 .xmap(either -> either.map(List::of, list -> list), list -> list.size() == 1 ? Either.left(list.getFirst())
                         : Either.right(list));
@@ -130,7 +155,8 @@ public final class SceneActions {
                 CompoundTag.CODEC.optionalFieldOf("nbt").forGetter(SpawnEntity::nbt),
                 Codec.BOOL.optionalFieldOf("persistent", true).forGetter(SpawnEntity::persistent),
                 // Kept as written: an explicit false says "each player is meant to have their own" (see References#spawn).
-                Codec.BOOL.optionalFieldOf("unique").forGetter(SpawnEntity::unique)
+                Codec.BOOL.optionalFieldOf("unique").forGetter(SpawnEntity::unique),
+                EntitySelector.CODEC.optionalFieldOf("leashed_to").forGetter(SpawnEntity::leashedTo)
         ).apply(instance, SpawnEntity::new)).validate(spawn -> spawn.isUnique() && spawn.tags().isEmpty()
                 ? DataResult.error(() -> "'unique' needs a 'tag': it is how the entity already there is recognised")
                 : DataResult.success(spawn));
@@ -188,7 +214,31 @@ public final class SceneActions {
                 if (!at.level().tryAddFreshEntityWithPassengers(spawned)) {
                     throw new StoryException(Component.literal("Could not spawn " + BuiltInRegistries.ENTITY_TYPE.getKey(entity) + ": the same uuid exists"));
                 }
+                leashedTo.ifPresent(selector -> leash(context, spawned, selector));
             }
+        }
+
+        private void leash(StoryContext context, Entity spawned, EntitySelector selector) {
+            String what = BuiltInRegistries.ENTITY_TYPE.getKey(entity).toString();
+            if (!(spawned instanceof net.minecraft.world.entity.Leashable leashable) || !leashable.canBeLeashed()) {
+                StoryTrace.note(context.player(), "spawn_entity", what + " cannot be put on a lead: spawned loose");
+                return;
+            }
+            Entity holder = null;
+            double best = LEASH_RANGE * LEASH_RANGE;
+            for (Entity candidate : spawned.level().getEntities(spawned, spawned.getBoundingBox().inflate(LEASH_RANGE),
+                    candidate -> candidate.isAlive() && selector.matches(candidate))) {
+                double distance = candidate.distanceToSqr(spawned);
+                if (distance <= best) {
+                    holder = candidate;
+                    best = distance;
+                }
+            }
+            if (holder == null) {
+                StoryTrace.note(context.player(), "spawn_entity", "no one to hold the lead within " + (int) LEASH_RANGE + " blocks: " + what + " spawned loose");
+                return;
+            }
+            leashable.setLeashedTo(holder, true);
         }
 
         /** How far up, then around, a spawn stuck in blocks looks for room. */
@@ -447,19 +497,7 @@ public final class SceneActions {
             if (where.left().isPresent()) {
                 return where.left().get() == Target.ENTITY && context.entity() != null ? context.entity() : context.player();
             }
-            EntitySelector selector = where.right().orElseThrow();
-            ServerPlayer player = context.player();
-            Entity best = null;
-            double bestDistance = RANGE * RANGE;
-            for (Entity candidate : player.serverLevel().getEntities(player, player.getBoundingBox().inflate(RANGE),
-                    candidate -> candidate.isAlive() && selector.matches(candidate))) {
-                double distance = candidate.distanceToSqr(player);
-                if (distance <= bestDistance) {
-                    best = candidate;
-                    bestDistance = distance;
-                }
-            }
-            return best;
+            return nearest(context, where.right().orElseThrow());
         }
     }
 

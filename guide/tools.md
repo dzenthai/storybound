@@ -42,7 +42,8 @@ The top bar uses small icons, and hovering over one shows what it does:
 ### Stories
 
 The stories list shows every story in the story folder. You can create a story, rename it, turn it on or off, and
-delete it. A deleted story is moved to `config/storybound/.deleted/`, so nothing is lost.
+delete it. A deleted story is moved to `config/storybound/.deleted/`, so nothing is lost. The story that comes with
+the mod shows as **⬇ Install** until you copy it in; its switch is the world's `storyboundStory` game rule.
 
 ### Search and problems
 
@@ -122,6 +123,7 @@ All commands need permission level 2, except `party`.
 /storybound debug trace on [players] | off | status
 /storybound debug [player] | off
 /storybound debug scenario <name> | clear
+/storybound story install <id> [replace]
 /storybound debug dump <player>
 /storybound debug export
 /storybound debug lang extract [language] | preview [language]

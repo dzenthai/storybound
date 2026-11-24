@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/scene.schema.json",
+  "title": "Storybound scene",
+  "description": "config/storybound/scenes/<path>.json — a cutscene: shots one after another, each a camera flight placed against an anchor (the player, an NPC, an entity, a structure, a waypoint), and what happens meanwhile. Played by the action play_scene; scene_finished fires at its end. While it plays the player is safe and cannot skip it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["shots"],
+  "definitions": {
+    "anchor": {
+      "description": "What the shot's points are placed against: \"player\", or one of npc, entity, structure, waypoint. Not found near the player, in another dimension or too far: the shot is left out.",
+      "oneOf": [
+        { "const": "player" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "npc": { "description": "An NPC binding: the one the mod picked, or the nearest entity it is for, within 64 blocks.", "$ref": "logic.schema.json#/definitions/id" },
+            "entity": { "description": "The nearest entity this selector matches within 64 blocks.", "$ref": "logic.schema.json#/definitions/entity_selector" },
+            "structure": { "description": "The structure the player stands in, else the nearest one the waypoints have found: its middle, on the ground. It faces south.", "$ref": "logic.schema.json#/definitions/id" },
+            "waypoint": { "description": "Where the player sees this waypoint.", "$ref": "logic.schema.json#/definitions/id" }
+          },
+          "oneOf": [ { "required": ["npc"] }, { "required": ["entity"] }, { "required": ["structure"] }, { "required": ["waypoint"] } ]
+        }
+      ]
+    },
+    "cue": {
+      "description": "One thing in the shot at its second: exactly one of title, line, sound, fade or actions.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "at": { "description": "Seconds from the shot's start; past its end, at its end.", "type": "number", "minimum": 0, "maximum": 120, "default": 0 },
+        "title": {
+          "description": "Big in the middle of the screen, as a quest's title when it starts: a chapter's name.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["text"],
+          "properties": {
+            "text": { "$ref": "logic.schema.json#/definitions/story_text" },
+            "subtitle": { "$ref": "logic.schema.json#/definitions/story_text" }
+          }
+        },
+        "line": {
+          "description": "A line in subtitles over the lower bar.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["text"],
+          "properties": {
+            "speaker": { "description": "Who says it: the name shown above the words.", "$ref": "logic.schema.json#/definitions/story_text" },
+            "text": { "$ref": "logic.schema.json#/definitions/story_text" },
+            "sound": { "description": "Its voice-over, on the Voice volume.", "$ref": "logic.schema.json#/definitions/id" },
+            "duration": { "description": "Seconds it stays; by default as long as the words take to read.", "type": "number", "minimum": 0.5, "maximum": 120 }
+          }
+        },
+        "sound": {
+          "description": "A sound for the watcher.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sound"],
+          "properties": {
+            "sound": { "$ref": "logic.schema.json#/definitions/id" },
+            "source": { "enum": ["master", "music", "record", "weather", "block", "hostile", "neutral", "player", "ambient", "voice"], "default": "master" },
+            "volume": { "type": "number", "minimum": 0, "maximum": 10, "default": 1 },
+            "pitch": { "type": "number", "minimum": 0.5, "maximum": 2, "default": 1 }
+          }
+        },
+        "fade": {
+          "description": "The screen fades to a colour and back, as the fade action.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "in": { "type": "number", "minimum": 0, "maximum": 10, "default": 0.5 },
+            "stay": { "type": "number", "minimum": 0, "maximum": 60, "default": 1 },
+            "out": { "type": "number", "minimum": 0, "maximum": 10, "default": 0.5 },
+            "color": { "type": "string", "default": "#000000" }
+          }
+        },
+        "actions": { "$ref": "logic.schema.json#/definitions/actions" }
+      }
+    },
+    "shot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["camera"],
+      "properties": {
+        "anchor": { "$ref": "#/definitions/anchor", "default": "player" },
+        "camera": {
+          "description": "The flight: from and to are [right, up, forward] of the anchor, as it faces. Either duration or speed.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from"],
+          "oneOf": [ { "required": ["duration"] }, { "required": ["speed"] } ],
+          "properties": {
+            "from": { "$ref": "logic.schema.json#/definitions/vec3" },
+            "to": { "description": "Where the flight ends; without it the camera stays at from.", "$ref": "logic.schema.json#/definitions/vec3" },
+            "look": {
+              "description": "anchor: at the anchor (followed when it is an entity); path: the way the camera flies; player; or another anchor.",
+              "oneOf": [ { "enum": ["anchor", "path", "player"] }, { "$ref": "#/definitions/anchor" } ],
+              "default": "anchor"
+            },
+            "duration": { "description": "Seconds the flight takes; the camera's speed follows.", "type": "number", "minimum": 0.05, "maximum": 120 },
+            "speed": { "description": "Blocks a second; the flight lasts as long as the way takes.", "type": "number", "minimum": 0.05, "maximum": 200 },
+            "ease": { "description": "How it speeds up and slows down.", "enum": ["in_out", "linear", "in", "out"], "default": "in_out" }
+          }
+        },
+        "during": { "description": "What happens while the shot plays.", "type": "array", "items": { "$ref": "#/definitions/cue" } },
+        "transition": { "description": "How the shot follows the one before: a cut, a fade through black, or a glide from where the camera was.", "enum": ["cut", "fade", "ease"], "default": "cut" }
+      }
+    }
+  },
+  "properties": {
+    "icon": { "type": "string", "description": "Dev mode only: the item this node shows on the editor's canvases." },
+    "shots": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/shot" } },
+    "letterbox": { "description": "Black bars above and below while it plays.", "type": "boolean", "default": false },
+    "invulnerable": { "description": "Nothing hurts the watcher but the void and /kill.", "type": "boolean", "default": true },
+    "world": { "description": "calm: mobs near do nothing to the watcher and the villagers, and no monster spawns near; live: the world goes on as usual.", "enum": ["calm", "live"], "default": "calm" },
+    "on_end": { "description": "Run when the scene has played to its end (not when a death or a teleport cut it short).", "$ref": "logic.schema.json#/definitions/actions" }
+  }
+}

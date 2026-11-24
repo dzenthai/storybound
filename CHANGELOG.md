@@ -20,6 +20,16 @@
 - `entity_killed`, `entity_seen` and `entity_interacted` take a selector in `entity` as well as types:
   `{ "type": "minecraft:pillager", "tag": "night_raider" }` counts only the mobs an event spawned with that tag.
 - Debug scenario `raid`: a night raid that comes back after a cooldown and is done when none of its raiders is left.
+- The story that comes with the mod is back: "Story: Yes / No" when a world is made (the game rule
+  `storyboundStory`), "⬇ Install" in the editor's stories list and `/storybound story install`. It begins with a
+  prologue: a wandering trader, a village raided at night and its elder.
+- A place in actions takes a selector in `at`: `"at": { "tag": "prologue_elder" }` is by the nearest such entity.
+- `has_item` with `"worn": true` counts only the armour the player has on.
+- `spawn_entity` with `leashed_to`: each spawned mob on a lead held by the nearest matching entity (a trader's llamas).
+- Scenes: cutscenes of our own in `scenes/`, shots placed against an anchor (the player, an NPC, an entity, a structure,
+  a waypoint) so they work in any world; titles, lines with voice-over, sounds, fades and actions at given seconds;
+  black bars; the player kept safe and the mobs nearby calm; `play_scene`, `scene_finished`, `in_scene`. A scene left
+  unfinished plays again when the player comes back. Debug scenario `scene`.
 - The client and the server must both be on this version: what they send each other has changed.
 - Fixed: a selector naming an entity tag (`"#minecraft:zombies"` in a waypoint, an objective or an NPC binding) failed
   with "Missing tag" when a world loaded, and its definition was left out.

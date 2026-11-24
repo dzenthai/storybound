@@ -38,6 +38,7 @@ dialogue_layout = validator("dialogue_layout.schema.json")
 script = validator("script.schema.json")
 migration = validator("migration.schema.json")
 marker_style = validator("waypoint_style.schema.json")
+scene = validator("scene.schema.json")
 failures = 0
 # The story folder a new install gets: blank documents and the demo story, in the story folder's layout.
 STARTER = root / "src/main/resources/storybound_starter"
@@ -219,6 +220,11 @@ expect(waypoint, {"name": "w", "target": {"entity": "123e4567-e89b-12d3-a456-426
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "beam": True}, False, "waypoint: beams are gone")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2]}}, False, "waypoint: two coordinates")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3], "entity": "123e4567-e89b-12d3-a456-426614174000"}}, False, "waypoint: pos and entity together")
+expect(scene, {"shots": [{"camera": {"from": [0, 1, 0], "duration": 2}}]}, True, "scene: one shot")
+expect(scene, {"shots": [{"anchor": {"npc": "a:b"}, "camera": {"from": [0, 1, 0], "to": [3, 1, 0], "speed": 2, "look": "path"}, "during": [{"at": 1, "title": {"text": "a.b"}}], "transition": "fade"}], "letterbox": True}, True, "scene: anchor, speed, a title")
+expect(scene, {"shots": [{"camera": {"from": [0, 1, 0], "duration": 2, "speed": 3}}]}, False, "scene: duration and speed")
+expect(scene, {"shots": []}, False, "scene: no shots")
+expect(scene, {"shots": [{"anchor": {"npc": "a:b", "waypoint": "a:c"}, "camera": {"from": [0, 1, 0], "duration": 2}}]}, False, "scene: two anchors at once")
 expect(waypoint, {"target": {"pos": [1, 2, 3]}}, False, "waypoint: no name")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "icon": "minecraft:compass"}, True, "waypoint: the editor's node icon")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "color": "red"}, False, "waypoint: bad colour")
