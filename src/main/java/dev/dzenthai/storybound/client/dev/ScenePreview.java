@@ -13,6 +13,7 @@ import dev.dzenthai.storybound.client.camera.SceneCamera;
 import dev.dzenthai.storybound.core.logic.action.ScreenFade;
 import dev.dzenthai.storybound.module.scene.SceneDefinition;
 import dev.dzenthai.storybound.module.scene.ScenePath;
+import dev.dzenthai.storybound.module.scene.Scenes;
 import dev.dzenthai.storybound.network.ScenePayloads;
 import java.util.HashMap;
 import java.util.List;
@@ -99,6 +100,11 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private int shot;
     private final Map<Integer, Anchor> anchors = new HashMap<>();
     private final Map<Integer, Integer> requests = new HashMap<>();
+    /** Shots whose structure was not known: when to ask again (ms), and how often it was asked. */
+    private final Map<Integer, Long> retryAt = new HashMap<>();
+    private final Map<Integer, Integer> retries = new HashMap<>();
+    private static final int MAX_RETRIES = 20;
+    private static final long RETRY_MS = 2000;
     private final Vec3 standInPos;
     private final float standInYaw;
 
@@ -469,6 +475,8 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private void askAnchors() {
         anchors.clear();
         requests.clear();
+        retryAt.clear();
+        retries.clear();
         for (int i = 0; i < shots().size(); i++) {
             JsonElement anchor = shotJson(i).get("anchor");
             if (anchor == null || anchor instanceof JsonPrimitive text && text.getAsString().equals("player")) {
@@ -476,10 +484,47 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 anchors.put(i, new Anchor(standInPos, standInYaw, player != null ? player.getId() : -1, true, false));
                 continue;
             }
-            int request = nextRequest++;
-            requests.put(request, i);
-            anchors.put(i, new Anchor(standInPos, standInYaw, -1, false, true));
-            PacketDistributor.sendToServer(new ScenePayloads.AnchorQuery(request, anchor.toString()));
+            askAnchor(i);
+        }
+    }
+
+    /** Asks the server where the shot's anchor is; its answer is {@link #answer}. */
+    private void askAnchor(int index) {
+        JsonElement anchor = shotJson(index).get("anchor");
+        if (anchor == null) {
+            return;
+        }
+        int request = nextRequest++;
+        requests.put(request, index);
+        anchors.put(index, new Anchor(standInPos, standInYaw, -1, false, true));
+        PacketDistributor.sendToServer(new ScenePayloads.AnchorQuery(request, anchor.toString()));
+    }
+
+    /**
+     * A structure not known yet is searched for in the background: the answer "not near" is asked again every couple of
+     * seconds for a while, so the camera view moves to the structure once the search has found it.
+     */
+    private void scheduleRetry(int index) {
+        boolean structure = index < shots().size() && shotJson(index).get("anchor") instanceof JsonObject object && object.has("structure");
+        int tried = retries.getOrDefault(index, 0);
+        if (structure && tried < MAX_RETRIES) {
+            retries.put(index, tried + 1);
+            retryAt.put(index, net.minecraft.Util.getMillis() + RETRY_MS);
+        }
+    }
+
+    private void retryAnchors() {
+        if (retryAt.isEmpty()) {
+            return;
+        }
+        long now = net.minecraft.Util.getMillis();
+        for (var entry : List.copyOf(retryAt.entrySet())) {
+            if (now >= entry.getValue()) {
+                retryAt.remove(entry.getKey());
+                if (entry.getKey() < shots().size()) {
+                    askAnchor(entry.getKey());
+                }
+            }
         }
     }
 
@@ -492,6 +537,11 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         }
         preview.anchors.put(index, answer.found() ? new Anchor(answer.pos(), answer.yaw(), answer.entity(), true, false)
                 : new Anchor(preview.standInPos, preview.standInYaw, -1, false, false));
+        if (answer.found()) {
+            preview.retries.remove(index);
+        } else {
+            preview.scheduleRetry(index);
+        }
     }
 
     private Anchor anchor(int index) {
@@ -2577,6 +2627,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             }
         }
         syncPreviewAudio();
+        retryAnchors();
         int left = left();
         boolean bars = scene.get("letterbox") instanceof JsonPrimitive on && on.getAsBoolean();
         int bar = bars ? Math.round(height * 0.12f) : 0;
@@ -2922,10 +2973,15 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     if (text.isEmpty()) {
                         break;
                     }
+                    double a = textAlpha(into, len, playing ? TEXT_FADE : 0, TEXT_FADE);
+                    if (a <= 0.02) {
+                        break;
+                    }
+                    int shade = ((int) Math.round(a * 255) << 24);
                     boolean black = inner != null && inner.get("black") instanceof JsonPrimitive b && b.getAsBoolean();
                     String pos = inner != null && inner.get("position") instanceof JsonPrimitive p ? p.getAsString() : "bottom_left";
                     if (black) {
-                        graphics.fill(left, 0, width, height, 0xD8000000);
+                        graphics.fill(left, 0, width, height, ((int) Math.round(a * 0xD8) << 24));
                     }
                     var rows = font.split(Component.literal(text), Math.min(320, viewW - 48));
                     int rowH = font.lineHeight + 3;
@@ -2937,7 +2993,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     };
                     for (var row : rows) {
                         int x = pos.equals("center") ? centerX - font.width(row) / 2 : left + 24;
-                        graphics.drawString(font, row, x, y, 0xFFF2EAD8, !black);
+                        graphics.drawString(font, row, x, y, shade | 0xF2EAD8, !black);
                         y += rowH;
                     }
                 }
@@ -2948,16 +3004,23 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     if (text.isEmpty() && isPicked) {
                         text = "[" + DevUi.str("scene.cue.title") + "]";
                     }
+                    // As the game shows a title: up over TITLE_IN ticks, down over TITLE_OUT. Held at a mark (not playing)
+                    // it is whole, so what is being typed can be read; the way out shows while scrubbing on.
+                    double a = textAlpha(into, len, playing ? Scenes.TITLE_IN / 20.0 : 0, Scenes.TITLE_OUT / 20.0);
+                    if (a <= 0.02) {
+                        break;
+                    }
+                    int shade = ((int) Math.round(a * 255) << 24);
                     if (!text.isEmpty()) {
                         PoseStack pose = graphics.pose();
                         pose.pushPose();
                         pose.translate(centerX, height / 2.0 - 18, 0);
                         pose.scale(2.0f, 2.0f, 1.0f);
-                        graphics.drawString(font, text, -font.width(text) / 2, 0, 0xFFFFFFFF, true);
+                        graphics.drawString(font, text, -font.width(text) / 2, 0, shade | 0xFFFFFF, true);
                         pose.popPose();
                     }
                     if (!sub.isEmpty()) {
-                        graphics.drawString(font, sub, centerX - font.width(sub) / 2, height / 2 + 6, DevUi.TEXT, true);
+                        graphics.drawString(font, sub, centerX - font.width(sub) / 2, height / 2 + 6, shade | (DevUi.TEXT & 0xFFFFFF), true);
                     }
                 }
                 case "line" -> {
@@ -2970,6 +3033,11 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     if (text.isEmpty()) {
                         break;
                     }
+                    double a = textAlpha(into, len, playing ? TEXT_FADE : 0, TEXT_FADE);
+                    if (a <= 0.02) {
+                        break;
+                    }
+                    int shade = ((int) Math.round(a * 255) << 24);
                     var rows = font.split(Component.literal(text), Math.min(320, viewW - 40));
                     int rowH = font.lineHeight + 2;
                     int count = rows.size() + (speaker.isEmpty() ? 0 : 1);
@@ -2977,11 +3045,11 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     int y = bottom - count * rowH;
                     if (!speaker.isEmpty()) {
                         Component who = Component.literal(speaker).withStyle(net.minecraft.ChatFormatting.BOLD);
-                        graphics.drawString(font, who, centerX - font.width(who) / 2, y, GOLD, true);
+                        graphics.drawString(font, who, centerX - font.width(who) / 2, y, shade | (GOLD & 0xFFFFFF), true);
                         y += rowH;
                     }
                     for (var row : rows) {
-                        graphics.drawString(font, row, centerX - font.width(row) / 2, y, 0xFFFFFFFF, true);
+                        graphics.drawString(font, row, centerX - font.width(row) / 2, y, shade | 0xFFFFFF, true);
                         y += rowH;
                     }
                 }
@@ -2989,6 +3057,26 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 }
             }
         }
+    }
+
+    /** A caption's or a line's fade in and out, in seconds, as the game shows them ({@code ClientScene.fadeAlpha}: 15 ticks). */
+    private static final double TEXT_FADE = 0.75;
+
+    /**
+     * Opacity (0 to 1) of a text shown for {@code len} seconds, {@code into} seconds after its start: up over {@code in},
+     * down over {@code out}; a short text shortens both so it still reaches full for a moment.
+     */
+    static double textAlpha(double into, double len, double in, double out) {
+        if (into > len) {
+            return 0;
+        }
+        into = Math.max(0, into);
+        double scale = in + out > len && in + out > 0 ? len / (in + out) : 1;
+        double up = in * scale;
+        double down = out * scale;
+        double rise = up > 0 ? into / up : 1;
+        double fall = down > 0 ? (len - into) / down : 1;
+        return Mth.clamp(Math.min(rise, fall), 0.0, 1.0);
     }
 
     /** Opacity (0 to 1) of a fade cue {@code into} seconds after its start, matching {@code ScreenFadeOverlay}. */

@@ -172,6 +172,7 @@ public final class DialogueEvents {
                 case DialogueDefinition.Branch branch -> branch.conditions().collectReferences(references);
                 case DialogueDefinition.Act act -> act.actions().forEach(action -> action.collectReferences(references));
                 case DialogueDefinition.End end -> end.actions().forEach(action -> action.collectReferences(references));
+                case DialogueDefinition.SceneNode scene -> references.scene(scene.scene());
                 default -> {}
             }
         }

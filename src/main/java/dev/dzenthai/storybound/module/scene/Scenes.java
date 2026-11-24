@@ -4,10 +4,14 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.compat.cutscene.Cutscenes;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.Actions;
+import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.OnFail;
+import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.StructureRef;
+import dev.dzenthai.storybound.core.data.ValidationIssue;
+import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.action.ScreenFade;
 import dev.dzenthai.storybound.core.logic.action.SceneActions;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
@@ -34,12 +38,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundClearTitlesPacket;
 import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -53,6 +59,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.AbstractVillager;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.IEventBus;
@@ -88,18 +95,33 @@ public final class Scenes {
     static final int LINE_MIN_TICKS = 50;
     static final double LINE_TICKS_PER_CHAR = 1.2;
     /** The title's fade in, stay and fade out, as a quest's on screen. */
-    static final int TITLE_IN = 15;
-    static final int TITLE_STAY = 70;
-    static final int TITLE_OUT = 25;
+    public static final int TITLE_IN = 15;
+    public static final int TITLE_STAY = 70;
+    public static final int TITLE_OUT = 25;
     /** The watcher's unfinished scene, in the player's own scope. */
     static final ResourceLocation PENDING = Storybound.id("scene/pending");
 
     private static final Map<UUID, Session> SESSIONS = new HashMap<>();
     private static final Map<UUID, Deque<ResourceLocation>> QUEUED = new HashMap<>();
     private static final Map<UUID, Integer> REPLAYS = new HashMap<>();
+    /** Scenes held back while a structure they are placed against is searched for: the search answers in a moment, or after a long time. */
+    private static final Map<UUID, Awaiting> AWAITING = new HashMap<>();
+    /** The longest a scene waits for such a search, in ticks; then the shots it could not place are left out, as ever. */
+    static final int SEARCH_WAIT = 100;
     private static int nextSession = 1;
 
     private Scenes() {}
+
+    private static final class Awaiting {
+        final ResourceLocation scene;
+        final @Nullable Runnable afterwards;
+        int left = SEARCH_WAIT;
+
+        Awaiting(ResourceLocation scene, @Nullable Runnable afterwards) {
+            this.scene = scene;
+            this.afterwards = afterwards;
+        }
+    }
 
     /** Something of the scene at its tick: a cue (a title, a line...), a fade between shots, or a talk. */
     record Timed(int tick, SceneDefinition.@Nullable Cue cue, @Nullable ScreenFade fade, @Nullable Talk talk) {}
@@ -145,6 +167,73 @@ public final class Scenes {
         gameBus.addListener(Scenes::onLoggedIn);
         gameBus.addListener(Scenes::onLoggedOut);
         gameBus.addListener((ServerStoppedEvent event) -> clear());
+        LogicOwners.register(SceneRegistries.SCENES, Scenes::collectReferences);
+        ValidationService.registerValidator(Scenes::validate);
+    }
+
+    /** What a scene names: its actions' references, the dialogues of its talks, the places its entity anchors are looked for. */
+    static void collectReferences(SceneDefinition scene, References references) {
+        scene.onEnd().forEach(action -> action.collectReferences(references));
+        for (SceneDefinition.Shot shot : scene.shots()) {
+            shot.dialogue().ifPresent(references::dialogue);
+            anchorReferences(shot.anchor(), references);
+            shot.camera().ifPresent(camera -> {
+                if (camera.look() instanceof SceneDefinition.AtOther other) {
+                    anchorReferences(other.anchor(), references);
+                }
+            });
+            for (SceneDefinition.Cue cue : shot.during()) {
+                cue.actions().forEach(action -> action.collectReferences(references));
+            }
+        }
+    }
+
+    private static void anchorReferences(SceneDefinition.Anchor anchor, References references) {
+        if (anchor instanceof SceneDefinition.EntityAnchor selector && !selector.entity().place().isEmpty()) {
+            references.place(selector.entity().place());
+        }
+    }
+
+    /**
+     * What a shot is placed against or looks at must exist: an NPC binding, a waypoint, a structure of the game (checked
+     * once the worlds are made); and a scene a story plays must be there.
+     */
+    private static void validate(Consumer<ValidationIssue> sink) {
+        MinecraftServer server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+        boolean worlds = server != null && server.getAllLevels().iterator().hasNext();
+        SceneRegistries.SCENES.serverStore().all().forEach((id, scene) -> {
+            for (int index = 0; index < scene.shots().size(); index++) {
+                SceneDefinition.Shot shot = scene.shots().get(index);
+                String where = "Shot " + (index + 1);
+                anchorProblem(shot.anchor(), worlds ? server : null).ifPresent(problem ->
+                        sink.accept(ValidationIssue.error(SceneRegistries.SCENES.id(), id, where + " is placed against " + problem)));
+                if (shot.camera().isPresent() && shot.camera().get().look() instanceof SceneDefinition.AtOther other) {
+                    anchorProblem(other.anchor(), worlds ? server : null).ifPresent(problem ->
+                            sink.accept(ValidationIssue.error(SceneRegistries.SCENES.id(), id, where + " looks at " + problem)));
+                }
+            }
+        });
+        LogicOwners.walkAll((owner, ownerId) -> new References() {
+            @Override
+            public void scene(ResourceLocation scene) {
+                if (!SceneRegistries.SCENES.serverStore().contains(scene)) {
+                    sink.accept(ValidationIssue.error(owner.id(), ownerId, "Unknown scene " + scene));
+                }
+            }
+        });
+    }
+
+    /** Why an anchor can never be found, or empty: an unknown NPC, waypoint or (when {@code server} is given) structure. */
+    private static Optional<String> anchorProblem(SceneDefinition.Anchor anchor, @Nullable MinecraftServer server) {
+        return switch (anchor) {
+            case SceneDefinition.NpcAnchor npc -> dev.dzenthai.storybound.module.dialogue.DialogueRegistries.NPC_BINDINGS.serverStore().contains(npc.npc())
+                    ? Optional.empty() : Optional.of("unknown NPC " + npc.npc());
+            case SceneDefinition.WaypointAnchor waypoint -> dev.dzenthai.storybound.module.waypoint.WaypointRegistries.WAYPOINTS.serverStore().contains(waypoint.waypoint())
+                    ? Optional.empty() : Optional.of("unknown waypoint " + waypoint.waypoint());
+            case SceneDefinition.StructureAnchor structure -> server != null && structure.structure().holders(server.registryAccess()).isEmpty()
+                    ? Optional.of("unknown structure " + structure.structure()) : Optional.empty();
+            default -> Optional.empty();
+        };
     }
 
     /** The scene the player watches now, or null. */
@@ -164,7 +253,7 @@ public final class Scenes {
     }
 
     private static boolean busy(ServerPlayer player) {
-        return SESSIONS.containsKey(player.getUUID()) || Dialogues.state(player).isPresent() || Cutscenes.watching(player) != null;
+        return SESSIONS.containsKey(player.getUUID()) || AWAITING.containsKey(player.getUUID()) || Dialogues.state(player).isPresent() || Cutscenes.watching(player) != null;
     }
 
     /**
@@ -172,8 +261,8 @@ public final class Scenes {
      * on with the talk however the scene ends. An unknown scene goes on at once.
      */
     public static void playInDialogue(ServerPlayer player, ResourceLocation scene, Runnable afterwards) {
-        if (SESSIONS.containsKey(player.getUUID()) || SceneRegistries.SCENES.serverStore().getOrNull(scene) == null) {
-            StoryTrace.note(player, "scene " + scene, "not played in the dialogue: " + (SESSIONS.containsKey(player.getUUID())
+        if (SESSIONS.containsKey(player.getUUID()) || AWAITING.containsKey(player.getUUID()) || SceneRegistries.SCENES.serverStore().getOrNull(scene) == null) {
+            StoryTrace.note(player, "scene " + scene, "not played in the dialogue: " + (SceneRegistries.SCENES.serverStore().getOrNull(scene) != null
                     ? "another scene plays" : "no such scene is loaded"));
             afterwards.run();
             return;
@@ -230,6 +319,11 @@ public final class Scenes {
     }
 
     private static void start(ServerPlayer player, ResourceLocation scene, @Nullable Runnable afterwards) {
+        start(player, scene, afterwards, false);
+    }
+
+    /** @param waited the scene has waited for a structure search already (or must not wait for one) */
+    private static void start(ServerPlayer player, ResourceLocation scene, @Nullable Runnable afterwards, boolean waited) {
         SceneDefinition definition = SceneRegistries.SCENES.serverStore().getOrNull(scene);
         if (definition == null) {
             StoryTrace.note(player, "scene " + scene, "not played: no such scene is loaded");
@@ -237,6 +331,11 @@ public final class Scenes {
             if (afterwards != null) {
                 afterwards.run();
             }
+            return;
+        }
+        if (!waited && searching(player, definition)) {
+            AWAITING.put(player.getUUID(), new Awaiting(scene, afterwards));
+            StoryTrace.note(player, "scene " + scene, "waits for the search of a structure it is placed against");
             return;
         }
         List<ScenePayloads.Shot> shots = new ArrayList<>();
@@ -447,8 +546,7 @@ public final class Scenes {
         if (ref.contains(level, here)) {
             at = here;
         } else {
-            Optional<BlockPos> found = StructureLocator.result(player.server,
-                    new StructureLocator.Search(ref, level.dimension(), here, StructureRef.DEFAULT_SEARCH_RADIUS));
+            Optional<BlockPos> found = StructureLocator.result(player.server, search(player, ref));
             if (found != null && found.isPresent()) {
                 at = found.get();
             }
@@ -459,6 +557,36 @@ public final class Scenes {
         Vec3 middle = ref.markerPos(level, at);
         BlockPos column = BlockPos.containing(middle);
         return new Vec3(middle.x, StructureRef.groundY(level, column), middle.z);
+    }
+
+    /**
+     * The question a waypoint asks for the same structure from where the player stands: from the middle of their 256-block
+     * cell and within the default radius, so the scene reads the waypoints' cached answer (and they read the scene's)
+     * instead of searching again from every block the player may stand on.
+     */
+    private static StructureLocator.Search search(ServerPlayer player, StructureRef ref) {
+        ResourceKey<Level> dimension = player.serverLevel().dimension();
+        return new StructureLocator.Search(ref, dimension, Waypoints.structureSearchOrigin(player, dimension), StructureRef.DEFAULT_SEARCH_RADIUS);
+    }
+
+    /** Whether a structure the scene is placed against, or looks at, is still being searched for (a search is started by asking). */
+    private static boolean searching(ServerPlayer player, SceneDefinition definition) {
+        for (SceneDefinition.Shot shot : definition.shots()) {
+            if (shot.talk()) {
+                continue;
+            }
+            if (searching(player, shot.anchor()) || shot.camera().isPresent() && shot.camera().get().look() instanceof SceneDefinition.AtOther other
+                    && searching(player, other.anchor())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean searching(ServerPlayer player, SceneDefinition.Anchor anchor) {
+        return anchor instanceof SceneDefinition.StructureAnchor structure
+                && !structure.structure().contains(player.serverLevel(), player.blockPosition())
+                && StructureLocator.result(player.server, search(player, structure.structure())) == null;
     }
 
     private static void onServerTick(ServerTickEvent.Post event) {
@@ -482,6 +610,20 @@ public final class Scenes {
                 }
             }
             Session session = SESSIONS.get(uuid);
+            Awaiting waiting = AWAITING.get(uuid);
+            if (waiting != null) {
+                SceneDefinition awaited = SceneRegistries.SCENES.serverStore().getOrNull(waiting.scene);
+                if (--waiting.left <= 0 || awaited == null || !searching(player, awaited)) {
+                    AWAITING.remove(uuid);
+                    if (waiting.afterwards == null && busy(player)) {
+                        // They began to talk meanwhile: it takes its turn.
+                        QUEUED.computeIfAbsent(uuid, key -> new ArrayDeque<>()).add(waiting.scene);
+                    } else {
+                        start(player, waiting.scene, waiting.afterwards, true);
+                    }
+                }
+                continue;
+            }
             if (session != null) {
                 if (session.talking) {
                     if (Dialogues.state(player).isPresent()) {
@@ -755,6 +897,7 @@ public final class Scenes {
     private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         UUID uuid = event.getEntity().getUUID();
         SESSIONS.remove(uuid);
+        AWAITING.remove(uuid);
         QUEUED.remove(uuid);
         REPLAYS.remove(uuid);
     }
@@ -762,6 +905,7 @@ public final class Scenes {
     /** Everything forgotten; for tests and a stopping server. */
     public static void clear() {
         SESSIONS.clear();
+        AWAITING.clear();
         QUEUED.clear();
         REPLAYS.clear();
     }

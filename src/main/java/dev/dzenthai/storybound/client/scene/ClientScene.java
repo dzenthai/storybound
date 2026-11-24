@@ -26,6 +26,7 @@ public final class ClientScene {
     private static int tick;
     private static @Nullable Component speaker;
     private static @Nullable Component line;
+    private static int lineFrom;
     private static int lineUntil;
     /** A talk of the scene goes on: the scene's camera, screen and clock wait, the dialogue has the screen. */
     private static boolean paused;
@@ -105,6 +106,7 @@ public final class ClientScene {
         }
         speaker = who;
         line = text;
+        lineFrom = tick;
         lineUntil = tick + ticks;
     }
 
@@ -225,10 +227,25 @@ public final class ClientScene {
 
     /** How much of the caption shows (0 to 1): it fades in over its first ticks and out over its last. */
     static float captionAlpha(float partialTick) {
-        double now = tick + partialTick;
-        double fade = Math.min(15, (captionUntil - captionFrom) / 3.0);
-        double in = (now - captionFrom) / fade;
-        double out = (captionUntil - now) / fade;
+        return fadeAlpha(tick + partialTick, captionFrom, captionUntil);
+    }
+
+    /** How much of the line shows (0 to 1): it fades in over its first ticks and out over its last, as the caption does. */
+    static float lineAlpha(float partialTick) {
+        return fadeAlpha(tick + partialTick, lineFrom, lineUntil);
+    }
+
+    /**
+     * The opacity of a text shown from tick {@code from} to {@code until} at {@code now}: up over its first fifth of a
+     * second at most (a third of its time when it is short), down over its last.
+     */
+    static float fadeAlpha(double now, double from, double until) {
+        double fade = Math.min(15, (until - from) / 3.0);
+        if (fade <= 0) {
+            return now >= from && now < until ? 1 : 0;
+        }
+        double in = (now - from) / fade;
+        double out = (until - now) / fade;
         return (float) Math.max(0, Math.min(1, Math.min(in, out)));
     }
 }

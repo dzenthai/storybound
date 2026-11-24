@@ -68,6 +68,12 @@ final class SceneScreen extends Screen {
             return;
         }
         Minecraft client = Minecraft.getInstance();
+        float alpha = ClientScene.lineAlpha(partialTick);
+        if (alpha <= 0.02f) {
+            // Below that the game draws text opaque: nothing is left of it anyway.
+            return;
+        }
+        int shade = (int) (alpha * 255) << 24;
         List<FormattedCharSequence> rows = client.font.split(line, Math.min(LINE_WIDTH, width - 40));
         int rowHeight = client.font.lineHeight + 2;
         Component speaker = ClientScene.speaker();
@@ -76,11 +82,11 @@ final class SceneScreen extends Screen {
         int y = bottom - lines * rowHeight;
         if (speaker != null) {
             Component name = speaker.copy().withStyle(ChatFormatting.BOLD);
-            graphics.drawString(client.font, name, (width - client.font.width(name)) / 2, y, SPEAKER_COLOR, true);
+            graphics.drawString(client.font, name, (width - client.font.width(name)) / 2, y, shade | (SPEAKER_COLOR & 0xFFFFFF), true);
             y += rowHeight;
         }
         for (FormattedCharSequence row : rows) {
-            graphics.drawString(client.font, row, (width - client.font.width(row)) / 2, y, 0xFFFFFFFF, true);
+            graphics.drawString(client.font, row, (width - client.font.width(row)) / 2, y, shade | 0xFFFFFF, true);
             y += rowHeight;
         }
     }

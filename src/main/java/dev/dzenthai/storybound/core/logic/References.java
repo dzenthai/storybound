@@ -19,6 +19,9 @@ public interface References {
 
     default void dialogue(ResourceLocation id) {}
 
+    /** A scene a {@code play_scene} or a dialogue's scene node plays. */
+    default void scene(ResourceLocation id) {}
+
     /** @param section a section the reference names, or null for the entry as a whole */
     default void codex(ResourceLocation entry, @Nullable String section) {}
 

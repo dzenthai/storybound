@@ -81,6 +81,25 @@ class ScenePreviewTimelineTest {
     }
 
     @Test
+    void textsFadeInAndOutAndShortOnesStillReachFull() {
+        // A chapter title: up over 0.75 s, down over 1.25 s of its 5.5.
+        assertEquals(0.0, ScenePreview.textAlpha(0.0, 5.5, 0.75, 1.25), 1e-6);
+        assertEquals(0.5, ScenePreview.textAlpha(0.375, 5.5, 0.75, 1.25), 1e-6);
+        assertEquals(1.0, ScenePreview.textAlpha(3.0, 5.5, 0.75, 1.25), 1e-6);
+        assertEquals(0.5, ScenePreview.textAlpha(4.875, 5.5, 0.75, 1.25), 1e-6);
+        assertEquals(0.0, ScenePreview.textAlpha(5.5, 5.5, 0.75, 1.25), 1e-6);
+        assertEquals(0.0, ScenePreview.textAlpha(6.0, 5.5, 0.75, 1.25), 1e-6);
+
+        // Held at its mark (no fade in): whole at once, still fading out at its end.
+        assertEquals(1.0, ScenePreview.textAlpha(0.0, 2.5, 0.0, 0.75), 1e-6);
+        assertEquals(0.5, ScenePreview.textAlpha(2.125, 2.5, 0.0, 0.75), 1e-6);
+
+        // A text shorter than its two fades shortens both: it peaks in the middle, never above 1 or below 0.
+        assertEquals(1.0, ScenePreview.textAlpha(0.5, 1.0, 0.75, 0.75), 1e-6);
+        assertEquals(0.5, ScenePreview.textAlpha(0.25, 1.0, 0.75, 0.75), 1e-6);
+    }
+
+    @Test
     void freshFadeAtStartDefaultsToZeroFadeIn() {
         JsonObject atStart = ScenePreview.freshCue("fade", 0.0).getAsJsonObject();
         assertEquals(0.0, atStart.get("in").getAsDouble(), 1e-6);

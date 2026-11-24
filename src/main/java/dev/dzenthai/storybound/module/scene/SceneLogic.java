@@ -69,6 +69,11 @@ public final class SceneLogic {
         }
 
         @Override
+        public void collectReferences(dev.dzenthai.storybound.core.logic.References references) {
+            references.scene(scene);
+        }
+
+        @Override
         public void run(StoryContext context) throws StoryException {
             if (SceneRegistries.SCENES.serverStore().getOrNull(scene) == null) {
                 throw new StoryException(Component.literal("No scene " + scene + " is loaded (folder scenes/)"));

@@ -5,6 +5,8 @@ import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.CoreDefinitions;
+import dev.dzenthai.storybound.core.data.ValidationIssue;
+import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.StoryEvent;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.state.StoryScope;
@@ -14,6 +16,7 @@ import dev.dzenthai.storybound.module.scene.SceneDefinition;
 import dev.dzenthai.storybound.module.scene.SceneRegistries;
 import dev.dzenthai.storybound.module.scene.Scenes;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -330,6 +333,39 @@ public final class SceneGameTests {
             }
             helper.succeed();
         });
+    }
+
+    /**
+     * What a scene names must exist: an NPC, a waypoint, a structure of the game, the dialogue of a talk, the scene a
+     * scene plays. The report says which shot, so the author finds it.
+     */
+    @GameTest(template = "empty", batch = "scene_validate")
+    public static void aSceneNamingWhatDoesNotExistIsReported(GameTestHelper helper) {
+        ResourceLocation broken = key("broken_places");
+        SceneRegistries.SCENES.serverStore().replace(Map.of(broken, parse(helper, """
+                { "shots": [
+                    { "anchor": { "npc": "gametest:no_such_npc" }, "camera": { "from": [0, 1, 0], "duration": 1 } },
+                    { "anchor": { "waypoint": "gametest:no_such_waypoint" },
+                      "camera": { "from": [0, 1, 0], "duration": 1, "look": { "npc": "gametest:other_missing_npc" } } },
+                    { "anchor": { "structure": "gametest:no_such_structure" }, "camera": { "from": [0, 1, 0], "duration": 1 } },
+                    { "dialogue": "gametest:no_such_dialogue" } ],
+                  "on_end": { "type": "play_scene", "scene": "gametest:no_such_scene" } }
+                """).getOrThrow(GameTestAssertException::new)));
+        try {
+            List<String> errors = ValidationService.validate().issues().stream()
+                    .filter(issue -> broken.equals(issue.entry())).map(ValidationIssue::message).toList();
+            for (String expected : new String[] {"Shot 1 is placed against unknown NPC gametest:no_such_npc",
+                    "Shot 2 is placed against unknown waypoint gametest:no_such_waypoint",
+                    "Shot 2 looks at unknown NPC gametest:other_missing_npc",
+                    "Shot 3 is placed against unknown structure gametest:no_such_structure",
+                    "Unknown dialogue gametest:no_such_dialogue", "Unknown scene gametest:no_such_scene"}) {
+                helper.assertTrue(errors.contains(expected), "reported: " + expected + ", got " + errors);
+            }
+        } finally {
+            SceneRegistries.SCENES.serverStore().replace(Map.of());
+            ValidationService.validate();
+        }
+        helper.succeed();
     }
 
     private static void withScene(GameTestHelper helper, String name, String json, Runnable body) {
