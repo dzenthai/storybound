@@ -5,6 +5,37 @@ that explains how to use it.
 
 ## New in 0.2.0
 
+### Cutscenes
+
+Storybound has its own cutscene engine (`scenes/`): multi-shot camera flights with smooth curves, custom FOV, letterbox
+bars, chapter titles, captions, lines with voice-over, sounds, music, fades and actions. A shot can also pause the
+camera for a dialogue and continue once the talk is over, while keeping the player invulnerable and nearby mobs calm.
+
+![A multi-shot nighttime cutscene flying over a village with black bars and a chapter title](images/features/cutscene.webp){ loading=lazy }
+
+See [Scenes](scenes.md).
+
+### Cutscenes: anchored to the world
+
+Cutscenes never rely on fixed coordinates. Every shot is placed relative to an anchor — the player, an NPC, an entity,
+a waypoint or a structure such as `#minecraft:village` — so the same fly-by works in any generated world, wherever the
+structure happens to spawn.
+
+![A daytime cutscene anchored to a village structure, flying smoothly over it with a title](images/features/cutscene-village.webp){ loading=lazy }
+
+See [Scenes](scenes.md#shots).
+
+### Cutscene editor (Camera view)
+
+Build cutscenes directly inside the world without editing coordinates by hand. **Camera view** turns the editor into a
+side panel over the live scene: adjust `From`, spline `Via` points and `To` with sliders or by dragging 3D camera
+handles, tune FOV, easing and transitions, place titles, captions, lines, sounds, music and fades on the timeline, and
+play back a single shot or the whole scene at once.
+
+![The in-game cutscene camera view playing a scene with the side panel and timeline](images/features/cutscene-editor.webp){ loading=lazy }
+
+See [Scenes in the editor](scenes.md#in-the-editor).
+
 ### Event marker
 
 A waypoint with `"marker": "event"` shows three "!" that hop one after another, the middle one first. Use it where
