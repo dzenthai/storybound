@@ -1,6 +1,0 @@
-{
-  "type": "bool",
-  "default": false,
-  "scope": "player",
-  "description": "The elder took the player's help against the night raiders (the player came armed)"
-}

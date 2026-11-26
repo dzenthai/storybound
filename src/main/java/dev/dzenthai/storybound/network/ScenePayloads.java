@@ -11,6 +11,7 @@ import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
@@ -24,18 +25,38 @@ public final class ScenePayloads {
         buf.writeDouble(vec.z);
     }, buf -> new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble()));
 
-    /** How a shot's camera looks: at a point, at an entity (followed as it moves; the point while it is not there), along its way. */
+    static final StreamCodec<ByteBuf, Vec2> VEC2 = StreamCodec.of((buf, vec) -> {
+        buf.writeFloat(vec.x);
+        buf.writeFloat(vec.y);
+    }, buf -> new Vec2(buf.readFloat(), buf.readFloat()));
+
+    /** How a shot's camera looks: at a point, at an entity, along its path, or free per-point yaw/pitch rotations. */
     public static final int LOOK_POINT = 0;
     public static final int LOOK_ENTITY = 1;
     public static final int LOOK_PATH = 2;
+    public static final int LOOK_FREE = 3;
 
     /**
      * One shot as the client flies it: absolute points ({@code from}, optional spline {@code via}, {@code to}),
-     * {@code start} and {@code ticks} on the scene's clock, the ease and the transition by their ordinal, and optional
-     * {@code fov} ({@code 0} for the player's own FOV).
+     * {@code start} and {@code ticks} on the scene's clock, the ease and the transition by their ordinal, optional
+     * {@code fov}/{@code fovTo} ({@code 0} for the player's own FOV / no zoom), {@code lookOffset} ({@code [right, up, forward]}),
+     * horizon tilt {@code roll}/{@code rollTo} in degrees, subtle handheld {@code shake} intensity (0..1), and optional
+     * world-space {@code rotations} ({@code [yaw, pitch]} per control point) for {@link #LOOK_FREE}.
      */
-    public record Shot(Vec3 from, List<Vec3> via, Vec3 to, int look, Vec3 lookPoint, int lookEntity, int start, int ticks, int ease, int transition, float fov) {
+    public record Shot(Vec3 from, List<Vec3> via, Vec3 to, int look, Vec3 lookPoint, int lookEntity, int start, int ticks,
+                       int ease, int transition, float fov, float fovTo, Vec3 lookOffset, float roll, float rollTo, float shake,
+                       List<Vec2> rotations) {
+        public Shot(Vec3 from, List<Vec3> via, Vec3 to, int look, Vec3 lookPoint, int lookEntity, int start, int ticks, int ease, int transition, float fov) {
+            this(from, via, to, look, lookPoint, lookEntity, start, ticks, ease, transition, fov, 0f, Vec3.ZERO, 0f, 0f, 0f, List.of());
+        }
+
+        public Shot(Vec3 from, List<Vec3> via, Vec3 to, int look, Vec3 lookPoint, int lookEntity, int start, int ticks,
+                    int ease, int transition, float fov, float fovTo, Vec3 lookOffset, float roll, float rollTo, float shake) {
+            this(from, via, to, look, lookPoint, lookEntity, start, ticks, ease, transition, fov, fovTo, lookOffset, roll, rollTo, shake, List.of());
+        }
+
         private static final StreamCodec<ByteBuf, List<Vec3>> VEC3_LIST = VEC3.apply(ByteBufCodecs.list());
+        private static final StreamCodec<ByteBuf, List<Vec2>> VEC2_LIST = VEC2.apply(ByteBufCodecs.list());
         public static final StreamCodec<ByteBuf, Shot> STREAM_CODEC = StreamCodec.of((buf, shot) -> {
             VEC3.encode(buf, shot.from);
             VEC3_LIST.encode(buf, shot.via);
@@ -48,21 +69,29 @@ public final class ScenePayloads {
             buf.writeByte(shot.ease);
             buf.writeByte(shot.transition);
             buf.writeFloat(shot.fov);
+            buf.writeFloat(shot.fovTo);
+            VEC3.encode(buf, shot.lookOffset);
+            buf.writeFloat(shot.roll);
+            buf.writeFloat(shot.rollTo);
+            buf.writeFloat(shot.shake);
+            VEC2_LIST.encode(buf, shot.rotations);
         }, buf -> new Shot(VEC3.decode(buf), List.copyOf(VEC3_LIST.decode(buf)), VEC3.decode(buf), buf.readByte(), VEC3.decode(buf), ByteBufCodecs.VAR_INT.decode(buf),
-                ByteBufCodecs.VAR_INT.decode(buf), ByteBufCodecs.VAR_INT.decode(buf), buf.readByte(), buf.readByte(), buf.readFloat()));
+                ByteBufCodecs.VAR_INT.decode(buf), ByteBufCodecs.VAR_INT.decode(buf), buf.readByte(), buf.readByte(), buf.readFloat(), buf.readFloat(),
+                VEC3.decode(buf), buf.readFloat(), buf.readFloat(), buf.readFloat(), List.copyOf(VEC2_LIST.decode(buf))));
 
         /** The same shot at its place on the scene's clock. */
         public Shot withTime(int at, int length) {
-            return new Shot(from, via, to, look, lookPoint, lookEntity, at, length, ease, transition, fov);
+            return new Shot(from, via, to, look, lookPoint, lookEntity, at, length, ease, transition, fov, fovTo, lookOffset, roll, rollTo, shake, rotations);
         }
     }
 
-    /** A scene starts: its shots, end to end; with {@code letterbox} the black bars. */
-    public record Play(int session, boolean letterbox, List<Shot> shots) implements CustomPacketPayload {
+    /** A scene starts: its shots, end to end; with {@code letterbox} the black bars and {@code skippable} whether Space skips it. */
+    public record Play(int session, boolean letterbox, boolean skippable, List<Shot> shots) implements CustomPacketPayload {
         public static final Type<Play> TYPE = new Type<>(Storybound.id("scene_play"));
         public static final StreamCodec<ByteBuf, Play> STREAM_CODEC = StreamCodec.composite(
                 ByteBufCodecs.VAR_INT, Play::session,
                 ByteBufCodecs.BOOL, Play::letterbox,
+                ByteBufCodecs.BOOL, Play::skippable,
                 Shot.STREAM_CODEC.apply(ByteBufCodecs.list()), Play::shots,
                 Play::new);
 
@@ -72,7 +101,7 @@ public final class ScenePayloads {
         }
 
         public static void handleOnClient(Play payload, IPayloadContext context) {
-            ClientScene.play(payload.session(), payload.letterbox(), payload.shots());
+            ClientScene.play(payload.session(), payload.letterbox(), payload.skippable(), payload.shots());
         }
     }
 
@@ -117,6 +146,25 @@ public final class ScenePayloads {
 
         public static void handleOnClient(Caption payload, IPayloadContext context) {
             ClientScene.caption(payload.session(), payload.text(), payload.position(), payload.black(), payload.ticks());
+        }
+    }
+
+    /** A decaying camera shake impulse during the scene (horn blast, heavy footstep, explosion). */
+    public record Shake(int session, float intensity, int ticks) implements CustomPacketPayload {
+        public static final Type<Shake> TYPE = new Type<>(Storybound.id("scene_shake"));
+        public static final StreamCodec<ByteBuf, Shake> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, Shake::session,
+                ByteBufCodecs.FLOAT, Shake::intensity,
+                ByteBufCodecs.VAR_INT, Shake::ticks,
+                Shake::new);
+
+        @Override
+        public Type<Shake> type() {
+            return TYPE;
+        }
+
+        public static void handleOnClient(Shake payload, IPayloadContext context) {
+            ClientScene.shake(payload.session(), payload.intensity(), payload.ticks());
         }
     }
 

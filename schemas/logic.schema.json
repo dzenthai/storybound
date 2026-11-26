@@ -635,7 +635,8 @@
           "description": "Starts a dialogue; the context entity (e.g. the interacted NPC) becomes its bound participant. Fails while the player is already talking.",
           "properties": {
             "type": { "enum": ["start_dialogue", "storybound:start_dialogue"] },
-            "dialogue": { "$ref": "#/definitions/id" }
+            "dialogue": { "$ref": "#/definitions/id" },
+            "speaker": { "description": "Optional: the nearest matching living entity within 64 blocks becomes the bound NPC speaker (useful from a cutscene's on_end or a quest stage).", "$ref": "#/definitions/entity_selector" }
           },
           "required": ["dialogue"],
           "additionalProperties": false

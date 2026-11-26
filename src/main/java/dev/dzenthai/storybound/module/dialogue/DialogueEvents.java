@@ -79,6 +79,7 @@ public final class DialogueEvents {
                 chatter.conditions().collectReferences(references);
                 chatter.variants().forEach(variant -> variant.conditions().collectReferences(references));
             });
+            binding.follow().ifPresent(follow -> follow.conditions().collectReferences(references));
         });
         ValidationService.registerValidator(DialogueEvents::validate);
         // A dialogue that holds the screen freezes the player's look on whatever was in front of them.
@@ -258,7 +259,7 @@ public final class DialogueEvents {
             // walks.
             if (binding.dialogues().isEmpty() && binding.custom().isEmpty() && binding.chatter().isEmpty() && binding.whenAttacked().isEmpty()
                     && binding.invulnerable().isEmpty() && binding.respawn().isEmpty() && binding.displayName().isEmpty() && binding.names().isEmpty()
-                    && binding.movement().isEmpty() && binding.voice().isEmpty()) {
+                    && binding.movement().isEmpty() && binding.follow().isEmpty() && binding.voice().isEmpty()) {
                 sink.accept(ValidationIssue.warning(DialogueRegistries.NPC_BINDINGS.id(), id, "Binds no dialogue and sets nothing else; it does nothing"));
             }
             Consumer<String> bindingError = message -> sink.accept(ValidationIssue.error(DialogueRegistries.NPC_BINDINGS.id(), id, message));
@@ -296,6 +297,9 @@ public final class DialogueEvents {
                             && movement.homeRadius() != NpcBinding.Movement.DEFAULT_RADIUS)
                     .ifPresent(movement -> bindingWarning.accept("home_radius counts only for movement home; it does nothing with "
                             + movement.mode().getSerializedName()));
+            binding.follow().filter(follow -> follow.teleportDistance() > 0f && follow.teleportDistance() <= follow.distance())
+                    .ifPresent(follow -> bindingWarning.accept("follow: teleport_distance (" + follow.teleportDistance()
+                            + ") must be larger than distance (" + follow.distance() + "); 0 disables teleporting"));
             binding.whenAttacked().ifPresent(rules -> {
                 rules.phrases().flatMap(PhrasesRef::node).filter(phrases -> !DialogueRegistries.PHRASES.serverStore().contains(phrases))
                         .ifPresent(phrases -> bindingError.accept("when_attacked: unknown phrases " + phrases));

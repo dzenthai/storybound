@@ -1,7 +1,0 @@
-{
-  "name": "vanilla.waypoint.prologue.village.name",
-  "target": {
-    "structure": "#minecraft:village"
-  },
-  "marker": "event"
-}

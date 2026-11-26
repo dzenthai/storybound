@@ -209,16 +209,20 @@ final class StoryEdits {
             return runVanillaScript(from, a, target.id());
         } else if (b.equals(ClientDevStore.TYPE_SCENE)) {
             return playScene(from, a, target.id());
-        } else if (a.equals(ClientDevStore.TYPE_SCENE) && (b.equals(ClientDevStore.TYPE_QUEST) || b.equals(ClientDevStore.TYPE_DIALOGUE))) {
-            // After the scene: its end starts the quest or the talk.
+        } else if (a.equals(ClientDevStore.TYPE_SCENE) && (b.equals(ClientDevStore.TYPE_QUEST)
+                || b.equals(ClientDevStore.TYPE_DIALOGUE) || b.equals(ClientDevStore.TYPE_DOCUMENT))) {
+            // After the scene: its end starts the quest or the talk, or gives the document.
             JsonObject action = new JsonObject();
             if (b.equals(ClientDevStore.TYPE_QUEST)) {
                 action.addProperty("type", "set_quest_state");
                 action.addProperty("quest", id);
                 action.addProperty("state", "active");
-            } else {
+            } else if (b.equals(ClientDevStore.TYPE_DIALOGUE)) {
                 action.addProperty("type", "start_dialogue");
                 action.addProperty("dialogue", id);
+            } else {
+                action.addProperty("type", "give_document");
+                action.addProperty("document", id);
             }
             JsonArray onEnd = array(from, "on_end");
             if (!onEnd.contains(action)) {
@@ -268,7 +272,7 @@ final class StoryEdits {
      * The node runs the script of commands: a quest when it starts, a dialogue at its end, a story event with its
      * actions, a document on its first read, a boss on every victory. A node already running it there stays as it is.
      */
-    /** The node plays the scene: at a talk's end, as a quest starts, among an event's actions. */
+    /** The node plays the scene: at a talk's end, as a quest starts, among an event's actions, or after another scene. */
     private static boolean playScene(JsonObject from, ResourceLocation type, ResourceLocation scene) {
         JsonObject action = new JsonObject();
         action.addProperty("type", "play_scene");
@@ -277,7 +281,11 @@ final class StoryEdits {
             addEnding(from, "scene_" + scene.getPath().replace('/', '_'), action);
             return true;
         }
-        String field = type.equals(ClientDevStore.TYPE_QUEST) ? "on_start" : type.equals(ClientDevStore.TYPE_EVENT) ? "actions" : null;
+        String field = type.equals(ClientDevStore.TYPE_QUEST) ? "on_start"
+                : type.equals(ClientDevStore.TYPE_EVENT) ? "actions"
+                : type.equals(ClientDevStore.TYPE_SCENE) ? "on_end"
+                : type.equals(ClientDevStore.TYPE_DOCUMENT) ? "on_read"
+                : type.equals(ClientDevStore.TYPE_BOSS) ? "on_kill" : null;
         if (field == null) {
             return false;
         }
@@ -297,7 +305,8 @@ final class StoryEdits {
             return true;
         }
         String field = type.equals(ClientDevStore.TYPE_QUEST) ? "on_start" : type.equals(ClientDevStore.TYPE_DOCUMENT) ? "on_read"
-                : type.equals(ClientDevStore.TYPE_EVENT) ? "actions" : type.equals(ClientDevStore.TYPE_BOSS) ? "on_kill" : null;
+                : type.equals(ClientDevStore.TYPE_EVENT) ? "actions" : type.equals(ClientDevStore.TYPE_BOSS) ? "on_kill"
+                : type.equals(ClientDevStore.TYPE_SCENE) ? "on_end" : null;
         if (field == null) {
             return false;
         }

@@ -1,8 +1,0 @@
-{
-  "type": "int",
-  "default": 0,
-  "scope": "player",
-  "min": 0,
-  "max": 10,
-  "description": "What the player owes the wandering trader for the kit he gave on credit in the prologue: 1 for the armour, 1 for the tools"
-}

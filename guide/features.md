@@ -25,12 +25,12 @@ structure happens to spawn.
 
 See [Scenes](scenes.md#shots).
 
-### Cutscene editor (Camera view)
+### Cutscene 3D editor
 
-Build cutscenes directly inside the world without editing coordinates by hand. **Camera view** turns the editor into a
-side panel over the live scene: adjust `From`, spline `Via` points and `To` with sliders or by dragging 3D camera
-handles, tune FOV, easing and transitions, place titles, captions, lines, sounds, music and fades on the timeline, and
-play back a single shot or the whole scene at once.
+Build cutscenes directly inside the world without editing coordinates by hand. **3D editor** turns the editor into a
+side panel over the live scene: fly the camera directly or adjust `Start`, spline `Via` points and `End` with sliders
+or 3D camera handles, tune FOV, roll, easing and transitions, place titles, captions, lines, sounds, music, fades and
+camera shake on the timeline, and play back a single shot or the whole scene at once.
 
 ![The in-game cutscene camera view playing a scene with the side panel and timeline](images/features/cutscene-editor.webp){ loading=lazy }
 

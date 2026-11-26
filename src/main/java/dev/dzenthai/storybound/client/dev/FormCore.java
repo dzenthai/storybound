@@ -876,6 +876,12 @@ abstract class FormCore {
         if (properties.containsKey("variants") && properties.containsKey("min_interval")) {
             return CHATTER;
         }
+        if (properties.containsKey("home_radius") && properties.containsKey("movement")) {
+            return "npc";
+        }
+        if (properties.containsKey("teleport_distance") && properties.containsKey("distance")) {
+            return "follow";
+        }
         // A story event's cooldown is a wait between runs, not a quest's "Cooldown, s"; its scope is whose wait it is.
         if (properties.containsKey("on_fail") && properties.containsKey("cooldown")) {
             return "event";
@@ -890,6 +896,9 @@ abstract class FormCore {
         }
         if (properties.containsKey("style") && properties.containsKey("levels")) {
             return "difficulty";
+        }
+        if (properties.containsKey("from") && properties.containsKey("speed")) {
+            return "camera";
         }
         // A dialogue node's own words, by its type:
         // "storybound.dev.field.node.call.next".

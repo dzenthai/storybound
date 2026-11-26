@@ -1,11 +1,13 @@
 {
-  "texture": "storybound:textures/gui/document/note_torn.png",
-  "width": 180,
-  "height": 210,
-  "padding": { "left": 26, "top": 24, "right": 26, "bottom": 58 },
-  "font": "storybound:document",
-  "color": "#2A1E14",
-  "line_height": 10,
+  "texture": "storybound:textures/gui/document/note.png",
+  "width": 256,
+  "height": 320,
+  "texture_width": 256,
+  "texture_height": 320,
+  "padding": { "left": 56, "top": 81, "right": 66, "bottom": 79 },
+  "font": "minecraft:default",
+  "color": "#483020",
+  "line_height": 13,
   "show_title": false,
   "open_sound": "minecraft:item.book.page_turn"
 }

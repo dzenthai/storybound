@@ -13,28 +13,34 @@ import dev.dzenthai.storybound.core.logic.action.ScreenFade;
 import dev.dzenthai.storybound.core.text.StoryText;
 import java.util.List;
 import java.util.Optional;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.RegistryCodecs;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * A scene ({@code scenes/<namespace>/<name>.json}): shots one after another, each a camera flight from one point to
  * another placed against an anchor (the player, an NPC, an entity a selector finds, a structure, a waypoint), and what
  * happens meanwhile at given seconds: a title as a quest's on screen, a line in subtitles with its voice-over, a sound,
- * a fade, actions. The player watches it whole: by default nothing hurts them, mobs near leave them and the villagers
- * alone and no monster spawns there ({@code world: calm}), and it cannot be skipped. {@code on_end} runs when it is
- * over.
+ * a fade, actions. By default nothing hurts the watcher, mobs near leave them and the villagers alone and no monster
+ * spawns there ({@code world: calm}), and pressing Space skips it unless {@code skippable} is {@code false}.
+ * {@code on_end} runs when it is over.
  *
- * @param letterbox black bars above and below while it plays
+ * @param letterbox    black bars above and below while it plays
+ * @param skippable    whether the watcher can skip the scene with Space (true by default)
  * @param invulnerable nothing hurts the watcher but the void and {@code /kill}
- * @param world {@code calm}: mobs near do nothing to the watcher and villagers, no monster spawns near; {@code live}: the world goes on
+ * @param world        {@code calm}: mobs near do nothing to the watcher and villagers, no monster spawns near; {@code live}: the world goes on
  */
-public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invulnerable, World world, List<Action> onEnd,
+public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean skippable, boolean invulnerable, World world, List<Action> onEnd,
                               Optional<ResourceLocation> music) {
     public static final Codec<SceneDefinition> CODEC = RecordCodecBuilder.<SceneDefinition>create(instance -> instance.group(
             Shot.CODEC.listOf().fieldOf("shots").forGetter(SceneDefinition::shots),
             Codec.BOOL.optionalFieldOf("letterbox", false).forGetter(SceneDefinition::letterbox),
+            Codec.BOOL.optionalFieldOf("skippable", true).forGetter(SceneDefinition::skippable),
             Codec.BOOL.optionalFieldOf("invulnerable", true).forGetter(SceneDefinition::invulnerable),
             World.CODEC.optionalFieldOf("world", World.CALM).forGetter(SceneDefinition::world),
             LogicCodecs.ACTIONS.optionalFieldOf("on_end", List.of()).forGetter(SceneDefinition::onEnd),
@@ -132,18 +138,24 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
 
     public record WaypointAnchor(ResourceLocation waypoint) implements Anchor {}
 
-    /** The object form of an anchor: exactly one of its fields. */
+    public record PoiAnchor(HolderSet<PoiType> poi, int radius) implements Anchor {
+        public static final int DEFAULT_RADIUS = 64;
+    }
+
+    /** The object form of an anchor: exactly one of its fields (optional {@code radius} with {@code poi}). */
     private record ObjectAnchor(Optional<ResourceLocation> npc, Optional<EntitySelector> entity, Optional<StructureRef> structure,
-                                Optional<ResourceLocation> waypoint) {
+                                Optional<ResourceLocation> waypoint, Optional<HolderSet<PoiType>> poi, int radius) {
         static final Codec<ObjectAnchor> CODEC = RecordCodecBuilder.<ObjectAnchor>create(instance -> instance.group(
                 ResourceLocation.CODEC.optionalFieldOf("npc").forGetter(ObjectAnchor::npc),
                 EntitySelector.CODEC.optionalFieldOf("entity").forGetter(ObjectAnchor::entity),
                 StructureRef.CODEC.optionalFieldOf("structure").forGetter(ObjectAnchor::structure),
-                ResourceLocation.CODEC.optionalFieldOf("waypoint").forGetter(ObjectAnchor::waypoint)
+                ResourceLocation.CODEC.optionalFieldOf("waypoint").forGetter(ObjectAnchor::waypoint),
+                RegistryCodecs.homogeneousList(Registries.POINT_OF_INTEREST_TYPE).optionalFieldOf("poi").forGetter(ObjectAnchor::poi),
+                Codec.intRange(4, 128).optionalFieldOf("radius", PoiAnchor.DEFAULT_RADIUS).forGetter(ObjectAnchor::radius)
         ).apply(instance, ObjectAnchor::new)).validate(object -> (object.npc.isPresent() ? 1 : 0) + (object.entity.isPresent() ? 1 : 0)
-                + (object.structure.isPresent() ? 1 : 0) + (object.waypoint.isPresent() ? 1 : 0) == 1
+                + (object.structure.isPresent() ? 1 : 0) + (object.waypoint.isPresent() ? 1 : 0) + (object.poi.isPresent() ? 1 : 0) == 1
                 ? DataResult.success(object)
-                : DataResult.error(() -> "An anchor names exactly one of npc, entity, structure or waypoint"));
+                : DataResult.error(() -> "An anchor names exactly one of npc, entity, structure, waypoint or poi"));
 
         Anchor anchor() {
             if (npc.isPresent()) {
@@ -152,15 +164,22 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
             if (entity.isPresent()) {
                 return new EntityAnchor(entity.get());
             }
-            return structure.<Anchor>map(StructureAnchor::new).orElseGet(() -> new WaypointAnchor(waypoint.orElseThrow()));
+            if (structure.isPresent()) {
+                return new StructureAnchor(structure.get());
+            }
+            if (poi.isPresent()) {
+                return new PoiAnchor(poi.get(), radius);
+            }
+            return new WaypointAnchor(waypoint.orElseThrow());
         }
 
         static ObjectAnchor of(Anchor anchor) {
             return switch (anchor) {
-                case NpcAnchor npc -> new ObjectAnchor(Optional.of(npc.npc()), Optional.empty(), Optional.empty(), Optional.empty());
-                case EntityAnchor entity -> new ObjectAnchor(Optional.empty(), Optional.of(entity.entity()), Optional.empty(), Optional.empty());
-                case StructureAnchor structure -> new ObjectAnchor(Optional.empty(), Optional.empty(), Optional.of(structure.structure()), Optional.empty());
-                case WaypointAnchor waypoint -> new ObjectAnchor(Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(waypoint.waypoint()));
+                case NpcAnchor npc -> new ObjectAnchor(Optional.of(npc.npc()), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), PoiAnchor.DEFAULT_RADIUS);
+                case EntityAnchor entity -> new ObjectAnchor(Optional.empty(), Optional.of(entity.entity()), Optional.empty(), Optional.empty(), Optional.empty(), PoiAnchor.DEFAULT_RADIUS);
+                case StructureAnchor structure -> new ObjectAnchor(Optional.empty(), Optional.empty(), Optional.of(structure.structure()), Optional.empty(), Optional.empty(), PoiAnchor.DEFAULT_RADIUS);
+                case WaypointAnchor waypoint -> new ObjectAnchor(Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(waypoint.waypoint()), Optional.empty(), PoiAnchor.DEFAULT_RADIUS);
+                case PoiAnchor poi -> new ObjectAnchor(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(poi.poi()), poi.radius());
                 case PlayerAnchor player -> throw new IllegalArgumentException("the player is written as a string");
             };
         }
@@ -168,15 +187,19 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
 
     /**
      * Where the camera looks: {@code "anchor"} (the shot's anchor, followed when it is an entity), {@code "path"} (the
-     * way it flies), or another anchor.
+     * way it flies), {@code "free"} (6-DOF per-point yaw/pitch rotations relative to the anchor), or another anchor.
      */
     public sealed interface Look {
         Codec<Look> CODEC = Codec.either(Codec.STRING.comapFlatMap(text -> switch (text) {
                     case "anchor" -> DataResult.success((Look) new AtAnchor());
                     case "path" -> DataResult.success((Look) new AlongPath());
                     case "player" -> DataResult.success((Look) new AtOther(new PlayerAnchor()));
-                    default -> DataResult.error(() -> "look is \"anchor\", \"path\", \"player\" or an anchor, got " + text);
-                }, look -> look instanceof AlongPath ? "path" : look instanceof AtOther other && other.anchor() instanceof PlayerAnchor ? "player" : "anchor"),
+                    case "free" -> DataResult.success((Look) new FreeLook());
+                    default -> DataResult.error(() -> "look is \"anchor\", \"path\", \"player\", \"free\" or an anchor, got " + text);
+                }, look -> look instanceof AlongPath ? "path"
+                        : look instanceof FreeLook ? "free"
+                        : look instanceof AtOther other && other.anchor() instanceof PlayerAnchor ? "player"
+                        : "anchor"),
                 ObjectAnchor.CODEC).xmap(either -> either.map(look -> look, object -> new AtOther(object.anchor())),
                 look -> look instanceof AtOther other && !(other.anchor() instanceof PlayerAnchor) ? Either.right(ObjectAnchor.of(other.anchor())) : Either.left(look));
     }
@@ -185,20 +208,39 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
 
     public record AlongPath() implements Look {}
 
+    public record FreeLook() implements Look {}
+
     public record AtOther(Anchor anchor) implements Look {}
+
+    /** Camera orientation at one control point: yaw relative to the anchor's facing, and absolute pitch (-90 to 90). */
+    public record Rotation(float yaw, float pitch) {
+        public static final Codec<Rotation> CODEC = Codec.FLOAT.listOf(2, 2).comapFlatMap(list -> {
+            float yaw = list.get(0);
+            float pitch = list.get(1);
+            if (!Float.isFinite(yaw) || !Float.isFinite(pitch) || pitch < -90f || pitch > 90f) {
+                return DataResult.error(() -> "Camera rotation pitch must be between -90 and 90, got [" + yaw + ", " + pitch + "]");
+            }
+            return DataResult.success(new Rotation(yaw, pitch));
+        }, rot -> List.of(rot.yaw(), rot.pitch()));
+    }
 
     /**
      * The flight: {@code from}, optional intermediate spline points {@code via}, and {@code to} are offsets from the
-     * anchor (right, up, forward, as the anchor faces; a structure faces south), flown in {@code duration} seconds or
-     * at {@code speed} blocks a second, one of them. Optional {@code fov} overrides the camera's field of view.
+     * anchor (right, up, forward, as the anchor faces; a structure or POI faces south), flown in {@code duration}
+     * seconds or at {@code speed} blocks a second, one of them. Optional cinematic parameters control lens zoom
+     * ({@code fov}/{@code fov_to}), rule-of-thirds composition ({@code look_offset}), horizon tilt ({@code roll}/{@code roll_to}),
+     * handheld micro-drift ({@code shake}), minimum height above terrain/roofs ({@code above_ground}), automatic
+     * collision/open-angle safety ({@code safe_angle}), and per-point {@code rotations} for {@code look: "free"}.
      */
     public record Camera(Vec3 from, List<Vec3> via, Vec3 to, Look look, Optional<Float> duration, Optional<Float> speed,
-                         Ease ease, Optional<Float> fov) {
+                         Ease ease, Optional<Float> fov, Optional<Float> fovTo, Vec3 lookOffset, float roll,
+                         Optional<Float> rollTo, float shake, float aboveGround, boolean safeAngle, List<Rotation> rotations) {
         /** The longest shot: a scene is watched, not waited out. */
         public static final float MAX_SECONDS = 120;
         public static final int MAX_VIA = 16;
         public static final float MIN_FOV = 20;
         public static final float MAX_FOV = 120;
+        public static final float MAX_ROLL = 30;
         public static final MapCodec<Camera> MAP_CODEC = RecordCodecBuilder.<Camera>mapCodec(instance -> instance.group(
                 Vec3.CODEC.fieldOf("from").forGetter(Camera::from),
                 Vec3.CODEC.listOf(0, MAX_VIA).optionalFieldOf("via", List.of()).forGetter(Camera::via),
@@ -207,9 +249,17 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
                 Codec.floatRange(0.05f, MAX_SECONDS).optionalFieldOf("duration").forGetter(Camera::duration),
                 Codec.floatRange(0.05f, 200f).optionalFieldOf("speed").forGetter(Camera::speed),
                 Ease.CODEC.optionalFieldOf("ease", Ease.IN_OUT).forGetter(Camera::ease),
-                Codec.floatRange(MIN_FOV, MAX_FOV).optionalFieldOf("fov").forGetter(Camera::fov)
-        ).apply(instance, (from, via, to, look, duration, speed, ease, fov) ->
-                new Camera(from, List.copyOf(via), to.orElse(from), look, duration, speed, ease, fov)))
+                Codec.floatRange(MIN_FOV, MAX_FOV).optionalFieldOf("fov").forGetter(Camera::fov),
+                Codec.floatRange(MIN_FOV, MAX_FOV).optionalFieldOf("fov_to").forGetter(Camera::fovTo),
+                Vec3.CODEC.optionalFieldOf("look_offset", Vec3.ZERO).forGetter(Camera::lookOffset),
+                Codec.floatRange(-MAX_ROLL, MAX_ROLL).optionalFieldOf("roll", 0f).forGetter(Camera::roll),
+                Codec.floatRange(-MAX_ROLL, MAX_ROLL).optionalFieldOf("roll_to").forGetter(Camera::rollTo),
+                Codec.floatRange(0f, 1f).optionalFieldOf("shake", 0f).forGetter(Camera::shake),
+                Codec.floatRange(0f, 64f).optionalFieldOf("above_ground", 0f).forGetter(Camera::aboveGround),
+                Codec.BOOL.optionalFieldOf("safe_angle", true).forGetter(Camera::safeAngle),
+                Rotation.CODEC.listOf(0, MAX_VIA + 2).optionalFieldOf("rotations", List.of()).forGetter(Camera::rotations)
+        ).apply(instance, (from, via, to, look, duration, speed, ease, fov, fovTo, lookOffset, roll, rollTo, shake, aboveGround, safeAngle, rotations) ->
+                new Camera(from, List.copyOf(via), to.orElse(from), look, duration, speed, ease, fov, fovTo, lookOffset, roll, rollTo, shake, aboveGround, safeAngle, List.copyOf(rotations))))
                 .validate(camera -> camera.duration().isPresent() == camera.speed().isPresent()
                         ? DataResult.error(() -> "A shot's camera has either 'duration' or 'speed'")
                         : DataResult.success(camera));
@@ -224,10 +274,10 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
 
     /**
      * One thing in a shot, at {@code at} seconds from its start (past the shot's end: at its end): a title, a caption,
-     * a line, a sound, the music changed, a fade, actions.
+     * a line, a sound, the music changed, a fade, a camera shake impulse, or actions.
      */
     public record Cue(float at, Optional<Title> title, Optional<Caption> caption, Optional<Line> line, Optional<Sound> sound,
-                      Optional<ResourceLocation> music, Optional<ScreenFade> fade, List<Action> actions) {
+                      Optional<ResourceLocation> music, Optional<ScreenFade> fade, Optional<Shake> shake, List<Action> actions) {
         public static final Codec<Cue> CODEC = RecordCodecBuilder.<Cue>create(instance -> instance.group(
                 Codec.floatRange(0, Camera.MAX_SECONDS).optionalFieldOf("at", 0f).forGetter(Cue::at),
                 Title.CODEC.optionalFieldOf("title").forGetter(Cue::title),
@@ -236,11 +286,21 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
                 Sound.CODEC.optionalFieldOf("sound").forGetter(Cue::sound),
                 ResourceLocation.CODEC.optionalFieldOf("music").forGetter(Cue::music),
                 ScreenFade.CODEC.optionalFieldOf("fade").forGetter(Cue::fade),
+                Shake.CODEC.optionalFieldOf("shake").forGetter(Cue::shake),
                 LogicCodecs.ACTIONS.optionalFieldOf("actions", List.of()).forGetter(Cue::actions)
         ).apply(instance, Cue::new)).validate(cue -> (cue.title.isPresent() ? 1 : 0) + (cue.caption.isPresent() ? 1 : 0) + (cue.line.isPresent() ? 1 : 0)
-                + (cue.sound.isPresent() ? 1 : 0) + (cue.music.isPresent() ? 1 : 0) + (cue.fade.isPresent() ? 1 : 0) + (cue.actions.isEmpty() ? 0 : 1) == 1
+                + (cue.sound.isPresent() ? 1 : 0) + (cue.music.isPresent() ? 1 : 0) + (cue.fade.isPresent() ? 1 : 0)
+                + (cue.shake.isPresent() ? 1 : 0) + (cue.actions.isEmpty() ? 0 : 1) == 1
                 ? DataResult.success(cue)
-                : DataResult.error(() -> "A cue in 'during' is exactly one of title, caption, line, sound, music, fade or actions"));
+                : DataResult.error(() -> "A cue in 'during' is exactly one of title, caption, line, sound, music, fade, shake or actions"));
+    }
+
+    /** A decaying camera-shake impulse (horn blast, heavy footstep, explosion). */
+    public record Shake(float intensity, float duration) {
+        public static final Codec<Shake> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.floatRange(0.01f, 2f).fieldOf("intensity").forGetter(Shake::intensity),
+                Codec.floatRange(0.05f, 10f).optionalFieldOf("duration", 0.4f).forGetter(Shake::duration)
+        ).apply(instance, Shake::new));
     }
 
     /** Where a caption stands on the screen. */
@@ -312,9 +372,10 @@ public record SceneDefinition(List<Shot> shots, boolean letterbox, boolean invul
      * with {@code dialogue} instead of a camera, a talk: the dialogue plays with its own camera, the anchor (an NPC or an
      * entity) as the one the player talks to, and the scene goes on with the next shot once it is over.
      */
-    public record Shot(Anchor anchor, Optional<Camera> camera, Optional<ResourceLocation> dialogue, List<Cue> during, Transition transition) {
+    public record Shot(Anchor anchor, Optional<Anchor> fallback, Optional<Camera> camera, Optional<ResourceLocation> dialogue, List<Cue> during, Transition transition) {
         public static final Codec<Shot> CODEC = RecordCodecBuilder.<Shot>create(instance -> instance.group(
                 Anchor.CODEC.optionalFieldOf("anchor", new PlayerAnchor()).forGetter(Shot::anchor),
+                Anchor.CODEC.optionalFieldOf("fallback").forGetter(Shot::fallback),
                 Camera.CODEC.optionalFieldOf("camera").forGetter(Shot::camera),
                 ResourceLocation.CODEC.optionalFieldOf("dialogue").forGetter(Shot::dialogue),
                 Cue.CODEC.listOf().optionalFieldOf("during", List.of()).forGetter(Shot::during),

@@ -108,6 +108,27 @@ class ScenePreviewTimelineTest {
 
         JsonObject midShot = ScenePreview.freshCue("fade", 2.0).getAsJsonObject();
         assertEquals(0.5, midShot.get("in").getAsDouble(), 1e-6);
+
+        JsonObject shake = ScenePreview.freshCue("shake", 1.0).getAsJsonObject();
+        assertEquals(0.2, shake.get("intensity").getAsDouble(), 1e-6);
+        assertEquals(0.5, shake.get("duration").getAsDouble(), 1e-6);
+    }
+
+    @Test
+    void shakeChannelReplacesEarlierShakeIndependentlyOfVisualChannels() {
+        List<TimedCue> cues = List.of(
+                new TimedCue(0, 0, 0.5, json("{\"at\":0.5,\"shake\":{\"intensity\":0.15,\"duration\":0.4}}")),
+                new TimedCue(0, 1, 1.0, json("{\"at\":1.0,\"title\":{\"text\":\"Act I\"}}")),
+                new TimedCue(0, 2, 2.0, json("{\"at\":2.0,\"shake\":{\"intensity\":0.4,\"duration\":0.6}}"))
+        );
+
+        Map<String, TimedCue> at12 = ScenePreview.latestCuesByChannel(cues, 1.2, 0, -1);
+        assertEquals(0, at12.get("shake").cueIndex());
+        assertEquals(1, at12.get("title").cueIndex());
+
+        Map<String, TimedCue> at22 = ScenePreview.latestCuesByChannel(cues, 2.2, 0, -1);
+        assertEquals(2, at22.get("shake").cueIndex(), "later shake replaces earlier shake");
+        assertEquals(1, at22.get("title").cueIndex(), "title channel remains unaffected");
     }
 }
 

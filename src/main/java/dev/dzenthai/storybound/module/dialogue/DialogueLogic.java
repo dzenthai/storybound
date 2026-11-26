@@ -7,11 +7,13 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.ActionType;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.LogicRegistries;
 import dev.dzenthai.storybound.core.logic.References;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.TriggerType;
+import dev.dzenthai.storybound.core.logic.action.SceneActions;
 import java.lang.reflect.Method;
 import java.util.Optional;
 import net.minecraft.network.chat.Component;
@@ -45,11 +47,16 @@ public final class DialogueLogic {
     public record Ended(ResourceLocation dialogue, String node) {}
 
     /**
-     * {@code { "type": "start_dialogue", "dialogue": "mypack:elder" }}. The context entity (the interacted NPC)
-     * becomes the {@code bound} participant. Fails while the player is already talking; inside a dialogue use {@code jump} or {@code call}.
+     * {@code { "type": "start_dialogue", "dialogue": "mypack:elder", "speaker": { "tag": "elder" } }}. The context
+     * entity (the interacted NPC), or the nearest living entity matching {@code speaker} within 64 blocks when given,
+     * becomes the {@code bound} participant. Fails while the player is already talking; inside a dialogue use
+     * {@code jump} or {@code call}.
      */
-    public record StartDialogue(ResourceLocation dialogue) implements Action {
-        public static final MapCodec<StartDialogue> CODEC = ResourceLocation.CODEC.fieldOf("dialogue").xmap(StartDialogue::new, StartDialogue::dialogue);
+    public record StartDialogue(ResourceLocation dialogue, Optional<EntitySelector> speaker) implements Action {
+        public static final MapCodec<StartDialogue> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+                ResourceLocation.CODEC.fieldOf("dialogue").forGetter(StartDialogue::dialogue),
+                EntitySelector.CODEC.optionalFieldOf("speaker").forGetter(StartDialogue::speaker)
+        ).apply(instance, StartDialogue::new));
 
         @Override
         public ActionType<?> type() {
@@ -57,19 +64,19 @@ public final class DialogueLogic {
         }
 
         /**
-         * The context entity becomes the speaker only for a dialogue that has one ({@code bound}) and only while it
-         * lives: a monologue started by a kill would otherwise get the dead mob as its speaker and stop at once
-         * ("the speaker is gone"). While the player talks, the dialogue waits for that to end (see
-         * {@link Dialogues#startOrQueue}).
+         * The context entity (or nearest matching {@code speaker}) becomes the bound partner only for a dialogue that
+         * has one ({@code bound}) and only while it lives: a monologue started by a kill would otherwise get the dead
+         * mob as its speaker and stop at once ("the speaker is gone"). While the player talks, the dialogue waits for
+         * that to end (see {@link Dialogues#startOrQueue}).
          */
         @Override
         public void run(StoryContext context) throws StoryException {
             DialogueDefinition definition = Dialogues.definition(dialogue);
-            Entity speaker = context.entity();
-            if (speaker != null && (!speaker.isAlive() || definition == null || !definition.hasBoundSpeaker())) {
-                speaker = null;
+            Entity resolved = speaker.map(selector -> SceneActions.nearest(context, selector)).orElse(context.entity());
+            if (resolved != null && (!resolved.isAlive() || definition == null || !definition.hasBoundSpeaker())) {
+                resolved = null;
             }
-            if (!Dialogues.startOrQueue(context.player(), dialogue, speaker)) {
+            if (!Dialogues.startOrQueue(context.player(), dialogue, resolved)) {
                 throw new StoryException(Component.translatableWithFallback("storybound.dialogue.cannot_start",
                         "Dialogue %s cannot start: unknown dialogue, the player is already talking, or the dialogue module is disabled", dialogue.toString()));
             }
@@ -78,6 +85,7 @@ public final class DialogueLogic {
         @Override
         public void collectReferences(References references) {
             references.dialogue(dialogue);
+            speaker.ifPresent(selector -> references.place(selector.place()));
         }
     }
 

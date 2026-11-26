@@ -19,6 +19,9 @@ class DevIconsTest {
         assertEquals(new DevIcons.Split("trash", ""), DevIcons.split("🗑"));
         assertEquals(new DevIcons.Split("plus", "Add"), DevIcons.split("+ Add"));
         assertEquals(new DevIcons.Split("warning", "2"), DevIcons.split("⚠ 2"));
+        assertEquals(new DevIcons.Split("grid", ""), DevIcons.split("⊞"));
+        assertEquals(new DevIcons.Split("grid_off", ""), DevIcons.split("⊟"));
+        assertEquals(new DevIcons.Split("keys", ""), DevIcons.split("⌨"));
     }
 
     @Test

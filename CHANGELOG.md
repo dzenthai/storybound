@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Waypoints and `add_waypoint` take `"marker": "event"`: three animated "!" instead of the icon, the middle one larger,
   for something happening at that place. Resource packs draw its sprite as `event_icon`; Xaero's Minimap shows "!".
@@ -20,9 +20,6 @@
 - `entity_killed`, `entity_seen` and `entity_interacted` take a selector in `entity` as well as types:
   `{ "type": "minecraft:pillager", "tag": "night_raider" }` counts only the mobs an event spawned with that tag.
 - Debug scenario `raid`: a night raid that comes back after a cooldown and is done when none of its raiders is left.
-- The story that comes with the mod is back: "Story: Yes / No" when a world is made (the game rule
-  `storyboundStory`), "⬇ Install" in the editor's stories list and `/storybound story install`. It begins with a
-  prologue: a wandering trader, a village raided at night and its elder.
 - A place in actions takes a selector in `at`: `"at": { "tag": "prologue_elder" }` is by the nearest such entity.
 - `has_item` with `"worn": true` counts only the armour the player has on.
 - `spawn_entity` with `leashed_to`: each spawned mob on a lead held by the nearest matching entity (a trader's llamas).
@@ -43,6 +40,26 @@
   scene"; "Scene in the talk" in the dialogue editor. The camera view is drawn like the editor and has a time line of
   the whole scene: shots as blocks, things as marks to pick, drag in time or remove, a right click on an empty place
   to add one there.
+- Scenes: cinematography and procedural safety upgrades — POI anchors (`{ "poi": "minecraft:meeting", "radius": 64 }`)
+  and shot `fallback` anchors, smooth 3D `via` splines, lens zoom (`fov` / `fov_to`), Rule of Thirds framing
+  (`look_offset`), horizon tilt (`roll` / `roll_to`), continuous handheld breathing (`shake`) and impact `shake` cues,
+  6-DOF free look (`look: "free"` with per-point `rotations`), `above_ground` terrain/roof clearance, `safe_angle`
+  obstacle avoidance, spring-damped entity tracking, and smooth eased letterbox bars.
+- Scenes in the editor: upgraded 3D camera view with direct live framing through the selected point's lens (`Start` /
+  `#1…` / `End`, `WASD` + `Space`/`Shift` or `E`/`Q`, Blender-style orbit & `Shift+LMB`/`MMB` pan, `RMB` free look,
+  `Alt+wheel` FOV zoom, and `[`/`]` point switching), one-key `Tab` toggle to step outside and see the full curve and
+  roll-tilted camera frustums with forward aim rays, 1-to-1 6-DOF frame capture (`📷` / `K`), collapsible left panel
+  (`H`) with top-left Menu/Back (`←`) and Undo/Redo (`↶`/`↷`) controls matching Dev Mode, three tabs
+  (`Point` | `Shot` | `Cues`), in-viewport anchor picker, live cinema speed readout (`blk/s`), 50-step Undo/Redo
+  (`Ctrl+Z` / `Ctrl+Y`), `F1` Hotkeys overlay, native 11×11 pixel icons, full-screen centered overlay parity, and
+  inspector **Before & after** (`+ Before…` / `+ After…`) wiring to connect events, dialogues, quests, chained scenes,
+  scripts, or documents directly on a Scene node.
+- NPCs: `follow` behaviour on NPC bindings (`conditions`, `distance`, `teleport_distance`, `speed`) so a companion
+  follows the player, pauses for fights or talks, teleports safely when falling behind, and settles at their destination
+  when following ends; also configurable in Dev Mode.
+- Dialogues: `start_dialogue` accepts an optional `speaker` entity selector so dialogues launched from a cutscene's
+  `on_end` or a quest stage bind to a live 3D NPC speaker.
+- Fixed: `note_torn` document style now uses valid texture dimensions and readable default font metrics.
 - The client and the server must both be on this version: what they send each other has changed.
 - Fixed: a selector naming an entity tag (`"#minecraft:zombies"` in a waypoint, an objective or an NPC binding) failed
   with "Missing tag" when a world loaded, and its definition was left out.

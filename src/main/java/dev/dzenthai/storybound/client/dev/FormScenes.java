@@ -27,9 +27,9 @@ import org.jetbrains.annotations.Nullable;
  * What a switch took away comes back on switching to it again, while the node is open.
  */
 abstract class FormScenes extends FormStory {
-    private static final List<String> ANCHOR_KINDS = List.of("player", "npc", "entity", "structure", "waypoint");
-    private static final List<String> LOOK_KINDS = List.of("anchor", "path", "player", "other");
-    static final List<String> CUE_KINDS = List.of("title", "caption", "line", "sound", "music", "fade", "actions");
+    private static final List<String> ANCHOR_KINDS = List.of("player", "npc", "entity", "structure", "waypoint", "poi");
+    private static final List<String> LOOK_KINDS = List.of("anchor", "path", "player", "free", "other");
+    static final List<String> CUE_KINDS = List.of("title", "caption", "line", "sound", "music", "fade", "shake", "actions");
     /** In a page's skip set: the scene's own page was drawn already, its fields follow as usual. */
     static final String SCENE_PAGE = "\u0000scene";
 
@@ -48,7 +48,7 @@ abstract class FormScenes extends FormStory {
     }
 
     static boolean isSceneAnchor(String name, Node owner) {
-        return name.equals("anchor") && isSceneShot(owner);
+        return (name.equals("anchor") || name.equals("fallback")) && isSceneShot(owner);
     }
 
     static boolean isSceneLook(String name, Node owner) {
@@ -81,24 +81,32 @@ abstract class FormScenes extends FormStory {
         return Schemas.properties(node).isEmpty() ? null : node;
     }
 
-    /** A shot's anchor, or (without the player) the other anchor a camera looks at. */
-    void sceneAnchorField(List<Object> path, Node node, boolean withPlayer, String label) {
-        String kind = anchorKind(get(path));
+    /** A shot's anchor, optional fallback anchor, or (without the player) the other anchor a camera looks at. */
+    void sceneAnchorField(List<Object> path, Node node, boolean withPlayer, boolean optionalNone, String label) {
+        JsonElement raw = get(path);
+        String kind = optionalNone && raw == null ? "none" : anchorKind(raw);
         if (!withPlayer && kind.equals("player")) {
             kind = "npc";
         }
-        List<String> kinds = withPlayer ? ANCHOR_KINDS : ANCHOR_KINDS.subList(1, ANCHOR_KINDS.size());
+        List<String> kinds = new java.util.ArrayList<>();
+        if (optionalNone) {
+            kinds.add("none");
+        }
+        kinds.addAll(withPlayer ? ANCHOR_KINDS : ANCHOR_KINDS.subList(1, ANCHOR_KINDS.size()));
         String current = kind;
         switchRow(DevUi.text(label), DevUi.text("scene.anchor." + kind),
                 Component.empty().append(DevUi.text("scene.anchor." + kind + ".tooltip")).append(" ").append(DevUi.text("form.click_to_switch")),
                 () -> switchAnchor(path, current, kinds.get((kinds.indexOf(current) + 1) % kinds.size())));
-        if (kind.equals("player")) {
+        if (kind.equals("none") || kind.equals("player")) {
             return;
         }
         Node object = objectVariant(node);
         if (object != null) {
             Set<String> skip = new HashSet<>(ANCHOR_KINDS);
             skip.remove(kind);
+            if (!kind.equals("poi")) {
+                skip.add("radius");
+            }
             objectPage(path, object, skip, null);
         }
         if (kind.equals("npc") || kind.equals("structure")) {
@@ -110,6 +118,14 @@ abstract class FormScenes extends FormStory {
         JsonElement now = get(path);
         if (now != null) {
             switchedAway.put(path + "#anchor:" + from, now.deepCopy());
+        }
+        if (to.equals("none")) {
+            JsonObject parent = objectAt(path.subList(0, path.size() - 1));
+            if (parent != null && path.getLast() instanceof String key) {
+                parent.remove(key);
+            }
+            host.changed();
+            return;
         }
         JsonElement back = switchedAway.remove(path + "#anchor:" + to);
         JsonElement next = back;
@@ -158,7 +174,7 @@ abstract class FormScenes extends FormStory {
         if (kind.equals("other")) {
             Node anchor = Schemas.variants(node).stream().filter(variant -> !variant.json().has("enum")).findFirst().orElse(null);
             if (anchor != null) {
-                sceneAnchorField(path, anchor, false, "scene.look.target");
+                sceneAnchorField(path, anchor, false, false, "scene.look.target");
             }
         }
     }
@@ -264,6 +280,12 @@ abstract class FormScenes extends FormStory {
                     fade.addProperty("stay", 1);
                     fade.addProperty("out", 0.5);
                     yield fade;
+                }
+                case "shake" -> {
+                    JsonObject shake = new JsonObject();
+                    shake.addProperty("intensity", 0.2);
+                    shake.addProperty("duration", 0.5);
+                    yield shake;
                 }
                 default -> {
                     JsonObject text = new JsonObject();

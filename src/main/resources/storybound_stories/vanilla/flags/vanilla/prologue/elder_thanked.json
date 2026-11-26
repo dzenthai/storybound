@@ -1,6 +1,0 @@
-{
-  "type": "bool",
-  "default": false,
-  "scope": "player",
-  "description": "After the night, the elder thanked the player and told of the expedition"
-}

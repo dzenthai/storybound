@@ -61,6 +61,8 @@ import org.jetbrains.annotations.Nullable;
  * @param movement     how it walks (see {@link NpcMovement}): {@code free} as its kind does, {@code stay} where it
  *                     stands, turning its head to players near, {@code home} within {@code home_radius} blocks of its
  *                     place; absent: from the binding below, free when none writes it
+ * @param follow       follows a player while its {@code conditions} hold (see {@link NpcMovement}), overriding
+ *                     {@code movement} while active; absent: from the binding below, off when none writes it
  *                     <p>
  * Several bindings on one entity are layers (see {@link NpcBindings#find}): each setting comes from the closest binding
  * that writes it, so the on/off ones are kept as written or not ({@link Optional#empty()}: "from the binding below",
@@ -70,7 +72,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                          Optional<Boolean> custom, Optional<Boolean> overrideInteract, Optional<Boolean> exclusive, Optional<PhrasesRef> busy,
                          Optional<Boolean> respawn, Optional<Boolean> invulnerable, Optional<WhenAttacked> whenAttacked, Optional<Chatter> chatter,
                          Optional<Boolean> showName, Optional<StoryText> displayName, List<StoryText> names, boolean one,
-                         Optional<Integer> share, Optional<Movement> movement, Optional<Voice> voice) {
+                         Optional<Integer> share, Optional<Movement> movement, Optional<Follow> follow, Optional<Voice> voice) {
     /** One selector, or a non-empty list of them; one is written back as an object, as files had it before lists. */
     private static final Codec<List<EntitySelector>> ENTITIES = Codec.either(EntitySelector.CODEC, ExtraCodecs.nonEmptyList(EntitySelector.CODEC.listOf()))
             .xmap(either -> either.map(List::of, Function.identity()),
@@ -100,6 +102,9 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                     movement -> Pair.of(movement.map(Movement::mode), movement.map(Movement::homeRadius)
                             .filter(radius -> radius != Movement.DEFAULT_RADIUS)));
 
+    private static final MapCodec<Pair<Optional<Movement>, Optional<Follow>>> WALKING = Codec.mapPair(
+            MOVEMENT, Follow.CODEC.optionalFieldOf("follow"));
+
     public static final Codec<NpcBinding> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ENTITIES.fieldOf("entity").forGetter(NpcBinding::entities),
             Entry.CODEC.listOf().optionalFieldOf("dialogues", List.of()).forGetter(NpcBinding::dialogues),
@@ -116,13 +121,13 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
             Codec.BOOL.optionalFieldOf("show_name").forGetter(NpcBinding::showName),
             StoryText.CODEC.optionalFieldOf("display_name").forGetter(NpcBinding::displayName),
             StoryText.CODEC.listOf().optionalFieldOf("names", List.of()).forGetter(NpcBinding::names),
-            // Five fields as one: a record codec takes at most 16.
-            Codec.mapPair(CROWD, Codec.mapPair(MOVEMENT, Voice.CODEC.optionalFieldOf("voice"))).forGetter(binding -> Pair.of(
-                    Pair.of(binding.one(), binding.share()), Pair.of(binding.movement(), binding.voice())))
+            // Six fields as one: a record codec takes at most 16.
+            Codec.mapPair(CROWD, Codec.mapPair(WALKING, Voice.CODEC.optionalFieldOf("voice"))).forGetter(binding -> Pair.of(
+                    Pair.of(binding.one(), binding.share()), Pair.of(Pair.of(binding.movement(), binding.follow()), binding.voice())))
     ).apply(instance, (entities, dialogues, interact, proximity, custom, overrideInteract, exclusive, busy, respawn, invulnerable,
                        whenAttacked, chatter, showName, displayName, names, rest) -> new NpcBinding(entities, dialogues, interact, proximity, custom,
             overrideInteract, exclusive, busy, respawn, invulnerable, whenAttacked, chatter, showName, displayName, names, rest.getFirst().getFirst(),
-            rest.getFirst().getSecond(), rest.getSecond().getFirst(), rest.getSecond().getSecond())));
+            rest.getFirst().getSecond(), rest.getSecond().getFirst().getFirst(), rest.getSecond().getFirst().getSecond(), rest.getSecond().getSecond())));
 
     /**
      * How the NPC sounds when it speaks (see {@link NpcVoice}): a sound of its own, else the creature's own sound; and the
@@ -165,6 +170,26 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                 return name;
             }
         }
+    }
+
+    /**
+     * Follows a player while {@code conditions} hold for them (see {@link NpcMovement}): overrides {@code movement}
+     * while active, walks toward the player past {@code distance} blocks, stops and looks at them once near, and
+     * teleports safely near them past {@code teleportDistance} blocks (0 disables teleporting).
+     *
+     * @param conditions       tested for players in the same dimension; absent: always
+     * @param distance         how close to stop beside the player, in blocks
+     * @param teleportDistance past this many blocks, teleports safely behind/beside the player; 0 never teleports
+     * @param speed            multiplier on the mob's natural walk speed (0.5 to 2.0)
+     */
+    public record Follow(Condition conditions, float distance, float teleportDistance, float speed) {
+        public static final Follow DEFAULT = new Follow(LogicConditions.ALWAYS, 3.5f, 24f, 1.0f);
+        public static final Codec<Follow> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                LogicCodecs.CONDITION.optionalFieldOf("conditions", DEFAULT.conditions()).forGetter(Follow::conditions),
+                Codec.floatRange(1.5f, 16f).optionalFieldOf("distance", DEFAULT.distance()).forGetter(Follow::distance),
+                Codec.floatRange(0f, 64f).optionalFieldOf("teleport_distance", DEFAULT.teleportDistance()).forGetter(Follow::teleportDistance),
+                Codec.floatRange(0.5f, 2.0f).optionalFieldOf("speed", DEFAULT.speed()).forGetter(Follow::speed)
+        ).apply(instance, Follow::new));
     }
 
     /**
@@ -471,7 +496,7 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
                     List.of(Entry.of(StoryMigrations.current().id(StoryMigrations.Kind.DIALOGUES, dialogue))), Optional.of(interact),
                     proximity ? Optional.of(Proximity.DEFAULT) : Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of(), false, Optional.empty(),
-                    Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty());
         }
     }
 }

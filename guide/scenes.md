@@ -1,12 +1,14 @@
 # Scenes
 
 A scene is a cutscene: the camera flies through shots one after another, and things happen while it does: a chapter
-title, a caption, a line in subtitles with its voice-over, a sound, other music, a fade, any actions. A shot can also
-be a talk: a dialogue plays in the middle of the scene, and the scene goes on after it. The player watches it whole. They cannot
-move or skip it, nothing can hurt them, and the mobs nearby leave them and the villagers alone.
+title, a caption, a line in subtitles with its voice-over, a sound, other music, a fade, a camera shake impulse, or any
+actions. A shot can also be a talk: a dialogue plays in the middle of the scene, and the scene goes on after it. By
+default the player can skip a scene with Space (`skippable: true`), cannot move while it plays, nothing can hurt them,
+and the mobs nearby leave them and the villagers alone.
 
-Scenes don't use coordinates. Every shot is placed against an **anchor**: the player, an NPC, an entity, a structure
-or a waypoint. So the same scene works in any world, wherever the village or the NPC happens to be.
+Scenes don't use coordinates. Every shot is placed against an **anchor**: the player, an NPC, an entity, a point of
+interest (`poi`), a structure or a waypoint — with an optional `fallback` anchor when the main one is not nearby. So
+the same scene works in any world, wherever the village or the NPC happens to be.
 
 Try `/storybound debug scenario scene` to see one.
 
@@ -27,44 +29,40 @@ waypoint), and below it the NPC, the structure or the waypoint from the story's 
 way. **The shot is** switches a shot between a camera flight and a talk; **What happens** picks the kind of a thing
 during the shot. What you switch away from is kept until the form closes, so switching back brings it back.
 
-The scene's inspector has two buttons:
+The scene's inspector has quick controls to wire **Before & after** (**+ Before…** picks or creates the story event,
+dialogue, quest or scene that plays this scene; **+ After…** picks or creates the quest, dialogue, scene, command script
+or document that follows its end — any link can be removed with **✕** in **Links** below) and two preview buttons:
 
-- **Camera view** sets the shots right in your world. The editor becomes a panel on the left, and the rest of the
-  screen shows what the scene's camera sees.
-  - The shot is drawn in the world: its flight as a gold line with a tick at every second, a small green camera at
-    its start and a red one at its end, each pointing where it looks, and a white post at the anchor. **Drag a small
-    camera** to move that point across the view; with Shift it moves over the ground instead (forward and back).
-  - **The free view** goes anywhere: drag to turn around its centre (the anchor, or the point you focused with F),
-    drag with the right button to look around, fly with your movement keys (jump and sneak for up and down, sprint for
-    speed), turn the wheel to come closer. **📷** next to From or To puts that point where the free view is.
-  - Each point has a row for each axis, right (→), up (↑) and forward (↗) of the anchor: a slider to drag and the
-    exact number beside it, to type or to nudge with the wheel (Shift for whole blocks). A slider spans ±16 blocks and
-    widens (32, 64, 128) when you let it go at its edge. **⇄** swaps From and To. The wheel over the rest of the panel
-    scrolls it on a small screen.
-  - The buttons below set how long the flight takes (seconds or blocks a second), how it eases, where the camera
-    looks and how the shot follows the one before. The slider shows any moment of the shot. **Shot** plays it,
-    **Scene** plays the whole scene with its cuts, fades and glides.
-  - **Grid** draws the lines of thirds over the picture; the scene's black bars show too. **H** hides the panel, so
-    you see the whole frame.
-  - At the top: **◀ ▶** go from shot to shot, **+** adds a shot that starts where this one ends, **⧉** copies it,
-    **✕** removes it.
-  - **The time line** at the bottom shows the whole scene: a block for each shot, as long as it lasts (a talk is a
-    short block with 💬), the things during each shot as coloured marks, and a gold line where the view is. Click a
-    block to go to that shot and that moment, drag along it to scrub. **Right-click an empty place** to add a thing
-    there (a line at first). Click a mark to edit that thing, drag it to move it in time, click it with the right
-    button to remove it.
-  - **Things in the shot**, under the shot's settings, shows the thing picked on the time line: its kind (a button that
-    switches it), its text, for a title its subtitle, for a line who says it, for a caption where it stands and whether
-    it is on black, for a sound or a music change its id, picked from the list with **…** as in the form and played
-    with the button beside it. A fade and actions are set in the form.
-  - If the scene can't be saved as it is (the game would not load it), it stays a draft and the panel says why above
-    **Save**.
-  - A talk shot shows which dialogue it plays; it has no camera of its own to set.
-  - **Save** (Ctrl+S) writes the scene and keeps the view open. **Close** with unsaved changes asks first.
-  - Keys while no number is being typed: Space plays, the arrows step through the time (Shift: by a second), Tab
-    switches between the shot and the free view, F focuses on the point under the cursor or the anchor, G the grid.
-  - The anchor is found the way the scene will find it. If it is not near you (an NPC in another part of the world),
-    you stand in for it: the numbers mean the same around the real one.
+- **3D editor** sets the shots right in your world. The editor becomes a collapsible panel on the left (hide or show
+  it with the **⏴ / ⏵** button or **H**) with top-left **←** (Menu / back to editor), **↶** (Undo) and **↷** (Redo)
+  buttons matching Dev Mode, organized into three tabs (**Point**, **Shot**, **Cues**), with a pinned playback bar
+  (**Shot**, **Scene**, **Grid**, **Hotkeys**) and **Save** / **Close** at the bottom.
+  - **Framing directly through the camera:** opening a shot or picking any control point (**Start**, **#1/#2…**, **End**,
+    or **[ / ]**) puts you straight inside that point's lens with its real FOV and horizon roll. Fly it live with
+    **WASD**, **Space / E** (up), **Shift / Q** (down), **Ctrl** (3× speed); drag **LMB** to orbit the anchor (or aim
+    directly in `free` look), **Shift+LMB / MMB** to pan, **RMB** to look freely (switches `look` to `free` without
+    moving the picture), **Wheel** to dolly, and **Alt+Wheel** to zoom FOV.
+  - **Stepping outside (Tab):** press **Tab** (or **Step out of camera**) to pull back and see the gold Catmull-Rom
+    spline (with one-second ticks), roll-tilted camera pyramids (green start, cyan intermediate points, red end) with
+    forward aim rays, and the white anchor post. Drag any camera pyramid to move it across the view (with **Shift**,
+    along the ground); fly freely with **WASD + Space/Shift** without shifting points; press **📷** or **K** to capture
+    both your exact position and viewing angle onto the selected point, or **F** to focus.
+  - **Point tab:** add (**+**), swap (**⇄**), capture (**📷**), or remove (**✕**) intermediate spline points (`via`),
+    fine-tune right (→), up (↑) and forward (↗) offsets with sliders or scroll-nudged numbers (Shift for whole blocks),
+    and adjust FOV (`fov` / `fov_to`), horizon roll (`roll` / `roll_to`), and either aim offset (`look_offset`) or
+    per-point yaw/pitch (`rotations`).
+  - **Shot tab:** pick the shot's anchor in-viewport, set duration or speed (with a live `blk/s` cinema pace readout),
+    ease curve, look mode (`anchor`, `free`, `path`, `player`), transition (`cut`, `fade`, `ease`), `above_ground`
+    clearance, continuous handheld `shake`, and `safe_angle`.
+  - **Cues tab & timeline:** the timeline at the bottom shows the whole scene as shot blocks and coloured cue marks.
+    Click or drag along it to scrub; **right-click an empty spot** to add a cue there (or press **+** on the Cues tab);
+    click a mark to edit its text, sound/music, fade or shake impulse; drag it in time, or right-click to remove it.
+  - **Save** (**Ctrl+S**) writes the scene and keeps the view open; **Ctrl+Z / Ctrl+Y** undo and redo up to 50 edits;
+    **Enter** plays the shot from any mode (**Space** also plays in preview), **← / →** step through time (**Shift**
+    by a second), **G** toggles the Rule of Thirds grid, and **F1** opens the **Hotkeys** overlay.
+  - If the scene can't be saved as it is, it stays a draft and the panel says why above **Save**.
+  - The anchor is found the way the scene will find it. If it is not near you, you stand in for it: the numbers mean
+    the same around the real one.
 - **Watch** saves the scene and plays it to you as players will see it; the editor comes back after it.
 
 ## A scene's file
@@ -99,7 +97,8 @@ Scenes live in `scenes/<namespace>/<name>.json`:
 | Field | Default | What it does |
 | --- | --- | --- |
 | `shots` | required | The shots, in order. |
-| `letterbox` | `false` | Black bars above and below while the scene plays. |
+| `letterbox` | `false` | Black bars above and below while the scene plays (eased smoothly in and out). |
+| `skippable` | `true` | Whether the player can skip the scene with Space. |
 | `invulnerable` | `true` | Nothing hurts the player, except the void and `/kill`. |
 | `world` | `calm` | `calm`: mobs nearby don't go for the player or the villagers, and no monsters spawn nearby. `live`: the world goes on as usual. |
 | `music` | none | A track that plays while the scene does. It comes before a dialogue's, a stage's and a place's. |
@@ -110,6 +109,7 @@ Scenes live in `scenes/<namespace>/<name>.json`:
 | Field | Default | What it does |
 | --- | --- | --- |
 | `anchor` | `player` | What the shot is placed against (see below). |
+| `fallback` | none | Optional backup anchor used if `anchor` is not found nearby. |
 | `camera` | one of them | The camera's flight (see below). |
 | `dialogue` | one of them | A talk instead of a flight: this dialogue plays with its own camera, an NPC or entity anchor as the one the player talks to (with the player, a structure or a waypoint as the anchor, the talk has no partner, as when `start_dialogue` starts it). The scene waits until the talk is over, however it ends, then goes on. A talk shot has no `during`. |
 | `during` | none | What happens while the shot plays (see below). |
@@ -120,6 +120,7 @@ Scenes live in `scenes/<namespace>/<name>.json`:
 - `"player"`: the player, as they face when the scene starts;
 - `{ "npc": "mypack:elder" }`: an NPC, the one the mod picked or the nearest one within 64 blocks;
 - `{ "entity": { "tag": "mypack_raider" } }`: the nearest entity a selector matches, within 64 blocks;
+- `{ "poi": "minecraft:meeting", "radius": 64 }`: the nearest point of interest matching a POI id or `#tag` within `radius` blocks (4–128, default 64);
 - `{ "structure": "#minecraft:village" }`: the structure the player stands in, or else the nearest one the waypoints
   have found. Its middle, on the ground, facing south;
 - `{ "waypoint": "mypack:camp" }`: where the player sees that waypoint.
@@ -133,8 +134,16 @@ wait forever.
 | Field | Default | What it does |
 | --- | --- | --- |
 | `from` | required | Where the flight starts: `[right, up, forward]` of the anchor, turned the way the anchor faces. |
+| `via` | none | Optional intermediate points (`[[x, y, z], ...]`) for a smooth Catmull-Rom curve from `from` to `to`. |
 | `to` | `from` | Where the flight ends. |
-| `look` | `anchor` | Where the camera looks: `anchor` (an entity is followed as it moves), `path` (the way it flies), `player`, or another anchor. |
+| `look` | `anchor` | Where the camera looks: `anchor` (smoothly tracks moving entities), `path` (along the flight tangent), `player`, `free` (uses `rotations`), or another anchor. |
+| `rotations` | none | Per-control-point `[yaw, pitch]` pairs (yaw relative to the anchor) used when `look` is `free`. |
+| `look_offset` | `[0, 0, 0]` | `[right, up, forward]` offset applied to the aim target for Rule of Thirds framing and headroom. |
+| `fov` / `fov_to` | player FOV | Custom camera field of view in degrees (20–120), optionally animated smoothly to `fov_to` (dolly zoom). |
+| `roll` / `roll_to` | `0` | Horizon tilt (Dutch angle) in degrees (-30 to +30), optionally animated smoothly to `roll_to`. |
+| `shake` | `0` | Continuous subtle handheld camera breathing (0–1; 0.02–0.05 feels natural). |
+| `above_ground` | `0` | Minimum clearance (0–64 blocks) above terrain, trees, and roofs along the whole flight. |
+| `safe_angle` | `true` | Automatically rotates around the anchor or pulls clear of walls/trees when a ground shot is blocked. |
 | `duration` or `speed` | one of them | Seconds the flight takes, or blocks a second (then it lasts as long as the way takes). |
 | `ease` | `in_out` | How the flight speeds up and slows down: `linear`, `in`, `out`, `in_out`. |
 
@@ -149,6 +158,7 @@ wait forever.
 - `sound`: `sound`, with optional `source`, `volume`, `pitch`: played once at that moment, over the music (a door, thunder, a howl);
 - `music`: a track id: from then on the scene plays that track instead, looping, faded in over the one before;
 - `fade`: `in`, `stay`, `out`, `color`, like the `fade` action;
+- `shake`: `intensity` (0–2) and `duration` (seconds): a decaying camera shake impulse (horn blast, heavy step, impact);
 - `actions`: any actions.
 
 ## Playing a scene

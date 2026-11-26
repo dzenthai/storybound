@@ -106,9 +106,9 @@ abstract class FormDialogues extends FormWaypoints {
             // last; what the flag holds, then where.
             Map.entry("event", List.of("trigger", "conditions", "once", "cooldown", "actions", "on_fail")),
             // A scene: its shots; how it is watched; what follows. A shot: against what, the flight, what happens.
-            Map.entry("scene", List.of("shots", "letterbox", "world", "invulnerable", "on_end")),
-            Map.entry("scene.shot", List.of("anchor", "dialogue", "camera", "during", "transition")),
-            Map.entry("scene.camera", List.of("from", "to", "look", "duration", "speed", "ease")),
+            Map.entry("scene", List.of("shots", "letterbox", "skippable", "world", "invulnerable", "on_end")),
+            Map.entry("scene.shot", List.of("anchor", "fallback", "dialogue", "camera", "during", "transition")),
+            Map.entry("scene.camera", List.of("from", "via", "to", "look", "rotations", "look_offset", "duration", "speed", "ease", "fov", "fov_to", "roll", "roll_to", "shake", "above_ground", "safe_angle")),
             Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
             Map.entry("flag", List.of("description", "type", "default", "scope", "sync")),
             // The trigger "observed": what is looked at, how long and from how far, what the bar says.

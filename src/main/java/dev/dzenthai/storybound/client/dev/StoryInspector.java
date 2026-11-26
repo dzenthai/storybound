@@ -102,6 +102,8 @@ final class StoryInspector {
     private @Nullable NodeKey renameFor;
     private int giverY;
     private final List<Note> notes = new ArrayList<>();
+    /** Edges already shown inline in the scene's Before / After sections, so the bottom Links list does not repeat them. */
+    private final Set<String> flowShown = new HashSet<>();
     /** Where a script of commands' check is drawn (two rows); -1 for other nodes. */
     private int scriptCheckY = -1;
 
@@ -249,12 +251,16 @@ final class StoryInspector {
         }
         scriptState = null;
         notes.clear();
+        flowShown.clear();
         scriptCheckY = -1;
         if (key.type().equals(ClientDevStore.TYPE_SCRIPT)) {
             y = script(screen, key, json, x, y, w);
         }
         if (key.type().equals(ClientDevStore.TYPE_VANILLA_SCRIPT)) {
             y = vanillaScript(screen, key, x, y, w);
+        }
+        if (key.type().equals(ClientDevStore.TYPE_SCENE)) {
+            y = sceneFlow(screen, key, json, x, y, w);
         }
         addLinks(screen, key, json, x, w);
         int formBottom = links.isEmpty() ? screen.height - 34 : linksTop - 16;
@@ -773,17 +779,191 @@ final class StoryInspector {
                 } catch (IllegalArgumentException ignored) {
                 }
             } else {
-                int bar = entry.id().indexOf('|');
-                if (bar > 0 && bar < entry.id().length() - 1) {
-                    ResourceLocation callerType = ResourceLocation.tryParse(entry.id().substring(0, bar));
-                    ResourceLocation callerId = ResourceLocation.tryParse(entry.id().substring(bar + 1));
-                    if (callerType != null && callerId != null) {
-                        view.link(screen, new NodeKey(callerType, callerId), script);
-                    }
+                NodeKey caller = parseNodeKey(entry.id());
+                if (caller != null) {
+                    view.saveEdits(screen);
+                    view.link(screen, caller, script);
                 }
             }
             screen.rebuild();
         });
+    }
+
+    // --- scenes: what comes before and after
+
+    /**
+     * Shows the actual nodes wired before the scene (what plays it) and after the scene (what follows its end), each as
+     * a clickable row with a quick unlink button, plus "+" pickers to add existing or new nodes on either side.
+     */
+    private int sceneFlow(DevModeScreen screen, NodeKey key, JsonObject json, int x, int y, int w) {
+        List<NodeKey> before = callers(key);
+        List<NodeKey> after = sceneAfter(key);
+        int limit = screen.height >= 460 ? 3 : 2;
+        int maxBefore = after.size() <= 1 ? limit : Math.min(limit, 2);
+        int maxAfter = before.size() <= 1 ? limit : Math.min(limit, 2);
+        y = sceneFlowSide(screen, key, json, x, y, w, true, before, maxBefore);
+        y += 4;
+        y = sceneFlowSide(screen, key, json, x, y, w, false, after, maxAfter);
+        return y + 4;
+    }
+
+    private int sceneFlowSide(DevModeScreen screen, NodeKey scene, JsonObject sceneJson, int x, int y, int w,
+            boolean isBefore, List<NodeKey> nodes, int maxShown) {
+        notes.add(new Note(DevUi.str(isBefore ? "scene.flow.before_heading" : "scene.flow.after_heading"), DevUi.ACCENT, y + 4));
+        screen.add(Button.builder(Component.literal("+"), b -> {
+                    if (isBefore) {
+                        pickSceneBefore(screen, scene);
+                    } else {
+                        pickSceneAfter(screen, scene);
+                    }
+                })
+                .tooltip(Tooltip.create(DevUi.text(isBefore ? "scene.flow.before_tooltip" : "scene.flow.after_tooltip")))
+                .bounds(x + w - 19, y, 19, 17).build());
+        y += 19;
+        if (nodes.isEmpty()) {
+            notes.add(isBefore
+                    ? new Note("⚠ " + DevUi.str("scene.flow.before_empty"), DevUi.WARN, y + 1)
+                    : new Note(DevUi.str("scene.flow.after_empty"), DevUi.MUTED, y + 1));
+            return y + 13;
+        }
+        int shown = Math.min(nodes.size(), maxShown);
+        for (int i = 0; i < shown; i++) {
+            NodeKey node = nodes.get(i);
+            flowShown.add((!isBefore) + " " + node);
+            boolean removable;
+            if (isBefore) {
+                String raw = ClientDevStore.getJson(node.type(), node.id());
+                removable = raw != null && StoryEdits.unlink(ClientDevStore.parseObject(raw), scene);
+            } else {
+                removable = StoryEdits.unlink(sceneJson.deepCopy(), node);
+            }
+            int bw = removable ? w - 21 : w;
+            String title = StoryView.title(node);
+            screen.add(Button.builder(Component.literal(StoryView.glyph(node.type()) + " " + title), b -> {
+                        view.select(screen, node);
+                        screen.rebuild();
+                    })
+                    .tooltip(Tooltip.create(DevUi.text("scene.flow.open_node", title, node.id().toString())))
+                    .bounds(x, y, bw, 17).build());
+            if (removable) {
+                screen.add(Button.builder(Component.literal("✕"), b -> {
+                            if (isBefore) {
+                                view.unlinkFrom(screen, node, scene);
+                            } else {
+                                view.unlinkSelected(screen, node);
+                            }
+                        })
+                        .tooltip(Tooltip.create(DevUi.text("links.remove")))
+                        .bounds(x + w - 19, y, 19, 17).build());
+            }
+            y += 19;
+        }
+        if (nodes.size() > shown) {
+            notes.add(new Note(DevUi.str("links.more", nodes.size() - shown), DevUi.MUTED, y + 1));
+            y += 12;
+        }
+        return y;
+    }
+
+    /** Nodes that follow the scene (started at its end or waiting on its finish), excluding shot anchors and talks. */
+    private static List<NodeKey> sceneAfter(NodeKey scene) {
+        List<NodeKey> found = new ArrayList<>();
+        for (StoryLinks.Edge edge : ClientDevStore.collectEdges()) {
+            if (edge.from().equals(scene) && !edge.to().equals(scene)
+                    && !edge.label().equals("anchor") && !edge.label().equals("look")
+                    && !edge.label().equals("talk") && !edge.label().equals("in_scene")
+                    && !found.contains(edge.to()) && ClientDevStore.getJson(edge.to().type(), edge.to().id()) != null) {
+                found.add(edge.to());
+            }
+        }
+        return found;
+    }
+
+    /** What plays this scene: a new or existing story event, dialogue, quest, or another scene. */
+    private void pickSceneBefore(DevModeScreen screen, NodeKey scene) {
+        List<NodeKey> already = callers(scene);
+        List<Catalog.Entry> entries = new ArrayList<>();
+        entries.add(new Catalog.Entry(Catalog.SECTION + "new", DevUi.str("vanilla_script.section_new"), ItemStack.EMPTY));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.EVENT.name(), DevUi.str("vanilla_script.new_event"), new ItemStack(Items.REDSTONE_TORCH)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.DIALOGUE_SCREEN.name(), DevUi.str("vanilla_script.new_dialogue"), new ItemStack(Items.WRITABLE_BOOK)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.QUEST_MAIN.name(), DevUi.str("vanilla_script.new_quest"), new ItemStack(Items.FILLED_MAP)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.SCENE.name(), DevUi.str("scene.flow.new_scene_before"), new ItemStack(Items.SPYGLASS)));
+        appendExistingNodes(entries, ClientDevStore.TYPE_EVENT, DevUi.str("vanilla_script.section_event"), scene, already);
+        appendExistingNodes(entries, ClientDevStore.TYPE_DIALOGUE, DevUi.str("vanilla_script.section_dialogue"), scene, already);
+        appendExistingNodes(entries, ClientDevStore.TYPE_QUEST, DevUi.str("vanilla_script.section_quest"), scene, already);
+        appendExistingNodes(entries, ClientDevStore.TYPE_SCENE, DevUi.str("scene.flow.section_scene_before"), scene, already);
+        screen.catalog().openList(DevUi.text("scene.flow.before_title"), entries, (kind, entry) -> {
+            if (entry.id().startsWith(NEW_CALLER)) {
+                try {
+                    view.createLinked(screen, scene, Template.valueOf(entry.id().substring(NEW_CALLER.length())), true);
+                } catch (IllegalArgumentException ignored) {
+                }
+            } else {
+                NodeKey caller = parseNodeKey(entry.id());
+                if (caller != null) {
+                    view.saveEdits(screen);
+                    view.link(screen, caller, scene);
+                }
+            }
+            screen.rebuild();
+        });
+    }
+
+    /** What follows this scene: a new or existing quest, dialogue, scene, script, or document. */
+    private void pickSceneAfter(DevModeScreen screen, NodeKey scene) {
+        List<NodeKey> already = sceneAfter(scene);
+        List<Catalog.Entry> entries = new ArrayList<>();
+        entries.add(new Catalog.Entry(Catalog.SECTION + "new", DevUi.str("vanilla_script.section_new"), ItemStack.EMPTY));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.QUEST_MAIN.name(), DevUi.str("scene.flow.new_quest_after"), new ItemStack(Items.FILLED_MAP)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.DIALOGUE_SCREEN.name(), DevUi.str("scene.flow.new_dialogue_after"), new ItemStack(Items.WRITABLE_BOOK)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.SCENE.name(), DevUi.str("scene.flow.new_scene_after"), new ItemStack(Items.SPYGLASS)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.VANILLA_SCRIPT.name(), DevUi.str("scene.flow.new_script_after"), new ItemStack(Items.COMMAND_BLOCK)));
+        entries.add(new Catalog.Entry(NEW_CALLER + Template.DOCUMENT.name(), DevUi.str("scene.flow.new_document_after"), new ItemStack(Items.BOOK)));
+        appendExistingNodes(entries, ClientDevStore.TYPE_QUEST, DevUi.str("scene.flow.section_quest_after"), scene, already);
+        appendExistingNodes(entries, ClientDevStore.TYPE_DIALOGUE, DevUi.str("scene.flow.section_dialogue_after"), scene, already);
+        appendExistingNodes(entries, ClientDevStore.TYPE_SCENE, DevUi.str("scene.flow.section_scene_after"), scene, already);
+        appendExistingNodes(entries, ClientDevStore.TYPE_VANILLA_SCRIPT, DevUi.str("scene.flow.section_script_after"), scene, already);
+        appendExistingNodes(entries, ClientDevStore.TYPE_DOCUMENT, DevUi.str("scene.flow.section_document_after"), scene, already);
+        screen.catalog().openList(DevUi.text("scene.flow.after_title"), entries, (kind, entry) -> {
+            if (entry.id().startsWith(NEW_CALLER)) {
+                try {
+                    view.createLinked(screen, scene, Template.valueOf(entry.id().substring(NEW_CALLER.length())), false);
+                } catch (IllegalArgumentException ignored) {
+                }
+            } else {
+                NodeKey target = parseNodeKey(entry.id());
+                if (target != null) {
+                    view.saveEdits(screen);
+                    view.link(screen, scene, target);
+                }
+            }
+            screen.rebuild();
+        });
+    }
+
+    private static void appendExistingNodes(List<Catalog.Entry> entries, ResourceLocation type, String heading, NodeKey self, List<NodeKey> skip) {
+        List<Catalog.Entry> rows = new ArrayList<>();
+        ClientDevStore.byType(type).forEach((id, raw) -> {
+            NodeKey node = new NodeKey(type, id);
+            if (!node.equals(self) && !skip.contains(node)) {
+                rows.add(new Catalog.Entry(type + "|" + id, StoryView.title(node), StoryView.icon(node, ClientDevStore.parseObject(raw))));
+            }
+        });
+        if (!rows.isEmpty()) {
+            rows.sort(Comparator.comparing(Catalog.Entry::label));
+            entries.add(new Catalog.Entry(Catalog.SECTION + DevUi.shortId(type.toString()), heading, ItemStack.EMPTY));
+            entries.addAll(rows);
+        }
+    }
+
+    private static @Nullable NodeKey parseNodeKey(String encoded) {
+        int bar = encoded.indexOf('|');
+        if (bar <= 0 || bar >= encoded.length() - 1) {
+            return null;
+        }
+        ResourceLocation type = ResourceLocation.tryParse(encoded.substring(0, bar));
+        ResourceLocation id = ResourceLocation.tryParse(encoded.substring(bar + 1));
+        return type != null && id != null ? new NodeKey(type, id) : null;
     }
 
     /**
@@ -849,8 +1029,16 @@ final class StoryInspector {
             }
             NodeKey partner = outgoing ? edge.to() : edge.from();
             if (listed.add(outgoing + " " + partner)) {
-                boolean missing = ClientDevStore.getJson(partner.type(), partner.id()) == null;
-                links.add(new Link(partner, outgoing, StoryView.linkPhrase(edge.label(), outgoing), missing, StoryEdits.unlink(json.deepCopy(), partner)));
+                String partnerRaw = ClientDevStore.getJson(partner.type(), partner.id());
+                boolean missing = partnerRaw == null;
+                if (!missing && flowShown.contains(outgoing + " " + partner)
+                        && (!outgoing || (!edge.label().equals("anchor") && !edge.label().equals("look") && !edge.label().equals("talk")))) {
+                    continue;
+                }
+                boolean removable = outgoing
+                        ? StoryEdits.unlink(json.deepCopy(), partner)
+                        : !missing && StoryEdits.unlink(ClientDevStore.parseObject(partnerRaw), key);
+                links.add(new Link(partner, outgoing, StoryView.linkPhrase(edge.label(), outgoing), missing, removable));
             }
         }
         // Broken links first: they are the ones to fix.
@@ -860,7 +1048,13 @@ final class StoryInspector {
         for (int i = 0; i < rows; i++) {
             Link link = links.get(i);
             if (link.removable()) {
-                screen.add(Button.builder(Component.literal("✕"), b -> view.unlinkSelected(screen, link.partner()))
+                screen.add(Button.builder(Component.literal("✕"), b -> {
+                            if (link.outgoing()) {
+                                view.unlinkSelected(screen, link.partner());
+                            } else {
+                                view.unlinkFrom(screen, link.partner(), key);
+                            }
+                        })
                         .tooltip(Tooltip.create(DevUi.text("links.remove"))).bounds(x + w - 13, linksTop + i * LINK_H, 13, 11).build());
             }
         }

@@ -29,17 +29,6 @@ Install the mod on the server and on every client.
 3. Write your own files in the story folder and run `/reload`. If something is wrong, `/storybound debug validate`
    lists the problems. They are also written to the log and to `logs/storybound-validation.txt`.
 
-## The story that comes with the mod
-
-Storybound comes with a story of its own for vanilla Minecraft. When you create a world, the Game tab has
-**Story: Yes / No** under "Allow Commands" (Yes by default). With Yes, that world plays the mod's story; you can turn
-it on or off later with `/gamerule storyboundStory true|false`. Worlds made before, and dedicated servers, start with
-it off.
-
-To change the story, open the stories list in the editor and click **⬇ Install**, or run
-`/storybound story install vanilla`. It is copied into your story folder as a story of its own, and the world plays
-your copy from then on.
-
 ## Trying a scenario
 
 A new story folder is empty, so nothing happens in the game until you write something. To see how a feature works, an

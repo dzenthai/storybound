@@ -4,6 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.dzenthai.storybound.module.scene.SceneDefinition;
+import dev.dzenthai.storybound.network.ScenePayloads;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import java.util.List;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -48,8 +54,67 @@ class SceneCameraTest {
         assertEquals(1, half.pos().x, 1e-9);
         assertEquals(0f, half.fov(), 1e-6, "unset FOV stays unset during a glide");
 
-        SceneCamera.Pose wide = new SceneCamera.Pose(Vec3.ZERO, 0, 0, 90f);
-        SceneCamera.Pose tight = new SceneCamera.Pose(Vec3.ZERO, 0, 0, 40f);
-        assertEquals(65f, wide.toward(tight, 0.5).fov(), 1e-4, "explicit FOVs blend smoothly during a glide");
+        SceneCamera.Pose wide = new SceneCamera.Pose(Vec3.ZERO, 0, 0, 90f, -2f);
+        SceneCamera.Pose tight = new SceneCamera.Pose(Vec3.ZERO, 0, 0, 40f, 4f);
+        SceneCamera.Pose mid = wide.toward(tight, 0.5);
+        assertEquals(65f, mid.fov(), 1e-4, "explicit FOVs blend smoothly during a glide");
+        assertEquals(1f, mid.roll(), 1e-4, "roll blends smoothly during a glide");
+    }
+
+    @Test
+    void shotZoomRollLookOffsetAndCodecRoundTripWork() {
+        ScenePayloads.Shot shot = new ScenePayloads.Shot(
+                new Vec3(0, 2, -4), List.of(), new Vec3(0, 2, -2),
+                ScenePayloads.LOOK_POINT, new Vec3(0, 2, 0), -1,
+                0, 40, SceneDefinition.Ease.LINEAR.ordinal(), SceneDefinition.Transition.CUT.ordinal(),
+                60f, 40f, new Vec3(1.0, -0.5, 0.0), -2.0f, 2.0f, 0.04f);
+
+        SceneCamera.Pose start = SceneCamera.pose(shot, 0.0, 0f);
+        SceneCamera.Pose middle = SceneCamera.pose(shot, 0.5, 0f);
+        SceneCamera.Pose end = SceneCamera.pose(shot, 1.0, 0f);
+        assertEquals(60f, start.fov(), 1e-4, "zoom starts at fov");
+        assertEquals(50f, middle.fov(), 1e-4, "zoom interpolates at midpoint");
+        assertEquals(40f, end.fov(), 1e-4, "zoom finishes at fov_to");
+        assertEquals(-2f, start.roll(), 1e-4, "roll starts at roll");
+        assertEquals(0f, middle.roll(), 1e-4, "roll interpolates at midpoint");
+        assertEquals(2f, end.roll(), 1e-4, "roll finishes at roll_to");
+        // Camera at (0, 2, -4) looking toward (0, 2, 0) faces south (+Z), where viewer's right is -X; positive lookOffset.x shifts aim to -X (positive yaw).
+        assertTrue(start.yaw() > 10f, "positive lookOffset.x shifts aim rightward (placing subject on left third): " + start.yaw());
+        assertTrue(start.pitch() > 5f, "negative lookOffset.y aims slightly lower (giving subject headroom): " + start.pitch());
+
+        ByteBuf buf = Unpooled.buffer();
+        ScenePayloads.Shot.STREAM_CODEC.encode(buf, shot);
+        ScenePayloads.Shot decoded = ScenePayloads.Shot.STREAM_CODEC.decode(buf);
+        assertEquals(shot, decoded, "all cinematic Shot fields survive network round-trip");
+    }
+
+    @Test
+    void freeLookInterpolatesShortestYawArcAndSurvivesCodecRoundTrip() {
+        List<Vec2> rotations = List.of(new Vec2(170f, -10f), new Vec2(-170f, 10f));
+        ScenePayloads.Shot freeShot = new ScenePayloads.Shot(
+                new Vec3(0, 4, -6), List.of(), new Vec3(6, 4, -6),
+                ScenePayloads.LOOK_FREE, Vec3.ZERO, -1,
+                0, 40, SceneDefinition.Ease.LINEAR.ordinal(), SceneDefinition.Transition.CUT.ordinal(),
+                58f, 48f, Vec3.ZERO, -1f, 1f, 0.02f, rotations);
+
+        SceneCamera.Pose start = SceneCamera.pose(freeShot, 0.0, 0f);
+        SceneCamera.Pose mid = SceneCamera.pose(freeShot, 0.5, 0f);
+        SceneCamera.Pose end = SceneCamera.pose(freeShot, 1.0, 0f);
+        assertEquals(170f, start.yaw(), 1e-4, "starts at first rotation yaw");
+        assertEquals(-10f, start.pitch(), 1e-4, "starts at first rotation pitch");
+        assertEquals(0f, Mth.wrapDegrees(mid.yaw() - 180f), 1e-4, "turns shortest way through 180 instead of across 0");
+        assertEquals(0f, mid.pitch(), 1e-4, "interpolates pitch smoothly");
+        assertEquals(0f, Mth.wrapDegrees(end.yaw() - (-170f)), 1e-4, "ends at final rotation yaw");
+        assertEquals(10f, end.pitch(), 1e-4, "ends at final rotation pitch");
+
+        ByteBuf buf = Unpooled.buffer();
+        ScenePayloads.Shot.STREAM_CODEC.encode(buf, freeShot);
+        ScenePayloads.Shot decoded = ScenePayloads.Shot.STREAM_CODEC.decode(buf);
+        assertEquals(ScenePayloads.LOOK_FREE, decoded.look(), "look mode preserved");
+        assertEquals(2, decoded.rotations().size(), "rotation count preserved");
+        assertEquals(170f, decoded.rotations().get(0).x, 1e-4, "first yaw preserved");
+        assertEquals(-10f, decoded.rotations().get(0).y, 1e-4, "first pitch preserved");
+        assertEquals(-170f, decoded.rotations().get(1).x, 1e-4, "second yaw preserved");
+        assertEquals(10f, decoded.rotations().get(1).y, 1e-4, "second pitch preserved");
     }
 }

@@ -610,6 +610,16 @@ public final class Dialogues {
         return false;
     }
 
+    /** Whether an active dialogue holds this entity still ({@code npc_stops: true}); false for walking HUD talks or paused talks. */
+    static boolean holdsStill(Entity entity) {
+        for (DialogueSession session : SESSIONS.values()) {
+            if (!session.closed && session.bound == entity && session.base().npcStops()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** True while the player talks to this entity; their right-clicks on it do nothing else. */
     static boolean isTalkingTo(ServerPlayer player, Entity entity) {
         DialogueSession session = SESSIONS.get(player.getUUID());

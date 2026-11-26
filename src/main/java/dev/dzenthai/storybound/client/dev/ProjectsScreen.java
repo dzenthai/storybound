@@ -1,6 +1,5 @@
 package dev.dzenthai.storybound.client.dev;
 
-import dev.dzenthai.storybound.core.data.StoryFolder;
 import dev.dzenthai.storybound.core.data.StoryProjects;
 import dev.dzenthai.storybound.network.DevProjectPayloads;
 import java.util.List;
@@ -119,17 +118,6 @@ final class ProjectsScreen extends Screen {
             int pagerY = 60 + rows * 44;
             button(Component.literal("←"), left, pagerY, 26, () -> { page--; rebuildWidgets(); }).active = !waiting && page > 0;
             button(Component.literal("→"), left + contentWidth - 26, pagerY, 26, () -> { page++; rebuildWidgets(); }).active = !waiting && page < lastPage;
-        }
-        // The stories bundled in the mod not yet in the story folder: one click puts each in as a story of its own.
-        int installY = height - 54;
-        for (String bundled : StoryFolder.bundledStories()) {
-            if (takenIds().contains(bundled)) {
-                continue;
-            }
-            Button install = button(DevUi.text("projects.install", StoryFolder.bundledTitle(bundled)), left, installY, contentWidth,
-                    () -> request("install", bundled, "", false, AfterRequest.LIST));
-            install.setTooltip(Tooltip.create(DevUi.text("projects.install_tooltip")));
-            installY -= 24;
         }
         int half = (contentWidth - 8) / 2;
         button(DevUi.text("projects.new").copy().withColor(DevUi.ACCENT), left, height - 30, half, () -> {

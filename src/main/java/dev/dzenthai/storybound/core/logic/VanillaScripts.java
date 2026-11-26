@@ -74,7 +74,7 @@ public final class VanillaScripts {
             CommandSyntaxException failure = Commands.getParseException(parsed);
             if (failure != null) {
                 problems.add("line " + (i + 1) + ": " + failure.getMessage());
-            } else if (parsed.getContext().getCommand() == null) {
+            } else if (parsed.getContext().getLastChild().getCommand() == null) {
                 problems.add("line " + (i + 1) + ": incomplete command");
             }
         }

@@ -53,15 +53,24 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
+import net.minecraft.world.entity.ai.village.poi.PoiRecord;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.AbstractVillager;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
 import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
@@ -177,6 +186,7 @@ public final class Scenes {
         for (SceneDefinition.Shot shot : scene.shots()) {
             shot.dialogue().ifPresent(references::dialogue);
             anchorReferences(shot.anchor(), references);
+            shot.fallback().ifPresent(fallback -> anchorReferences(fallback, references));
             shot.camera().ifPresent(camera -> {
                 if (camera.look() instanceof SceneDefinition.AtOther other) {
                     anchorReferences(other.anchor(), references);
@@ -207,6 +217,8 @@ public final class Scenes {
                 String where = "Shot " + (index + 1);
                 anchorProblem(shot.anchor(), worlds ? server : null).ifPresent(problem ->
                         sink.accept(ValidationIssue.error(SceneRegistries.SCENES.id(), id, where + " is placed against " + problem)));
+                shot.fallback().ifPresent(fallback -> anchorProblem(fallback, worlds ? server : null).ifPresent(problem ->
+                        sink.accept(ValidationIssue.error(SceneRegistries.SCENES.id(), id, where + " falls back to " + problem))));
                 if (shot.camera().isPresent() && shot.camera().get().look() instanceof SceneDefinition.AtOther other) {
                     anchorProblem(other.anchor(), worlds ? server : null).ifPresent(problem ->
                             sink.accept(ValidationIssue.error(SceneRegistries.SCENES.id(), id, where + " looks at " + problem)));
@@ -282,18 +294,22 @@ public final class Scenes {
         return session != null ? session.music : Optional.empty();
     }
 
-    /** Skips the rest of the scene the player watches, running any remaining cue actions and its on_end. */
+    /** Force-skips the rest of the scene the player watches (server/tests), running any remaining cue actions and its on_end. */
     public static void skip(ServerPlayer player) {
         Session session = SESSIONS.get(player.getUUID());
         if (session != null) {
-            skip(player, session.id);
+            skip(player, session.id, true);
         }
     }
 
-    /** Skips the rest of the given scene session when the player is watching it (and not in one of its talks). */
+    /** Player-requested skip (Space): skips the given scene session when allowed by {@code skippable} (and not in one of its talks). */
     public static void skip(ServerPlayer player, int sessionId) {
+        skip(player, sessionId, false);
+    }
+
+    private static void skip(ServerPlayer player, int sessionId, boolean force) {
         Session session = SESSIONS.get(player.getUUID());
-        if (session == null || session.id != sessionId || session.talking) {
+        if (session == null || session.id != sessionId || session.talking || (!force && !session.definition.skippable())) {
             return;
         }
         if (player.connection != null) {
@@ -346,13 +362,13 @@ public final class Scenes {
             SceneDefinition.Shot shot = definition.shots().get(index);
             if (shot.talk()) {
                 // A talk takes no time of the scene's clock: the clock waits while it goes on.
-                Found anchor = shot.anchor() instanceof SceneDefinition.PlayerAnchor ? null : find(player, shot.anchor());
+                Found anchor = resolveAnchor(player, shot.anchor(), shot.fallback(), true);
                 timeline.add(new Timed(at, null, null, new Talk(shot.dialogue().orElseThrow(), anchor != null ? anchor.entity() : null)));
                 talks = true;
                 continue;
             }
             SceneDefinition.Camera camera = shot.camera().orElseThrow();
-            Planned planned = plan(player, shot.anchor(), camera, shot.transition());
+            Planned planned = plan(player, shot.anchor(), shot.fallback(), camera, shot.transition());
             if (planned.skipped() != null) {
                 StoryTrace.note(player, "scene " + scene, "shot " + (index + 1) + " left out: " + planned.skipped());
                 continue;
@@ -400,7 +416,7 @@ public final class Scenes {
             if (openingFade != null) {
                 openingFade.send(player);
             }
-            StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Play(session.id, definition.letterbox(), shots));
+            StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Play(session.id, definition.letterbox(), definition.skippable(), shots));
         }
         runDue(player, session);
         if (SESSIONS.get(player.getUUID()) == session) {
@@ -422,22 +438,111 @@ public final class Scenes {
         }
     }
 
-    private static Planned plan(ServerPlayer player, SceneDefinition.Anchor anchorOf, SceneDefinition.Camera camera, SceneDefinition.Transition transition) {
-        Found anchor = find(player, anchorOf);
+    /** Candidate yaw rotations (degrees) tried when the authored angle around an anchor is blocked by a wall or terrain. */
+    private static final float[] SAFE_YAW_DELTAS = {0f, 45f, -45f, 90f, -90f, 135f, -135f, 180f};
+    /** Margin kept in front of a block hit when pulling a blocked camera waypoint out of a wall. */
+    private static final double WALL_PADDING = 0.35;
+    /** Closest a pulled-back waypoint may approach the look origin. */
+    private static final double MIN_PULLBACK_DIST = 0.85;
+
+    private static @Nullable Found resolveAnchor(ServerPlayer player, SceneDefinition.Anchor primary, Optional<SceneDefinition.Anchor> fallback, boolean skipPlayer) {
+        Found found = skipPlayer && primary instanceof SceneDefinition.PlayerAnchor ? null : find(player, primary);
+        if (found == null && fallback.isPresent()) {
+            SceneDefinition.Anchor fb = fallback.get();
+            found = skipPlayer && fb instanceof SceneDefinition.PlayerAnchor ? null : find(player, fb);
+        }
+        return found;
+    }
+
+    /** Plans a single shot against the world; exposed for GameTests verifying camera safety and anchors. */
+    public static @Nullable ScenePayloads.Shot planForTests(ServerPlayer player, SceneDefinition.Shot shot) {
+        if (shot.camera().isEmpty()) {
+            return null;
+        }
+        return plan(player, shot.anchor(), shot.fallback(), shot.camera().get(), shot.transition()).shot();
+    }
+
+    private static Planned plan(ServerPlayer player, SceneDefinition.Anchor anchorOf, Optional<SceneDefinition.Anchor> fallback,
+                                SceneDefinition.Camera camera, SceneDefinition.Transition transition) {
+        Found anchor = resolveAnchor(player, anchorOf, fallback, false);
         if (anchor == null) {
             return Planned.skip("its anchor " + describe(anchorOf) + " is not found near the player");
         }
-        Vec3 from = place(anchor, camera.from());
-        List<Vec3> via = camera.via().stream().map(point -> place(anchor, point)).toList();
-        Vec3 to = place(anchor, camera.to());
+        ServerLevel level = player.serverLevel();
+        Found placedAnchor = anchor;
+        if (camera.safeAngle() && camera.aboveGround() <= 0f && camera.look() instanceof SceneDefinition.AtAnchor) {
+            placedAnchor = chooseOpenAngle(level, anchor, camera);
+        }
+        Vec3 from = place(placedAnchor, camera.from());
+        List<Vec3> via = new ArrayList<>(camera.via().size());
+        for (Vec3 point : camera.via()) {
+            via.add(place(placedAnchor, point));
+        }
+        Vec3 to = place(placedAnchor, camera.to());
+
+        if (camera.aboveGround() > 0f) {
+            float clearance = camera.aboveGround();
+            from = liftAboveGround(level, from, clearance);
+            for (int i = 0; i < via.size(); i++) {
+                via.set(i, liftAboveGround(level, via.get(i), clearance));
+            }
+            to = liftAboveGround(level, to, clearance);
+            // Also keep the flight chord above intermediate terrain ridges / roofs.
+            ScenePath prelim = ScenePath.of(from, via, to);
+            double extraLift = 0.0;
+            for (double sample : new double[] {0.25, 0.5, 0.75}) {
+                Vec3 mid = prelim.pointAt(sample);
+                double need = maxSurfaceY(level, mid.x, mid.z) + clearance - mid.y;
+                if (need > extraLift) {
+                    extraLift = need;
+                }
+            }
+            if (extraLift > 0.0) {
+                from = from.add(0, extraLift, 0);
+                for (int i = 0; i < via.size(); i++) {
+                    via.set(i, via.get(i).add(0, extraLift, 0));
+                }
+                to = to.add(0, extraLift, 0);
+            }
+        } else if (camera.safeAngle()) {
+            Vec3 origin = anchor.eye();
+            from = keepClear(level, origin, from);
+            for (int i = 0; i < via.size(); i++) {
+                via.set(i, keepClear(level, origin, via.get(i)));
+            }
+            to = keepClear(level, origin, to);
+        }
+
         int look;
         Vec3 point;
         int entity = -1;
+        List<Vec2> rotations = List.of();
         switch (camera.look()) {
             case SceneDefinition.AlongPath path -> {
                 look = ScenePayloads.LOOK_PATH;
                 Vec3 dir = ScenePath.of(from, via, to).tangentAt(0.0);
                 point = dir.lengthSqr() > 1.0e-6 ? from.add(dir) : anchor.eye();
+            }
+            case SceneDefinition.FreeLook free -> {
+                look = ScenePayloads.LOOK_FREE;
+                point = anchor.eye();
+                List<Vec3> controlPts = new ArrayList<>(via.size() + 2);
+                controlPts.add(from);
+                controlPts.addAll(via);
+                controlPts.add(to);
+                List<Vec2> worldRots = new ArrayList<>(controlPts.size());
+                List<SceneDefinition.Rotation> authored = camera.rotations();
+                for (int i = 0; i < controlPts.size(); i++) {
+                    if (i < authored.size()) {
+                        SceneDefinition.Rotation r = authored.get(i);
+                        worldRots.add(new Vec2(Mth.wrapDegrees(placedAnchor.yaw() + r.yaw()), Mth.clamp(r.pitch(), -89.9f, 89.9f)));
+                    } else if (!worldRots.isEmpty()) {
+                        worldRots.add(worldRots.getLast());
+                    } else {
+                        worldRots.add(facingAngles(controlPts.get(i), anchor.eye()));
+                    }
+                }
+                rotations = List.copyOf(worldRots);
             }
             case SceneDefinition.AtOther other -> {
                 Found target = find(player, other.anchor());
@@ -464,8 +569,112 @@ public final class Scenes {
                         + " blocks away, beyond what the player's world has loaded (" + (int) reach + ")");
             }
         }
-        return new Planned(new ScenePayloads.Shot(from, via, to, look, point, entity, 0, 1, camera.ease().ordinal(),
-                transition.ordinal(), camera.fov().orElse(0f)), null);
+        float roll = camera.roll();
+        float rollTo = camera.rollTo().orElse(roll);
+        return new Planned(new ScenePayloads.Shot(from, List.copyOf(via), to, look, point, entity, 0, 1, camera.ease().ordinal(),
+                transition.ordinal(), camera.fov().orElse(0f), camera.fovTo().orElse(0f), camera.lookOffset(), roll, rollTo, camera.shake(), rotations), null);
+    }
+
+    private static Vec2 facingAngles(Vec3 pos, Vec3 target) {
+        double dx = target.x - pos.x;
+        double dy = target.y - pos.y;
+        double dz = target.z - pos.z;
+        double flat = Math.sqrt(dx * dx + dz * dz);
+        if (flat < 1.0e-6 && Math.abs(dy) < 1.0e-6) {
+            return Vec2.ZERO;
+        }
+        return new Vec2((float) Math.toDegrees(Math.atan2(-dx, dz)), (float) -Math.toDegrees(Math.atan2(dy, flat)));
+    }
+
+    /**
+     * Picks the clearest yaw rotation around {@code anchor} when the authored {@code 0°} direction would put the camera
+     * behind a wall, tree trunk, or hillside. If {@code 0°} is completely unobstructed, it is kept untouched.
+     */
+    private static Found chooseOpenAngle(ServerLevel level, Found anchor, SceneDefinition.Camera camera) {
+        Vec3 origin = anchor.eye();
+        List<Vec3> offsets = new ArrayList<>(camera.via().size() + 2);
+        offsets.add(camera.from());
+        offsets.addAll(camera.via());
+        if (!camera.to().equals(camera.from())) {
+            offsets.add(camera.to());
+        }
+        Found best = anchor;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        for (float delta : SAFE_YAW_DELTAS) {
+            Found candidate = delta == 0f ? anchor : new Found(anchor.pos(), anchor.yaw() + delta, anchor.entity());
+            int clear = 0;
+            double freeRatioSum = 0.0;
+            for (Vec3 offset : offsets) {
+                Vec3 pt = place(candidate, offset);
+                double dist = origin.distanceTo(pt);
+                if (dist < 1.0e-4) {
+                    clear++;
+                    freeRatioSum += 1.0;
+                    continue;
+                }
+                BlockHitResult hit = level.clip(new ClipContext(origin, pt, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+                boolean inAir = isClearPoint(level, pt);
+                if (hit.getType() == HitResult.Type.MISS && inAir) {
+                    clear++;
+                    freeRatioSum += 1.0;
+                } else {
+                    double hitDist = hit.getType() == HitResult.Type.MISS ? dist : origin.distanceTo(hit.getLocation());
+                    freeRatioSum += Math.clamp(hitDist / dist, 0.0, 1.0) * (inAir ? 1.0 : 0.5);
+                }
+            }
+            if (delta == 0f && clear == offsets.size()) {
+                return anchor;
+            }
+            double score = clear * 10.0 + freeRatioSum - Math.abs(delta) * 0.001;
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    /** Pulls a blocked waypoint safely in front of the nearest collider along {@code origin -> target}, and out of solid blocks. */
+    private static Vec3 keepClear(ServerLevel level, Vec3 origin, Vec3 target) {
+        Vec3 diff = target.subtract(origin);
+        double dist = diff.length();
+        Vec3 result = target;
+        if (dist > 1.0e-4) {
+            BlockHitResult hit = level.clip(new ClipContext(origin, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+            if (hit.getType() != HitResult.Type.MISS) {
+                double hitDist = origin.distanceTo(hit.getLocation());
+                double safeDist = Math.max(Math.min(dist, MIN_PULLBACK_DIST), hitDist - WALL_PADDING);
+                if (safeDist < dist) {
+                    result = origin.add(diff.scale(safeDist / dist));
+                }
+            }
+        }
+        for (int step = 0; step < 6 && !isClearPoint(level, result); step++) {
+            result = result.add(0, 0.5, 0);
+        }
+        return result;
+    }
+
+    private static boolean isClearPoint(ServerLevel level, Vec3 pt) {
+        BlockPos pos = BlockPos.containing(pt);
+        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
+    }
+
+    /** Lifts {@code pt} to at least {@code clearance} blocks above the highest nearby motion-blocking surface (hills, canopies, roofs). */
+    private static Vec3 liftAboveGround(ServerLevel level, Vec3 pt, float clearance) {
+        double minY = maxSurfaceY(level, pt.x, pt.z) + clearance;
+        return pt.y < minY ? new Vec3(pt.x, minY, pt.z) : pt;
+    }
+
+    private static double maxSurfaceY(ServerLevel level, double x, double z) {
+        int cx = Mth.floor(x);
+        int cz = Mth.floor(z);
+        int max = level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz);
+        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx + 2, cz));
+        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx - 2, cz));
+        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz + 2));
+        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz - 2));
+        return max;
     }
 
     /** A point given as right, up, forward of the anchor, turned the way it faces. */
@@ -483,6 +692,7 @@ public final class Scenes {
             case SceneDefinition.EntityAnchor entity -> "entity " + entity.entity();
             case SceneDefinition.StructureAnchor structure -> "structure " + structure.structure();
             case SceneDefinition.WaypointAnchor waypoint -> "waypoint " + waypoint.waypoint();
+            case SceneDefinition.PoiAnchor poi -> "poi " + poi.poi();
         };
     }
 
@@ -508,6 +718,14 @@ public final class Scenes {
                 yield shown != null && shown.placed() && shown.dimension().equals(level.dimension().location())
                         ? new Found(shown.pos(), 0, shown.entity() >= 0 ? level.getEntity(shown.entity()) : null) : null;
             }
+            case SceneDefinition.PoiAnchor poi -> {
+                BlockPos origin = player.blockPosition();
+                Optional<BlockPos> nearest = level.getPoiManager()
+                        .getInRange(poi.poi()::contains, origin, poi.radius(), PoiManager.Occupancy.ANY)
+                        .map(PoiRecord::getPos)
+                        .min(Comparator.comparingDouble(pos -> pos.distSqr(origin)));
+                yield nearest.map(pos -> new Found(Vec3.atCenterOf(pos), 0, null)).orElse(null);
+            }
         };
     }
 
@@ -519,6 +737,16 @@ public final class Scenes {
         }
         if (binding.isOne()) {
             NpcParts.Part part = NpcParts.holding(player.server, id);
+            if (part == null) {
+                for (Entity candidate : player.serverLevel().getEntities(player, player.getBoundingBox().inflate(CALM_RADIUS), Entity::isAlive)) {
+                    NpcParts.consider(candidate);
+                    part = NpcParts.holding(player.server, id);
+                    if (part != null) {
+                        dev.dzenthai.storybound.module.dialogue.NpcNames.apply(candidate);
+                        break;
+                    }
+                }
+            }
             Entity holder = part != null ? player.serverLevel().getEntity(part.holder()) : null;
             return holder != null && holder.isAlive() && holder.distanceTo(player) <= CALM_RADIUS ? holder : null;
         }
@@ -575,7 +803,9 @@ public final class Scenes {
             if (shot.talk()) {
                 continue;
             }
-            if (searching(player, shot.anchor()) || shot.camera().isPresent() && shot.camera().get().look() instanceof SceneDefinition.AtOther other
+            if (searching(player, shot.anchor())
+                    || shot.fallback().map(fb -> searching(player, fb)).orElse(false)
+                    || shot.camera().isPresent() && shot.camera().get().look() instanceof SceneDefinition.AtOther other
                     && searching(player, other.anchor())) {
                 return true;
             }
@@ -646,16 +876,7 @@ public final class Scenes {
                     finish(player, session, SceneLogic.Reason.FINISH);
                 }
             } else {
-                Deque<ResourceLocation> queue = QUEUED.get(uuid);
-                if (queue != null && !busy(player)) {
-                    ResourceLocation next = queue.poll();
-                    if (queue.isEmpty()) {
-                        QUEUED.remove(uuid);
-                    }
-                    if (next != null) {
-                        start(player, next);
-                    }
-                }
+                drainQueue(player);
             }
         }
     }
@@ -749,6 +970,8 @@ public final class Scenes {
             session.lastSoundSource = sound.source();
         });
         cue.fade().ifPresent(fade -> fade.send(player));
+        cue.shake().ifPresent(shake -> StoryboundNetwork.sendToPlayer(player,
+                new ScenePayloads.Shake(session.id, shake.intensity(), Math.max(1, Math.round(shake.duration() * 20)))));
         if (!cue.actions().isEmpty()) {
             Actions.runAll(cue.actions(), StoryContext.of(player), "scene " + session.scene, OnFail.ABORT);
         }
@@ -888,7 +1111,10 @@ public final class Scenes {
     }
 
     private static void onLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player && StoryState.getStored(player, StoryScope.PLAYER, PENDING).isPresent()) {
+        if (event.getEntity() instanceof ServerPlayer player
+                && !SESSIONS.containsKey(player.getUUID())
+                && !AWAITING.containsKey(player.getUUID())
+                && StoryState.getStored(player, StoryScope.PLAYER, PENDING).isPresent()) {
             REPLAYS.put(player.getUUID(), REPLAY_DELAY);
         }
     }
@@ -908,6 +1134,12 @@ public final class Scenes {
         AWAITING.clear();
         QUEUED.clear();
         REPLAYS.clear();
+    }
+
+    /** Session id of the scene the player watches, or -1; for tests. */
+    public static int sessionOf(ServerPlayer player) {
+        Session session = SESSIONS.get(player.getUUID());
+        return session != null ? session.id : -1;
     }
 
     /** Ticks the scene the player watches has run, or -1; for tests. */
@@ -930,5 +1162,20 @@ public final class Scenes {
     /** Asks for the replay of an unfinished scene at once, as a login would after its delay; for tests. */
     public static void comeBackForTests(ServerPlayer player) {
         REPLAYS.put(player.getUUID(), 0);
+    }
+
+    /** Starts the next queued scene once the player is free, as the next server tick does; for synchronous tests. */
+    public static void drainQueue(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        Deque<ResourceLocation> queue = QUEUED.get(uuid);
+        if (queue != null && !busy(player)) {
+            ResourceLocation next = queue.poll();
+            if (queue.isEmpty()) {
+                QUEUED.remove(uuid);
+            }
+            if (next != null) {
+                start(player, next);
+            }
+        }
     }
 }

@@ -68,6 +68,17 @@
     },
     "movement": { "description": "How it walks. free: as its kind does. stay: where it stands, turning its head to the nearest player; pushed away, it comes back. home: within home_radius blocks of its place; led away, it comes back. Its place is where it stood when this first held it (where it was spawned, or where an NPC living in the world was then); a teleport moves it. It still sleeps, flees, fights and talks as before, and walks back after.", "enum": ["free", "stay", "home"], "default": "free" },
     "home_radius": { "description": "For home: how far from its place it may walk, in blocks.", "type": "integer", "minimum": 1, "maximum": 64, "default": 8 },
+    "follow": {
+      "description": "Follows a player while conditions hold for them (overrides movement while active). Stops and looks at the player within distance, pauses to fight or talk, and teleports safely behind/beside them past teleport_distance. When it ends, a stay/home NPC settles where it arrived.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conditions": { "description": "Tested for players in the same dimension; without them, follows the nearest player.", "$ref": "logic.schema.json#/definitions/conditions" },
+        "distance": { "description": "How close to stop beside the player, in blocks.", "type": "number", "minimum": 1.5, "maximum": 16, "default": 3.5 },
+        "teleport_distance": { "description": "Past this many blocks, teleports safely behind or beside the player (0 disables teleporting).", "type": "number", "minimum": 0, "maximum": 64, "default": 24 },
+        "speed": { "description": "Multiplier on the mob's natural walk speed (0.5 to 2).", "type": "number", "minimum": 0.5, "maximum": 2, "default": 1 }
+      }
+    },
     "chatter": {
       "description": "Now and then the NPC says one of its phrases to players near it, while it is free (not in a dialogue, not angry).",
       "type": "object",

@@ -1453,6 +1453,181 @@ public final class NpcReactionGameTests {
                 .thenSucceed();
     }
 
+    /**
+     * Conditional {@code follow} over {@code movement: "stay"}: while its condition is false the villager stays at its
+     * place; once true it overrides {@code stay}, keeps awake at night and walks to the player; once false again it
+     * settles at its new place rather than marching back to where it started.
+     */
+    @GameTest(template = "open", batch = MOVEMENT, timeoutTicks = 400)
+    public static void aConditionalFollowOverridesStayAndSettlesAtTheNewPlace(GameTestHelper helper) {
+        Villager npc = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        npc.addTag("gt_follow_stay");
+        BlockPos start = helper.absolutePos(new BlockPos(1, 1, 1));
+        npc.setData(DialogueRegistries.NPC_HOME, GlobalPos.of(helper.getLevel().dimension(), start));
+        ServerPlayer player = player(helper);
+        Vec3 dest = helper.absoluteVec(new Vec3(6.5, 1, 1.5));
+        player.moveTo(dest);
+        ResourceLocation flag = key("escort_stay");
+        Definitions defs = new Definitions().binding("follow_stay",
+                "{ \"entity\": { \"tag\": \"gt_follow_stay\" }, \"movement\": \"stay\", "
+                        + "\"follow\": { \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:escort_stay\", \"value\": true }, "
+                        + "\"distance\": 2.0, \"teleport_distance\": 0, \"speed\": 1.25 } }");
+        defs.install(helper);
+        helper.startSequence()
+                .thenIdle(25)
+                .thenExecute(() -> {
+                    helper.assertTrue(NpcMovement.held(npc), "held by stay + follow");
+                    helper.assertFalse(NpcMovement.following(npc), "condition false: not following yet");
+                    helper.assertTrue(flat(npc, start) <= 1.5, "stays at start before follow: " + flat(npc, start));
+                    try {
+                        StoryState.set(player, StoryScope.PLAYER, flag, new StoryValue.Bool(true));
+                    } catch (StoryException e) {
+                        throw new GameTestAssertException(e.getMessage());
+                    }
+                })
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(NpcMovement.following(npc), "condition true: actively following");
+                    helper.assertTrue(NpcBindings.keepsAwake(npc), "active follower stays awake");
+                    double dist = Math.hypot(npc.getX() - dest.x, npc.getZ() - dest.z);
+                    helper.assertTrue(dist <= 3.0, "walks to the player over stay: " + dist + " blocks off");
+                })
+                .thenExecute(() -> {
+                    try {
+                        StoryState.set(player, StoryScope.PLAYER, flag, new StoryValue.Bool(false));
+                    } catch (StoryException e) {
+                        throw new GameTestAssertException(e.getMessage());
+                    }
+                })
+                .thenWaitUntil(() -> helper.assertFalse(NpcMovement.following(npc), "condition false: stops following"))
+                .thenIdle(45)
+                .thenExecute(() -> {
+                    BlockPos settled = npc.getData(DialogueRegistries.NPC_HOME).pos();
+                    helper.assertTrue(settled.distManhattan(start) >= 2, "home moved to arrival spot: " + settled + " vs " + start);
+                    helper.assertTrue(flat(npc, settled) <= 2.0, "stays settled at new spot: " + flat(npc, settled));
+                    helper.assertTrue(flat(npc, start) >= 2.5, "did not march back to start: " + flat(npc, start));
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A goal mob (iron golem) with {@code follow} alone (no {@code movement}): parses defaults and warns on invalid
+     * {@code teleport_distance <= distance}; teleports safely near the player past {@code teleport_distance} without
+     * creating {@code NPC_HOME}; pauses without teleporting while in a dialogue or in combat; releases cleanly once the
+     * condition clears.
+     */
+    @GameTest(template = "open", batch = MOVEMENT, timeoutTicks = 400)
+    public static void aGoalMobFollowsWithoutMovementTeleportsPastRangeAndPausesForCombatAndDialogue(GameTestHelper helper) {
+        RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess());
+        NpcBinding.Follow defaults = NpcBinding.CODEC.parse(ops, JsonParser.parseString("{ \"entity\": { \"tag\": \"x\" }, \"follow\": {} }"))
+                .getOrThrow().follow().orElseThrow();
+        expect(helper, defaults.distance(), NpcBinding.Follow.DEFAULT.distance(), "default follow distance");
+        expect(helper, defaults.teleportDistance(), NpcBinding.Follow.DEFAULT.teleportDistance(), "default follow teleport_distance");
+        expect(helper, defaults.speed(), NpcBinding.Follow.DEFAULT.speed(), "default follow speed");
+
+        IronGolem golem = helper.spawn(EntityType.IRON_GOLEM, 0, 1, 0);
+        golem.addTag("gt_follow_golem");
+        ServerPlayer player = player(helper);
+        Vec3 far = helper.absoluteVec(new Vec3(5.0, 1, 5.0));
+        Vec3 origin = helper.absoluteVec(new Vec3(0.5, 1, 0.5));
+        player.moveTo(far);
+        ResourceLocation flag = key("escort_golem");
+        Definitions badTp = new Definitions()
+                .binding("follow_bad_tp", "{ \"entity\": { \"tag\": \"gt_follow_bad_tp\" }, \"follow\": { \"distance\": 6, \"teleport_distance\": 4 } }");
+        badTp.install(helper);
+        helper.assertTrue(dev.dzenthai.storybound.core.data.ValidationService.validate().issues().stream()
+                        .anyMatch(issue -> key("follow_bad_tp").equals(issue.entry()) && issue.message().contains("teleport_distance")),
+                "validator warns when teleport_distance <= distance");
+        badTp.uninstall(player);
+        Definitions defs = new Definitions()
+                .dialogue("follow_talk", "{ \"presentation\": \"hud\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": { \"literal\": \"Hold on.\" } } } }")
+                .dialogue("follow_walk_talk", "{ \"presentation\": \"hud\", \"npc_stops\": false, \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": { \"literal\": \"Keep walking.\" } } } }")
+                .binding("follow_golem",
+                        "{ \"entity\": { \"tag\": \"gt_follow_golem\" }, "
+                                + "\"follow\": { \"conditions\": { \"type\": \"flag\", \"key\": \"gametest:escort_golem\", \"value\": true }, "
+                                + "\"distance\": 2.0, \"teleport_distance\": 5.0, \"speed\": 1.25 } }");
+        defs.install(helper);
+        // Lay a dirt_path village road around the far spot so teleporting onto non-full-height road blocks is verified too.
+        for (int dx = 2; dx <= 8; dx++) {
+            for (int dz = 2; dz <= 8; dz++) {
+                helper.setBlock(dx, 0, dz, net.minecraft.world.level.block.Blocks.DIRT_PATH);
+            }
+        }
+        net.minecraft.world.entity.monster.Husk[] foe = new net.minecraft.world.entity.monster.Husk[1];
+        Vec3[] beforeDialogue = new Vec3[1];
+        Vec3[] beforeCombat = new Vec3[1];
+        helper.startSequence()
+                .thenIdle(25)
+                .thenExecute(() -> {
+                    helper.assertTrue(NpcMovement.held(golem), "follow alone holds the mob even without movement");
+                    helper.assertFalse(NpcMovement.following(golem), "flag false: idle");
+                    helper.assertFalse(golem.hasData(DialogueRegistries.NPC_HOME), "no movement: no NPC_HOME");
+                    try {
+                        StoryState.set(player, StoryScope.PLAYER, flag, new StoryValue.Bool(true));
+                    } catch (StoryException e) {
+                        throw new GameTestAssertException(e.getMessage());
+                    }
+                })
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(NpcMovement.following(golem), "flag true: golem follows");
+                    double dist = Math.hypot(golem.getX() - far.x, golem.getZ() - far.z);
+                    helper.assertTrue(dist <= 4.5, "teleported safely onto dirt_path near the player: " + dist + " blocks off");
+                    helper.assertTrue(helper.getLevel().noCollision(golem), "landed with no collision");
+                    helper.assertFalse(golem.hasData(DialogueRegistries.NPC_HOME), "still no NPC_HOME without movement");
+                })
+                .thenExecute(() -> {
+                    // Blocking dialogue (npc_stops: true) pauses follow: moving player past teleport_distance must NOT teleport golem.
+                    beforeDialogue[0] = golem.position();
+                    helper.assertTrue(Dialogues.start(player, key("follow_talk"), golem), "dialogue started");
+                    player.moveTo(origin);
+                })
+                .thenIdle(25)
+                .thenExecute(() -> {
+                    helper.assertTrue(golem.position().distanceTo(beforeDialogue[0]) < 1.5,
+                            "stayed put during npc_stops:true dialogue instead of teleporting: moved " + golem.position().distanceTo(beforeDialogue[0]));
+                    Dialogues.interrupt(player, EndReason.STOPPED);
+                    // Walking dialogue (npc_stops: false) must NOT block follow teleporting!
+                    helper.assertTrue(Dialogues.start(player, key("follow_walk_talk"), golem), "walking dialogue started");
+                })
+                .thenWaitUntil(() -> {
+                    double dist = Math.hypot(golem.getX() - origin.x, golem.getZ() - origin.z);
+                    helper.assertTrue(dist <= 4.5, "teleported smoothly during npc_stops:false walking dialogue: " + dist + " blocks off");
+                })
+                .thenExecute(() -> {
+                    Dialogues.interrupt(player, EndReason.STOPPED);
+                    Vec3 combatFar = helper.absoluteVec(new Vec3(8.5, 1, 8.5));
+                    player.moveTo(combatFar);
+                    // Combat pauses follow while player is within disengage range.
+                    foe[0] = helper.spawnWithNoFreeWill(EntityType.HUSK, 1, 1, 1);
+                    foe[0].setInvulnerable(true);
+                    golem.setTarget(foe[0]);
+                    beforeCombat[0] = combatFar;
+                })
+                .thenIdle(20)
+                .thenExecute(() -> {
+                    double distToPlayer = Math.hypot(golem.getX() - beforeCombat[0].x, golem.getZ() - beforeCombat[0].z);
+                    helper.assertTrue(distToPlayer > 3.5, "did not teleport away from nearby combat: " + distToPlayer);
+                    if (foe[0] != null) {
+                        foe[0].discard();
+                    }
+                    golem.setTarget(null);
+                    try {
+                        StoryState.set(player, StoryScope.PLAYER, flag, new StoryValue.Bool(false));
+                    } catch (StoryException e) {
+                        throw new GameTestAssertException(e.getMessage());
+                    }
+                })
+                .thenWaitUntil(() -> helper.assertFalse(NpcMovement.following(golem),
+                        "flag false: released cleanly (alive=" + golem.isAlive() + ", pos=" + golem.blockPosition()
+                                + ", ticking=" + helper.getLevel().isPositionEntityTicking(golem.blockPosition()) + ")"))
+                .thenExecute(() -> {
+                    defs.uninstall(player);
+                    remove(helper, player);
+                })
+                .thenSucceed();
+    }
+
     private static final String MOVEMENT = "npc_movement";
 
     private static double flat(Entity entity, BlockPos pos) {

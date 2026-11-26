@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -27,7 +29,13 @@ import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -81,6 +89,118 @@ public final class SceneGameTests {
                 """).getOrThrow(GameTestAssertException::new);
         helper.assertTrue(rich.shots().getFirst().talk() && rich.music().isPresent()
                 && rich.shots().get(1).during().getFirst().caption().map(caption -> caption.black()).orElse(false), "a talk, a caption on black, music");
+        helper.assertTrue(rich.skippable(), "skippable defaults to true");
+        SceneDefinition unskippable = parse(helper, "{ \"skippable\": false, \"shots\": [ { \"camera\": { \"from\": [0, 1, 0], \"duration\": 1 } } ] }")
+                .getOrThrow(GameTestAssertException::new);
+        helper.assertFalse(unskippable.skippable(), "skippable: false parses cleanly");
+        SceneDefinition cinematic = parse(helper, """
+                { "letterbox": true, "shots": [
+                  { "anchor": { "poi": "minecraft:meeting", "radius": 48 },
+                    "fallback": "player",
+                    "camera": { "from": [-4, 8, -6], "to": [4, 8, -4], "duration": 4,
+                                "fov": 62, "fov_to": 54, "look_offset": [0.4, -0.3, 0],
+                                "roll": -1.5, "roll_to": 2.0, "shake": 0.04, "above_ground": 6.0, "safe_angle": true },
+                    "during": [ { "at": 0.5, "shake": { "intensity": 0.25, "duration": 0.6 } } ] } ] }
+                """).getOrThrow(GameTestAssertException::new);
+        SceneDefinition.Shot cinShot = cinematic.shots().getFirst();
+        SceneDefinition.Camera cinCam = cinShot.camera().orElseThrow();
+        helper.assertTrue(cinShot.anchor() instanceof SceneDefinition.PoiAnchor poi && poi.radius() == 48, "poi anchor with custom radius parses");
+        helper.assertTrue(cinShot.fallback().orElse(null) instanceof SceneDefinition.PlayerAnchor, "fallback anchor parses");
+        helper.assertTrue(Math.abs(cinCam.fovTo().orElse(0f) - 54f) < 0.01f && Math.abs(cinCam.roll() - (-1.5f)) < 0.01f
+                && Math.abs(cinCam.rollTo().orElse(0f) - 2.0f) < 0.01f && Math.abs(cinCam.aboveGround() - 6.0f) < 0.01f
+                && Math.abs(cinCam.shake() - 0.04f) < 0.001f && Math.abs(cinCam.lookOffset().x - 0.4) < 0.001, "all cinematic camera fields parsed");
+        helper.assertTrue(cinShot.during().getFirst().shake().map(s -> Math.abs(s.intensity() - 0.25f) < 0.01f).orElse(false), "shake cue parsed");
+        SceneDefinition freeLook = parse(helper, """
+                { "shots": [ { "camera": { "from": [0, 3, -4], "to": [4, 3, -4], "duration": 3,
+                  "look": "free", "rotations": [[-15.0, -5.0], [20.0, 12.5]] } } ] }
+                """).getOrThrow(GameTestAssertException::new);
+        SceneDefinition.Camera freeCam = freeLook.shots().getFirst().camera().orElseThrow();
+        helper.assertTrue(freeCam.look() instanceof SceneDefinition.FreeLook && freeCam.rotations().size() == 2
+                && Math.abs(freeCam.rotations().get(1).pitch() - 12.5f) < 0.01f, "look: free and rotations parsed");
+        helper.assertTrue(parse(helper, "{ \"shots\": [ { \"camera\": { \"from\": [0, 1, 0], \"duration\": 1, \"look\": \"free\", \"rotations\": [[0, 95]] } } ] }").isError(),
+                "rotation pitch outside -90..90 is refused");
+        helper.succeed();
+    }
+
+    /** POI anchor finds a nearby bell, fallback triggers when absent, safe_angle avoids walls, and above_ground clears pillars. */
+    @GameTest(template = "open", batch = "scene_cinematography", timeoutTicks = 80)
+    public static void cinematographyAnchorsAndCameraSafetyWork(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(7, 2, 7));
+        player.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0f, 0f); // facing south (+Z)
+        BlockPos bellPos = helper.absolutePos(new BlockPos(10, 2, 7));
+        helper.getLevel().setBlockAndUpdate(bellPos, Blocks.BELL.defaultBlockState());
+        var poiManager = helper.getLevel().getPoiManager();
+        var meeting = BuiltInRegistries.POINT_OF_INTEREST_TYPE.getHolderOrThrow(PoiTypes.MEETING);
+        if (!poiManager.existsAtPosition(PoiTypes.MEETING, bellPos)) {
+            poiManager.add(bellPos, meeting);
+        }
+        try {
+            // 1. PoiAnchor resolves to the bell; missing POI falls back to player.
+            SceneDefinition poiScene = parse(helper, """
+                    { "shots": [
+                      { "anchor": { "poi": "minecraft:meeting", "radius": 24 },
+                        "camera": { "from": [0, 3, -4], "duration": 2, "safe_angle": false } },
+                      { "anchor": { "poi": "minecraft:nether_portal", "radius": 16 },
+                        "fallback": "player",
+                        "camera": { "from": [0, 2, -3], "duration": 2, "safe_angle": false } } ] }
+                    """).getOrThrow(GameTestAssertException::new);
+            var bellShot = Scenes.planForTests(player, poiScene.shots().get(0));
+            helper.assertTrue(bellShot != null && bellShot.lookPoint().distanceTo(Vec3.atCenterOf(bellPos)) < 0.1,
+                    "POI anchor centers on the nearby bell: " + (bellShot != null ? bellShot.lookPoint() : "null"));
+            var fallbackShot = Scenes.planForTests(player, poiScene.shots().get(1));
+            helper.assertTrue(fallbackShot != null && fallbackShot.lookEntity() == player.getId(),
+                    "missing POI uses fallback anchor cleanly");
+
+            // 2. Solid stone wall directly in front of player (+Z): safe_angle picks an unobstructed side!
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dy = 0; dy <= 3; dy++) {
+                    helper.getLevel().setBlockAndUpdate(origin.offset(dx, dy, 2), Blocks.STONE.defaultBlockState());
+                }
+            }
+            SceneDefinition wallScene = parse(helper, """
+                    { "shots": [ { "anchor": "player",
+                      "camera": { "from": [0, 1.5, 4], "to": [0, 1.5, 3], "duration": 2, "safe_angle": true } } ] }
+                    """).getOrThrow(GameTestAssertException::new);
+            var safeShot = Scenes.planForTests(player, wallScene.shots().getFirst());
+            helper.assertTrue(safeShot != null, "safe_angle shot planned");
+            var los = helper.getLevel().clip(new ClipContext(player.getEyePosition(), safeShot.from(),
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+            helper.assertTrue(los.getType() == HitResult.Type.MISS,
+                    "safe_angle rotated away from the stone wall so LOS is completely clear, got from=" + safeShot.from());
+
+            // 3. Tall pillar under aerial path: above_ground lifts camera above pillar + clearance.
+            BlockPos pillarBase = origin.offset(0, 0, -4);
+            for (int y = 0; y < 8; y++) {
+                helper.getLevel().setBlockAndUpdate(pillarBase.above(y), Blocks.STONE.defaultBlockState());
+            }
+            SceneDefinition aerialScene = parse(helper, """
+                    { "shots": [ { "anchor": "player",
+                      "camera": { "from": [0, 2, -4], "to": [3, 2, -4], "duration": 3, "above_ground": 5.0 } } ] }
+                    """).getOrThrow(GameTestAssertException::new);
+            var aerialShot = Scenes.planForTests(player, aerialScene.shots().getFirst());
+            helper.assertTrue(aerialShot != null && aerialShot.from().y >= pillarBase.getY() + 8 + 5.0 - 0.1,
+                    "above_ground lifted aerial camera cleanly over 8-block pillar: from.y=" + (aerialShot != null ? aerialShot.from().y : -1));
+
+            // 4. Free 6-DOF look resolves per-point rotations relative to the anchor's yaw.
+            player.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 90f, 0f);
+            SceneDefinition freeScene = parse(helper, """
+                    { "shots": [ { "anchor": "player",
+                      "camera": { "from": [0, 2, -3], "to": [3, 2, -3], "duration": 3,
+                                  "look": "free", "rotations": [[15.0, -8.0], [-25.0, 4.0]], "safe_angle": false } } ] }
+                    """).getOrThrow(GameTestAssertException::new);
+            var plannedFree = Scenes.planForTests(player, freeScene.shots().getFirst());
+            helper.assertTrue(plannedFree != null
+                    && plannedFree.look() == dev.dzenthai.storybound.network.ScenePayloads.LOOK_FREE
+                    && plannedFree.rotations().size() == 2
+                    && Math.abs(plannedFree.rotations().get(0).x - 105f) < 0.1f
+                    && Math.abs(plannedFree.rotations().get(0).y - (-8f)) < 0.1f
+                    && Math.abs(plannedFree.rotations().get(1).x - 65f) < 0.1f,
+                    "free look offsets yaw by anchor yaw (90+15=105, 90-25=65) and preserves pitch");
+        } finally {
+            poiManager.remove(bellPos);
+            remove(helper, player);
+        }
         helper.succeed();
     }
 
@@ -90,6 +210,7 @@ public final class SceneGameTests {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         Map<ResourceLocation, StoryEvent> events = new LinkedHashMap<>(CoreDefinitions.EVENTS.serverStore().all());
         Map<ResourceLocation, StoryEvent> before = Map.copyOf(events);
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         events.put(key("on_scene_end"), StoryEvent.CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()), JsonParser.parseString(
                 "{ \"trigger\": { \"type\": \"scene_finished\", \"scene\": \"gametest:short\", \"reason\": \"finish\" },"
                         + " \"actions\": { \"type\": \"add_var\", \"key\": \"gametest:scene_finished\", \"amount\": 1 } }")).getOrThrow(GameTestAssertException::new));
@@ -111,7 +232,7 @@ public final class SceneGameTests {
             } finally {
                 CoreDefinitions.EVENTS.serverStore().replace(before);
                 StoryEvents.rebuild();
-                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                SceneRegistries.SCENES.serverStore().replace(scenesBefore);
                 remove(helper, player);
             }
             helper.succeed();
@@ -122,6 +243,7 @@ public final class SceneGameTests {
     @GameTest(template = "empty", batch = "scene_skip", timeoutTicks = 60)
     public static void aSkippedSceneRunsItsCueActionsAndEnds(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         SceneRegistries.SCENES.serverStore().replace(Map.of(key("skip_me"), parse(helper, ONE_SECOND).getOrThrow(GameTestAssertException::new)));
         try {
             Scenes.play(player, key("skip_me"));
@@ -133,7 +255,39 @@ public final class SceneGameTests {
             expect(helper, StoryState.getStored(player, StoryScope.PLAYER, Storybound.id("scene/pending")), Optional.empty(), "forgotten once skipped");
         } finally {
             Scenes.clear();
-            SceneRegistries.SCENES.serverStore().replace(Map.of());
+            SceneRegistries.SCENES.serverStore().replace(scenesBefore);
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    /** A scene with skippable: false ignores a player skip request, while a server-side force skip still ends it. */
+    @GameTest(template = "empty", batch = "scene_unskippable", timeoutTicks = 60)
+    public static void anUnskippableSceneRefusesPlayerSkip(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
+        String locked = """
+                { "skippable": false,
+                  "shots": [ { "camera": { "from": [0, 3, -4], "to": [2, 3, -4], "duration": 2 },
+                               "during": [ { "at": 1.0, "actions": { "type": "add_var", "key": "gametest:locked_cue", "amount": 1 } } ] } ],
+                  "on_end": { "type": "add_var", "key": "gametest:locked_end", "amount": 1 } }
+                """;
+        SceneRegistries.SCENES.serverStore().replace(Map.of(key("locked"), parse(helper, locked).getOrThrow(GameTestAssertException::new)));
+        try {
+            Scenes.play(player, key("locked"));
+            expect(helper, Scenes.watching(player), key("locked"), "watching locked scene");
+            int sessionId = Scenes.sessionOf(player);
+            Scenes.skip(player, sessionId);
+            expect(helper, Scenes.watching(player), key("locked"), "player skip request refused for unskippable scene");
+            expect(helper, stored(player, "locked_cue"), Optional.empty(), "cue did not run prematurely");
+            expect(helper, stored(player, "locked_end"), Optional.empty(), "on_end did not run prematurely");
+            Scenes.skip(player);
+            expect(helper, Scenes.watching(player), null, "server-side force skip still ends it");
+            expect(helper, stored(player, "locked_cue"), Optional.of(new StoryValue.Int(1)), "remaining cue ran on force skip");
+            expect(helper, stored(player, "locked_end"), Optional.of(new StoryValue.Int(1)), "on_end ran on force skip");
+        } finally {
+            Scenes.clear();
+            SceneRegistries.SCENES.serverStore().replace(scenesBefore);
             remove(helper, player);
         }
         helper.succeed();
@@ -143,6 +297,7 @@ public final class SceneGameTests {
     @GameTest(template = "empty", batch = "scene_music_switch", timeoutTicks = 80)
     public static void aLaterMusicCueReplacesThePreviousTrack(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         String twoTracks = """
                 { "shots": [ { "camera": { "from": [0, 3, -4], "to": [2, 3, -4], "duration": 1.2 },
                                "during": [
@@ -161,7 +316,7 @@ public final class SceneGameTests {
                 expect(helper, Scenes.music(player), Optional.empty(), "scene music cleared on end");
             } finally {
                 Scenes.clear();
-                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                SceneRegistries.SCENES.serverStore().replace(scenesBefore);
                 remove(helper, player);
             }
             helper.succeed();
@@ -175,6 +330,7 @@ public final class SceneGameTests {
     @GameTest(template = "empty", batch = "scene_queue", timeoutTicks = 100)
     public static void missingAnchorsAreLeftOutAndScenesWaitTheirTurn(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         SceneRegistries.SCENES.serverStore().replace(Map.of(
                 key("nobody"), parse(helper, "{ \"shots\": [ { \"anchor\": { \"entity\": { \"tag\": \"gametest_nobody_here\" } },"
                         + " \"camera\": { \"from\": [0, 2, 0], \"duration\": 3 } } ], \"on_end\": { \"type\": \"add_var\", \"key\": \"gametest:nobody_end\", \"amount\": 1 } }")
@@ -192,7 +348,7 @@ public final class SceneGameTests {
                 expect(helper, Scenes.watching(player), key("second"), "the second after it");
             } finally {
                 Scenes.clear();
-                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                SceneRegistries.SCENES.serverStore().replace(scenesBefore);
                 remove(helper, player);
             }
             helper.succeed();
@@ -209,6 +365,7 @@ public final class SceneGameTests {
         player.moveTo(helper.absoluteVec(new net.minecraft.world.phys.Vec3(1.5, 2, 1.5)));
         net.minecraft.world.entity.npc.Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 2, 2);
         Zombie zombie = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 2, 4);
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         SceneRegistries.SCENES.serverStore().replace(Map.of(key("safe"), parse(helper,
                 "{ \"shots\": [ { \"camera\": { \"from\": [0, 3, 0], \"duration\": 3 } } ], \"on_end\": { \"type\": \"add_var\", \"key\": \"gametest:safe_end\", \"amount\": 1 } }")
                 .getOrThrow(GameTestAssertException::new)));
@@ -228,7 +385,7 @@ public final class SceneGameTests {
             expect(helper, zombie.getTarget(), villager, "after it the world is as before");
         } finally {
             Scenes.clear();
-            SceneRegistries.SCENES.serverStore().replace(Map.of());
+            SceneRegistries.SCENES.serverStore().replace(scenesBefore);
             remove(helper, player);
         }
         helper.succeed();
@@ -238,6 +395,7 @@ public final class SceneGameTests {
     @GameTest(template = "empty", batch = "scene_back", timeoutTicks = 100)
     public static void aSceneLeftUnfinishedPlaysAgainOnComingBack(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         SceneRegistries.SCENES.serverStore().replace(Map.of(key("again"), parse(helper, ONE_SECOND).getOrThrow(GameTestAssertException::new)));
         Scenes.play(player, key("again"));
         Scenes.leaveForTests(player);
@@ -251,7 +409,7 @@ public final class SceneGameTests {
                 expect(helper, stored(player, "scene_end"), Optional.empty(), "not finished meanwhile");
             } finally {
                 Scenes.clear();
-                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                SceneRegistries.SCENES.serverStore().replace(scenesBefore);
                 remove(helper, player);
             }
             helper.succeed();
@@ -267,6 +425,7 @@ public final class SceneGameTests {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         var dialogues = dev.dzenthai.storybound.module.dialogue.DialogueRegistries.DIALOGUES.serverStore();
         Map<ResourceLocation, dev.dzenthai.storybound.module.dialogue.DialogueDefinition> before = Map.copyOf(dialogues.all());
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         Map<ResourceLocation, dev.dzenthai.storybound.module.dialogue.DialogueDefinition> installed = new LinkedHashMap<>(before);
         installed.put(key("talk"), dev.dzenthai.storybound.module.dialogue.DialogueDefinition.CODEC.parse(
                 RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()), JsonParser.parseString(
@@ -290,7 +449,7 @@ public final class SceneGameTests {
                 expect(helper, stored(player, "talk_end"), Optional.of(new StoryValue.Int(1)), "and its on_end ran");
             } finally {
                 Scenes.clear();
-                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                SceneRegistries.SCENES.serverStore().replace(scenesBefore);
                 dialogues.replace(before);
                 remove(helper, player);
             }
@@ -304,6 +463,7 @@ public final class SceneGameTests {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         var dialogues = dev.dzenthai.storybound.module.dialogue.DialogueRegistries.DIALOGUES.serverStore();
         Map<ResourceLocation, dev.dzenthai.storybound.module.dialogue.DialogueDefinition> before = Map.copyOf(dialogues.all());
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         Map<ResourceLocation, dev.dzenthai.storybound.module.dialogue.DialogueDefinition> installed = new LinkedHashMap<>(before);
         installed.put(key("story"), dev.dzenthai.storybound.module.dialogue.DialogueDefinition.CODEC.parse(
                 RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()), JsonParser.parseString("""
@@ -327,7 +487,7 @@ public final class SceneGameTests {
             } finally {
                 dev.dzenthai.storybound.module.dialogue.Dialogues.interrupt(player, dev.dzenthai.storybound.core.event.DialogueEvent.EndReason.STOPPED);
                 Scenes.clear();
-                SceneRegistries.SCENES.serverStore().replace(Map.of());
+                SceneRegistries.SCENES.serverStore().replace(scenesBefore);
                 dialogues.replace(before);
                 remove(helper, player);
             }
@@ -342,6 +502,7 @@ public final class SceneGameTests {
     @GameTest(template = "empty", batch = "scene_validate")
     public static void aSceneNamingWhatDoesNotExistIsReported(GameTestHelper helper) {
         ResourceLocation broken = key("broken_places");
+        Map<ResourceLocation, SceneDefinition> scenesBefore = Map.copyOf(SceneRegistries.SCENES.serverStore().all());
         SceneRegistries.SCENES.serverStore().replace(Map.of(broken, parse(helper, """
                 { "shots": [
                     { "anchor": { "npc": "gametest:no_such_npc" }, "camera": { "from": [0, 1, 0], "duration": 1 } },
@@ -362,7 +523,7 @@ public final class SceneGameTests {
                 helper.assertTrue(errors.contains(expected), "reported: " + expected + ", got " + errors);
             }
         } finally {
-            SceneRegistries.SCENES.serverStore().replace(Map.of());
+            SceneRegistries.SCENES.serverStore().replace(scenesBefore);
             ValidationService.validate();
         }
         helper.succeed();

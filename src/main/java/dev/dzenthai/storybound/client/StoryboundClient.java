@@ -92,13 +92,13 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.sound.ClientStoryMusic::onSelectMusic);
         NeoForge.EVENT_BUS.addListener(ScreenProjection::capture);
         NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
-        WorldStoryButton.register();
         NeoForge.EVENT_BUS.addListener(AreaRings::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.waypoint.ScentStrands::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderGuiLayer);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderHand);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onComputeFov);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onComputeCameraAngles);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.camera.SceneCamera::onRenderHighlight);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.ScenePreview::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderHand);

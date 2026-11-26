@@ -190,6 +190,9 @@ expect(binding, {"dialogues": [{"dialogue": "a:b"}]}, False, "binding: missing e
 expect(binding, {"entity": {}}, False, "binding: empty selector")
 expect(binding, {"entity": {"uuid": "not-a-uuid"}}, False, "binding: bad uuid")
 expect(binding, {"entity": {"tag": "x"}, "proximity": {"radius": 0}}, False, "binding: zero radius")
+expect(binding, {"entity": {"tag": "x"}, "movement": "stay", "follow": {"conditions": {"type": "flag", "key": "a:escort"}, "distance": 4, "teleport_distance": 24, "speed": 1.2}}, True, "binding: conditional follow")
+expect(binding, {"entity": {"tag": "x"}, "follow": {"distance": 0.5}}, False, "binding: follow distance too small")
+expect(binding, {"entity": {"tag": "x"}, "follow": {"teleport_distance": 0}}, True, "binding: follow without teleport")
 expect(event, {"trigger": {"type": "dialogue_ended", "dialogue": "a:b", "node": "bye"}, "actions": [{"type": "start_dialogue", "dialogue": "a:c"}, {"type": "end_dialogue"}]}, True, "event: dialogue trigger and actions")
 expect(event, {"trigger": custom, "actions": {"type": "start_dialogue"}}, False, "event: start_dialogue without dialogue")
 
@@ -221,10 +224,19 @@ expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "beam": True}, Fals
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2]}}, False, "waypoint: two coordinates")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3], "entity": "123e4567-e89b-12d3-a456-426614174000"}}, False, "waypoint: pos and entity together")
 expect(scene, {"shots": [{"camera": {"from": [0, 1, 0], "duration": 2}}]}, True, "scene: one shot")
-expect(scene, {"shots": [{"anchor": {"npc": "a:b"}, "camera": {"from": [0, 1, 0], "to": [3, 1, 0], "speed": 2, "look": "path"}, "during": [{"at": 1, "title": {"text": "a.b"}}], "transition": "fade"}], "letterbox": True}, True, "scene: anchor, speed, a title")
+expect(scene, {"shots": [{"anchor": {"npc": "a:b"}, "camera": {"from": [0, 1, 0], "to": [3, 1, 0], "speed": 2, "look": "path"}, "during": [{"at": 1, "title": {"text": "a.b"}}], "transition": "fade"}], "letterbox": True, "skippable": False}, True, "scene: anchor, speed, a title, unskippable")
+expect(scene, {"shots": [{"camera": {"from": [0, 1, 0], "duration": 2}}], "skippable": "no"}, False, "scene: bad skippable type")
 expect(scene, {"shots": [{"camera": {"from": [0, 1, 0], "duration": 2, "speed": 3}}]}, False, "scene: duration and speed")
 expect(scene, {"shots": []}, False, "scene: no shots")
 expect(scene, {"shots": [{"anchor": {"npc": "a:b", "waypoint": "a:c"}, "camera": {"from": [0, 1, 0], "duration": 2}}]}, False, "scene: two anchors at once")
+expect(scene, {"shots": [{"anchor": {"poi": "minecraft:meeting", "radius": 64}, "fallback": "player",
+    "camera": {"from": [-6, 12, -6], "via": [[0, 14, -4]], "to": [6, 12, -6], "duration": 5, "look": "free",
+        "rotations": [[-20, 15], [0, 10], [20, 15]], "fov": 62, "fov_to": 54, "look_offset": [0, 1.2, 0],
+        "roll": -1.5, "roll_to": 1.5, "shake": 0.03, "above_ground": 6, "safe_angle": True},
+    "during": [{"at": 1.5, "shake": {"intensity": 0.25, "duration": 0.6}}]}]}, True, "scene: cinematography, poi anchor, fallback, 6-DOF free look and shake cue")
+expect(scene, {"shots": [{"anchor": {"poi": "minecraft:meeting", "radius": 300}, "camera": {"from": [0, 1, 0], "duration": 2}}]}, False, "scene: poi radius too large")
+expect(scene, {"shots": [{"camera": {"from": [0, 1, 0], "duration": 2, "roll": 45}}]}, False, "scene: roll outside -30..30")
+expect(scene, {"shots": [{"camera": {"from": [0, 1, 0], "duration": 2, "fov_to": 150}}]}, False, "scene: fov_to outside 20..120")
 expect(waypoint, {"target": {"pos": [1, 2, 3]}}, False, "waypoint: no name")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "icon": "minecraft:compass"}, True, "waypoint: the editor's node icon")
 expect(waypoint, {"name": "w", "target": {"pos": [1, 2, 3]}, "color": "red"}, False, "waypoint: bad colour")

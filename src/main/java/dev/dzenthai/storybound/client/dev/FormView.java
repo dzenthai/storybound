@@ -153,6 +153,8 @@ final class FormView extends FormScenes {
             }
             if (npc && name.equals("proximity")) {
                 proximityField(path, property.getValue(), object);
+            } else if (npc && name.equals("follow")) {
+                followField(path, property.getValue(), object);
             } else if ("node.choice".equals(form) && name.equals("timeout")) {
                 timeoutField(path, property.getValue(), object);
             } else if ("document".equals(form) && name.equals("journal")) {
@@ -214,7 +216,8 @@ final class FormView extends FormScenes {
             return;
         }
         if (isSceneAnchor(name, owner)) {
-            sceneAnchorField(with(path, name), node, true, "scene.anchor");
+            boolean fallback = name.equals("fallback");
+            sceneAnchorField(with(path, name), node, true, fallback, fallback ? "scene.fallback" : "scene.anchor");
             return;
         }
         if (isSceneLook(name, owner)) {

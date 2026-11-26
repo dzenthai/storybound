@@ -78,7 +78,7 @@ public final class NpcBindings {
         searchRadius = Math.max(searchRadius, NpcBinding.Proximity.DEFAULT.radius());
         chatterReach = files.stream().flatMap(entry -> entry.getValue().chatter().stream())
                 .mapToDouble(NpcBinding.Chatter::radius).max().orElse(0);
-        moves = files.stream().anyMatch(entry -> entry.getValue().movement().isPresent());
+        moves = files.stream().anyMatch(entry -> entry.getValue().movement().isPresent() || entry.getValue().follow().isPresent());
     }
 
     /** Whether some binding writes a movement (see {@link NpcMovement}). */
@@ -469,12 +469,12 @@ public final class NpcBindings {
     }
 
     /**
-     * Whether the NPC is talking, so it does not go to bed (asked by vanilla's {@code SleepInBed}): in a dialogue, or
-     * its phrase still over its head. It lies down once it is done.
+     * Whether the NPC is talking or following a player, so it does not go to bed (asked by vanilla's {@code SleepInBed}):
+     * in a dialogue, its phrase still over its head, or actively escorting a player. It lies down once it is done.
      */
     public static boolean keepsAwake(LivingEntity npc) {
         return Dialogues.isEnabled() && npc.level() instanceof net.minecraft.server.level.ServerLevel level
-                && (Dialogues.inDialogue(npc) || NpcPhrases.speaking(npc, level.getServer().getTickCount()));
+                && (Dialogues.inDialogue(npc) || NpcPhrases.speaking(npc, level.getServer().getTickCount()) || NpcMovement.following(npc));
     }
 
     /** The internal player flag of a {@code once} proximity: of the binding that gave the proximity. */
@@ -592,6 +592,7 @@ public final class NpcBindings {
                     first(dynamic(chain), sources, "names", binding -> binding.names().isEmpty() ? Optional.empty() : Optional.of(binding.names()))
                             .orElse(List.of()), false, Optional.empty(),
                     first(chain, sources, "movement", NpcBinding::movement),
+                    first(chain, sources, "follow", NpcBinding::follow),
                     first(chain, sources, "voice", NpcBinding::voice));
             return new Found(List.copyOf(chain), merged, Collections.unmodifiableMap(sources));
         }

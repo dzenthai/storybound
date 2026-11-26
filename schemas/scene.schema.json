@@ -2,13 +2,13 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "storybound/scene.schema.json",
   "title": "Storybound scene",
-  "description": "config/storybound/scenes/<path>.json — a cutscene: shots one after another, each a camera flight placed against an anchor (the player, an NPC, an entity, a structure, a waypoint), and what happens meanwhile. Played by the action play_scene; scene_finished fires at its end. While it plays the player is safe and cannot skip it.",
+  "description": "config/storybound/scenes/<path>.json — a cutscene: shots one after another, each a camera flight placed against an anchor (the player, an NPC, an entity, a structure, a waypoint), and what happens meanwhile. Played by the action play_scene; scene_finished fires at its end. While it plays the player is safe; set skippable to false for important scenes that cannot be skipped.",
   "type": "object",
   "additionalProperties": false,
   "required": ["shots"],
   "definitions": {
     "anchor": {
-      "description": "What the shot's points are placed against: \"player\", or one of npc, entity, structure, waypoint. Not found near the player, in another dimension or too far: the shot is left out.",
+      "description": "What the shot's points are placed against: \"player\", or one of npc, entity, structure, waypoint, poi. Not found near the player, in another dimension or too far: the shot is left out (unless a fallback anchor is set).",
       "oneOf": [
         { "const": "player" },
         {
@@ -18,14 +18,16 @@
             "npc": { "description": "An NPC binding: the one the mod picked, or the nearest entity it is for, within 64 blocks.", "$ref": "logic.schema.json#/definitions/id" },
             "entity": { "description": "The nearest entity this selector matches within 64 blocks.", "$ref": "logic.schema.json#/definitions/entity_selector" },
             "structure": { "description": "The structure the player stands in, else the nearest one the waypoints have found: its middle, on the ground. It faces south.", "$ref": "logic.schema.json#/definitions/id" },
-            "waypoint": { "description": "Where the player sees this waypoint.", "$ref": "logic.schema.json#/definitions/id" }
+            "waypoint": { "description": "Where the player sees this waypoint.", "$ref": "logic.schema.json#/definitions/id" },
+            "poi": { "description": "The nearest point of interest (e.g. minecraft:meeting for a village bell) within radius blocks; faces south.", "$ref": "logic.schema.json#/definitions/id_or_list" },
+            "radius": { "description": "Search radius in blocks for a poi anchor (4 to 128).", "type": "integer", "minimum": 4, "maximum": 128, "default": 64 }
           },
-          "oneOf": [ { "required": ["npc"] }, { "required": ["entity"] }, { "required": ["structure"] }, { "required": ["waypoint"] } ]
+          "oneOf": [ { "required": ["npc"] }, { "required": ["entity"] }, { "required": ["structure"] }, { "required": ["waypoint"] }, { "required": ["poi"] } ]
         }
       ]
     },
     "cue": {
-      "description": "One thing in the shot at its second: exactly one of title, caption, line, sound, music, fade or actions.",
+      "description": "One thing in the shot at its second: exactly one of title, caption, line, sound, music, fade, shake or actions.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -88,6 +90,16 @@
             "color": { "type": "string", "default": "#000000" }
           }
         },
+        "shake": {
+          "description": "A decaying camera-shake impulse at this moment (horn blast, heavy footstep, explosion).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["intensity"],
+          "properties": {
+            "intensity": { "description": "Shake strength (0.01 to 2.0).", "type": "number", "minimum": 0.01, "maximum": 2 },
+            "duration": { "description": "How many seconds the shake decays over.", "type": "number", "minimum": 0.05, "maximum": 10, "default": 0.4 }
+          }
+        },
         "actions": { "$ref": "logic.schema.json#/definitions/actions" }
       }
     },
@@ -97,6 +109,7 @@
       "oneOf": [ { "required": ["camera"] }, { "required": ["dialogue"] } ],
       "properties": {
         "anchor": { "$ref": "#/definitions/anchor", "default": "player" },
+        "fallback": { "description": "Optional backup anchor used if the primary anchor is not found near the player.", "$ref": "#/definitions/anchor" },
         "dialogue": { "description": "Instead of a camera, a talk: the dialogue plays with its own camera, the anchor as the one the player talks to; the scene goes on once it is over.", "$ref": "logic.schema.json#/definitions/id" },
         "camera": {
           "description": "The flight: from and to are [right, up, forward] of the anchor, as it faces. Either duration or speed.",
@@ -109,14 +122,32 @@
             "via": { "description": "Optional intermediate points between from and to: turns the flight into a smooth 3D spline passing through each point in order.", "type": "array", "maxItems": 16, "items": { "$ref": "logic.schema.json#/definitions/vec3" } },
             "to": { "description": "Where the flight ends; without it the camera stays at from.", "$ref": "logic.schema.json#/definitions/vec3" },
             "look": {
-              "description": "anchor: at the anchor (followed when it is an entity); path: the way the camera flies; player; or another anchor.",
-              "oneOf": [ { "enum": ["anchor", "path", "player"] }, { "$ref": "#/definitions/anchor" } ],
+              "description": "anchor: at the anchor (followed when it is an entity); path: the way the camera flies; player; free: per-point [yaw, pitch] rotations relative to the anchor; or another anchor.",
+              "oneOf": [ { "enum": ["anchor", "path", "player", "free"] }, { "$ref": "#/definitions/anchor" } ],
               "default": "anchor"
+            },
+            "rotations": {
+              "description": "Optional per-control-point [yaw, pitch] angles (yaw relative to the anchor, pitch -90 to 90) used when look is \"free\".",
+              "type": "array",
+              "maxItems": 18,
+              "items": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": { "type": "number" }
+              }
             },
             "duration": { "description": "Seconds the flight takes; the camera's speed follows.", "type": "number", "minimum": 0.05, "maximum": 120 },
             "speed": { "description": "Blocks a second; the flight lasts as long as the way takes.", "type": "number", "minimum": 0.05, "maximum": 200 },
             "ease": { "description": "How it speeds up and slows down.", "enum": ["in_out", "linear", "in", "out"], "default": "in_out" },
-            "fov": { "description": "Optional camera field of view in degrees (20 to 120); without it, uses the player's own FOV.", "type": "number", "minimum": 20, "maximum": 120 }
+            "fov": { "description": "Optional camera field of view in degrees (20 to 120); without it, uses the player's own FOV.", "type": "number", "minimum": 20, "maximum": 120 },
+            "fov_to": { "description": "Optional ending field of view in degrees (20 to 120) for a smooth zoom-in or zoom-out across the shot.", "type": "number", "minimum": 20, "maximum": 120 },
+            "look_offset": { "description": "Optional [right, up, forward] shift applied to the look target for Rule of Thirds framing and headroom.", "$ref": "logic.schema.json#/definitions/vec3" },
+            "roll": { "description": "Optional camera horizon tilt in degrees (-30 to 30, e.g. subtle Dutch tilt for tension).", "type": "number", "minimum": -30, "maximum": 30, "default": 0 },
+            "roll_to": { "description": "Optional ending camera roll in degrees (-30 to 30) to tilt smoothly across the shot.", "type": "number", "minimum": -30, "maximum": 30 },
+            "shake": { "description": "Optional continuous handheld breathing/drift intensity (0 to 1; 0.02 to 0.05 for subtle cinema feel).", "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+            "above_ground": { "description": "Minimum height in blocks above the highest terrain, trees, and roofs along the path (0 disables).", "type": "number", "minimum": 0, "maximum": 64, "default": 0 },
+            "safe_angle": { "description": "Automatically rotates to an open side and pulls waypoints clear of walls when the authored angle is blocked.", "type": "boolean", "default": true }
           }
         },
         "during": { "description": "What happens while the shot plays.", "type": "array", "items": { "$ref": "#/definitions/cue" } },
@@ -128,6 +159,7 @@
     "icon": { "type": "string", "description": "Dev mode only: the item this node shows on the editor's canvases." },
     "shots": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/shot" } },
     "letterbox": { "description": "Black bars above and below while it plays.", "type": "boolean", "default": false },
+    "skippable": { "description": "Whether the player can skip the scene with Space.", "type": "boolean", "default": true },
     "music": { "description": "The scene's music, over every other track while it plays.", "$ref": "logic.schema.json#/definitions/id" },
     "invulnerable": { "description": "Nothing hurts the watcher but the void and /kill.", "type": "boolean", "default": true },
     "world": { "description": "calm: mobs near do nothing to the watcher and the villagers, and no monster spawns near; live: the world goes on as usual.", "enum": ["calm", "live"], "default": "calm" },

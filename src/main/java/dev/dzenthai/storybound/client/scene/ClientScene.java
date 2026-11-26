@@ -18,9 +18,14 @@ import org.jetbrains.annotations.Nullable;
 public final class ClientScene {
     /** Ticks past the last shot before a scene the server never ended is let go. */
     private static final int OVERRUN = 100;
+    /** Duration of the smooth letterbox bar slide-in and slide-out, in ticks (~300 ms). */
+    static final double LETTERBOX_EASE_TICKS = 6.0;
 
     private static int session = -1;
     private static boolean letterbox;
+    /** True when this scene chained directly from a previous letterboxed scene so bars stay seamless. */
+    private static boolean letterboxImmediate;
+    private static boolean skippable;
     private static List<ScenePayloads.Shot> shots = List.of();
     private static int total;
     private static int tick;
@@ -78,14 +83,17 @@ public final class ClientScene {
         captionUntil = tick + ticks;
     }
 
-    public static void play(int id, boolean bars, List<ScenePayloads.Shot> planned) {
+    public static void play(int id, boolean bars, boolean allowSkip, List<ScenePayloads.Shot> planned) {
         if (planned.isEmpty()) {
             return;
         }
         dev.dzenthai.storybound.client.dev.DevSoundPreview.stop();
         boolean was = playing();
+        boolean wasLetterbox = was && letterbox;
         session = id;
         letterbox = bars;
+        letterboxImmediate = bars && wasLetterbox;
+        skippable = allowSkip;
         shots = List.copyOf(planned);
         ScenePayloads.Shot last = shots.getLast();
         total = last.start() + last.ticks();
@@ -96,6 +104,9 @@ public final class ClientScene {
         paused = false;
         if (!was) {
             SceneCamera.begin();
+        }
+        if (Minecraft.getInstance().screen instanceof SceneScreen screen) {
+            screen.resetSkip();
         }
         open();
     }
@@ -110,15 +121,21 @@ public final class ClientScene {
         lineUntil = tick + ticks;
     }
 
+    public static void shake(int id, float intensity, int ticks) {
+        if (id == session) {
+            SceneCamera.triggerShake(intensity, ticks);
+        }
+    }
+
     public static void end(int id) {
         if (id == session) {
             stop();
         }
     }
 
-    /** Space on the scene's screen: asks the server to skip the rest of the scene. */
+    /** Space on the scene's screen: asks the server to skip the rest of the scene when allowed. */
     public static void skip() {
-        if (framing()) {
+        if (framing() && skippable) {
             dev.dzenthai.storybound.client.ScreenFadeOverlay.clear();
             PacketDistributor.sendToServer(new ScenePayloads.Skip(session));
         }
@@ -166,6 +183,7 @@ public final class ClientScene {
 
     private static void stop() {
         session = -1;
+        skippable = false;
         shots = List.of();
         line = null;
         speaker = null;
@@ -203,6 +221,26 @@ public final class ClientScene {
 
     static boolean letterbox() {
         return letterbox;
+    }
+
+    /** Smoothly eased letterbox bar height share (0..1), sliding in at start and out near the end. */
+    static float letterboxProgress(float partialTick) {
+        return letterboxProgress(time(partialTick), total, letterbox, letterboxImmediate);
+    }
+
+    static float letterboxProgress(double now, int totalTicks, boolean enabled, boolean immediate) {
+        if (!enabled) {
+            return 0f;
+        }
+        double in = immediate ? 1.0 : Math.clamp(now / LETTERBOX_EASE_TICKS, 0.0, 1.0);
+        double out = totalTicks >= 16 ? Math.clamp((totalTicks - now) / LETTERBOX_EASE_TICKS, 0.0, 1.0) : 1.0;
+        double raw = Math.min(in, out);
+        double inv = 1.0 - raw;
+        return (float) (1.0 - inv * inv * inv);
+    }
+
+    static boolean skippable() {
+        return skippable;
     }
 
     static @Nullable Component speaker() {

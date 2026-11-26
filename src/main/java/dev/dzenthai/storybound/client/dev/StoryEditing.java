@@ -672,6 +672,37 @@ abstract class StoryEditing extends StoryChapters {
         }
     }
 
+    /** Removes what {@code from} has about {@code to} (an incoming link removed from {@code to}'s inspector). */
+    void unlinkFrom(DevModeScreen screen, NodeKey from, NodeKey to) {
+        saveEdits(screen);
+        String before = ClientDevStore.getJson(from.type(), from.id());
+        if (before == null) {
+            return;
+        }
+        JsonObject json = ClientDevStore.parseObject(before);
+        if (!StoryEdits.unlink(json, to)) {
+            return;
+        }
+        String after = DevUi.GSON.toJson(json);
+        if (from.equals(selected)) {
+            editing = json;
+            dirty = false;
+        }
+        ClientDevStore.putLocal(from.type(), from.id(), after);
+        DevRequests.save(from.type(), from.id(), after, Optional.empty());
+        screen.remember(DevUi.str("history.unlink", from.id().getPath(), to.id().getPath()),
+                () -> {
+                    ClientDevStore.putLocal(from.type(), from.id(), before);
+                    DevRequests.restore(from.type(), from.id(), before, Optional.empty());
+                },
+                () -> {
+                    ClientDevStore.putLocal(from.type(), from.id(), after);
+                    DevRequests.restore(from.type(), from.id(), after, Optional.empty());
+                });
+        rebuildCards();
+        screen.status(DevUi.text("status.unlinked", from.id().getPath()), DevUi.WARN);
+    }
+
     /** The cards before the server confirms the deletion, so the chapter is saved without them. */
     private void rebuildCardsWithout(Set<NodeKey> removed) {
         rebuildCards();

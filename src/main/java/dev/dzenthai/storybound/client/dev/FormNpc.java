@@ -49,7 +49,7 @@ abstract class FormNpc extends FormEntities {
             "exclusive", "npc.group.players");
     /** The NPC form's order after "Who it is", as the schema lists it. */
     static final List<String> NPC_ORDER = List.of("dialogues", "interact", "override_interact", "proximity", "exclusive", "busy",
-            "chatter", "voice", "movement", "home_radius", "when_attacked", "invulnerable", "respawn", "custom");
+            "chatter", "voice", "movement", "home_radius", "follow", "when_attacked", "invulnerable", "respawn", "custom");
 
     /**
      * What depends on a switch shows only while it is on, unless the file still sets it: "instead of trading" with
@@ -391,6 +391,54 @@ abstract class FormNpc extends FormEntities {
                     settings.get("radius") instanceof JsonPrimitive radius && radius.isNumber() ? radius.getAsDouble() : 4,
                     settings.get("cooldown") instanceof JsonPrimitive cooldown && cooldown.isNumber() ? cooldown.getAsInt() : 30,
                     flag(settings, "once", false));
+        }
+    }
+
+    /**
+     * Following a player conditionally: yes/no, and while yes its settings in words ("3.5 blocks · tp 24"), which open
+     * them.
+     */
+    void followField(List<Object> path, Node node, @Nullable JsonObject binding) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        Component label = DevUi.text("field.npc.follow");
+        labelRow(label);
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        JsonObject settings = binding != null && binding.get("follow") instanceof JsonObject value ? value : null;
+        boolean on = settings != null;
+        int toggleW = on ? Math.min(60, w / 3) : w;
+        Component state = on ? Component.literal(DevUi.yesNo(true)) : DevUi.text("form.from_below", DevUi.yesNo(false));
+        Button toggle = Button.builder(state, b -> {
+            if (on) {
+                ensureObject(path).remove("follow");
+            } else {
+                ensureObject(path).add("follow", new JsonObject());
+            }
+            host.changed();
+        }).bounds(x, rowTop, toggleW, CONTROL_H).build();
+        if (!node.description().isEmpty()) {
+            toggle.setTooltip(Tooltip.create(Component.literal(described(node.description()))));
+        }
+        screen.add(toggle);
+        if (on) {
+            NpcFollow shown = NpcFollow.of(settings);
+            Component summary = Component.empty()
+                    .append(shown.teleportDistance() <= 0
+                            ? DevUi.text("npc.follow.no_tp", format(shown.distance()))
+                            : DevUi.text("npc.follow.summary", format(shown.distance()), format(shown.teleportDistance())))
+                    .append(" ▸");
+            screen.add(Button.builder(summary, b -> push(with(path, "follow"), node, label.getString(), false))
+                    .bounds(x + toggleW + 2, rowTop, w - toggleW - 2, CONTROL_H).build());
+        }
+    }
+
+    /** The settings a follow object gives, with the defaults for what it leaves out (as {@code NpcBinding.Follow}). */
+    private record NpcFollow(double distance, double teleportDistance) {
+        static NpcFollow of(JsonObject settings) {
+            return new NpcFollow(
+                    settings.get("distance") instanceof JsonPrimitive distance && distance.isNumber() ? distance.getAsDouble() : 3.5,
+                    settings.get("teleport_distance") instanceof JsonPrimitive tp && tp.isNumber() ? tp.getAsDouble() : 24);
         }
     }
 
