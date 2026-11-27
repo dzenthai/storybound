@@ -668,6 +668,173 @@ abstract class FormStory extends FormDialogues {
         return null;
     }
 
+    /**
+     * Places where a document can spawn as world loot: one row per rule with a summary and remove button, followed
+     * always by "+ Add", which appends a new rule and opens its detail page right away.
+     */
+    void documentLootField(List<Object> path, Node node, @Nullable JsonObject document) {
+        Node items = Schemas.items(node);
+        List<Object> lootPath = with(path, "loot");
+        JsonArray rules = document != null && document.get("loot") instanceof JsonArray list ? list : new JsonArray();
+        for (int i = 0; i < rules.size(); i++) {
+            int index = i;
+            if (!row(CONTROL_H)) {
+                continue;
+            }
+            int rowTop = rowY(CONTROL_H);
+            JsonObject rule = rules.get(i) instanceof JsonObject obj ? obj : new JsonObject();
+            String line = lootRuleSummary(rule);
+            String clipped = screen.font().plainSubstrByWidth(line, w - 36);
+            Component shown = Component.literal(clipped + (screen.font().width(line) > w - 36 ? "…" : "") + " ▸");
+            screen.add(Button.builder(shown, b -> {
+                if (items != null) {
+                    push(with(lootPath, index), items, DevUi.str("document.loot.rule_title", index + 1), false);
+                }
+            }).tooltip(Tooltip.create(Component.literal(line))).bounds(x, rowTop, w - 20, CONTROL_H).build());
+            screen.add(removeButton(rowTop, DevUi.text("form.remove"), b -> {
+                JsonArray list = ensureArray(lootPath);
+                if (index < list.size()) {
+                    list.remove(index);
+                }
+                if (list.isEmpty()) {
+                    ensureObject(path).remove("loot");
+                }
+                host.changed();
+            }));
+        }
+        if (row(CONTROL_H)) {
+            screen.add(Button.builder(Component.literal("+ ").append(DevUi.text("form.add")), b -> {
+                JsonArray list = ensureArray(lootPath);
+                list.add(new JsonObject());
+                int index = list.size() - 1;
+                host.changed();
+                if (items != null) {
+                    push(with(lootPath, index), items, DevUi.str("document.loot.rule_title", index + 1), false);
+                }
+            }).tooltip(Tooltip.create(DevUi.text("document.loot.add_tooltip"))).bounds(x, rowY(CONTROL_H), w, CONTROL_H).build());
+        }
+    }
+
+    /**
+     * Source section of one document loot rule: a switcher between "Chests by place" (dimension/biome/structure) and
+     * "Loot table" (specific tables + optional "Restrict by place" toggle). Switching preserves cleared fields in
+     * {@link #switchedAway} for this session.
+     */
+    void lootSourceFields(List<Object> path, Node schema, @Nullable JsonObject rule) {
+        String modeKey = with(path, "loot_mode").toString();
+        String limitKey = with(path, "loot_limit_place").toString();
+        boolean hasTables = rule != null && rule.has("tables");
+        if (hasTables) {
+            entityModes.put(modeKey, "tables");
+        }
+        String mode = entityModes.getOrDefault(modeKey, "place");
+        boolean tablesMode = mode.equals("tables");
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("document.loot.mode"));
+            Button switcher = Button.builder(Component.literal(DevUi.str("document.loot.mode." + mode) + " \u25B8"), b -> {
+                JsonObject target = ensureObject(path);
+                if (tablesMode) {
+                    putAway(with(path, "tables"), target, "tables");
+                    giveBack(with(path, "place"), target, "dimension");
+                    giveBack(with(path, "place"), target, "biome");
+                    giveBack(with(path, "place"), target, "structure");
+                    entityModes.put(modeKey, "place");
+                } else {
+                    putAway(with(path, "place"), target, "dimension");
+                    putAway(with(path, "place"), target, "biome");
+                    putAway(with(path, "place"), target, "structure");
+                    giveBack(with(path, "tables"), target, "tables");
+                    entityModes.remove(limitKey);
+                    entityModes.put(modeKey, "tables");
+                }
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            switcher.setTooltip(Tooltip.create(DevUi.text("document.loot.mode.tooltip")));
+            screen.add(switcher);
+        }
+        if (!tablesMode) {
+            placeRows(path, true);
+            boolean hasPlace = rule != null && (rule.has("dimension") || rule.has("biome") || rule.has("structure"));
+            if (!hasPlace) {
+                text(DevUi.text("document.loot.place_empty"), DevUi.MUTED);
+            }
+            return;
+        }
+        Picker tablesPicker = picker("tables", schema, path);
+        if (tablesPicker != null) {
+            idListRows(path, "tables", tablesPicker, fieldLabel("tables", false, schema));
+        }
+        if (!hasTables) {
+            text(DevUi.text("document.loot.tables_empty"), DevUi.MUTED);
+        }
+        boolean hasPlace = rule != null && (rule.has("dimension") || rule.has("biome") || rule.has("structure"));
+        boolean limitPlace = hasPlace || "on".equals(entityModes.get(limitKey));
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("document.loot.limit_place"));
+            Button toggle = Button.builder(Component.literal(DevUi.yesNo(limitPlace)), b -> {
+                JsonObject target = ensureObject(path);
+                if (limitPlace) {
+                    putAway(with(path, "tables_place"), target, "dimension");
+                    putAway(with(path, "tables_place"), target, "biome");
+                    putAway(with(path, "tables_place"), target, "structure");
+                    entityModes.remove(limitKey);
+                } else {
+                    giveBack(with(path, "tables_place"), target, "dimension");
+                    giveBack(with(path, "tables_place"), target, "biome");
+                    giveBack(with(path, "tables_place"), target, "structure");
+                    entityModes.put(limitKey, "on");
+                }
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            toggle.setTooltip(Tooltip.create(DevUi.text("document.loot.limit_place.tooltip")));
+            screen.add(toggle);
+        }
+        if (limitPlace) {
+            placeRows(path, true);
+        }
+    }
+
+    /** Crisp summary of one document loot rule for the document's "Where it appears" list. */
+    private static String lootRuleSummary(JsonObject rule) {
+        List<String> parts = new ArrayList<>();
+        List<String> tables = stringsOf(rule.get("tables") instanceof JsonPrimitive one ? asList(one) : rule.get("tables"));
+        List<String> where = new ArrayList<>();
+        if (rule.get("dimension") instanceof JsonPrimitive dimension) {
+            where.add(dimensionName(dimension.getAsString()));
+        }
+        for (String field : List.of("biome", "structure")) {
+            List<String> ids = stringsOf(rule.get(field) instanceof JsonPrimitive one ? asList(one) : rule.get(field));
+            ids.forEach(id -> where.add(DevUi.humanize(id.substring(id.indexOf(':') + 1))));
+        }
+        if (tables.isEmpty()) {
+            parts.add(where.isEmpty() ? DevUi.str("document.loot.any_chests")
+                    : DevUi.str("document.loot.chests_in", String.join(", ", where)));
+        } else {
+            List<String> shortTables = new ArrayList<>();
+            int shown = Math.min(2, tables.size());
+            for (int i = 0; i < shown; i++) {
+                String id = tables.get(i);
+                shortTables.add(id.startsWith("minecraft:") ? id.substring("minecraft:".length()) : id);
+            }
+            String tableText = String.join(", ", shortTables) + (tables.size() > 2 ? " +" + (tables.size() - 2) : "");
+            parts.add(tableText);
+            if (!where.isEmpty()) {
+                parts.add(String.join(", ", where));
+            }
+        }
+        if (rule.get("chance") instanceof JsonPrimitive chance && chance.isNumber() && chance.getAsDouble() < 1.0) {
+            parts.add(format(Math.round(chance.getAsDouble() * 10000) / 100.0) + "%");
+        }
+        if (rule.get("once") instanceof JsonPrimitive once) {
+            String value = once.getAsString();
+            if (value.equals("player") || value.equals("world")) {
+                parts.add(DevUi.str("document.loot.once_" + value));
+            }
+        }
+        boolean hasConditions = rule.get("conditions") instanceof JsonArray list ? !list.isEmpty() : rule.get("conditions") instanceof JsonObject;
+        return "📦 " + String.join(" · ", parts) + (hasConditions ? DevUi.str("quest.and_conditions") : "");
+    }
+
     /** An empty "next" of a quest's stage: the following stage, or the quest completed after the last. */
     @Nullable Component stageDefault(String name, List<Object> path) {
         return name.equals("next") && "stage".equals(insideQuest(path)) && host.quest() != null ? DevUi.text("quest.next_default") : null;

@@ -912,6 +912,9 @@ abstract class FormCore {
         if (properties.containsKey("order") && properties.containsKey("lines")) {
             return "phrases";
         }
+        if (properties.containsKey("tables") && properties.containsKey("once")) {
+            return "loot_rule";
+        }
         // A dialogue node's own words, by its type:
         // "storybound.dev.field.node.call.next".
         Node type = properties.get("type");

@@ -76,28 +76,29 @@ final class FormView extends FormScenes {
             return;
         }
         Set<String> required = Schemas.required(schema);
+        Map<String, Node> own = Schemas.properties(schema);
         boolean npc = path.isEmpty() && host.npcBinding() != null;
-        boolean waypoint = path.isEmpty() && Schemas.properties(schema).containsKey("target") && Schemas.properties(schema).containsKey("show_ring");
+        boolean waypoint = path.isEmpty() && own.containsKey("target") && own.containsKey("show_ring");
         boolean dialogue = path.isEmpty() && isDialogue(schema);
-        boolean participant = path.size() == 2 && "participants".equals(path.getFirst()) && Schemas.properties(schema).containsKey("portrait");
+        boolean participant = path.size() == 2 && "participants".equals(path.getFirst()) && own.containsKey("portrait");
         JsonObject inDialogue = host.dialogue();
         String node = inDialogue != null && path.isEmpty() && host.root().get("type") instanceof JsonPrimitive type ? type.getAsString() : null;
-        boolean option = inDialogue != null && path.size() == 2 && "options".equals(path.getFirst()) && Schemas.properties(schema).containsKey("locked");
-        boolean document = path.isEmpty() && Schemas.properties(schema).containsKey("journal") && Schemas.properties(schema).containsKey("kind");
-        boolean journal = path.size() == 1 && "journal".equals(path.getFirst()) && Schemas.properties(schema).containsKey("add_on_read");
-        boolean quest = path.isEmpty() && Schemas.properties(schema).containsKey("stages") && Schemas.properties(schema).containsKey("fail_when");
-        String inside = Schemas.properties(schema).containsKey("objectives") || Schemas.properties(schema).containsKey("since_stage") ? insideQuest(path) : null;
-        boolean boss = path.isEmpty() && Schemas.properties(schema).containsKey("participation");
-        boolean codex = path.isEmpty() && Schemas.properties(schema).containsKey("show_kills");
-        boolean section = path.size() == 2 && "sections".equals(path.getFirst()) && Schemas.properties(schema).containsKey("unlock");
-        boolean unlock = Schemas.properties(schema).containsKey("on") && Schemas.properties(schema).containsKey("count");
-        boolean observed = Schemas.properties(schema).containsKey("time") && Schemas.properties(schema).containsKey("distance")
-                && Schemas.properties(schema).containsKey("block");
+        boolean option = inDialogue != null && path.size() == 2 && "options".equals(path.getFirst()) && own.containsKey("locked");
+        boolean document = path.isEmpty() && own.containsKey("journal") && own.containsKey("kind");
+        boolean lootRule = path.size() == 2 && "loot".equals(path.getFirst()) && own.containsKey("tables") && own.containsKey("once");
+        boolean journal = path.size() == 1 && "journal".equals(path.getFirst()) && own.containsKey("add_on_read");
+        boolean quest = path.isEmpty() && own.containsKey("stages") && own.containsKey("fail_when");
+        String inside = own.containsKey("objectives") || own.containsKey("since_stage") ? insideQuest(path) : null;
+        boolean boss = path.isEmpty() && own.containsKey("participation");
+        boolean codex = path.isEmpty() && own.containsKey("show_kills");
+        boolean section = path.size() == 2 && "sections".equals(path.getFirst()) && own.containsKey("unlock");
+        boolean unlock = own.containsKey("on") && own.containsKey("count");
+        boolean observed = own.containsKey("time") && own.containsKey("distance") && own.containsKey("block");
         String rootForm = path.isEmpty() && inDialogue == null && host.node() != null ? ROOT_FORMS.get(host.node().type()) : null;
         // A scene's shot and its camera: what the shot is against first, then how the camera flies.
-        boolean shot = Schemas.properties(schema).containsKey("camera") && Schemas.properties(schema).containsKey("transition");
-        boolean camera = Schemas.properties(schema).containsKey("from") && Schemas.properties(schema).containsKey("speed");
-        String form = node != null ? "node." + node : option ? "option" : document ? "document" : journal ? "journal" : quest ? "quest"
+        boolean shot = own.containsKey("camera") && own.containsKey("transition");
+        boolean camera = own.containsKey("from") && own.containsKey("speed");
+        String form = node != null ? "node." + node : option ? "option" : document ? "document" : lootRule ? "document.loot" : journal ? "journal" : quest ? "quest"
                 : inside != null ? inside : boss ? "boss" : codex ? "codex" : section ? "codex.section" : unlock ? "unlock" : observed ? "observed"
                 : shot ? "scene.shot" : camera ? "scene.camera" : rootForm;
         Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
@@ -110,14 +111,12 @@ final class FormView extends FormScenes {
         }
         List<String> order = npc ? NPC_ORDER : form != null ? NODE_ORDER.getOrDefault(form, List.of()) : List.of();
         // add_waypoint: where it points, as a waypoint's target page asks it, over its own fields.
-        boolean addWaypoint = Schemas.properties(schema).containsKey("follow") && Schemas.properties(schema).containsKey("structure")
-                && Schemas.properties(schema).containsKey("show_ring");
+        boolean addWaypoint = own.containsKey("follow") && own.containsKey("structure") && own.containsKey("show_ring");
         boolean targetDrawn = false;
         // The player's condition "location": where, as a mob's variant asks it, dimension → biome → structure, each
         // list only what fits.
-        Map<String, Node> own = Schemas.properties(schema);
         boolean location = own.containsKey("dimension") && own.containsKey("biome") && own.containsKey("area") && own.containsKey("structure");
-        for (Map.Entry<String, Node> property : ordered(Schemas.properties(schema), order)) {
+        for (Map.Entry<String, Node> property : ordered(own, order)) {
             String name = property.getKey();
             if (npc && NPC_WHO.contains(name)) {
                 continue;
@@ -126,6 +125,10 @@ final class FormView extends FormScenes {
                 if (name.equals("dimension")) {
                     placeRows(path, false);
                 }
+                continue;
+            }
+            if (lootRule && (name.equals("biome") || name.equals("structure") || name.equals("tables"))) {
+                // Rendered together with dimension inside lootSourceFields according to the active mode.
                 continue;
             }
             if (addWaypoint && ADD_WAYPOINT_TARGET.contains(name)) {
@@ -160,8 +163,14 @@ final class FormView extends FormScenes {
             } else if ("document".equals(form) && name.equals("journal")) {
                 // Two settings: shown here, not behind a row of their own.
                 objectPage(with(path, "journal"), property.getValue(), Set.of(), null);
+            } else if ("document".equals(form) && name.equals("loot")) {
+                documentLootField(path, property.getValue(), object);
             } else if ("document".equals(form) && name.equals("custom_model_data")) {
                 iconField(path, name, object);
+            } else if ("document.loot".equals(form) && name.equals("dimension")) {
+                lootSourceFields(path, schema, object);
+            } else if ("document.loot".equals(form) && name.equals("chance")) {
+                percentField(path, name, property.getValue(), object, fieldLabel(name, false, schema));
             } else if ("quest".equals(form) && name.equals("screen_text")) {
                 screenTextFields(path);
             } else if ("quest".equals(form) && name.equals("repeatable")) {

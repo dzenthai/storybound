@@ -88,7 +88,8 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("node.jump", List.of("dialogue", "node")),
             Map.entry("option", List.of("text", "next", "conditions", "locked", "locked_text", "actions", "once", "think", "id")),
             // A document.
-            Map.entry("document", List.of("title", "kind", "custom_model_data", "style", "journal", "on_read", "contract", "content")),
+            Map.entry("document", List.of("title", "kind", "custom_model_data", "style", "journal", "loot", "on_read", "contract", "content")),
+            Map.entry("document.loot", List.of("dimension", "biome", "structure", "tables", "chance", "once", "conditions")),
             Map.entry("journal", List.of("add_on_read", "category")),
             // A quest: what it is; how it goes; what it gives and changes; for whom. Then its stages and their
             // objectives.
@@ -133,7 +134,8 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("node.end", Map.of("actions", "node.group.end")),
             Map.entry("option", Map.of("text", "option.group.answer", "conditions", "option.group.when", "actions", "option.group.chosen", "id", "option.group.other")),
             Map.entry("document", Map.of("title", "document.group.what", "custom_model_data", "document.group.look", "journal", "document.group.journal",
-                    "on_read", "document.group.read", "contract", "document.group.contract", "content", "document.group.other")),
+                    "loot", "document.group.loot", "on_read", "document.group.read", "contract", "document.group.contract", "content", "document.group.other")),
+            Map.entry("document.loot", Map.of("chance", "document.loot.group.how")),
             Map.entry("quest", Map.of("title", "quest.group.about", "start", "quest.group.flow", "rewards", "quest.group.reward", "scope", "quest.group.who")),
             Map.entry("stage", Map.of("id", "stage.group.stage", "objectives", "stage.group.objectives", "waypoints", "stage.group.during")),
             Map.entry("objective", Map.of("id", "objective.group.what", "trigger", "objective.group.counts", "optional", "objective.group.shown")),

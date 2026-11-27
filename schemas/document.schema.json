@@ -39,6 +39,11 @@
       "description": "Runs on the player's first read only; never sent to clients.",
       "$ref": "logic.schema.json#/definitions/actions"
     },
+    "loot": {
+      "description": "Where this document can appear as loot in the world (chests in structures, specific loot tables, or mob drops). Evaluated dynamically on reload; never sent to clients.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/loot_rule" }
+    },
     "custom_model_data": {
       "description": "Applied to the item when issued; pair with an override in the item model.",
       "type": "integer"
@@ -51,6 +56,49 @@
         "conditions": { "description": "Printed in bold under the contract's text: what is to be done.", "$ref": "logic.schema.json#/definitions/story_text" },
         "reward": { "description": "Printed under the contract's text: what it pays.", "$ref": "logic.schema.json#/definitions/story_text" },
         "hint": { "description": "Printed in italics under the contract's text: a hint where to start.", "$ref": "logic.schema.json#/definitions/story_text" }
+      }
+    }
+  },
+  "definitions": {
+    "loot_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tables": {
+          "description": "Specific loot tables (e.g. minecraft:chests/abandoned_mineshaft or minecraft:entities/pillager). Empty: matches any chest loot table.",
+          "oneOf": [
+            { "$ref": "logic.schema.json#/definitions/id" },
+            { "type": "array", "items": { "$ref": "logic.schema.json#/definitions/id" } }
+          ]
+        },
+        "dimension": {
+          "description": "Only in this dimension (empty: any dimension).",
+          "$ref": "logic.schema.json#/definitions/id"
+        },
+        "biome": {
+          "description": "Only in these biomes: an id, a #tag, or a list.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "structure": {
+          "description": "Only inside these structures: an id, a #tag, or a list.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "chance": {
+          "description": "Drop chance from 0 to 1 (0.25 = 25%). Default: 1 (always).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        },
+        "once": {
+          "description": "none: can appear repeatedly. player: at most once per player. world: at most once in the whole world.",
+          "enum": ["none", "player", "world"],
+          "default": "none"
+        },
+        "conditions": {
+          "description": "Optional story conditions checked for the player opening the chest or killing the mob.",
+          "$ref": "logic.schema.json#/definitions/conditions"
+        }
       }
     }
   }

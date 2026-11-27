@@ -471,6 +471,29 @@ abstract class FormPickers extends FormCore {
             });
             return Picker.rows(rows, DevUi.text("pick.title.stat_type"), DevUi.text("pick.empty"));
         }
+        if (field.equals("tables") && properties.containsKey("once")) {
+            List<Entry> chests = new ArrayList<>();
+            List<Entry> other = new ArrayList<>();
+            for (String id : ClientDevStore.serverList("loot_table")) {
+                ResourceLocation parsed = ResourceLocation.tryParse(id);
+                if (parsed != null && dev.dzenthai.storybound.module.document.DocumentDefinition.LootRule.isChestTable(parsed)) {
+                    chests.add(new Entry(id, id, new ItemStack(Items.CHEST)));
+                } else {
+                    boolean entity = parsed != null && parsed.getPath().startsWith("entities/");
+                    other.add(new Entry(id, id, new ItemStack(entity ? Items.IRON_SWORD : Items.PAPER)));
+                }
+            }
+            List<Entry> rows = new ArrayList<>();
+            if (!chests.isEmpty()) {
+                rows.add(new Entry(Catalog.SECTION + "chests", DevUi.str("pick.section.chest_tables"), ItemStack.EMPTY));
+                rows.addAll(chests);
+            }
+            if (!other.isEmpty()) {
+                rows.add(new Entry(Catalog.SECTION + "other", DevUi.str("pick.section.other_tables"), ItemStack.EMPTY));
+                rows.addAll(other);
+            }
+            return Picker.rows(rows, DevUi.text("pick.title.loot_table"), DevUi.text("pick.no_server_list"));
+        }
         if (field.equals("advancement") || field.equals("loot")) {
             String list = field.equals("loot") ? "loot_table" : "advancement";
             List<Entry> rows = new ArrayList<>();

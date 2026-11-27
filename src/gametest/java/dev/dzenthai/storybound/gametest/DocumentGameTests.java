@@ -28,6 +28,7 @@ import dev.dzenthai.storybound.core.state.StoryValue;
 import dev.dzenthai.storybound.core.text.ConfigTexts;
 import dev.dzenthai.storybound.module.document.DocumentDefinition;
 import dev.dzenthai.storybound.module.document.DocumentKind;
+import dev.dzenthai.storybound.module.document.DocumentLootModifier;
 import dev.dzenthai.storybound.module.document.DocumentRef;
 import dev.dzenthai.storybound.module.document.DocumentRegistries;
 import dev.dzenthai.storybound.module.document.Documents;
@@ -54,9 +55,17 @@ import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.RegistryOps;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -325,6 +334,127 @@ public final class DocumentGameTests {
         helper.assertTrue(!helper.getLevel().getBlockState(pos).getValue(LecternBlock.HAS_BOOK), "a scroll is not put on a lectern");
         remove(helper, player);
         helper.succeed();
+    }
+
+    /**
+     * Global loot modifier injects documents according to each document's loot rules: empty tables match chests only,
+     * explicit tables match only those tables, and dimension filters reject other dimensions.
+     */
+    @GameTest(template = "empty")
+    public static void documentLootModifierFiltersChestsTablesAndDimensions(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ResourceLocation anyChest = key("loot_any_chest");
+        ResourceLocation mineshaft = key("loot_mineshaft");
+        ResourceLocation netherOnly = key("loot_nether_only");
+        with(helper, DocumentRegistries.DOCUMENTS.serverStore(), DocumentDefinition.CODEC, Map.of(
+                anyChest, """
+                        { "kind": "note", "title": "gametest.note.title", "loot": [{}] }
+                        """,
+                mineshaft, """
+                        { "kind": "letter", "title": "gametest.letter.title",
+                          "loot": [{ "tables": "minecraft:chests/abandoned_mineshaft" }] }
+                        """,
+                netherOnly, """
+                        { "kind": "scroll", "title": "gametest.scroll.title",
+                          "loot": [{ "dimension": "minecraft:the_nether" }] }
+                        """
+        ), () -> {
+            List<ItemStack> mineshaftLoot = rollChestLoot(helper, player, BuiltInLootTables.ABANDONED_MINESHAFT);
+            helper.assertTrue(containsDocument(mineshaftLoot, anyChest), "default chest rule drops in abandoned mineshaft");
+            helper.assertTrue(containsDocument(mineshaftLoot, mineshaft), "explicit table rule drops in matching mineshaft chest");
+            helper.assertTrue(!containsDocument(mineshaftLoot, netherOnly), "nether rule does not drop in overworld");
+
+            List<ItemStack> dungeonLoot = rollChestLoot(helper, player, BuiltInLootTables.SIMPLE_DUNGEON);
+            helper.assertTrue(containsDocument(dungeonLoot, anyChest), "default chest rule drops in dungeon chest");
+            helper.assertTrue(!containsDocument(dungeonLoot, mineshaft), "explicit mineshaft rule does not drop in dungeon chest");
+
+            List<ItemStack> zombieLoot = rollEntityLoot(helper, player, EntityType.ZOMBIE.getDefaultLootTable());
+            helper.assertTrue(!containsDocument(zombieLoot, anyChest), "default chest rule does not drop from mobs");
+            helper.assertTrue(!containsDocument(zombieLoot, mineshaft), "chest table rule does not drop from mobs");
+        });
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * Global loot modifier enforces once: player, once: world, and story conditions on the looting player.
+     */
+    @GameTest(template = "empty")
+    public static void documentLootModifierRespectsOnceAndConditions(GameTestHelper helper) {
+        ServerPlayer playerA = helper.makeMockServerPlayerInLevel();
+        ServerPlayer playerB = helper.makeMockServerPlayerInLevel();
+        ResourceLocation oncePlayer = key("loot_once_player");
+        ResourceLocation onceWorld = key("loot_once_world");
+        ResourceLocation conditional = key("loot_conditional");
+        try {
+            with(helper, DocumentRegistries.DOCUMENTS.serverStore(), DocumentDefinition.CODEC, Map.of(
+                    oncePlayer, """
+                            { "kind": "note", "title": "gametest.note.title",
+                              "loot": [{ "tables": "minecraft:chests/simple_dungeon", "once": "player" }] }
+                            """,
+                    onceWorld, """
+                            { "kind": "book", "title": "gametest.book.title",
+                              "loot": [{ "tables": "minecraft:chests/simple_dungeon", "once": "world" }] }
+                            """,
+                    conditional, """
+                            { "kind": "letter", "title": "gametest.letter.title",
+                              "loot": [{ "tables": "minecraft:chests/simple_dungeon",
+                                         "conditions": { "type": "flag", "key": "gametest:loot_ready" } }] }
+                            """
+            ), () -> {
+                List<ItemStack> firstA = rollChestLoot(helper, playerA, BuiltInLootTables.SIMPLE_DUNGEON);
+                helper.assertTrue(containsDocument(firstA, oncePlayer), "once:player spawns on first roll for player A");
+                helper.assertTrue(containsDocument(firstA, onceWorld), "once:world spawns on first roll");
+                helper.assertTrue(!containsDocument(firstA, conditional), "conditional rule skips when flag is false");
+
+                List<ItemStack> secondA = rollChestLoot(helper, playerA, BuiltInLootTables.SIMPLE_DUNGEON);
+                helper.assertTrue(!containsDocument(secondA, oncePlayer), "once:player does not repeat for player A");
+                helper.assertTrue(!containsDocument(secondA, onceWorld), "once:world does not repeat for player A");
+
+                try {
+                    StoryState.set(playerA, StoryScope.PLAYER, key("loot_ready"), new StoryValue.Bool(true));
+                } catch (StoryException e) {
+                    throw new GameTestAssertException(e.getMessage());
+                }
+                List<ItemStack> flaggedA = rollChestLoot(helper, playerA, BuiltInLootTables.SIMPLE_DUNGEON);
+                helper.assertTrue(containsDocument(flaggedA, conditional), "conditional rule drops once flag is true");
+
+                List<ItemStack> firstB = rollChestLoot(helper, playerB, BuiltInLootTables.SIMPLE_DUNGEON);
+                helper.assertTrue(containsDocument(firstB, oncePlayer), "once:player still spawns once for player B");
+                helper.assertTrue(!containsDocument(firstB, onceWorld), "once:world stays exhausted for player B");
+            });
+        } finally {
+            StoryState.clearWorld(helper.getLevel().getServer(), DocumentLootModifier.onceKey(onceWorld));
+            remove(helper, playerA);
+            remove(helper, playerB);
+        }
+        helper.succeed();
+    }
+
+    private static List<ItemStack> rollChestLoot(GameTestHelper helper, ServerPlayer player, ResourceKey<LootTable> tableKey) {
+        LootTable table = helper.getLevel().getServer().reloadableRegistries().getLootTable(tableKey);
+        LootParams params = new LootParams.Builder(helper.getLevel())
+                .withParameter(LootContextParams.ORIGIN, Vec3.atCenterOf(helper.absolutePos(new BlockPos(1, 1, 1))))
+                .withParameter(LootContextParams.THIS_ENTITY, player)
+                .create(LootContextParamSets.CHEST);
+        return table.getRandomItems(params);
+    }
+
+    private static List<ItemStack> rollEntityLoot(GameTestHelper helper, ServerPlayer player, ResourceKey<LootTable> tableKey) {
+        LootTable table = helper.getLevel().getServer().reloadableRegistries().getLootTable(tableKey);
+        LootParams params = new LootParams.Builder(helper.getLevel())
+                .withParameter(LootContextParams.ORIGIN, Vec3.atCenterOf(helper.absolutePos(new BlockPos(1, 1, 1))))
+                .withParameter(LootContextParams.THIS_ENTITY, player)
+                .withParameter(LootContextParams.DAMAGE_SOURCE, helper.getLevel().damageSources().playerAttack(player))
+                .withParameter(LootContextParams.LAST_DAMAGE_PLAYER, player)
+                .create(LootContextParamSets.ENTITY);
+        return table.getRandomItems(params);
+    }
+
+    private static boolean containsDocument(List<ItemStack> loot, ResourceLocation documentId) {
+        DocumentRef expected = new DocumentRef(documentId);
+        return loot.stream().anyMatch(stack -> stack.is(DocumentRegistries.DOCUMENT_ITEM.get())
+                && expected.equals(stack.get(DocumentRegistries.DOCUMENT_COMPONENT.get())));
     }
 
     /** A lectern next to the player, holding the document {@code id}; its absolute position. */

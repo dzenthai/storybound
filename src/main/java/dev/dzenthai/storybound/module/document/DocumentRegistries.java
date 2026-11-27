@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.module.document;
 
+import com.mojang.serialization.MapCodec;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.data.DefinitionType;
 import dev.dzenthai.storybound.core.data.DefinitionTypes;
@@ -10,9 +11,11 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.common.loot.IGlobalLootModifier;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 public final class DocumentRegistries {
     /** Clients get titles, kinds and styles for the item name and the screens, but never {@code on_read}. */
@@ -22,6 +25,11 @@ public final class DocumentRegistries {
     private static final DeferredRegister.DataComponents COMPONENTS = DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, Storybound.MOD_ID);
     private static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(Storybound.MOD_ID);
     private static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, Storybound.MOD_ID);
+    private static final DeferredRegister<MapCodec<? extends IGlobalLootModifier>> LOOT_MODIFIERS =
+            DeferredRegister.create(NeoForgeRegistries.Keys.GLOBAL_LOOT_MODIFIER_SERIALIZERS, Storybound.MOD_ID);
+
+    public static final DeferredHolder<MapCodec<? extends IGlobalLootModifier>, MapCodec<DocumentLootModifier>> DOCUMENT_LOOT =
+            LOOT_MODIFIERS.register("document_loot", () -> DocumentLootModifier.CODEC);
 
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<DocumentRef>> DOCUMENT_COMPONENT = COMPONENTS.registerComponentType(
             "document", builder -> builder.persistent(DocumentRef.CODEC).networkSynchronized(DocumentRef.STREAM_CODEC));
@@ -42,6 +50,7 @@ public final class DocumentRegistries {
         COMPONENTS.register(modBus);
         ITEMS.register(modBus);
         TABS.register(modBus);
+        LOOT_MODIFIERS.register(modBus);
         DocumentLogic.REGISTER_CONDITIONS.register(modBus);
         DocumentLogic.REGISTER_ACTIONS.register(modBus);
         DocumentLogic.REGISTER_TRIGGERS.register(modBus);

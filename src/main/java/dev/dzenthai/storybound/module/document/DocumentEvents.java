@@ -36,7 +36,13 @@ public final class DocumentEvents {
         LogicOwners.register(DocumentRegistries.DOCUMENTS, (document, references) -> {
             document.onRead().forEach(action -> action.collectReferences(references));
             document.contract().flatMap(DocumentDefinition.Contract::quest).ifPresent(quest -> references.quest(quest, null));
+            document.loot().forEach(rule -> {
+                references.place(rule.place());
+                rule.conditions().ifPresent(condition -> condition.collectReferences(references));
+            });
         });
+        dev.dzenthai.storybound.core.state.StoryMigrations.registerKeyPrefix(
+                DocumentLootModifier.ONCE_PREFIX, dev.dzenthai.storybound.core.state.StoryMigrations.Kind.DOCUMENTS, 0);
         ValidationService.registerValidator(DocumentEvents::validate);
     }
 
@@ -109,9 +115,17 @@ public final class DocumentEvents {
         });
     }
 
-    /** Every definition with logic must refer to documents that exist. */
+    /** Every definition with logic must refer to documents that exist; warn on zero-chance loot rules. */
     private static void validate(Consumer<ValidationIssue> sink) {
         LogicOwners.walkAll((type, id) -> unknownDocuments(type, id, sink));
+        DocumentRegistries.DOCUMENTS.serverStore().all().forEach((id, doc) -> {
+            for (int i = 0; i < doc.loot().size(); i++) {
+                if (doc.loot().get(i).chance() <= 0.0f) {
+                    sink.accept(ValidationIssue.warning(DocumentRegistries.DOCUMENTS.id(), id,
+                            "loot[" + i + "]: chance is 0, so this rule never spawns the document"));
+                }
+            }
+        });
     }
 
     private static References unknownDocuments(DefinitionType<?> owner, ResourceLocation ownerId, Consumer<ValidationIssue> sink) {

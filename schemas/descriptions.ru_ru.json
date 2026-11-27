@@ -414,5 +414,13 @@
   "Where it stands: in the lower or upper left corner, or in the middle.": "Где стоит: в нижнем или верхнем левом углу или посередине.",
   "On a black screen, as a title card.": "На чёрном экране, как титр.",
   "The scene's music changes to this track from here.": "Отсюда музыка сцены меняется на этот трек.",
-  "The scene's music, over every other track while it plays.": "Музыка сцены: пока она идёт, звучит поверх всех других треков."
+  "The scene's music, over every other track while it plays.": "Музыка сцены: пока она идёт, звучит поверх всех других треков.",
+  "Where this document can appear as loot in the world (chests in structures, specific loot tables, or mob drops). Evaluated dynamically on reload; never sent to clients.": "Где этот документ может появляться в луте мира (сундуки в постройках, конкретные таблицы добычи или дроп с мобов). Применяется сразу после /reload; на клиент не отправляется.",
+  "Specific loot tables (e.g. minecraft:chests/abandoned_mineshaft or minecraft:entities/pillager). Empty: matches any chest loot table.": "Конкретные таблицы добычи (например minecraft:chests/abandoned_mineshaft или minecraft:entities/pillager). Пусто — подходят любые сундуки.",
+  "Only in this dimension (empty: any dimension).": "Только в этом измерении (пусто — в любом измерении).",
+  "Only in these biomes: an id, a #tag, or a list.": "Только в этих биомах: id, #тег или список.",
+  "Only inside these structures: an id, a #tag, or a list.": "Только внутри этих построек: id, #тег или список.",
+  "Drop chance from 0 to 1 (0.25 = 25%). Default: 1 (always).": "Шанс появления от 0 до 1 (0.25 = 25%). По умолчанию 1 (всегда).",
+  "none: can appear repeatedly. player: at most once per player. world: at most once in the whole world.": "none — может появляться снова; player — не больше одного раза на игрока; world — не больше одного раза на весь мир.",
+  "Optional story conditions checked for the player opening the chest or killing the mob.": "Необязательные сюжетные условия, проверяемые для игрока, который открывает сундук или убивает моба."
 }

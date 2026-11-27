@@ -32,6 +32,21 @@ public final class StoryState {
         return container(player, scope).get(key);
     }
 
+    /** World-scoped stored value, usable when no player is involved (e.g. world loot generation). */
+    public static Optional<StoryValue> getWorldStored(MinecraftServer server, ResourceLocation key) {
+        return WorldStoryData.get(server).container().get(key);
+    }
+
+    /** Writes a world-scoped value directly without requiring a player context. */
+    public static void setWorld(MinecraftServer server, ResourceLocation key, StoryValue value) {
+        WorldStoryData.get(server).container().put(key, value);
+    }
+
+    /** Clears a world-scoped value directly without requiring a player context. */
+    public static void clearWorld(MinecraftServer server, ResourceLocation key) {
+        WorldStoryData.get(server).container().remove(key);
+    }
+
     /** The written value, or the declared default. */
     public static Optional<StoryValue> get(ServerPlayer player, StoryScope scope, ResourceLocation key) {
         return getStored(player, scope, key).or(() -> Optional.ofNullable(declaration(key)).map(FlagDeclaration::defaultValue));
