@@ -130,6 +130,15 @@ abstract class FormCore {
         default List<String> choices(String field) {
             return List.of();
         }
+
+        /** Creates a new Phrases node beside the edited node without switching selection yet; returns its id, or null. */
+        default @Nullable ResourceLocation createPhrases() {
+            return null;
+        }
+
+        /** Selects another story node in the editor so the author can edit it directly. */
+        default void openNode(StoryLinks.NodeKey key) {
+        }
     }
 
     /**
@@ -899,6 +908,9 @@ abstract class FormCore {
         }
         if (properties.containsKey("from") && properties.containsKey("speed")) {
             return "camera";
+        }
+        if (properties.containsKey("order") && properties.containsKey("lines")) {
+            return "phrases";
         }
         // A dialogue node's own words, by its type:
         // "storybound.dev.field.node.call.next".

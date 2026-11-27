@@ -165,6 +165,19 @@ final class StoryInspector {
                 NodeKey key = view.selected;
                 return key != null && key.type().equals(ClientDevStore.TYPE_NPC) ? key.id() : null;
             }
+
+            @Override
+            public @Nullable ResourceLocation createPhrases() {
+                return screen != null ? view.createPhrasesBeside(screen, view.selected) : null;
+            }
+
+            @Override
+            public void openNode(NodeKey target) {
+                if (screen != null && ClientDevStore.getJson(target.type(), target.id()) != null) {
+                    view.select(screen, target);
+                    screen.rebuild();
+                }
+            }
         });
     }
 
@@ -261,6 +274,9 @@ final class StoryInspector {
         }
         if (key.type().equals(ClientDevStore.TYPE_SCENE)) {
             y = sceneFlow(screen, key, json, x, y, w);
+        }
+        if (key.type().equals(ClientDevStore.TYPE_PHRASES)) {
+            y = phrasesUsage(screen, key, x, y, w);
         }
         addLinks(screen, key, json, x, w);
         int formBottom = links.isEmpty() ? screen.height - 34 : linksTop - 16;
@@ -964,6 +980,87 @@ final class StoryInspector {
         ResourceLocation type = ResourceLocation.tryParse(encoded.substring(0, bar));
         ResourceLocation id = ResourceLocation.tryParse(encoded.substring(bar + 1));
         return type != null && id != null ? new NodeKey(type, id) : null;
+    }
+
+    // --- phrases: which NPCs use them
+
+    /** Shows which NPCs use this phrases node (clickable rows with quick unlink) plus "+" to assign to an NPC on click or chatter. */
+    private int phrasesUsage(DevModeScreen screen, NodeKey key, int x, int y, int w) {
+        notes.add(new Note(DevUi.str("phrases.usage.title"), DevUi.ACCENT, y + 4));
+        screen.add(Button.builder(Component.literal("+"), b -> pickPhrasesNpc(screen, key))
+                .tooltip(Tooltip.create(DevUi.text("phrases.usage.add_tooltip")))
+                .bounds(x + w - 19, y, 19, 17).build());
+        y += 19;
+        List<NodeKey> users = callers(key);
+        if (users.isEmpty()) {
+            notes.add(new Note("⚠ " + DevUi.str("phrases.usage.empty"), DevUi.WARN, y + 1));
+            return y + 17;
+        }
+        int shown = Math.min(users.size(), screen.height >= 460 ? 3 : 2);
+        for (int i = 0; i < shown; i++) {
+            NodeKey npc = users.get(i);
+            flowShown.add("false " + npc);
+            String raw = ClientDevStore.getJson(npc.type(), npc.id());
+            boolean removable = raw != null && StoryEdits.unlink(ClientDevStore.parseObject(raw), key);
+            int bw = removable ? w - 21 : w;
+            String title = StoryView.title(npc);
+            screen.add(Button.builder(Component.literal(StoryView.glyph(npc.type()) + " " + title), b -> {
+                        view.select(screen, npc);
+                        screen.rebuild();
+                    })
+                    .tooltip(Tooltip.create(DevUi.text("scene.flow.open_node", title, npc.id().toString())))
+                    .bounds(x, y, bw, 17).build());
+            if (removable) {
+                screen.add(Button.builder(Component.literal("✕"), b -> view.unlinkFrom(screen, npc, key))
+                        .tooltip(Tooltip.create(DevUi.text("links.remove")))
+                        .bounds(x + w - 19, y, 19, 17).build());
+            }
+            y += 19;
+        }
+        if (users.size() > shown) {
+            notes.add(new Note(DevUi.str("links.more", users.size() - shown), DevUi.MUTED, y + 1));
+            y += 12;
+        }
+        return y + 4;
+    }
+
+    private void pickPhrasesNpc(DevModeScreen screen, NodeKey phrases) {
+        List<Catalog.Entry> clickRows = new ArrayList<>();
+        List<Catalog.Entry> chatterRows = new ArrayList<>();
+        ClientDevStore.byType(ClientDevStore.TYPE_NPC).forEach((id, raw) -> {
+            NodeKey npc = new NodeKey(ClientDevStore.TYPE_NPC, id);
+            JsonObject obj = ClientDevStore.parseObject(raw);
+            String title = StoryView.title(npc);
+            ItemStack icon = StoryView.icon(npc, obj);
+            if (StoryEdits.linkClickPhrases(obj.deepCopy(), phrases.id())) {
+                clickRows.add(new Catalog.Entry("click|" + id, title, icon));
+            }
+            if (StoryEdits.linkChatterPhrases(obj.deepCopy(), phrases.id())) {
+                chatterRows.add(new Catalog.Entry("chatter|" + id, title, icon));
+            }
+        });
+        clickRows.sort(Comparator.comparing(Catalog.Entry::label));
+        chatterRows.sort(Comparator.comparing(Catalog.Entry::label));
+        List<Catalog.Entry> entries = new ArrayList<>();
+        if (!clickRows.isEmpty()) {
+            entries.add(new Catalog.Entry(Catalog.SECTION + "click", DevUi.str("phrases.usage.section_click"), ItemStack.EMPTY));
+            entries.addAll(clickRows);
+        }
+        if (!chatterRows.isEmpty()) {
+            entries.add(new Catalog.Entry(Catalog.SECTION + "chatter", DevUi.str("phrases.usage.section_chatter"), ItemStack.EMPTY));
+            entries.addAll(chatterRows);
+        }
+        screen.catalog().openList(DevUi.text("phrases.usage.pick_title"), entries, (kind, entry) -> {
+            int bar = entry.id().indexOf('|');
+            if (bar > 0 && bar < entry.id().length() - 1) {
+                boolean onClick = entry.id().startsWith("click|");
+                ResourceLocation npcId = ResourceLocation.tryParse(entry.id().substring(bar + 1));
+                if (npcId != null) {
+                    view.linkPhrases(screen, new NodeKey(ClientDevStore.TYPE_NPC, npcId), phrases, onClick);
+                }
+            }
+            screen.rebuild();
+        });
     }
 
     /**

@@ -470,6 +470,94 @@ abstract class StoryEditing extends StoryChapters {
         }
     }
 
+    /** Creates a new Phrases node placed next to {@code beside} without changing the current selection yet. */
+    @Nullable ResourceLocation createPhrasesBeside(DevModeScreen screen, @Nullable NodeKey beside) {
+        int[] from = beside != null ? positions.getOrDefault(beside, new int[]{menuWorldX, menuWorldY}) : new int[]{menuWorldX, menuWorldY};
+        int x = DevUi.snap(from[0] + 5 * DevUi.GRID);
+        int y = DevUi.snap(from[1]);
+        for (int attempt = 0; attempt < 12 && occupied(x, y); attempt++) {
+            y += 4 * DevUi.GRID;
+        }
+        int placedY = y;
+        NodeTemplates.Created created = fresh(Template.PHRASES).getFirst();
+        NodeKey key = created.key();
+        String json = DevUi.GSON.toJson(created.json());
+        positions.put(key, new int[]{x, placedY});
+        ClientDevStore.putLocal(key.type(), key.id(), json);
+        DevRequests.save(key.type(), key.id(), json, created.text());
+        addToChapter(key, x, placedY);
+        screen.remember(DevUi.str("history.create", key.id().getPath()),
+                () -> {
+                    positions.remove(key);
+                    chapterNodes.remove(key);
+                    selection.remove(key);
+                    if (key.equals(selected)) {
+                        selected = null;
+                        editing = null;
+                        dirty = false;
+                    }
+                    DevRequests.delete(key.type(), key.id());
+                    saveChapter();
+                },
+                () -> {
+                    positions.put(key, new int[]{x, placedY});
+                    ClientDevStore.putLocal(key.type(), key.id(), json);
+                    DevRequests.restore(key.type(), key.id(), json, created.text());
+                    addToChapter(key, x, placedY);
+                });
+        rebuildCards();
+        screen.status(DevUi.text("status.created", key.id().getPath()), DevUi.OK);
+        return key.id();
+    }
+
+    /** Creates a new Phrases node next to an NPC, attaches it as an on-click bubble reply, and selects it for editing. */
+    void createClickPhrases(DevModeScreen screen, NodeKey npc) {
+        int[] from = positions.getOrDefault(npc, new int[]{menuWorldX, menuWorldY});
+        int x = from[0] + 5 * DevUi.GRID;
+        int y = from[1];
+        for (int attempt = 0; attempt < 12 && occupied(x, y); attempt++) {
+            y += 4 * DevUi.GRID;
+        }
+        menuWorldX = x;
+        menuWorldY = y;
+        NodeKey created = create(screen, Template.PHRASES);
+        if (created != null) {
+            linkPhrases(screen, npc, created, true);
+        }
+    }
+
+    /** Links a Phrases node to an NPC either as an on-click bubble reply ({@code onClick}) or ambient chatter. */
+    void linkPhrases(DevModeScreen screen, NodeKey npc, NodeKey phrases, boolean onClick) {
+        saveEdits(screen);
+        String before = ClientDevStore.getJson(npc.type(), npc.id());
+        if (before == null) {
+            return;
+        }
+        JsonObject json = ClientDevStore.parseObject(before);
+        boolean changed = onClick ? StoryEdits.linkClickPhrases(json, phrases.id()) : StoryEdits.linkChatterPhrases(json, phrases.id());
+        if (!changed) {
+            return;
+        }
+        String after = DevUi.GSON.toJson(json);
+        if (npc.equals(selected)) {
+            editing = json;
+            dirty = false;
+        }
+        ClientDevStore.putLocal(npc.type(), npc.id(), after);
+        DevRequests.save(npc.type(), npc.id(), after, Optional.empty());
+        screen.remember(DevUi.str("history.link", npc.id().getPath(), phrases.id().getPath()),
+                () -> {
+                    ClientDevStore.putLocal(npc.type(), npc.id(), before);
+                    DevRequests.restore(npc.type(), npc.id(), before, Optional.empty());
+                },
+                () -> {
+                    ClientDevStore.putLocal(npc.type(), npc.id(), after);
+                    DevRequests.restore(npc.type(), npc.id(), after, Optional.empty());
+                });
+        rebuildCards();
+        screen.status(DevUi.text("status.linked", npc.id().getPath(), phrases.id().getPath()), DevUi.LINK);
+    }
+
     void duplicate(DevModeScreen screen, NodeKey source) {
         String raw = ClientDevStore.getJson(source.type(), source.id());
         if (raw == null) {

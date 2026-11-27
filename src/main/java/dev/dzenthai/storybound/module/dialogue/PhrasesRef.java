@@ -10,29 +10,34 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What an NPC says for its chatter, a click or a hit: a phrases node by its id, or a text of its own written right
- * there ({@code { "text"... }}), for an NPC that needs one line and no node.
+ * What an NPC says for its chatter, a click or a hit: a phrases node by its id, or a line of its own written right
+ * there ({@code { "text": ..., "sound": ... }}), for an NPC that needs one line and no node.
  */
-public record PhrasesRef(Optional<ResourceLocation> node, Optional<StoryText> text) {
-    private static final Codec<StoryText> OWN = RecordCodecBuilder.create(instance -> instance.group(
-            StoryText.CODEC.fieldOf("text").forGetter(text -> text)
-    ).apply(instance, text -> text));
+public record PhrasesRef(Optional<ResourceLocation> node, Optional<PhrasesDefinition.Line> own) {
+    private static final Codec<PhrasesDefinition.Line> OWN = RecordCodecBuilder.create(instance -> instance.group(
+            StoryText.CODEC.fieldOf("text").forGetter(PhrasesDefinition.Line::text),
+            ResourceLocation.CODEC.optionalFieldOf("sound").forGetter(PhrasesDefinition.Line::sound)
+    ).apply(instance, PhrasesDefinition.Line::new));
     public static final Codec<PhrasesRef> CODEC = Codec.either(ResourceLocation.CODEC, OWN).xmap(
-            either -> either.map(PhrasesRef::ofNode, PhrasesRef::ofText),
-            ref -> ref.node().<Either<ResourceLocation, StoryText>>map(Either::left).orElseGet(() -> Either.right(ref.text().orElseThrow())));
+            either -> either.map(PhrasesRef::ofNode, PhrasesRef::ofLine),
+            ref -> ref.node().<Either<ResourceLocation, PhrasesDefinition.Line>>map(Either::left).orElseGet(() -> Either.right(ref.own().orElseThrow())));
 
     public static PhrasesRef ofNode(ResourceLocation node) {
         return new PhrasesRef(Optional.of(node), Optional.empty());
     }
 
     public static PhrasesRef ofText(StoryText text) {
-        return new PhrasesRef(Optional.empty(), Optional.of(text));
+        return ofLine(PhrasesDefinition.Line.of(text));
     }
 
-    /** The phrases to say: the node's, or the own text as a list of one; null for a node that is not there. */
+    public static PhrasesRef ofLine(PhrasesDefinition.Line line) {
+        return new PhrasesRef(Optional.empty(), Optional.of(line));
+    }
+
+    /** The phrases to say: the node's, or the own line as a list of one; null for a node that is not there. */
     @Nullable PhrasesDefinition resolve() {
-        if (text.isPresent()) {
-            return new PhrasesDefinition(PhrasesDefinition.Order.SEQUENCE, List.of(PhrasesDefinition.Line.of(text.get())));
+        if (own.isPresent()) {
+            return new PhrasesDefinition(PhrasesDefinition.Order.SEQUENCE, List.of(own.get()));
         }
         return DialogueRegistries.PHRASES.serverStore().getOrNull(node.orElseThrow());
     }

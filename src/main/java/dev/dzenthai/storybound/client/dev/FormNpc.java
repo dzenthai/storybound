@@ -64,6 +64,7 @@ abstract class FormNpc extends FormEntities {
             case "custom" -> ClientDevStore.kubejs() || flag(binding, "custom", false);
             case "home_radius" -> binding != null && (binding.has("home_radius")
                     || binding.get("movement") instanceof JsonPrimitive movement && movement.getAsString().equals("home"));
+            case "voice" -> binding != null && binding.has("voice");
             default -> true;
         };
     }

@@ -31,6 +31,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.common.NeoForge;
 import org.jetbrains.annotations.Nullable;
@@ -365,8 +366,10 @@ public final class NpcBindings {
             return Dialogues.start(player, entry.dialogue().get(), target);
         }
         if (target instanceof LivingEntity living) {
-            NpcPhrases.say(living, entry.phrases().orElseThrow(), NpcPhrases.clickCounter(target, player, picked.layer().id(), picked.index()),
-                    player, player.server.getTickCount(), true);
+            if (NpcPhrases.say(living, entry.phrases().orElseThrow(), NpcPhrases.clickCounter(target, player, picked.layer().id(), picked.index()),
+                    player, player.server.getTickCount(), true) && living instanceof Mob mob) {
+                mob.getLookControl().setLookAt(player, 30.0f, 30.0f);
+            }
             return true;
         }
         return false;

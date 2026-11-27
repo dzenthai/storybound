@@ -222,6 +222,10 @@ final class StoryView extends StoryDrawing {
         if (type.equals(ClientDevStore.TYPE_NPC)) {
             items.add(linked(screen, target, "💬", "menu.link.dialogue", Template.DIALOGUE_SCREEN, false));
             items.add(linked(screen, target, "💭", "menu.link.bubble", Template.DIALOGUE_BUBBLE, false));
+            items.add(MenuItem.of(Component.literal("🗨 ").append(DevUi.text("menu.link.click_phrases")), () -> {
+                createClickPhrases(screen, target);
+                screen.rebuild();
+            }));
             items.add(linked(screen, target, "🗨", "menu.link.phrases", Template.PHRASES, false));
         } else if (type.equals(ClientDevStore.TYPE_DIALOGUE)) {
             items.add(MenuItem.of(Component.literal("⤢ ").append(DevUi.text("menu.open_dialogue")), () -> screen.openDialogue(target.id())));

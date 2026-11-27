@@ -355,19 +355,49 @@ abstract class FormDialogues extends FormWaypoints {
             Button choose = Button.builder(shown, b -> {
                 if (picker != null) {
                     pick(picker, entry -> {
-                        ensureObject(path).addProperty(name, entry.id());
+                        JsonObject target = ensureObject(path);
+                        if (orDialogue) {
+                            target.remove("dialogue");
+                        }
+                        target.addProperty(name, entry.id());
                         host.changed();
                     });
                 }
-            }).bounds(right, rowTop, rightW, CONTROL_H).build();
+            }).bounds(right, rowTop, rightW - 20, CONTROL_H).build();
             choose.setTooltip(Tooltip.create(DevUi.text("phrases.choose_tooltip")));
             screen.add(choose);
+            if (id != null) {
+                net.minecraft.resources.ResourceLocation parsed = net.minecraft.resources.ResourceLocation.tryParse(id);
+                Button open = Button.builder(Component.literal("↗"), b -> {
+                    if (parsed != null) {
+                        host.openNode(new dev.dzenthai.storybound.core.story.StoryLinks.NodeKey(ClientDevStore.TYPE_PHRASES, parsed));
+                    }
+                }).bounds(right + rightW - 18, rowTop, 18, CONTROL_H)
+                        .tooltip(Tooltip.create(DevUi.text("phrases.open_node"))).build();
+                open.active = parsed != null && ClientDevStore.getJson(ClientDevStore.TYPE_PHRASES, parsed) != null;
+                screen.add(open);
+            } else {
+                screen.add(Button.builder(Component.literal("+"), b -> {
+                    net.minecraft.resources.ResourceLocation created = host.createPhrases();
+                    if (created != null) {
+                        JsonObject target = ensureObject(path);
+                        if (orDialogue) {
+                            target.remove("dialogue");
+                        }
+                        target.addProperty(name, created.toString());
+                        host.changed();
+                        host.openNode(new dev.dzenthai.storybound.core.story.StoryLinks.NodeKey(ClientDevStore.TYPE_PHRASES, created));
+                    }
+                }).bounds(right + rightW - 18, rowTop, 18, CONTROL_H)
+                        .tooltip(Tooltip.create(DevUi.text("phrases.create_tooltip"))).build());
+            }
             return;
         }
-        // An own text: { "text": ... } in the field, the text under a key of its own, in the active language.
+        // An own text: { "text": ..., "sound": ... } in the field, the text under a key of its own, in the active language.
         String key = host.textKey(keyPath(at), "text");
         JsonObject own = value instanceof JsonObject object ? object : null;
-        EditBox box = new EditBox(screen.font(), right, rowTop + 1, rightW - 20, CONTROL_H - 2, label);
+        int voiceCols = hasVoiceOver(own) ? 40 : 20;
+        EditBox box = new EditBox(screen.font(), right, rowTop + 1, Math.max(36, rightW - 20 - voiceCols), CONTROL_H - 2, label);
         box.setMaxLength(1024);
         box.setValue(own != null ? ClientDevStore.readStoryText(own, "text", "", ClientDevStore.activeLanguage()) : "");
         String source = own != null ? ClientDevStore.readStoryText(own, "text", "", ClientDevStore.sourceLanguage()) : "";
@@ -385,6 +415,7 @@ abstract class FormDialogues extends FormWaypoints {
             host.edited();
         });
         screen.add(box);
+        voiceOverButton(own, () -> ensureObject(at), host::changed, right + rightW - 38, rowTop);
         screen.add(Button.builder(Component.literal("\u270E"), b -> {
             JsonObject current = objectAt(at);
             String text = current != null ? ClientDevStore.readStoryText(current, "text", "", ClientDevStore.activeLanguage()) : "";
@@ -397,7 +428,7 @@ abstract class FormDialogues extends FormWaypoints {
                 ClientDevStore.writeStoryText(target, "text", edited, existing != null && !existing.isBlank() ? existing : key);
                 host.changed();
             });
-        }).tooltip(Tooltip.create(DevUi.text("text.open_window"))).bounds(right + rightW - 18, rowTop - 1, 18, CONTROL_H).build());
+        }).tooltip(Tooltip.create(DevUi.text("text.open_window"))).bounds(right + rightW - 18, rowTop, 18, CONTROL_H).build());
     }
 
     /**

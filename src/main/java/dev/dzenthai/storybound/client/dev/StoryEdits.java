@@ -247,6 +247,48 @@ final class StoryEdits {
         return true;
     }
 
+    /** Adds the phrases node as an on-click bubble reply on an NPC binding (skipped if already present). */
+    static boolean linkClickPhrases(JsonObject from, ResourceLocation phrases) {
+        String id = phrases.toString();
+        JsonArray entries = array(from, "dialogues");
+        for (JsonElement element : entries) {
+            if (element instanceof JsonObject existing && isId(existing.get("phrases"), id)) {
+                return false;
+            }
+        }
+        JsonObject entry = new JsonObject();
+        entry.addProperty("phrases", id);
+        entry.addProperty("priority", entries.size() * 10);
+        entries.add(entry);
+        return true;
+    }
+
+    /** Wires the phrases node to an NPC's ambient chatter (or adds a chatter variant when chatter already has phrases). */
+    static boolean linkChatterPhrases(JsonObject from, ResourceLocation phrases) {
+        String id = phrases.toString();
+        JsonObject chatter = from.get("chatter") instanceof JsonObject existing ? existing : new JsonObject();
+        if (!chatter.has("phrases") && !chatter.has("variants")) {
+            chatter.addProperty("phrases", id);
+            from.add("chatter", chatter);
+            return true;
+        }
+        if (isId(chatter.get("phrases"), id)) {
+            return false;
+        }
+        JsonArray variants = array(chatter, "variants");
+        for (JsonElement element : variants) {
+            if (element instanceof JsonObject existing && isId(existing.get("phrases"), id)) {
+                return false;
+            }
+        }
+        JsonObject variant = new JsonObject();
+        variant.addProperty("phrases", id);
+        variant.addProperty("priority", variants.size() * 10);
+        variants.add(variant);
+        from.add("chatter", chatter);
+        return true;
+    }
+
     /**
      * The node runs the script: the dialogue at its end, the quest on completion, the document on its first read, the
      * story event with its actions, the boss on every victory.
