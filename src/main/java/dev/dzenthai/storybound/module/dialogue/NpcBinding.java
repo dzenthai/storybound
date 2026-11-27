@@ -251,7 +251,33 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
 
     /** Whether the binding is for the entity: any of its selectors matches. */
     public boolean matches(Entity entity) {
-        return entities.stream().anyMatch(selector -> selector.matches(entity));
+        for (EntitySelector selector : entities) {
+            if (selector.matches(entity)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Fast type pre-filter: true if any selector either accepts any type or contains {@code typeHolder}. */
+    boolean mayMatchType(net.minecraft.core.Holder<net.minecraft.world.entity.EntityType<?>> typeHolder) {
+        for (EntitySelector selector : entities) {
+            var types = selector.type();
+            if (types.isEmpty() || types.get().contains(typeHolder)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when any selector inspects entity NBT or data fields (needing shared saved-data caching). */
+    boolean usesSavedData() {
+        for (EntitySelector selector : entities) {
+            if (selector.nbt().isPresent() || selector.data().isPresent()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -344,7 +370,12 @@ public record NpcBinding(List<EntitySelector> entities, List<Entry> dialogues, O
 
     /** Whether it is for particular entities, by hand (a tag, a name or a uuid in every selector), not every one of a kind. */
     public boolean byHand() {
-        return entities.stream().allMatch(selector -> selector.tag().isPresent() || selector.name().isPresent() || selector.uuid().isPresent());
+        for (EntitySelector selector : entities) {
+            if (selector.tag().isEmpty() && selector.name().isEmpty() && selector.uuid().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The scoreboard tags its selectors look for. */

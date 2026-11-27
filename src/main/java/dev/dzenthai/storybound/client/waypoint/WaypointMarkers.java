@@ -5,6 +5,7 @@ import com.mojang.math.Axis;
 import dev.dzenthai.storybound.client.ClientModules;
 import dev.dzenthai.storybound.client.HudScale;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
+import dev.dzenthai.storybound.client.text.ClientConfigTexts;
 import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
 import dev.dzenthai.storybound.module.waypoint.AreaLook;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
@@ -19,8 +20,10 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
@@ -114,6 +117,11 @@ public final class WaypointMarkers {
     /** One stacked name above the next, in HUD pixels: the font's line and a pixel. */
     private static final int NAME_LINE = 10;
 
+    private static final Comparator<Marker> DRAW_ORDER = (a, b) -> {
+        int tracked = Boolean.compare(a.tracked(), b.tracked());
+        return tracked != 0 ? tracked : Double.compare(b.distance(), a.distance());
+    };
+
     private static @Nullable Matrix4f view;
     private static @Nullable Matrix4f projection;
     private static Vec3 cameraPos = Vec3.ZERO;
@@ -123,6 +131,16 @@ public final class WaypointMarkers {
     /** Waypoint key → a glide from where the marker was to a newly followed entity. */
     private static final Map<String, Glide> GLIDES = new HashMap<>();
     private static long lastFrame;
+
+    /** Pre-measured visual text so per-frame HUD draws avoid re-running translation decomposition and ICU Bidi. */
+    private record CachedText(FormattedCharSequence visual, int width) {}
+    private record CachedName(ClientWaypoint waypoint, CachedText text) {}
+
+    private static @Nullable Language textCacheLanguage;
+    private static int textCacheTextsRevision = -1;
+    private static @Nullable CachedText inAreaText;
+    private static final Map<Integer, CachedText> DISTANCE_CACHE = new HashMap<>();
+    private static final Map<String, CachedName> NAME_CACHE = new HashMap<>();
 
     private WaypointMarkers() {}
 
@@ -136,12 +154,16 @@ public final class WaypointMarkers {
     }
 
     public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
+        if (ClientWaypoints.isEmpty()) {
+            return;
+        }
         Minecraft minecraft = Minecraft.getInstance();
         StoryboundClientConfig config = StoryboundClientConfig.INSTANCE;
         if (minecraft.level == null || minecraft.player == null || view == null || projection == null
                 || !config.waypointMarkers.get() || !ClientModules.isEnabled("waypoints") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())) {
             return;
         }
+        ensureTextCache();
         long now = Util.getMillis();
         float frameSeconds = Math.min(0.25f, (now - lastFrame) / 1000f);
         lastFrame = now;
@@ -158,7 +180,7 @@ public final class WaypointMarkers {
             }
             Vec3 pos = position(minecraft, waypoint, frameSeconds, partialTick, now);
             seen.put(waypoint.key(), pos);
-            Marker marker = marker(waypoint, pos, eyes, graphics, config);
+            Marker marker = marker(waypoint, pos, eyes, graphics, minecraft.font, config);
             if (marker != null) {
                 markers.add(marker);
             }
@@ -166,9 +188,13 @@ public final class WaypointMarkers {
         SMOOTHED.keySet().retainAll(seen.keySet());
         FOLLOWED.keySet().retainAll(seen.keySet());
         GLIDES.keySet().retainAll(seen.keySet());
+        NAME_CACHE.keySet().retainAll(seen.keySet());
+        if (markers.isEmpty()) {
+            return;
+        }
 
         // Far ones first, the tracked quest's on top.
-        markers.sort(Comparator.comparing(Marker::tracked).thenComparing(Comparator.comparingDouble(Marker::distance).reversed()));
+        markers.sort(DRAW_ORDER);
         int[] stack = stacks(markers);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -182,7 +208,19 @@ public final class WaypointMarkers {
         RenderSystem.disableBlend();
     }
 
-    private static @Nullable Marker marker(ClientWaypoint waypoint, Vec3 pos, Vec3 eyes, GuiGraphics graphics, StoryboundClientConfig config) {
+    private static void ensureTextCache() {
+        Language lang = Language.getInstance();
+        int rev = ClientConfigTexts.revision();
+        if (lang != textCacheLanguage || rev != textCacheTextsRevision) {
+            textCacheLanguage = lang;
+            textCacheTextsRevision = rev;
+            inAreaText = null;
+            DISTANCE_CACHE.clear();
+            NAME_CACHE.clear();
+        }
+    }
+
+    private static @Nullable Marker marker(ClientWaypoint waypoint, Vec3 pos, Vec3 eyes, GuiGraphics graphics, Font font, StoryboundClientConfig config) {
         ClientWaypoints.Display display = ClientWaypoints.display(waypoint);
         boolean tracked = display == ClientWaypoints.Display.TRACKED;
         WaypointStyle style = WaypointStyles.INSTANCE.get();
@@ -231,8 +269,8 @@ public final class WaypointMarkers {
         }
         // Shown no darker than reads on the icons' dark outline and the font's dark shadow (the hue kept); the maps get it as chosen.
         int tint = MarkerContrast.readable(waypoint.color());
-        Component label = inside ? Component.translatable("storybound.waypoint.in_area")
-                : style.distance() ? distanceText(area && horizontal > waypoint.radius() ? horizontal - waypoint.radius() : distance) : null;
+        CachedText label = inside ? cachedInArea(font)
+                : style.distance() ? cachedDistance(font, area && horizontal > waypoint.radius() ? horizontal - waypoint.radius() : distance) : null;
         return new Marker(waypoint, style, screen, anchor, tracked, area, distance, alpha, size, tint, label);
     }
 
@@ -300,10 +338,7 @@ public final class WaypointMarkers {
         float nameY = y + half - marker.size() * (GLYPH_HEIGHT + EVENT_JUMP) - 10;
         float nameAlpha = nameAlpha(style, marker, graphics);
         if (nameAlpha > 0.03f) {
-            Component name = marker.waypoint().name().toComponent();
-            if (marker.area() && marker.waypoint().showRadius()) {
-                name = name.copy().append(Component.translatable("storybound.waypoint.radius", Math.round(marker.waypoint().radius())));
-            }
+            CachedText name = cachedName(font, marker.waypoint(), marker.area());
             // The name in the waypoint's colour, unless it keeps the default: then the look's text colour.
             int nameColor = marker.waypoint().color() == WaypointDefinition.DEFAULT_COLOR ? style.textColor() : marker.tint();
             text(graphics, font, name, x, nameY - stack * NAME_LINE, 1f, nameColor, marker.alpha() * nameAlpha);
@@ -470,7 +505,7 @@ public final class WaypointMarkers {
         graphics.setColor(1f, 1f, 1f, 1f);
     }
 
-    private static void text(GuiGraphics graphics, Font font, Component text, float x, float y, float scale, int rgb, float alpha) {
+    private static void text(GuiGraphics graphics, Font font, CachedText text, float x, float y, float scale, int rgb, float alpha) {
         int a = (int) (Mth.clamp(alpha, 0f, 1f) * 255);
         // The font treats alpha below 4 as opaque.
         if (a < 8) {
@@ -479,15 +514,57 @@ public final class WaypointMarkers {
         graphics.pose().pushPose();
         graphics.pose().translate(x, y, 0);
         graphics.pose().scale(scale, scale, 1f);
-        graphics.drawString(font, text, -font.width(text) / 2, 0, (a << 24) | (rgb & 0xFFFFFF), true);
+        graphics.drawString(font, text.visual(), -text.width() / 2, 0, (a << 24) | (rgb & 0xFFFFFF), true);
         graphics.pose().popPose();
     }
 
-    private static Component distanceText(double blocks) {
-        if (blocks >= 1000) {
-            return Component.translatable("storybound.waypoint.distance_km", String.format("%.1f", blocks / 1000));
+    private static CachedText cachedInArea(Font font) {
+        if (inAreaText == null) {
+            inAreaText = measure(font, Component.translatable("storybound.waypoint.in_area"));
         }
-        return Component.translatable("storybound.waypoint.distance", (int) Math.round(blocks));
+        return inAreaText;
+    }
+
+    private static CachedText cachedName(Font font, ClientWaypoint waypoint, boolean area) {
+        CachedName cached = NAME_CACHE.get(waypoint.key());
+        if (cached != null && cached.waypoint() == waypoint) {
+            return cached.text();
+        }
+        Component name = waypoint.name().toComponent();
+        if (area && waypoint.showRadius()) {
+            name = name.copy().append(Component.translatable("storybound.waypoint.radius", Math.round(waypoint.radius())));
+        }
+        CachedText measured = measure(font, name);
+        NAME_CACHE.put(waypoint.key(), new CachedName(waypoint, measured));
+        return measured;
+    }
+
+    private static CachedText cachedDistance(Font font, double blocks) {
+        int key;
+        if (blocks >= 1000) {
+            int tenthsKm = Math.max(10, (int) Math.round(blocks / 100.0));
+            key = -tenthsKm;
+        } else {
+            key = Math.max(0, (int) Math.round(blocks));
+        }
+        CachedText cached = DISTANCE_CACHE.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        if (DISTANCE_CACHE.size() > 512) {
+            DISTANCE_CACHE.clear();
+        }
+        Component comp = key < 0
+                ? Component.translatable("storybound.waypoint.distance_km", String.format("%.1f", -key / 10.0))
+                : Component.translatable("storybound.waypoint.distance", key);
+        CachedText measured = measure(font, comp);
+        DISTANCE_CACHE.put(key, measured);
+        return measured;
+    }
+
+    private static CachedText measure(Font font, Component component) {
+        FormattedCharSequence visual = component.getVisualOrderText();
+        return new CachedText(visual, font.width(visual));
     }
 
     /**
@@ -561,5 +638,5 @@ public final class WaypointMarkers {
     private record Glide(Vec3 from, long start) {}
 
     private record Marker(ClientWaypoint waypoint, WaypointStyle style, Screen screen, Vec3 anchor, boolean tracked, boolean area, double distance,
-                          float alpha, float size, int tint, @Nullable Component label) {}
+                          float alpha, float size, int tint, @Nullable CachedText label) {}
 }

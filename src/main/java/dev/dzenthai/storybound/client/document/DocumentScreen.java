@@ -221,7 +221,8 @@ public class DocumentScreen extends Screen {
             }
         }
         String source = this.source != null ? this.source : DocumentTexts.load(definition.contentId(documentId))
-                .orElseGet(() -> "{color:#aa0000}" + Component.translatable("storybound.document.missing_text", definition.contentId(documentId).toString()).getString() + "{/}");
+                .orElseGet(() -> DocumentTexts.showsMissing() ? "{color:#aa0000}" + Component.translatable("storybound.document.missing_text",
+                        definition.contentId(documentId).toString()).getString() + "{/}" : "");
         List<SbtBlock> blocks = new ArrayList<>();
         if (style.showTitle() && !hasTitlePage() && scrollTitle.isEmpty()) {
             blocks.add(new SbtBlock.Paragraph(List.of(new SbtBlock.Span(title.getString(), Style.EMPTY.withBold(true)))));

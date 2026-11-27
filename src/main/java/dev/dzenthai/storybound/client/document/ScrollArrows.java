@@ -121,28 +121,30 @@ public final class ScrollArrows {
     private static void paint(GuiGraphics graphics, String[] rows, boolean hover) {
         int a = 0xFF << 24;
         int shadow = (75 << 24) | OUTLINE;
-        for (int row = 0; row < rows.length; row++) {
-            for (int col = 0; col < rows[row].length(); col++) {
-                if (rows[row].charAt(col) != '.') {
-                    graphics.fill(col - 1, row + 1, col, row + 2, shadow);
+        graphics.drawManaged(() -> {
+            for (int row = 0; row < rows.length; row++) {
+                for (int col = 0; col < rows[row].length(); col++) {
+                    if (rows[row].charAt(col) != '.') {
+                        graphics.fill(col - 1, row + 1, col, row + 2, shadow);
+                    }
                 }
             }
-        }
-        for (int row = 0; row < rows.length; row++) {
-            for (int col = 0; col < rows[row].length(); col++) {
-                int color = switch (rows[row].charAt(col)) {
-                    case 'b' -> OUTLINE;
-                    case 'c' -> SHADE;
-                    case 'd' -> hover ? BROWN_HOVER : BROWN;
-                    case 'e' -> hover ? LIGHT_HOVER : LIGHT;
-                    case 'f' -> GLINT;
-                    default -> -1;
-                };
-                if (color >= 0) {
-                    graphics.fill(col, row, col + 1, row + 1, a | color);
+            for (int row = 0; row < rows.length; row++) {
+                for (int col = 0; col < rows[row].length(); col++) {
+                    int color = switch (rows[row].charAt(col)) {
+                        case 'b' -> OUTLINE;
+                        case 'c' -> SHADE;
+                        case 'd' -> hover ? BROWN_HOVER : BROWN;
+                        case 'e' -> hover ? LIGHT_HOVER : LIGHT;
+                        case 'f' -> GLINT;
+                        default -> -1;
+                    };
+                    if (color >= 0) {
+                        graphics.fill(col, row, col + 1, row + 1, a | color);
+                    }
                 }
             }
-        }
+        });
     }
 
     private static String[] mirror(String[] rows) {

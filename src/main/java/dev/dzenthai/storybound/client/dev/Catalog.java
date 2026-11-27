@@ -44,7 +44,7 @@ final class Catalog {
      * What is picked; {@code LIST} is a list given by the caller (types, story nodes, dialogue nodes). {@code MUSIC} is
      * the sound list with only the game's music: its streamed sounds named as music ({@link #music}).
      */
-    enum Kind { STRUCTURE, BIOME, POI, MOB, ITEM, SOUND, MUSIC, ICON, LIST }
+    enum Kind { STRUCTURE, BIOME, POI, MOB, ITEM, SOUND, MUSIC, ICON, IMAGE, LIST }
 
     /** A file of the sounds folder that is not a sound, shown with why: picking it says how to fix it. */
     static final String PROBLEM = "@problem:";
@@ -184,7 +184,7 @@ final class Catalog {
             close();
             screen.rebuild();
         }).bounds(left + WIDTH - 22, top + 4, 18, 16).build());
-        if (kind == Kind.SOUND || kind == Kind.MUSIC || kind == Kind.ICON) {
+        if (kind == Kind.SOUND || kind == Kind.MUSIC || kind == Kind.ICON || kind == Kind.IMAGE) {
             soundButtons(screen, left, top);
         }
 
@@ -221,7 +221,8 @@ final class Catalog {
         int folderW = 64;
         int reloadW = 76;
         screen.add(Button.builder(Component.literal("📂 ").append(DevUi.text("sound.folder")), b -> {
-            java.nio.file.Path folder = kind == Kind.ICON ? StoryAssets.iconFolder() : StoryAssets.folder();
+            java.nio.file.Path folder = kind == Kind.ICON ? StoryAssets.iconFolder()
+                    : kind == Kind.IMAGE ? StoryAssets.imageFolder() : StoryAssets.folder();
             try {
                 java.nio.file.Files.createDirectories(folder);
                 net.minecraft.Util.getPlatform().openPath(folder);
@@ -238,11 +239,12 @@ final class Catalog {
                 if (minecraft.screen != screen) {
                     return;
                 }
-                if (open && kind == reloadedKind && (reloadedKind == Kind.SOUND || reloadedKind == Kind.MUSIC || reloadedKind == Kind.ICON)) {
+                if (open && kind == reloadedKind && (reloadedKind == Kind.SOUND || reloadedKind == Kind.MUSIC || reloadedKind == Kind.ICON || reloadedKind == Kind.IMAGE)) {
                     entries = withSelection(entries(reloadedKind, minecraft.level));
                     scroll = 0;
                 }
                 screen.status(reloadedKind == Kind.ICON ? DevUi.text("icon.reloaded", StoryAssets.icons().icons().size())
+                        : reloadedKind == Kind.IMAGE ? DevUi.text("image.reloaded", StoryAssets.images().images().size())
                         : DevUi.text("sound.reloaded", StoryAssets.last().sounds().size()), DevUi.OK);
                 screen.rebuild();
             }));
@@ -608,6 +610,20 @@ final class Catalog {
                 }
                 if (StoryAssets.icons().icons().isEmpty()) {
                     list.add(new Entry(NOTE + "icons", DevUi.str("icon.section_empty"), ItemStack.EMPTY));
+                }
+            }
+            case IMAGE -> {
+                StoryAssets.rescanImages();
+                for (dev.dzenthai.storybound.client.sound.StoryImageFiles.Problem problem : StoryAssets.images().problems()) {
+                    list.add(new Entry(PROBLEM + problem.kind(), "⚠ " + problem.file() + " — " + DevUi.str("image.short." + problem.kind()),
+                            new ItemStack(Items.BARRIER)));
+                }
+                list.add(new Entry(SECTION + "images", DevUi.str("image.section"), ItemStack.EMPTY));
+                for (dev.dzenthai.storybound.client.sound.StoryImageFiles.Image image : StoryAssets.images().images()) {
+                    list.add(new Entry(image.id(), image.name() + " (" + image.width() + "×" + image.height() + ")", new ItemStack(Items.PAINTING)));
+                }
+                if (StoryAssets.images().images().isEmpty()) {
+                    list.add(new Entry(NOTE + "images", DevUi.str("image.section_empty"), ItemStack.EMPTY));
                 }
             }
             case LIST -> {}

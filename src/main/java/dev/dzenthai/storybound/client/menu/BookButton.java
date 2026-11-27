@@ -58,19 +58,21 @@ public final class BookButton extends Button {
         if (layout != null) {
             frameOnBook(graphics, layout, theme, stamp);
         } else {
-            fillBookFace(graphics, 0xFFE5CDA3);
-            if (active && isHoveredOrFocused()) {
-                fillBookFace(graphics, theme.hover());
-            }
-            // Two-pixel stepped corners match the book's printed ornament scale.
-            graphics.fill(getX() + 3, getY(), getX() + width - 3, getY() + 2, stamp);
-            graphics.fill(getX() + 3, getY() + height - 2, getX() + width - 3, getY() + height, stamp);
-            graphics.fill(getX(), getY() + 3, getX() + 2, getY() + height - 3, stamp);
-            graphics.fill(getX() + width - 2, getY() + 3, getX() + width, getY() + height - 3, stamp);
-            graphics.fill(getX() + 2, getY() + 2, getX() + 4, getY() + 4, stamp);
-            graphics.fill(getX() + width - 4, getY() + 2, getX() + width - 2, getY() + 4, stamp);
-            graphics.fill(getX() + 2, getY() + height - 4, getX() + 4, getY() + height - 2, stamp);
-            graphics.fill(getX() + width - 4, getY() + height - 4, getX() + width - 2, getY() + height - 2, stamp);
+            graphics.drawManaged(() -> {
+                fillBookFace(graphics, 0xFFE5CDA3);
+                if (active && isHoveredOrFocused()) {
+                    fillBookFace(graphics, theme.hover());
+                }
+                // Two-pixel stepped corners match the book's printed ornament scale.
+                graphics.fill(getX() + 3, getY(), getX() + width - 3, getY() + 2, stamp);
+                graphics.fill(getX() + 3, getY() + height - 2, getX() + width - 3, getY() + height, stamp);
+                graphics.fill(getX(), getY() + 3, getX() + 2, getY() + height - 3, stamp);
+                graphics.fill(getX() + width - 2, getY() + 3, getX() + width, getY() + height - 3, stamp);
+                graphics.fill(getX() + 2, getY() + 2, getX() + 4, getY() + 4, stamp);
+                graphics.fill(getX() + width - 4, getY() + 2, getX() + width - 2, getY() + 4, stamp);
+                graphics.fill(getX() + 2, getY() + height - 4, getX() + 4, getY() + height - 2, stamp);
+                graphics.fill(getX() + width - 4, getY() + height - 4, getX() + width - 2, getY() + height - 2, stamp);
+            });
         }
         var font = Minecraft.getInstance().font;
         var label = JournalSkin.text(getMessage());
@@ -147,18 +149,20 @@ public final class BookButton extends Button {
         graphics.pose().translate(layout.x(), layout.y(), 0);
         graphics.pose().scale((float) pixel, (float) pixel, 1);
         int face = active && isHoveredOrFocused() ? theme.hover() : 0xFFE5CDA3;
-        graphics.fill(left + 1, top + 1, right - 1, bottom - 1, 0xFFE5CDA3);
-        if (face != 0xFFE5CDA3) {
-            graphics.fill(left + 1, top + 1, right - 1, bottom - 1, face);
-        }
-        graphics.fill(left + 2, top, right - 2, top + 1, stamp);
-        graphics.fill(left + 2, bottom - 1, right - 2, bottom, stamp);
-        graphics.fill(left, top + 2, left + 1, bottom - 2, stamp);
-        graphics.fill(right - 1, top + 2, right, bottom - 2, stamp);
-        graphics.fill(left + 1, top + 1, left + 2, top + 2, stamp);
-        graphics.fill(right - 2, top + 1, right - 1, top + 2, stamp);
-        graphics.fill(left + 1, bottom - 2, left + 2, bottom - 1, stamp);
-        graphics.fill(right - 2, bottom - 2, right - 1, bottom - 1, stamp);
+        graphics.drawManaged(() -> {
+            graphics.fill(left + 1, top + 1, right - 1, bottom - 1, 0xFFE5CDA3);
+            if (face != 0xFFE5CDA3) {
+                graphics.fill(left + 1, top + 1, right - 1, bottom - 1, face);
+            }
+            graphics.fill(left + 2, top, right - 2, top + 1, stamp);
+            graphics.fill(left + 2, bottom - 1, right - 2, bottom, stamp);
+            graphics.fill(left, top + 2, left + 1, bottom - 2, stamp);
+            graphics.fill(right - 1, top + 2, right, bottom - 2, stamp);
+            graphics.fill(left + 1, top + 1, left + 2, top + 2, stamp);
+            graphics.fill(right - 2, top + 1, right - 1, top + 2, stamp);
+            graphics.fill(left + 1, bottom - 2, left + 2, bottom - 1, stamp);
+            graphics.fill(right - 2, bottom - 2, right - 1, bottom - 1, stamp);
+        });
         graphics.pose().popPose();
     }
 

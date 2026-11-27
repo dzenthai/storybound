@@ -91,6 +91,7 @@ final class FormView extends FormScenes {
         String inside = own.containsKey("objectives") || own.containsKey("since_stage") ? insideQuest(path) : null;
         boolean boss = path.isEmpty() && own.containsKey("participation");
         boolean codex = path.isEmpty() && own.containsKey("show_kills");
+        boolean codexPlace = path.size() == 1 && "place".equals(path.getFirst()) && own.containsKey("poi") && own.containsKey("area");
         boolean section = path.size() == 2 && "sections".equals(path.getFirst()) && own.containsKey("unlock");
         boolean unlock = own.containsKey("on") && own.containsKey("count");
         boolean observed = own.containsKey("time") && own.containsKey("distance") && own.containsKey("block");
@@ -99,7 +100,7 @@ final class FormView extends FormScenes {
         boolean shot = own.containsKey("camera") && own.containsKey("transition");
         boolean camera = own.containsKey("from") && own.containsKey("speed");
         String form = node != null ? "node." + node : option ? "option" : document ? "document" : lootRule ? "document.loot" : journal ? "journal" : quest ? "quest"
-                : inside != null ? inside : boss ? "boss" : codex ? "codex" : section ? "codex.section" : unlock ? "unlock" : observed ? "observed"
+                : inside != null ? inside : boss ? "boss" : codex ? "codex" : codexPlace ? "codex.place" : section ? "codex.section" : unlock ? "unlock" : observed ? "observed"
                 : shot ? "scene.shot" : camera ? "scene.camera" : rootForm;
         Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
                 : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
@@ -129,6 +130,14 @@ final class FormView extends FormScenes {
             }
             if (lootRule && (name.equals("biome") || name.equals("structure") || name.equals("tables"))) {
                 // Rendered together with dimension inside lootSourceFields according to the active mode.
+                continue;
+            }
+            if (codex && name.equals("place")) {
+                // Rendered together with entity inside codexAboutFields.
+                continue;
+            }
+            if (codexPlace && (name.equals("biome") || name.equals("structure"))) {
+                // Rendered together with dimension via placeRows(path, true).
                 continue;
             }
             if (addWaypoint && ADD_WAYPOINT_TARGET.contains(name)) {
@@ -183,8 +192,14 @@ final class FormView extends FormScenes {
                 percentField(path, name, property.getValue(), object, fieldLabel(name, false, schema));
             } else if ("codex".equals(form) && name.equals("category")) {
                 codexCategoryField(path, object);
+            } else if ("codex".equals(form) && name.equals("entity")) {
+                codexAboutFields(path, schema, object);
+            } else if ("codex".equals(form) && name.equals("image")) {
+                codexImageField(path, object);
             } else if ("codex".equals(form) && name.equals("sections")) {
                 codexSectionsField(path, property.getValue(), object);
+            } else if ("codex.place".equals(form) && name.equals("dimension")) {
+                placeRows(path, true);
             } else if ("unlock".equals(form) && name.equals("on")) {
                 unlockSourcesField(path, object, fieldLabel(name, false, schema));
             } else if ("node.jump".equals(form) && name.equals("dialogue")) {
@@ -594,10 +609,10 @@ final class FormView extends FormScenes {
                 if (named && !element.has("id")) {
                     element.addProperty("id", freeId(list, field));
                 }
-                // A Codex section must say how it opens: when its creature is seen, or (without one) by an action.
+                // A Codex section must say how it opens: when its place is visited, creature is seen, or by an action.
                 if (element.get("unlock") instanceof JsonObject opens && !opens.has("on")) {
                     JsonArray on = new JsonArray();
-                    on.add(host.root().has("entity") ? "seen" : "manual");
+                    on.add(host.root().has("place") ? "visited" : host.root().has("entity") ? "seen" : "manual");
                     opens.add("on", on);
                 }
                 list.add(element);

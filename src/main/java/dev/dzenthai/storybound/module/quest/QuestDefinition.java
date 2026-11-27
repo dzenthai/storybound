@@ -68,7 +68,12 @@ public record QuestDefinition(ResourceLocation category, StoryScope scope, Story
             .xmap(pair -> pair.getFirst().with(pair.getSecond()), quest -> Pair.of(quest, quest.screenText())).codec();
 
     public Optional<Stage> stage(String id) {
-        return stages.stream().filter(stage -> stage.id().equals(id)).findFirst();
+        for (Stage stage : stages) {
+            if (stage.id().equals(id)) {
+                return Optional.of(stage);
+            }
+        }
+        return Optional.empty();
     }
 
     public Optional<String> firstStage() {

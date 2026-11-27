@@ -1,5 +1,8 @@
 package dev.dzenthai.storybound.client;
 
+import dev.dzenthai.storybound.client.codex.CodexPhotoPrompt;
+import dev.dzenthai.storybound.module.codex.CodexDefinition;
+import dev.dzenthai.storybound.module.codex.CodexRegistries;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 public final class ClientCodex {
     private static volatile Map<ResourceLocation, List<String>> unlocked = Map.of();
     private static volatile Map<ResourceLocation, Integer> kills = Map.of();
+    private static volatile boolean synced;
 
     /** Incremented on every change (on the main thread); open views compare it to know when to refresh. */
     private static volatile int version;
@@ -20,9 +24,27 @@ public final class ClientCodex {
         return version;
     }
 
-    public static void apply(Map<ResourceLocation, List<String>> unlocked) {
-        ClientCodex.unlocked = Map.copyOf(unlocked);
+    /** Notifies open Codex views that local presentation data (such as a newly captured player photo) changed. */
+    public static void bumpVersion() {
         version++;
+    }
+
+    public static void apply(Map<ResourceLocation, List<String>> next) {
+        Map<ResourceLocation, List<String>> previous = unlocked;
+        boolean wasSynced = synced;
+        ClientCodex.unlocked = Map.copyOf(next);
+        synced = true;
+        version++;
+        if (wasSynced) {
+            for (ResourceLocation id : next.keySet()) {
+                if (!previous.containsKey(id)) {
+                    CodexDefinition definition = CodexRegistries.CODEX.clientStore().getOrNull(id);
+                    if (definition != null && definition.canPhotograph()) {
+                        CodexPhotoPrompt.offer(id, definition.title().asComponent());
+                    }
+                }
+            }
+        }
     }
 
     /** {@code all}: every count, replacing the old ones; otherwise only those that changed. */
@@ -49,6 +71,7 @@ public final class ClientCodex {
     public static void clear() {
         unlocked = Map.of();
         kills = Map.of();
+        synced = false;
         version++;
     }
 }

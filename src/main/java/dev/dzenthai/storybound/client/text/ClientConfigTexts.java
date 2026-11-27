@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.client.text;
 
 import dev.dzenthai.storybound.core.text.ConfigTexts;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,24 +21,40 @@ import org.jetbrains.annotations.Nullable;
  * resource packs say. Long texts are read by {@code DocumentTexts} before the resource packs'.
  */
 public final class ClientConfigTexts {
+    private record Resolved(String language, Map<String, String> values) {}
+
     private static final String FALLBACK_LANGUAGE = "en_us";
     private static ConfigTexts.Texts texts = ConfigTexts.Texts.EMPTY;
     private static @Nullable String previewLanguage = null;
+    private static volatile int revision;
+    private static volatile @Nullable Resolved resolved;
 
     private ClientConfigTexts() {}
 
+    public static int revision() {
+        return revision;
+    }
+
     public static void set(ConfigTexts.Texts value) {
         texts = value;
+        invalidateResolved();
         install();
     }
 
     public static void clear() {
         texts = ConfigTexts.Texts.EMPTY;
         previewLanguage = null;
+        invalidateResolved();
     }
 
     public static void setPreviewLanguage(@Nullable String language) {
         previewLanguage = language;
+        invalidateResolved();
+    }
+
+    private static void invalidateResolved() {
+        resolved = null;
+        revision++;
     }
 
     public static @Nullable String previewLanguage() {
@@ -79,39 +96,46 @@ public final class ClientConfigTexts {
         if (texts.translations().isEmpty()) {
             return null;
         }
-        Map<String, String> langMap = texts.translations().get(selectedLanguage);
-        if (langMap != null && langMap.containsKey(key)) {
-            return langMap.get(key);
+        return resolvedFor(selectedLanguage).get(key);
+    }
+
+    /** Flat lookup table for {@code selectedLanguage} in exact fallback order, rebuilt only when texts or language change. */
+    private static Map<String, String> resolvedFor(String selectedLanguage) {
+        Resolved current = resolved;
+        if (current != null && selectedLanguage.equals(current.language())) {
+            return current.values();
         }
-        if (selectedLanguage.contains("_")) {
-            String prefix = selectedLanguage.substring(0, selectedLanguage.indexOf('_')) + "_";
+        Map<String, String> merged = new HashMap<>();
+        Map<String, String> langMap = texts.translations().get(selectedLanguage);
+        if (langMap != null) {
+            merged.putAll(langMap);
+        }
+        int sep = selectedLanguage.indexOf('_');
+        if (sep >= 0) {
+            String prefix = selectedLanguage.substring(0, sep + 1);
             for (Map.Entry<String, Map<String, String>> entry : texts.translations().entrySet()) {
                 if (!entry.getKey().equalsIgnoreCase(selectedLanguage) && entry.getKey().startsWith(prefix)) {
-                    String sibling = entry.getValue().get(key);
-                    if (sibling != null) {
-                        return sibling;
-                    }
+                    entry.getValue().forEach(merged::putIfAbsent);
                 }
             }
         }
-        String ownSource = texts.sourceTranslations().get(key);
-        if (ownSource != null) {
-            return ownSource;
-        }
+        texts.sourceTranslations().forEach(merged::putIfAbsent);
         String source = texts.sourceLanguage();
         if (source != null && !source.equalsIgnoreCase(selectedLanguage)) {
             Map<String, String> srcMap = texts.translations().get(source);
-            if (srcMap != null && srcMap.containsKey(key)) {
-                return srcMap.get(key);
+            if (srcMap != null) {
+                srcMap.forEach(merged::putIfAbsent);
             }
         }
         if (!FALLBACK_LANGUAGE.equalsIgnoreCase(selectedLanguage)) {
             Map<String, String> fallbackMap = texts.translations().get(FALLBACK_LANGUAGE);
-            if (fallbackMap != null && fallbackMap.containsKey(key)) {
-                return fallbackMap.get(key);
+            if (fallbackMap != null) {
+                fallbackMap.forEach(merged::putIfAbsent);
             }
         }
-        return null;
+        Map<String, String> immutable = Map.copyOf(merged);
+        resolved = new Resolved(selectedLanguage, immutable);
+        return immutable;
     }
 
     /**

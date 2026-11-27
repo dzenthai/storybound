@@ -52,6 +52,10 @@ public final class DialogueScreen extends Screen {
     private int choicesHeight;
     private int choicesScroll;
     private int selectedReply = -1;
+    private long cachedFooterKey = Long.MIN_VALUE;
+    private net.minecraft.locale.Language cachedFooterLanguage;
+    private FormattedCharSequence cachedFooterLine;
+    private int cachedFooterWidth;
 
     public DialogueScreen() {
         super(Component.translatable("storybound.dialogue.title"));
@@ -211,9 +215,15 @@ public final class DialogueScreen extends Screen {
                     panelX + PADDING, panelY + (panelHeight - DialogueChrome.PORTRAIT_SIZE) / 2, DialogueChrome.PORTRAIT_SIZE);
         }
         int nameY = textY - nameLines.size() * LINE_HEIGHT;
-        for (FormattedCharSequence name : nameLines) {
-            graphics.drawString(font, name, textX, nameY, theme.hudTitle(), true);
-            nameY += LINE_HEIGHT;
+        if (!nameLines.isEmpty()) {
+            int startY = nameY;
+            graphics.drawManaged(() -> {
+                int y = startY;
+                for (FormattedCharSequence name : nameLines) {
+                    graphics.drawString(font, name, textX, y, theme.hudTitle(), true);
+                    y += LINE_HEIGHT;
+                }
+            });
         }
         int visible = builtLine.visibleChars();
         if (!manualTextScroll && !builtLine.isRevealed()) {
@@ -227,11 +237,13 @@ public final class DialogueScreen extends Screen {
             textScroll = Math.max(0, shownRows * LINE_HEIGHT - textHeight);
         }
         clip(graphics, textX, textY - 1, textX + textWidth + 2, textY + textHeight + 1);
-        if (builtLine.isThinking()) {
-            graphics.drawString(font, ThinkTime.dots(Util.getMillis()), textX, textY, theme.hudText(), true);
-        } else {
-            DialogueText.draw(graphics, font, textLines, textX, textY - textScroll, LINE_HEIGHT, theme.hudText(), true, visible);
-        }
+        graphics.drawManaged(() -> {
+            if (builtLine.isThinking()) {
+                graphics.drawString(font, ThinkTime.dots(Util.getMillis()), textX, textY, theme.hudText(), true);
+            } else {
+                DialogueText.draw(graphics, font, textLines, textX, textY - textScroll, LINE_HEIGHT, theme.hudText(), true, visible);
+            }
+        });
         graphics.disableScissor();
         DialogueChrome.scrollbar(graphics, textX + textWidth + 3, textY, textHeight, textLines.size() * LINE_HEIGHT, textScroll);
     }
@@ -240,21 +252,49 @@ public final class DialogueScreen extends Screen {
         if (ClientDialogue.chosen() != null) {
             return;
         }
-        Component action;
-        if (builtChoices != null) action = Component.translatable("storybound.dialogue.controls.choose", Math.min(9, optionButtons.size()));
-        else if (builtLine != null && !builtLine.isRevealed()) action = Component.translatable("storybound.dialogue.controls.reveal");
-        else if (builtLine != null && builtLine.timed()) action = Component.translatable("storybound.dialogue.controls.wait");
-        else action = Component.translatable("storybound.dialogue.controls.continue");
-        Component hint = action.copy();
-        if (textLines.size() * LINE_HEIGHT > textHeight || choicesHeight > choicesBottom - choicesTop)
-            hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.scroll"));
-        // From the prompt ESC goes back to it, whether the dialogue may be left or not.
-        if (ClientDialogue.backToPrompt()) hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.back"));
-        else if (ClientDialogue.closable()) hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.leave"));
-        var lines = font.split(hint, width - MARGIN * 2);
-        if (!lines.isEmpty()) {
-            graphics.drawString(font, lines.getFirst(),
-                    (width - font.width(lines.getFirst())) / 2, panelY + panelHeight + 4, theme.hudText(), true);
+        int mode;
+        int choiceCount = 0;
+        if (builtChoices != null) {
+            mode = 1;
+            choiceCount = Math.min(9, optionButtons.size());
+        } else if (builtLine != null && !builtLine.isRevealed()) {
+            mode = 2;
+        } else if (builtLine != null && builtLine.timed()) {
+            mode = 3;
+        } else {
+            mode = 4;
+        }
+        boolean scrollable = textLines.size() * LINE_HEIGHT > textHeight || choicesHeight > choicesBottom - choicesTop;
+        boolean backToPrompt = ClientDialogue.backToPrompt();
+        boolean closable = !backToPrompt && ClientDialogue.closable();
+        long key = ((long) width << 20) | ((long) mode << 12) | ((long) choiceCount << 4)
+                | (scrollable ? 1L : 0L) | (backToPrompt ? 2L : 0L) | (closable ? 4L : 0L);
+        net.minecraft.locale.Language lang = net.minecraft.locale.Language.getInstance();
+        if (key != cachedFooterKey || lang != cachedFooterLanguage) {
+            cachedFooterKey = key;
+            cachedFooterLanguage = lang;
+            Component action = switch (mode) {
+                case 1 -> Component.translatable("storybound.dialogue.controls.choose", choiceCount);
+                case 2 -> Component.translatable("storybound.dialogue.controls.reveal");
+                case 3 -> Component.translatable("storybound.dialogue.controls.wait");
+                default -> Component.translatable("storybound.dialogue.controls.continue");
+            };
+            Component hint = action.copy();
+            if (scrollable) {
+                hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.scroll"));
+            }
+            // From the prompt ESC goes back to it, whether the dialogue may be left or not.
+            if (backToPrompt) {
+                hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.back"));
+            } else if (closable) {
+                hint = hint.copy().append(Component.translatable("storybound.dialogue.controls.leave"));
+            }
+            var lines = font.split(hint, width - MARGIN * 2);
+            cachedFooterLine = lines.isEmpty() ? null : lines.getFirst();
+            cachedFooterWidth = cachedFooterLine == null ? 0 : font.width(cachedFooterLine);
+        }
+        if (cachedFooterLine != null) {
+            graphics.drawString(font, cachedFooterLine, (width - cachedFooterWidth) / 2, panelY + panelHeight + 4, theme.hudText(), true);
         }
     }
 
@@ -402,7 +442,7 @@ public final class DialogueScreen extends Screen {
         @Override
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
             boolean highlighted = active && (isHoveredOrFocused() || selectedReply == number - 1);
-            int textY = getY() + 3;
+            int startY = getY() + 3;
             int color;
             if (!active) {
                 color = DialogueChrome.REPLY_LOCKED;
@@ -411,14 +451,17 @@ public final class DialogueScreen extends Screen {
             } else {
                 color = MenuThemes.INSTANCE.theme().hudText();
             }
-            if (highlighted) {
-                DialogueChrome.choiceMarker(graphics, getX() + 3, textY + 2, 255);
-            }
-            graphics.drawString(font, number + ".", getX() + 8, textY, color, true);
-            for (FormattedCharSequence line : lines) {
-                graphics.drawString(font, line, getX() + 24, textY, color, true);
-                textY += REPLY_LINE_HEIGHT;
-            }
+            graphics.drawManaged(() -> {
+                if (highlighted) {
+                    DialogueChrome.choiceMarker(graphics, getX() + 3, startY + 2, 255);
+                }
+                graphics.drawString(font, number + ".", getX() + 8, startY, color, true);
+                int y = startY;
+                for (FormattedCharSequence line : lines) {
+                    graphics.drawString(font, line, getX() + 24, y, color, true);
+                    y += REPLY_LINE_HEIGHT;
+                }
+            });
         }
     }
 }

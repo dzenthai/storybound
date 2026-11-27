@@ -100,16 +100,18 @@ public final class DevModeServer {
             return;
         }
         DevProjects.sendState(player);
+        Path projectRoot = root(player);
+        boolean isPrimary = projectRoot.equals(StoryProjects.primaryRoot());
         RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, player.server.registryAccess());
         Map<ResourceLocation, Map<ResourceLocation, String>> definitions = new LinkedHashMap<>();
         for (DefinitionType<?> type : DefinitionTypes.all()) {
-            definitions.put(type.id(), encodeProject(root(player), type, ops));
+            definitions.put(type.id(), encodeProject(projectRoot, isPrimary, type, ops));
         }
         // The report as of the last data load or save (both validate); opening the editor does not re-run the checks.
         ValidationReport report = ValidationService.current();
         List<String> issues = report.issues().stream().map(ValidationIssue::describe).toList();
-        ProjectSettings settings = ProjectSettings.load(root(player));
-        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.ProjectOptions(GSON.toJson(ProjectSettings.options(root(player)))));
+        ProjectSettings settings = ProjectSettings.load(projectRoot);
+        StoryboundNetwork.sendToPlayer(player, new DevModePayloads.ProjectOptions(GSON.toJson(ProjectSettings.options(projectRoot))));
         StoryboundNetwork.sendToPlayer(player, new DevModePayloads.Snapshot(definitions, issues, settings.sourceLanguage(), settings.languages(), settings.namespace(),
                 serverLists(player.server), RECEIVED.getOrDefault(player.getUUID(), 0)));
     }
@@ -195,33 +197,34 @@ public final class DevModeServer {
      * Every definition as the editor edits it: the story folder's file as the author wrote it (field order, defaults
      * written out, fields the game does not know), else, for a datapack's definition, as the codec writes it.
      */
-    private static <T> Map<ResourceLocation, String> encodeProject(Path root, DefinitionType<T> type, RegistryOps<JsonElement> ops) {
+    private static <T> Map<ResourceLocation, String> encodeProject(Path root, boolean isPrimary, DefinitionType<T> type, RegistryOps<JsonElement> ops) {
         Map<ResourceLocation, String> result = new LinkedHashMap<>();
-        // The primary story also shows what no story holds (a datapack's): saved, it goes into that story.
-        if (root.equals(StoryProjects.primaryRoot())) {
-            encodeStore(type, ops).forEach((id, json) -> {
-                if (StoryProjects.owner(type, id).toAbsolutePath().normalize().equals(root)) {
-                    result.put(id, json);
-                }
-            });
-        }
         Map<ResourceLocation, JsonElement> files = new LinkedHashMap<>();
         ConfigStorySource.scan(root, type, files, new java.util.ArrayList<>());
+        // The primary story also shows what no story holds (a datapack's): saved, it goes into that story.
+        if (isPrimary) {
+            encodeStore(type, ops, root, files, result);
+        }
         files.forEach((id, json) -> result.put(id, GSON.toJson(json)));
         return result;
     }
 
-    private static <T> Map<ResourceLocation, String> encodeStore(DefinitionType<T> type, RegistryOps<JsonElement> ops) {
-        Map<ResourceLocation, String> encoded = new LinkedHashMap<>();
+    private static <T> void encodeStore(DefinitionType<T> type, RegistryOps<JsonElement> ops, Path root,
+                                        Map<ResourceLocation, JsonElement> alreadyScanned, Map<ResourceLocation, String> out) {
         type.serverStore().all().forEach((id, value) -> {
+            if (alreadyScanned.containsKey(id)) {
+                return;
+            }
+            if (!StoryProjects.owner(type, id).toAbsolutePath().normalize().equals(root)) {
+                return;
+            }
             JsonElement written = storyFile(type, id, ops);
             if (written != null) {
-                encoded.put(id, GSON.toJson(written));
+                out.put(id, GSON.toJson(written));
             } else {
-                type.codec().encodeStart(ops, value).result().ifPresent(json -> encoded.put(id, GSON.toJson(json)));
+                type.codec().encodeStart(ops, value).result().ifPresent(json -> out.put(id, GSON.toJson(json)));
             }
         });
-        return encoded;
     }
 
     /** The definition's file in the story folder, when there is one that loads; null otherwise (a datapack's, a broken one). */

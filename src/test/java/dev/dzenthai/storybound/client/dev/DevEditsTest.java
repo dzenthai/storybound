@@ -630,8 +630,8 @@ class DevEditsTest {
         assertEquals(ClientDevStore.TYPE_CODEX, codex.key().type());
         JsonObject section = codex.json().getAsJsonArray("sections").get(0).getAsJsonObject();
         assertEquals("base", section.get("id").getAsString());
-        assertEquals("[\"manual\"]", section.getAsJsonObject("unlock").get("on").toString(), "opens by an action until a creature is picked");
-        assertEquals(NodeTemplates.Ask.CREATURE, NodeTemplates.ask(NodeTemplates.Template.CODEX));
+        assertEquals("[\"manual\"]", section.getAsJsonObject("unlock").get("on").toString(), "opens by an action until a creature or place is picked");
+        assertEquals(NodeTemplates.Ask.NONE, NodeTemplates.ask(NodeTemplates.Template.CODEX), "a Codex entry can be a creature, a place, or lore");
 
         NodeTemplates.Created event = NodeTemplates.create(NodeTemplates.Template.EVENT, 2, nowhere, (key, args) -> key).getFirst();
         assertEquals(ClientDevStore.TYPE_EVENT, event.key().type());

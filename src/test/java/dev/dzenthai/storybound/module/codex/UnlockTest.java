@@ -26,5 +26,7 @@ class UnlockTest {
         assertTrue(Unlock.Source.CODEC.parse(JsonOps.INSTANCE, new JsonPrimitive("observed:0")).error().isPresent(), "at least a quarter of a second");
         assertTrue(Unlock.Source.CODEC.parse(JsonOps.INSTANCE, new JsonPrimitive("observed:soon")).error().isPresent(), "a number");
         assertEquals(Unlock.Source.SEEN, parse("seen"), "the others as before");
+        assertEquals(Unlock.Source.VISITED, parse("visited"), "visited parses to VISITED");
+        assertEquals("visited", write(Unlock.Source.VISITED), "visited serializes back");
     }
 }

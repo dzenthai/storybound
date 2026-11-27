@@ -60,6 +60,8 @@
 - Dialogues: `start_dialogue` accepts an optional `speaker` entity selector so dialogues launched from a cutscene's
   `on_end` or a quest stage bind to a live 3D NPC speaker.
 - Fixed: `note_torn` document style now uses valid texture dimensions and readable default font metrics.
+- A Codex entry's or a document's text that is not there shows in red ("Missing text: …") only to whoever may open the
+  dev mode; a player sees nothing in its place.
 - The client and the server must both be on this version: what they send each other has changed.
 - Fixed: a selector naming an entity tag (`"#minecraft:zombies"` in a waypoint, an objective or an NPC binding) failed
   with "Missing tag" when a world loaded, and its definition was left out.

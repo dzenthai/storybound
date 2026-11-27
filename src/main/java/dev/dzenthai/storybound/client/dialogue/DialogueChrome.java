@@ -64,12 +64,14 @@ final class DialogueChrome {
         int goldLight = (alpha << 24) | UiPalette.GOLD_LIGHT;
         int ochre = (alpha << 24) | UiPalette.OCHRE;
         int shadow = (alpha << 24) | UiPalette.SHADOW;
-        graphics.fill(x + 1, y, x + 2, y + 1, gold);
-        graphics.fill(x, y + 1, x + 1, y + 2, gold);
-        graphics.fill(x + 1, y + 1, x + 2, y + 2, goldLight);
-        graphics.fill(x + 2, y + 1, x + 3, y + 2, ochre);
-        graphics.fill(x + 1, y + 2, x + 2, y + 3, ochre);
-        graphics.fill(x + 2, y + 2, x + 3, y + 3, shadow);
+        graphics.drawManaged(() -> {
+            graphics.fill(x + 1, y, x + 2, y + 1, gold);
+            graphics.fill(x, y + 1, x + 1, y + 2, gold);
+            graphics.fill(x + 1, y + 1, x + 2, y + 2, goldLight);
+            graphics.fill(x + 2, y + 1, x + 3, y + 2, ochre);
+            graphics.fill(x + 1, y + 2, x + 2, y + 3, ochre);
+            graphics.fill(x + 2, y + 2, x + 3, y + 3, shadow);
+        });
     }
 
     static void renderChosen(GuiGraphics graphics, Font font, ClientDialogue.Chosen chosen, long now, int fallbackX, int fallbackY) {
@@ -84,13 +86,15 @@ final class DialogueChrome {
         List<FormattedCharSequence> lines = font.split(chosen.text(), width - 22);
         int lineHeight = 11;
         int color = (alpha << 24) | UiPalette.GOLD;
-        choiceMarker(graphics, x - 5, y + 2, alpha);
-        graphics.drawString(font, chosen.number() + ".", x, y, color, true);
-        int rowY = y;
-        for (FormattedCharSequence line : lines) {
-            graphics.drawString(font, line, x + 16, rowY, color, true);
-            rowY += lineHeight;
-        }
+        graphics.drawManaged(() -> {
+            choiceMarker(graphics, x - 5, y + 2, alpha);
+            graphics.drawString(font, chosen.number() + ".", x, y, color, true);
+            int rowY = y;
+            for (FormattedCharSequence line : lines) {
+                graphics.drawString(font, line, x + 16, rowY, color, true);
+                rowY += lineHeight;
+            }
+        });
     }
 
     static void nebula(GuiGraphics graphics, int x, int y, int width, int height, long elapsedMillis) {
@@ -141,37 +145,45 @@ final class DialogueChrome {
     }
 
     static void portrait(GuiGraphics graphics, int x, int y, int size) {
-        graphics.fill(x - 3, y - 2, x + size + 3, y + size + 2, 0xFF694727);
-        graphics.fill(x - 2, y - 3, x + size + 2, y + size + 3, 0xFF694727);
-        graphics.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0xFFC49658);
-        graphics.fill(x, y, x + size, y + size, 0xFFA58250);
-        for (int dx : new int[]{-2, size - 2}) {
-            for (int dy : new int[]{-2, size - 2}) {
-                graphics.fill(x + dx, y + dy, x + dx + 4, y + dy + 4, RULE);
-                graphics.fill(x + dx + 1, y + dy + 1, x + dx + 3, y + dy + 3, 0xFFEBC88C);
+        graphics.drawManaged(() -> {
+            graphics.fill(x - 3, y - 2, x + size + 3, y + size + 2, 0xFF694727);
+            graphics.fill(x - 2, y - 3, x + size + 2, y + size + 3, 0xFF694727);
+            graphics.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0xFFC49658);
+            graphics.fill(x, y, x + size, y + size, 0xFFA58250);
+            for (int dx : new int[]{-2, size - 2}) {
+                for (int dy : new int[]{-2, size - 2}) {
+                    graphics.fill(x + dx, y + dy, x + dx + 4, y + dy + 4, RULE);
+                    graphics.fill(x + dx + 1, y + dy + 1, x + dx + 3, y + dy + 3, 0xFFEBC88C);
+                }
             }
-        }
+        });
     }
 
     static void arrow(GuiGraphics graphics, int x, int y, boolean down, int color) {
-        for (int i = 0; i < 4; i++) {
-            if (down) graphics.fill(x + i, y + i, x + 7 - i, y + i + 1, color);
-            else graphics.fill(x + i, y + i, x + i + 1, y + 7 - i, color);
-        }
+        graphics.drawManaged(() -> {
+            for (int i = 0; i < 4; i++) {
+                if (down) graphics.fill(x + i, y + i, x + 7 - i, y + i + 1, color);
+                else graphics.fill(x + i, y + i, x + i + 1, y + 7 - i, color);
+            }
+        });
     }
 
     static void lock(GuiGraphics graphics, int x, int y) {
-        graphics.fill(x + 1, y + 4, x + 8, y + 10, MUTED);
-        graphics.fill(x + 2, y + 1, x + 7, y + 5, MUTED);
-        graphics.fill(x + 3, y + 2, x + 6, y + 4, 0xFFE7D2AA);
-        graphics.fill(x + 4, y + 6, x + 5, y + 9, 0xFFE7D2AA);
+        graphics.drawManaged(() -> {
+            graphics.fill(x + 1, y + 4, x + 8, y + 10, MUTED);
+            graphics.fill(x + 2, y + 1, x + 7, y + 5, MUTED);
+            graphics.fill(x + 3, y + 2, x + 6, y + 4, 0xFFE7D2AA);
+            graphics.fill(x + 4, y + 6, x + 5, y + 9, 0xFFE7D2AA);
+        });
     }
 
     static void scrollbar(GuiGraphics graphics, int x, int y, int height, int content, int offset) {
         if (content <= height) return;
         int thumb = Math.max(8, height * height / content);
         int top = y + Math.round((height - thumb) * offset / (float) (content - height));
-        graphics.fill(x, y, x + 1, y + height, 0x50AC7848);
-        graphics.fill(x, top, x + 2, top + thumb, RULE);
+        graphics.drawManaged(() -> {
+            graphics.fill(x, y, x + 1, y + height, 0x50AC7848);
+            graphics.fill(x, top, x + 2, top + thumb, RULE);
+        });
     }
 }

@@ -28,7 +28,6 @@ final class NodeTemplates {
     static Ask ask(Template template) {
         return switch (template) {
             case NPC, BOSS -> Ask.ENTITY;
-            case CODEX -> Ask.CREATURE;
             case EVENT -> Ask.TRIGGER;
             default -> Ask.NONE;
         };

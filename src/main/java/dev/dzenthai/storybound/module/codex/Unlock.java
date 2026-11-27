@@ -28,13 +28,14 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
     }
 
     /**
-     * {@code seen}, {@code killed}, {@code observed:<seconds>} (studied: looked straight at the creature that long, see
-     * {@code observed}; {@code observed} alone is 5 seconds), {@code read:<document>} or {@code manual} (only actions,
-     * commands and scripts).
+     * {@code seen}, {@code killed}, {@code visited} (entered the entry's place), {@code observed:<seconds>} (studied:
+     * looked straight at the creature that long, see {@code observed}; {@code observed} alone is 5 seconds),
+     * {@code read:<document>} or {@code manual} (only actions, commands and scripts).
      */
     public sealed interface Source {
         Source SEEN = new Seen();
         Source KILLED = new Killed();
+        Source VISITED = new Visited();
         Source MANUAL = new Manual();
 
         Codec<Source> CODEC = Codec.STRING.comapFlatMap(Source::parse, Source::serialize);
@@ -43,6 +44,7 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
             return switch (value) {
                 case "seen" -> DataResult.success(SEEN);
                 case "killed" -> DataResult.success(KILLED);
+                case "visited" -> DataResult.success(VISITED);
                 case "manual" -> DataResult.success(MANUAL);
                 case "observed" -> DataResult.success(new Observed(Observed.DEFAULT_TIME));
                 default -> {
@@ -59,7 +61,7 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
                         ResourceLocation document = ResourceLocation.tryParse(value.substring(5));
                         yield document != null ? DataResult.success(new Read(document)) : DataResult.error(() -> "Bad document id in " + value);
                     }
-                    yield DataResult.error(() -> "Unknown unlock source '" + value + "': use seen, killed, observed:<seconds>, read:<document> or manual");
+                    yield DataResult.error(() -> "Unknown unlock source '" + value + "': use seen, killed, visited, observed:<seconds>, read:<document> or manual");
                 }
             };
         }
@@ -68,6 +70,7 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
             return switch (source) {
                 case Seen seen -> "seen";
                 case Killed killed -> "killed";
+                case Visited visited -> "visited";
                 case Manual manual -> "manual";
                 case Read read -> "read:" + read.document();
                 case Observed observed -> "observed:" + (observed.seconds() == Math.rint(observed.seconds())
@@ -78,6 +81,9 @@ public record Unlock(List<Source> on, int count, Condition conditions) {
         record Seen() implements Source {}
 
         record Killed() implements Source {}
+
+        /** Visited: the player entered the Codex entry's {@code place} (structure, biome, POI, dimension or area). */
+        record Visited() implements Source {}
 
         record Manual() implements Source {}
 

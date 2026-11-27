@@ -92,13 +92,15 @@ public final class JournalSkin {
             graphics.fill(from, row, to, row + 1, ink);
         } else {
             int middle = (from + to) / 2;
-            graphics.fill(from, row, middle - 6, row + 1, ink);
-            graphics.fill(middle + 6, row, to, row + 1, ink);
-            for (int dy = -2; dy <= 2; dy++) {
-                int half = 3 - Math.abs(dy);
-                graphics.fill(middle - half, row + dy, middle + half, row + dy + 1, ink);
-            }
-            graphics.fill(middle - 1, row, middle + 1, row + 1, UiPalette.opaque(UiPalette.PAPER));
+            graphics.drawManaged(() -> {
+                graphics.fill(from, row, middle - 6, row + 1, ink);
+                graphics.fill(middle + 6, row, to, row + 1, ink);
+                for (int dy = -2; dy <= 2; dy++) {
+                    int half = 3 - Math.abs(dy);
+                    graphics.fill(middle - half, row + dy, middle + half, row + dy + 1, ink);
+                }
+                graphics.fill(middle - 1, row, middle + 1, row + 1, UiPalette.opaque(UiPalette.PAPER));
+            });
         }
         graphics.pose().popPose();
     }
@@ -113,15 +115,17 @@ public final class JournalSkin {
 
     public static void titleRule(GuiGraphics graphics, int x, int ruleY, int width, int ink) {
         int center = x + width / 2;
-        rule(graphics, x, ruleY, center - 9 - x, ink);
-        rule(graphics, center + 10, ruleY, x + width - center - 10, ink);
-        for (int dy = -3; dy <= 3; dy++) {
-            int half = 3 - Math.abs(dy);
-            graphics.fill(center - half, ruleY + dy, center + half + 1, ruleY + dy + 1, ink);
-        }
-        graphics.fill(center, ruleY, center + 1, ruleY + 1, UiPalette.opaque(UiPalette.PAPER));
-        graphics.fill(center - 7, ruleY, center - 5, ruleY + 1, ink);
-        graphics.fill(center + 6, ruleY, center + 8, ruleY + 1, ink);
+        graphics.drawManaged(() -> {
+            rule(graphics, x, ruleY, center - 9 - x, ink);
+            rule(graphics, center + 10, ruleY, x + width - center - 10, ink);
+            for (int dy = -3; dy <= 3; dy++) {
+                int half = 3 - Math.abs(dy);
+                graphics.fill(center - half, ruleY + dy, center + half + 1, ruleY + dy + 1, ink);
+            }
+            graphics.fill(center, ruleY, center + 1, ruleY + 1, UiPalette.opaque(UiPalette.PAPER));
+            graphics.fill(center - 7, ruleY, center - 5, ruleY + 1, ink);
+            graphics.fill(center + 6, ruleY, center + 8, ruleY + 1, ink);
+        });
     }
 
     public static void rule(GuiGraphics graphics, int x, int y, int width, int color) {
@@ -130,31 +134,61 @@ public final class JournalSkin {
 
     /** A small pixel star, independent of the active font's symbol coverage. */
     public static void star(GuiGraphics graphics, int x, int y, int color) {
-        graphics.fill(x + 3, y, x + 4, y + 7, color);
-        graphics.fill(x, y + 3, x + 7, y + 4, color);
-        graphics.fill(x + 2, y + 2, x + 5, y + 5, color);
+        graphics.drawManaged(() -> {
+            graphics.fill(x + 3, y, x + 4, y + 7, color);
+            graphics.fill(x, y + 3, x + 7, y + 4, color);
+            graphics.fill(x + 2, y + 2, x + 5, y + 5, color);
+        });
     }
 
     /** Width of {@link #pin}. */
     public static final int PIN_WIDTH = 8;
 
-    /** The pin texture, 8 × 8, when a resource pack has it; until then the stand-in below is drawn. */
+    /** The pin texture, 8 x 8, when a resource pack has it; until then the stand-in below is drawn. */
     private static final ResourceLocation PIN = Storybound.id("textures/gui/journal/pin.png");
+    private static volatile Boolean hasPinTexture;
+    private static volatile Boolean hasSparkTexture;
+
+    /** Drops cached optional-texture checks on resource pack reload. */
+    public static void clearTextureCache() {
+        hasPinTexture = null;
+        hasSparkTexture = null;
+    }
+
+    private static boolean hasPinTexture() {
+        Boolean cached = hasPinTexture;
+        if (cached == null) {
+            cached = net.minecraft.client.Minecraft.getInstance().getResourceManager().getResource(PIN).isPresent();
+            hasPinTexture = cached;
+        }
+        return cached;
+    }
+
+    private static boolean hasSparkTexture() {
+        Boolean cached = hasSparkTexture;
+        if (cached == null) {
+            cached = net.minecraft.client.Minecraft.getInstance().getResourceManager().getResource(SPARK).isPresent();
+            hasSparkTexture = cached;
+        }
+        return cached;
+    }
 
     /**
-     * The track button's pin, 8 × 8 from its top left. Also marks pinned quests in the Journal's list. The texture
+     * The track button's pin, 8 x 8 from its top left. Also marks pinned quests in the Journal's list. The texture
      * {@code textures/gui/journal/pin.png} when there is one; otherwise a stand-in of four
      * rectangles in {@code color} (a head at the top right, the needle down to the bottom left).
      */
     public static void pin(GuiGraphics graphics, int x, int y, int color) {
-        if (net.minecraft.client.Minecraft.getInstance().getResourceManager().getResource(PIN).isPresent()) {
+        if (hasPinTexture()) {
             graphics.blit(PIN, x, y, 0, 0, PIN_WIDTH, PIN_WIDTH, PIN_WIDTH, PIN_WIDTH);
             return;
         }
-        graphics.fill(x + 4, y, x + 8, y + 4, color);
-        graphics.fill(x + 2, y + 3, x + 6, y + 5, color);
-        graphics.fill(x + 1, y + 5, x + 3, y + 7, color);
-        graphics.fill(x, y + 7, x + 1, y + 8, color);
+        graphics.drawManaged(() -> {
+            graphics.fill(x + 4, y, x + 8, y + 4, color);
+            graphics.fill(x + 2, y + 3, x + 6, y + 5, color);
+            graphics.fill(x + 1, y + 5, x + 3, y + 7, color);
+            graphics.fill(x, y + 7, x + 1, y + 8, color);
+        });
     }
 
     /** The larger Claim glint keeps the pending reward readable beside its title. */
@@ -167,7 +201,7 @@ public final class JournalSkin {
 
     /**
      * The spark texture, when a resource pack has it: a strip of {@link #SPARK_FRAMES} frames of
-     * {@link #SPARK_SIZE} × {@link #SPARK_SIZE}, smallest first, one per size a spark is drawn at (1 to 4); until then
+     * {@link #SPARK_SIZE} x {@link #SPARK_SIZE}, smallest first, one per size a spark is drawn at (1 to 4); until then
      * the stand-in below, a diamond of the gold ramp.
      */
     private static final ResourceLocation SPARK = Storybound.id("textures/gui/journal/spark.png");
@@ -176,7 +210,7 @@ public final class JournalSkin {
 
     /** A spark centred on the pose's origin; {@code radius} 1 to 4 picks its size, {@code alpha} 0 to 255. */
     public static void rewardSpark(GuiGraphics graphics, int radius, int alpha) {
-        if (net.minecraft.client.Minecraft.getInstance().getResourceManager().getResource(SPARK).isPresent()) {
+        if (hasSparkTexture()) {
             int frame = Math.max(0, Math.min(SPARK_FRAMES - 1, radius - 1));
             RenderSystem.enableBlend();
             graphics.setColor(1f, 1f, 1f, alpha / 255f);
@@ -186,24 +220,28 @@ public final class JournalSkin {
             return;
         }
         // The stand-in: a diamond star, gold within a brown edge.
-        for (int sy = -radius; sy <= radius; sy++) {
-            for (int sx = -radius; sx <= radius; sx++) {
-                if (Math.abs(sx) + Math.abs(sy) > radius && sx != 0 && sy != 0) continue;
-                int ink = Math.abs(sx) + Math.abs(sy) <= radius - 2 ? UiPalette.GOLD_LIGHT : UiPalette.BROWN_LIGHT;
-                graphics.fill(sx, sy, sx + 1, sy + 1, (alpha << 24) | ink);
+        graphics.drawManaged(() -> {
+            for (int sy = -radius; sy <= radius; sy++) {
+                for (int sx = -radius; sx <= radius; sx++) {
+                    if (Math.abs(sx) + Math.abs(sy) > radius && sx != 0 && sy != 0) continue;
+                    int ink = Math.abs(sx) + Math.abs(sy) <= radius - 2 ? UiPalette.GOLD_LIGHT : UiPalette.BROWN_LIGHT;
+                    graphics.fill(sx, sy, sx + 1, sy + 1, (alpha << 24) | ink);
+                }
             }
-        }
+        });
     }
 
     /** Original pixel orb drawn inside the same 16-pixel cell as item rewards. */
     public static void experienceOrb(GuiGraphics graphics, int x, int y) {
-        graphics.fill(x + 5, y + 1, x + 11, y + 15, 0xFF365333);
-        graphics.fill(x + 2, y + 4, x + 14, y + 12, 0xFF365333);
-        graphics.fill(x + 4, y + 3, x + 12, y + 13, 0xFF71964A);
-        graphics.fill(x + 3, y + 5, x + 13, y + 11, 0xFF71964A);
-        graphics.fill(x + 5, y + 4, x + 10, y + 10, 0xFFAACD73);
-        graphics.fill(x + 6, y + 4, x + 8, y + 7, 0xFFE0EBB4);
-        graphics.fill(x + 9, y + 11, x + 11, y + 13, 0xFF52743D);
+        graphics.drawManaged(() -> {
+            graphics.fill(x + 5, y + 1, x + 11, y + 15, 0xFF365333);
+            graphics.fill(x + 2, y + 4, x + 14, y + 12, 0xFF365333);
+            graphics.fill(x + 4, y + 3, x + 12, y + 13, 0xFF71964A);
+            graphics.fill(x + 3, y + 5, x + 13, y + 11, 0xFF71964A);
+            graphics.fill(x + 5, y + 4, x + 10, y + 10, 0xFFAACD73);
+            graphics.fill(x + 6, y + 4, x + 8, y + 7, 0xFFE0EBB4);
+            graphics.fill(x + 9, y + 11, x + 11, y + 13, 0xFF52743D);
+        });
     }
 
     public static final class Bookmark extends Button {

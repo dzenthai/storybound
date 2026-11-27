@@ -37,9 +37,11 @@ import org.jetbrains.annotations.Nullable;
 public final class StoryAssets {
     public static final String SOUNDS = "sounds";
     public static final String ICONS = "icons";
+    public static final String IMAGES = "images";
     private static final String PACK_ID = "storybound_story_sounds";
     private static volatile StorySoundFiles.Scan last = StorySoundFiles.Scan.EMPTY;
     private static volatile StoryIconFiles.Scan lastIcons = StoryIconFiles.Scan.EMPTY;
+    private static volatile StoryImageFiles.Scan lastImages = StoryImageFiles.Scan.EMPTY;
 
     private StoryAssets() {}
 
@@ -54,6 +56,10 @@ public final class StoryAssets {
 
     public static Path iconFolder() {
         return editedStory().resolve(ICONS);
+    }
+
+    public static Path imageFolder() {
+        return editedStory().resolve(IMAGES);
     }
 
     /** The story the editor works on, else the primary one. */
@@ -73,6 +79,24 @@ public final class StoryAssets {
     /** The icons folder as the resources last loaded it. */
     public static StoryIconFiles.Scan icons() {
         return lastIcons;
+    }
+
+    /** The images folder as last scanned. */
+    public static StoryImageFiles.Scan images() {
+        return lastImages;
+    }
+
+    /** Rescans all stories' image folders immediately (e.g. right after saving a Dev Mode screenshot). */
+    public static StoryImageFiles.Scan rescanImages() {
+        Map<String, StoryImageFiles.Image> found = new LinkedHashMap<>();
+        List<StoryImageFiles.Problem> problems = new ArrayList<>();
+        for (var project : StoryProjects.list(ConfigStorySource.root())) {
+            var scan = StoryImageFiles.scan(project.root().resolve(IMAGES));
+            scan.images().forEach(image -> found.putIfAbsent(image.id(), image));
+            problems.addAll(scan.problems());
+        }
+        lastImages = new StoryImageFiles.Scan(List.copyOf(found.values()), problems);
+        return lastImages;
     }
 
     private static void onAddPackFinders(AddPackFindersEvent event) {
@@ -109,20 +133,27 @@ public final class StoryAssets {
             super(location);
             Map<String, StorySoundFiles.Sound> soundFiles = new LinkedHashMap<>();
             Map<String, StoryIconFiles.Icon> iconFiles = new LinkedHashMap<>();
+            Map<String, StoryImageFiles.Image> imageFiles = new LinkedHashMap<>();
             List<StorySoundFiles.Problem> soundProblems = new ArrayList<>();
             List<StoryIconFiles.Problem> iconProblems = new ArrayList<>();
+            List<StoryImageFiles.Problem> imageProblems = new ArrayList<>();
             for (var project : StoryProjects.list(ConfigStorySource.root())) {
                 var projectSounds = StorySoundFiles.scan(project.root().resolve(SOUNDS));
                 var projectIcons = StoryIconFiles.scan(project.root().resolve(ICONS));
+                var projectImages = StoryImageFiles.scan(project.root().resolve(IMAGES));
                 projectSounds.sounds().forEach(sound -> soundFiles.putIfAbsent(sound.id(), sound));
                 projectIcons.icons().forEach(icon -> iconFiles.putIfAbsent(icon.id(), icon));
+                projectImages.images().forEach(image -> imageFiles.putIfAbsent(image.id(), image));
                 soundProblems.addAll(projectSounds.problems());
                 iconProblems.addAll(projectIcons.problems());
+                imageProblems.addAll(projectImages.problems());
             }
             StorySoundFiles.Scan sounds = new StorySoundFiles.Scan(List.copyOf(soundFiles.values()), soundProblems);
             StoryIconFiles.Scan icons = new StoryIconFiles.Scan(List.copyOf(iconFiles.values()), iconProblems);
+            StoryImageFiles.Scan images = new StoryImageFiles.Scan(List.copyOf(imageFiles.values()), imageProblems);
             last = sounds;
             lastIcons = icons;
+            lastImages = images;
             for (StorySoundFiles.Sound sound : sounds.sounds()) {
                 Map<String, IoSupplier<InputStream>> namespace = files.computeIfAbsent(sound.namespace(), key -> new LinkedHashMap<>());
                 namespace.putIfAbsent("sounds.json", text(StorySoundFiles.soundsJson(sounds.in(sound.namespace()))));
@@ -132,6 +163,10 @@ public final class StoryAssets {
                 Map<String, IoSupplier<InputStream>> namespace = files.computeIfAbsent(icon.namespace(), key -> new LinkedHashMap<>());
                 namespace.put("models/item/story_icon/" + icon.name() + ".json", text(StoryIconFiles.iconModel(icon)));
                 namespace.put("textures/item/story_icon/" + icon.name() + ".png", IoSupplier.create(icon.file()));
+            }
+            for (StoryImageFiles.Image image : images.images()) {
+                Map<String, IoSupplier<InputStream>> namespace = files.computeIfAbsent(image.namespace(), key -> new LinkedHashMap<>());
+                namespace.put(image.texturePath(), IoSupplier.create(image.file()));
             }
             if (!icons.icons().isEmpty()) {
                 files.computeIfAbsent("storybound", key -> new LinkedHashMap<>()).put("models/item/document.json", text(StoryIconFiles.documentModel(icons.icons())));

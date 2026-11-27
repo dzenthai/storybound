@@ -3,6 +3,7 @@ package dev.dzenthai.storybound.client.codex;
 import dev.dzenthai.storybound.client.document.DocumentTexts;
 import dev.dzenthai.storybound.client.menu.ListDetailView;
 import dev.dzenthai.storybound.client.menu.JournalSkin;
+import dev.dzenthai.storybound.client.sound.StoryImageFiles;
 import dev.dzenthai.storybound.module.document.sbt.SbtLayout;
 import dev.dzenthai.storybound.module.document.sbt.SbtParser;
 import java.util.List;
@@ -20,7 +21,9 @@ final class SbtDetail {
     static void append(ListDetailView.Detail detail, ResourceLocation text, int color) {
         String source = DocumentTexts.load(text).orElse(null);
         if (source == null) {
-            detail.text(Component.translatable("storybound.document.missing_text", text.toString()), MISSING_COLOR);
+            if (DocumentTexts.showsMissing()) {
+                detail.text(Component.translatable("storybound.document.missing_text", text.toString()), MISSING_COLOR);
+            }
             return;
         }
         var blocks = SbtParser.parse(source, key -> Language.getInstance().getOrDefault(key));
@@ -31,8 +34,11 @@ final class SbtDetail {
             for (SbtLayout.Line line : page.lines()) {
                 switch (line) {
                     case SbtLayout.TextLine textLine -> detail.line(textLine.text(), color, textLine.height());
-                    case SbtLayout.ImageLine image -> detail.block(image.height() + 2, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
-                            graphics.blit(image.texture(), x, y, 0, 0, image.width(), image.height(), image.width(), image.height()));
+                    case SbtLayout.ImageLine image -> {
+                        ResourceLocation texture = StoryImageFiles.resolveTexture(image.texture());
+                        detail.block(image.height() + 2, (graphics, x, y, width, mouseX, mouseY, partialTick) ->
+                                graphics.blit(texture, x, y, 0, 0, image.width(), image.height(), image.width(), image.height()));
+                    }
                 }
             }
         }

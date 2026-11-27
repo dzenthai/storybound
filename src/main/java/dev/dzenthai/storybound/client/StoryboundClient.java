@@ -107,6 +107,14 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(StoryboundClientCommands::register);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevWorldPicker::onInteractionTriggered);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevTraceRecorder::onInteractionTriggered);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onInteractionTriggered);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onKey);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onRenderGuiLayer);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onRenderHand);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onRenderHighlight);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onRenderFramePre);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onRenderFramePost);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.codex.CodexPhotoPrompt::onKey);
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
@@ -163,6 +171,9 @@ public final class StoryboundClient {
         event.registerReloadListener(DocumentStyles.INSTANCE);
         event.registerReloadListener(MenuThemes.INSTANCE);
         event.registerReloadListener(WaypointStyles.INSTANCE);
+        event.registerReloadListener(dev.dzenthai.storybound.client.codex.CodexImages.INSTANCE);
+        event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) rm ->
+                dev.dzenthai.storybound.client.menu.JournalSkin.clearTextureCache());
     }
 
     // Below chat and titles, above the vanilla HUD; hidden by F1 and F3 like the rest of it.
@@ -179,12 +190,16 @@ public final class StoryboundClient {
         event.registerBelow(VanillaGuiLayers.TITLE, Storybound.id("screen_fade"), ScreenFadeOverlay::render);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("dev_world_picker"), dev.dzenthai.storybound.client.dev.DevWorldPicker::renderHud);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("dev_trace_recorder"), dev.dzenthai.storybound.client.dev.DevTraceRecorder::renderHud);
+        event.registerAbove(VanillaGuiLayers.CROSSHAIR, dev.dzenthai.storybound.client.dev.DevFrameCapture.HUD_LAYER, dev.dzenthai.storybound.client.dev.DevFrameCapture::renderHud);
+        event.registerAbove(VanillaGuiLayers.HOTBAR, dev.dzenthai.storybound.client.codex.CodexPhotoPrompt.HUD_LAYER, dev.dzenthai.storybound.client.codex.CodexPhotoPrompt::render);
         event.registerAbove(VanillaGuiLayers.CROSSHAIR, Storybound.id("story_debug"), DebugOverlay::render);
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
         dev.dzenthai.storybound.client.dev.DevWorldPicker.tick();
         dev.dzenthai.storybound.client.dev.DevTraceRecorder.tick();
+        dev.dzenthai.storybound.client.dev.DevFrameCapture.tick();
+        dev.dzenthai.storybound.client.codex.CodexPhotoPrompt.tick();
         dev.dzenthai.storybound.client.waypoint.TraceTrails.tick();
         openOnKey(OPEN_MENU, null);
         openOnKey(OPEN_QUESTS, AdventureMenu.QUESTS);
@@ -207,6 +222,10 @@ public final class StoryboundClient {
             if (minecraft.screen == null && ClientDialogue.waitsForAnswer()) {
                 // A choice in subtitles waits: the key opens its answers, it does not talk to whoever is in sight.
                 ClientDialogue.openChoices();
+                continue;
+            }
+            if (minecraft.screen == null && !TalkHint.visible() && dev.dzenthai.storybound.client.codex.CodexPhotoPrompt.isActive()) {
+                dev.dzenthai.storybound.client.codex.CodexPhotoPrompt.accept();
                 continue;
             }
             if (minecraft.screen == null && minecraft.player != null && !minecraft.player.isSpectator()
@@ -242,6 +261,10 @@ public final class StoryboundClient {
         ClientParty.clear();
         ReputationHud.clear();
         dev.dzenthai.storybound.client.dev.DevSoundPreview.stop();
+        dev.dzenthai.storybound.client.dev.DevFrameCapture.clear();
+        dev.dzenthai.storybound.client.codex.CodexImages.clear();
+        dev.dzenthai.storybound.client.codex.CodexPhotoPrompt.clear();
+        dev.dzenthai.storybound.client.codex.PlayerCodexPhotos.clear();
         dev.dzenthai.storybound.client.sound.ClientStoryMusic.clear();
         ScreenFadeOverlay.clear();
         ClientWaypoints.clear();

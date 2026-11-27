@@ -6,6 +6,8 @@ import dev.dzenthai.storybound.client.HudScale;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.client.menu.MenuTheme;
 import dev.dzenthai.storybound.client.menu.MenuThemes;
+import dev.dzenthai.storybound.client.text.ClientConfigTexts;
+import dev.dzenthai.storybound.client.waypoint.ClientWaypoints;
 import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
@@ -13,14 +15,17 @@ import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.QuestRegistries;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+import org.jetbrains.annotations.Nullable;
 
 /** The HUD layer with the pinned quests, the main one first: each one's title, time left and open objectives of the current stage. */
 public final class QuestHud {
@@ -28,6 +33,15 @@ public final class QuestHud {
     private static final int PADDING = 4;
     private static final int MARGIN = 4;
     private static final int LINE_HEIGHT = 10;
+
+    private static @Nullable CacheKey cacheKey;
+    private static List<Line> cachedLines = List.of();
+    private static int cachedWidth;
+    private static int cachedHeight;
+
+    private record CacheKey(int questsVersion, int defsVersion, int waypointsVersion, int themeRevision,
+                            int textsRevision, @Nullable Language language, @Nullable ResourceLocation dimension,
+                            boolean menuOpened, @Nullable String menuKey, long timerSecond) {}
 
     private QuestHud() {}
 
@@ -38,10 +52,44 @@ public final class QuestHud {
                 || !config.questTracker.get() || !ClientModules.isEnabled("quests") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())) {
             return;
         }
+        List<ResourceLocation> pinned = ClientQuests.pinned();
+        if (pinned.isEmpty()) {
+            return;
+        }
         MenuTheme theme = MenuThemes.INSTANCE.theme();
         Font font = minecraft.font;
+        boolean menuOpened = config.menuOpened.get();
+        String menuKey = menuOpened ? null : dev.dzenthai.storybound.client.StoryboundClient.OPEN_MENU.saveString();
+        ResourceLocation dimension = minecraft.level != null ? minecraft.level.dimension().location() : null;
+        long timerSecond = timerSecond(minecraft, pinned);
+        CacheKey key = new CacheKey(ClientQuests.version(), QuestRegistries.QUESTS.clientStore().version(),
+                ClientWaypoints.version(), MenuThemes.INSTANCE.revision(), ClientConfigTexts.revision(),
+                Language.getInstance(), dimension, menuOpened, menuKey, timerSecond);
+        if (!Objects.equals(key, cacheKey)) {
+            rebuild(key, font, theme, pinned, menuOpened);
+        }
+        if (cachedLines.isEmpty()) {
+            return;
+        }
+        render(graphics, config, font, theme, cachedLines, cachedWidth, cachedHeight);
+    }
+
+    private static long timerSecond(Minecraft minecraft, List<ResourceLocation> pinned) {
+        if (minecraft.level == null) {
+            return -1L;
+        }
+        for (ResourceLocation quest : pinned) {
+            QuestDefinition definition = QuestRegistries.QUESTS.clientStore().getOrNull(quest);
+            if (definition != null && definition.timeLimit().isPresent()) {
+                return minecraft.level.getGameTime() / 20L;
+            }
+        }
+        return -1L;
+    }
+
+    private static void rebuild(CacheKey key, Font font, MenuTheme theme, List<ResourceLocation> pinned, boolean menuOpened) {
         List<Line> lines = new ArrayList<>();
-        for (ResourceLocation quest : ClientQuests.pinned()) {
+        for (ResourceLocation quest : pinned) {
             QuestDefinition definition = QuestRegistries.QUESTS.clientStore().getOrNull(quest);
             QuestProgress progress = ClientQuests.get(quest).orElse(null);
             if (definition != null && progress != null && progress.status() == QuestStatus.ACTIVE) {
@@ -51,20 +99,29 @@ public final class QuestHud {
                 addQuest(lines, font, theme, quest, definition, progress);
             }
         }
-        if (lines.isEmpty()) {
-            return;
-        }
-        if (!config.menuOpened.get()) {
+        if (!lines.isEmpty() && !menuOpened) {
             // Which key opens the Adventure Menu, until the player has opened it once.
-            var key = dev.dzenthai.storybound.client.StoryboundClient.OPEN_MENU;
-            Component hint = key.isUnbound() ? Component.translatable("storybound.hud.menu_hint_unbound")
-                    : Component.translatable("storybound.hud.menu_hint", key.getTranslatedKeyMessage());
+            var openKey = dev.dzenthai.storybound.client.StoryboundClient.OPEN_MENU;
+            Component hint = openKey.isUnbound() ? Component.translatable("storybound.hud.menu_hint_unbound")
+                    : Component.translatable("storybound.hud.menu_hint", openKey.getTranslatedKeyMessage());
             lines.add(Line.GAP);
             for (FormattedCharSequence line : font.split(hint, MAX_WIDTH)) {
                 lines.add(new Line(line, theme.hudText() & 0x00FFFFFF | 0xA0000000));
             }
         }
-        render(graphics, config, font, theme, lines);
+        int maxLineWidth = 0;
+        int totalHeight = 0;
+        for (Line line : lines) {
+            int w = font.width(line.text());
+            if (w > maxLineWidth) {
+                maxLineWidth = w;
+            }
+            totalHeight += line.height();
+        }
+        cacheKey = key;
+        cachedLines = lines;
+        cachedWidth = maxLineWidth + 2 * PADDING;
+        cachedHeight = totalHeight + 2 * PADDING - 1;
     }
 
     private static void addQuest(List<Line> lines, Font font, MenuTheme theme, ResourceLocation quest, QuestDefinition definition, QuestProgress progress) {
@@ -112,7 +169,7 @@ public final class QuestHud {
         }
         ResourceLocation here = minecraft.level.dimension().location();
         java.util.Set<ResourceLocation> dimensions = new java.util.LinkedHashSet<>();
-        for (dev.dzenthai.storybound.module.waypoint.ClientWaypoint waypoint : dev.dzenthai.storybound.client.waypoint.ClientWaypoints.all()) {
+        for (dev.dzenthai.storybound.module.waypoint.ClientWaypoint waypoint : ClientWaypoints.values()) {
             if (waypoint.quest().filter(quest::equals).isPresent() && !waypoint.dimension().equals(here)) {
                 dimensions.add(waypoint.dimension());
             }
@@ -147,9 +204,8 @@ public final class QuestHud {
         return readable.toString();
     }
 
-    private static void render(GuiGraphics graphics, StoryboundClientConfig config, Font font, MenuTheme theme, List<Line> lines) {
-        int width = lines.stream().mapToInt(line -> font.width(line.text())).max().orElse(0) + 2 * PADDING;
-        int height = lines.stream().mapToInt(Line::height).sum() + 2 * PADDING - 1;
+    private static void render(GuiGraphics graphics, StoryboundClientConfig config, Font font, MenuTheme theme,
+                               List<Line> lines, int width, int height) {
         StoryboundClientConfig.Corner corner = config.questTrackerCorner.get();
         int offsetY = config.questTrackerOffsetY.get();
         // In HUD pixels, whatever the GUI scale (HudScale).

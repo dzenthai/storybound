@@ -86,9 +86,11 @@ public final class ScentStrands {
     }
 
     public static void onRenderLevel(RenderLevelStageEvent event) {
+        if (STRANDS.isEmpty() || !ShaderPacks.isWorldOverlayStage(event.getStage())) {
+            return;
+        }
         Minecraft minecraft = Minecraft.getInstance();
-        if (STRANDS.isEmpty() || event.getStage() != ShaderPacks.worldOverlayStage() || ShaderPacks.renderingShadowPass()
-                || minecraft.options.hideGui) {
+        if (minecraft.options.hideGui || ShaderPacks.renderingShadowPass()) {
             return;
         }
         float partialTick = event.getPartialTick().getGameTimeDeltaPartialTick(false);

@@ -6,8 +6,10 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.toasts.Toast;
 import net.minecraft.client.gui.components.toasts.ToastComponent;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 
 /** A quest update or a {@code notify} action: a header line (or the title) above the text. */
@@ -19,6 +21,10 @@ public final class StoryToast implements Toast {
     private final Component header;
     private final int headerColor;
     private final Component body;
+    private @Nullable Language cachedLanguage;
+    private @Nullable FormattedCharSequence headerLine;
+    private @Nullable FormattedCharSequence bodyLine;
+    private boolean bodyEmpty;
 
     public StoryToast(NotifyKind kind, Component title, @Nullable Component text) {
         if (kind == NotifyKind.INFO) {
@@ -39,13 +45,24 @@ public final class StoryToast implements Toast {
     @Override
     public Visibility render(GuiGraphics graphics, ToastComponent component, long timeSinceLastVisible) {
         Font font = component.getMinecraft().font;
-        graphics.blitSprite(BACKGROUND, 0, 0, width(), height());
-        if (body.getString().isEmpty()) {
-            graphics.drawString(font, font.substrByWidth(header, TEXT_WIDTH).getString(), 10, 12, headerColor, false);
-        } else {
-            graphics.drawString(font, font.substrByWidth(header, TEXT_WIDTH).getString(), 10, 7, headerColor, false);
-            graphics.drawString(font, font.substrByWidth(body, TEXT_WIDTH).getString(), 10, 18, 0xFFFFFFFF, false);
+        Language language = Language.getInstance();
+        if (language != cachedLanguage || headerLine == null) {
+            cachedLanguage = language;
+            bodyEmpty = body.getString().isEmpty();
+            headerLine = language.getVisualOrder(font.substrByWidth(header, TEXT_WIDTH));
+            bodyLine = bodyEmpty ? null : language.getVisualOrder(font.substrByWidth(body, TEXT_WIDTH));
         }
+        graphics.blitSprite(BACKGROUND, 0, 0, width(), height());
+        FormattedCharSequence h = headerLine;
+        FormattedCharSequence b = bodyLine;
+        graphics.drawManaged(() -> {
+            if (bodyEmpty || b == null) {
+                graphics.drawString(font, h, 10, 12, headerColor, false);
+            } else {
+                graphics.drawString(font, h, 10, 7, headerColor, false);
+                graphics.drawString(font, b, 10, 18, 0xFFFFFFFF, false);
+            }
+        });
         return timeSinceLastVisible >= DISPLAY_TIME * component.getNotificationDisplayTimeMultiplier() ? Visibility.HIDE : Visibility.SHOW;
     }
 }

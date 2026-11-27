@@ -422,5 +422,16 @@
   "Only inside these structures: an id, a #tag, or a list.": "Только внутри этих построек: id, #тег или список.",
   "Drop chance from 0 to 1 (0.25 = 25%). Default: 1 (always).": "Шанс появления от 0 до 1 (0.25 = 25%). По умолчанию 1 (всегда).",
   "none: can appear repeatedly. player: at most once per player. world: at most once in the whole world.": "none — может появляться снова; player — не больше одного раза на игрока; world — не больше одного раза на весь мир.",
-  "Optional story conditions checked for the player opening the chest or killing the mob.": "Необязательные сюжетные условия, проверяемые для игрока, который открывает сундук или убивает моба."
+  "Optional story conditions checked for the player opening the chest or killing the mob.": "Необязательные сюжетные условия, проверяемые для игрока, который открывает сундук или убивает моба.",
+  "Group in the Codex tab; a missing namespace means storybound. Name: <ns>.codex.category.<path>. Built in: monsters, animals, characters, companions, structures, biomes, pois, places, lore.": "Группа во вкладке «Кодекс»; без пространства имён — storybound. Название: <ns>.codex.category.<path>. Встроенные: monsters, animals, characters, companions, structures, biomes, pois, places, lore.",
+  "What visited refers to: a structure, biome, point of interest, dimension, or area. When several are given, all must hold at once.": "К чему относится visited: постройка, биом, точка интереса, измерение или область. Если указано несколько — должны совпасть все сразу.",
+  "Only in this dimension.": "Только в этом измерении.",
+  "In any of these biomes: an id, a #tag, or a list.": "В любом из этих биомов: id, #тег или список.",
+  "Inside any of these structures: an id, a #tag, or a list.": "Внутри любой из этих построек: id, #тег или список.",
+  "Near any of these points of interest: an id, a #tag, or a list.": "Рядом с любой из этих точек интереса: id, #тег или список.",
+  "How close to the point of interest, in blocks.": "Как близко к точке интереса, в блоках.",
+  "Inside a specific area in the world.": "Внутри конкретной области в мире.",
+  "Default illustration shown in a book frame at the top of the Codex page (overridden if the player captures their own photo): a story image from config/storybound/images/<namespace>/<name>.png or a full texture path.": "Иллюстрация по умолчанию в книжной рамке вверху страницы Кодекса (заменяется, если игрок сделает свой снимок): файл из config/storybound/images/<пространство>/<имя>.png или полный путь текстуры.",
+  "Whether the player can capture their own in-world screenshot for this Codex entry. Defaults to true when 'place' is set, false otherwise.": "Может ли игрок сам сделать снимок этого места в мире для Кодекса. По умолчанию включено для записей с «place».",
+  "Any source reaching count (sightings or kills; a read, a study, or a visit counts once) opens the section, if the conditions hold then. observed:<seconds>: studied, looked straight at the creature that long. visited: the player entered the entry's place.": "Любой источник, достигший count (встречи или убийства; прочтение, изучение или посещение засчитывается с первого раза), открывает раздел, если выполнены условия. observed:<секунды> — наблюдение за существом. visited — игрок побывал в месте записи."
 }

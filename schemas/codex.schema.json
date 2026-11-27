@@ -12,13 +12,34 @@
       "description": "Dev mode only: the item this node shows on the editor's canvases (an item id, e.g. minecraft:compass). The game does not read it; without it, the kind's own item."
     },
     "category": {
-      "description": "Group in the Codex tab; a missing namespace means storybound. Name: <ns>.codex.category.<path>. Built in: monsters, animals, characters, companions, places, lore.",
+      "description": "Group in the Codex tab; a missing namespace means storybound. Name: <ns>.codex.category.<path>. Built in: monsters, animals, characters, companions, structures, biomes, pois, places, lore.",
       "$ref": "logic.schema.json#/definitions/id",
       "default": "monsters"
     },
     "entity": {
       "description": "What seen and killed refer to: an id, a #tag or a list. A single id also gives the portrait.",
       "$ref": "logic.schema.json#/definitions/id_list"
+    },
+    "place": {
+      "description": "What visited refers to: a structure, biome, point of interest, dimension, or area. When several are given, all must hold at once.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dimension": { "description": "Only in this dimension.", "$ref": "logic.schema.json#/definitions/id" },
+        "biome": { "description": "In any of these biomes: an id, a #tag, or a list.", "$ref": "logic.schema.json#/definitions/id_list" },
+        "structure": { "description": "Inside any of these structures: an id, a #tag, or a list.", "$ref": "logic.schema.json#/definitions/id_list" },
+        "poi": { "description": "Near any of these points of interest: an id, a #tag, or a list.", "$ref": "logic.schema.json#/definitions/id_list" },
+        "radius": { "description": "How close to the point of interest, in blocks.", "type": "integer", "minimum": 1, "maximum": 128, "default": 12 },
+        "area": { "description": "Inside a specific area in the world.", "$ref": "logic.schema.json#/definitions/area" }
+      }
+    },
+    "image": {
+      "description": "Default illustration shown in a book frame at the top of the Codex page (overridden if the player captures their own photo): a story image from config/storybound/images/<namespace>/<name>.png or a full texture path.",
+      "$ref": "logic.schema.json#/definitions/id"
+    },
+    "photo": {
+      "description": "Whether the player can capture their own in-world screenshot for this Codex entry. Defaults to true when 'place' is set, false otherwise.",
+      "type": "boolean"
     },
     "title": { "$ref": "logic.schema.json#/definitions/story_text" },
     "sections": {
@@ -44,7 +65,7 @@
   },
   "definitions": {
     "unlock": {
-      "description": "Any source reaching count (sightings or kills; a read or a study counts once) opens the section, if the conditions hold then. observed:<seconds>: studied, looked straight at the creature that long.",
+      "description": "Any source reaching count (sightings or kills; a read, a study, or a visit counts once) opens the section, if the conditions hold then. observed:<seconds>: studied, looked straight at the creature that long. visited: the player entered the entry's place.",
       "type": "object",
       "required": ["on"],
       "additionalProperties": false,
@@ -54,7 +75,7 @@
           "minItems": 1,
           "items": {
             "type": "string",
-            "pattern": "^(seen|killed|manual|observed(:[0-9]+(\\.[0-9]+)?)?|read:([a-z0-9_.-]+:)?[a-z0-9_./-]+)$"
+            "pattern": "^(seen|killed|visited|manual|observed(:[0-9]+(\\.[0-9]+)?)?|read:([a-z0-9_.-]+:)?[a-z0-9_./-]+)$"
           }
         },
         "count": { "type": "integer", "minimum": 1, "maximum": 100000, "default": 1 },

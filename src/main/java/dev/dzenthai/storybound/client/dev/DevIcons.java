@@ -199,22 +199,24 @@ final class DevIcons {
             return;
         }
         int[] box = OFFSETS.computeIfAbsent(icon, name -> offset(rows));
-        x += box[0];
-        y += box[1];
-        for (int row = 0; row < rows.length; row++) {
-            String line = rows[row];
-            int start = -1;
-            // Runs of pixels as one fill each.
-            for (int column = 0; column <= line.length(); column++) {
-                boolean on = column < line.length() && line.charAt(column) == '#';
-                if (on && start < 0) {
-                    start = column;
-                } else if (!on && start >= 0) {
-                    graphics.fill(x + start, y + row, x + column, y + row + 1, color);
-                    start = -1;
+        int ox = x + box[0];
+        int oy = y + box[1];
+        graphics.drawManaged(() -> {
+            for (int row = 0; row < rows.length; row++) {
+                String line = rows[row];
+                int start = -1;
+                // Runs of pixels as one fill each.
+                for (int column = 0; column <= line.length(); column++) {
+                    boolean on = column < line.length() && line.charAt(column) == '#';
+                    if (on && start < 0) {
+                        start = column;
+                    } else if (!on && start >= 0) {
+                        graphics.fill(ox + start, oy + row, ox + column, oy + row + 1, color);
+                        start = -1;
+                    }
                 }
             }
-        }
+        });
     }
 
     private static final Map<String, int[]> OFFSETS = new java.util.concurrent.ConcurrentHashMap<>();

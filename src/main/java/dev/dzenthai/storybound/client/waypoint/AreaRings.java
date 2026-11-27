@@ -114,11 +114,14 @@ public final class AreaRings {
     private AreaRings() {}
 
     public static void onRenderLevel(RenderLevelStageEvent event) {
+        if (!ClientWaypoints.hasAreaRings() || !ShaderPacks.isWorldOverlayStage(event.getStage())) {
+            return;
+        }
         Minecraft minecraft = Minecraft.getInstance();
-        if (event.getStage() != ShaderPacks.worldOverlayStage() || ShaderPacks.renderingShadowPass()
-                || minecraft.level == null || minecraft.player == null
+        if (minecraft.level == null || minecraft.player == null
                 || minecraft.options.hideGui || !StoryboundClientConfig.INSTANCE.waypointAreaRings.get()
-                || !ClientModules.isEnabled("waypoints") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())) {
+                || !ClientModules.isEnabled("waypoints") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())
+                || ShaderPacks.renderingShadowPass()) {
             return;
         }
         ClientLevel level = minecraft.level;

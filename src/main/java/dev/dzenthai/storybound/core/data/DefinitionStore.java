@@ -10,6 +10,11 @@ import org.jetbrains.annotations.Nullable;
 /** Immutable snapshot of loaded definitions; replaced as a whole on reload. */
 public final class DefinitionStore<T> {
     private volatile Map<ResourceLocation, T> values = Map.of();
+    private volatile int version;
+
+    public int version() {
+        return version;
+    }
 
     public Optional<T> get(ResourceLocation id) {
         return Optional.ofNullable(values.get(id));
@@ -33,9 +38,11 @@ public final class DefinitionStore<T> {
 
     public void replace(Map<ResourceLocation, T> newValues) {
         values = Collections.unmodifiableMap(new LinkedHashMap<>(newValues));
+        version++;
     }
 
     public void clear() {
         values = Map.of();
+        version++;
     }
 }

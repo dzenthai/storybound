@@ -48,6 +48,12 @@ public final class NpcBindings {
     private static final double TALK_REACH_SLACK = 1.0;
 
     private static List<Map.Entry<ResourceLocation, NpcBinding>> files = List.of();
+    /** Non-"one" bindings pre-filtered lazily per EntityType in id order, cleared on reload. */
+    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Map.Entry<ResourceLocation, NpcBinding>>> BY_TYPE = new HashMap<>();
+    /** "One" bindings indexed by id for O(1) lookup via NpcParts.partOf. */
+    private static final Map<ResourceLocation, NpcBinding> ONE_BY_ID = new HashMap<>();
+    /** True when any loaded binding inspects NBT/data, so sharingSavedData ThreadLocal is only touched when needed. */
+    private static boolean anySavedData;
     private static double searchRadius = NpcBinding.Proximity.DEFAULT.radius();
     private static double chatterReach;
     /** Some binding writes a movement: until one does, {@link NpcMovement} looks at no entity. */
@@ -70,16 +76,49 @@ public final class NpcBindings {
     /** Caches the loaded binding files in id order; called after every data load. */
     public static void rebuild() {
         CACHE.clear();
+        BY_TYPE.clear();
+        ONE_BY_ID.clear();
         NpcParts.bindingsChanged();
         List<Map.Entry<ResourceLocation, NpcBinding>> sorted = new ArrayList<>(DialogueRegistries.NPC_BINDINGS.serverStore().all().entrySet());
         sorted.sort(Map.Entry.comparingByKey(Comparator.comparing(ResourceLocation::toString)));
         files = List.copyOf(sorted);
+        boolean savedData = false;
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
+            NpcBinding binding = entry.getValue();
+            if (binding.isOne()) {
+                ONE_BY_ID.put(entry.getKey(), binding);
+            } else if (binding.usesSavedData()) {
+                savedData = true;
+            }
+        }
+        anySavedData = savedData;
         searchRadius = files.stream().flatMap(entry -> entry.getValue().proximity().stream())
                 .mapToDouble(NpcBinding.Proximity::radius).max().orElse(0);
         searchRadius = Math.max(searchRadius, NpcBinding.Proximity.DEFAULT.radius());
         chatterReach = files.stream().flatMap(entry -> entry.getValue().chatter().stream())
                 .mapToDouble(NpcBinding.Chatter::radius).max().orElse(0);
         moves = files.stream().anyMatch(entry -> entry.getValue().movement().isPresent() || entry.getValue().follow().isPresent());
+    }
+
+    private static List<Map.Entry<ResourceLocation, NpcBinding>> candidatesFor(net.minecraft.world.entity.EntityType<?> type) {
+        List<Map.Entry<ResourceLocation, NpcBinding>> cached = BY_TYPE.get(type);
+        if (cached != null) {
+            return cached;
+        }
+        var holder = BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
+        List<Map.Entry<ResourceLocation, NpcBinding>> matching = null;
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
+            NpcBinding binding = entry.getValue();
+            if (!binding.isOne() && binding.mayMatchType(holder)) {
+                if (matching == null) {
+                    matching = new ArrayList<>();
+                }
+                matching.add(entry);
+            }
+        }
+        List<Map.Entry<ResourceLocation, NpcBinding>> result = matching == null ? List.of() : List.copyOf(matching);
+        BY_TYPE.put(type, result);
+        return result;
     }
 
     /** Whether some binding writes a movement (see {@link NpcMovement}). */
@@ -110,9 +149,13 @@ public final class NpcBindings {
         if (cached != null && now >= cached.tick() && now - cached.tick() < CACHE_TICKS && cached.same(entity)) {
             return cached.found();
         }
-        // Every binding asks the same entity: its saved data read once for all of them.
-        Optional<Found> found = Optional.ofNullable(dev.dzenthai.storybound.core.logic.EntitySelector.sharingSavedData(() -> resolve(entity)));
-        CACHE.put(entity.getUUID(), new Cached(now, Set.copyOf(entity.getTags()), entity.getCustomName(),
+        // Every binding asks the same entity: its saved data read once for all of them when any binding inspects NBT/data.
+        Found resolved = anySavedData
+                ? dev.dzenthai.storybound.core.logic.EntitySelector.sharingSavedData(() -> resolve(entity))
+                : resolve(entity);
+        Optional<Found> found = Optional.ofNullable(resolved);
+        Set<String> entityTags = entity.getTags();
+        CACHE.put(entity.getUUID(), new Cached(now, entityTags.isEmpty() ? Set.of() : Set.copyOf(entityTags), entity.getCustomName(),
                 entity.hasData(DialogueRegistries.NPC_BINDING), found));
         return found;
     }
@@ -138,32 +181,53 @@ public final class NpcBindings {
     }
 
     private static @Nullable Found resolve(Entity entity) {
+        boolean hasOwn = entity.hasData(DialogueRegistries.NPC_BINDING);
+        ResourceLocation part = ONE_BY_ID.isEmpty() ? null : NpcParts.partOf(entity).orElse(null);
+        List<Map.Entry<ResourceLocation, NpcBinding>> candidates = candidatesFor(entity.getType());
+        if (!hasOwn && part == null && candidates.isEmpty()) {
+            return null;
+        }
         List<Layer> chain = new ArrayList<>();
-        if (entity.hasData(DialogueRegistries.NPC_BINDING)) {
+        if (hasOwn) {
             chain.add(new Layer(null, entity.getData(DialogueRegistries.NPC_BINDING).toBinding(entity), new NpcBinding.Rank(NpcBinding.Rank.OWN, 0), false));
         }
-        List<Layer> fromFiles = new ArrayList<>();
-        ResourceLocation part = NpcParts.partOf(entity).orElse(null);
-        for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
-            // A "one" binding is for the entity holding its part, whatever its filters say now; for no other.
-            NpcBinding.Rank rank = entry.getValue().isOne() ? (entry.getKey().equals(part) ? new NpcBinding.Rank(NpcBinding.Rank.PART, 0) : null)
-                    : entry.getValue().rank(entity);
-            Optional<Integer> share = entry.getValue().crowdShare();
-            if (rank != null && share.isPresent()) {
+        List<Layer> fromFiles = null;
+        if (part != null) {
+            NpcBinding partBinding = ONE_BY_ID.get(part);
+            if (partBinding != null) {
+                fromFiles = new ArrayList<>();
+                fromFiles.add(new Layer(part, partBinding, new NpcBinding.Rank(NpcBinding.Rank.PART, 0), false));
+            }
+        }
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : candidates) {
+            NpcBinding binding = entry.getValue();
+            NpcBinding.Rank rank = binding.rank(entity);
+            if (rank == null) {
+                continue;
+            }
+            Optional<Integer> share = binding.crowdShare();
+            if (share.isPresent()) {
                 // Only a share of them ("30% of villagers are guards"): the roll decides; a share is a filter too, so
                 // Guards come before Villagers.
                 rank = NpcBinding.inShare(entity.getUUID(), entry.getKey(), share.get()) ? new NpcBinding.Rank(rank.by(), rank.filters() + 1) : null;
             }
             if (rank != null) {
-                fromFiles.add(new Layer(entry.getKey(), entry.getValue(), rank, false));
+                if (fromFiles == null) {
+                    fromFiles = new ArrayList<>();
+                }
+                fromFiles.add(new Layer(entry.getKey(), binding, rank, false));
             }
         }
-        // A stable sort: equally close ones stay in id order, and are marked as a tie with the one before.
-        fromFiles.sort(Comparator.comparing(Layer::rank));
-        for (int i = 0; i < fromFiles.size(); i++) {
-            Layer layer = fromFiles.get(i);
-            boolean tie = i > 0 && fromFiles.get(i - 1).rank().equals(layer.rank());
-            chain.add(tie ? new Layer(layer.id(), layer.binding(), layer.rank(), true) : layer);
+        if (fromFiles != null) {
+            // A stable sort: equally close ones stay in id order, and are marked as a tie with the one before.
+            if (fromFiles.size() > 1) {
+                fromFiles.sort(Comparator.comparing(Layer::rank));
+            }
+            for (int i = 0; i < fromFiles.size(); i++) {
+                Layer layer = fromFiles.get(i);
+                boolean tie = i > 0 && fromFiles.get(i - 1).rank().equals(layer.rank());
+                chain.add(tie ? new Layer(layer.id(), layer.binding(), layer.rank(), true) : layer);
+            }
         }
         return chain.isEmpty() ? null : Found.of(chain);
     }
@@ -602,12 +666,24 @@ public final class NpcBindings {
 
         /** The bindings by hand (and the one stored on the entity), which name one NPC each. */
         private static List<Layer> byHand(List<Layer> chain) {
-            return chain.stream().filter(layer -> layer.rank().by() >= NpcBinding.Rank.TAG).toList();
+            List<Layer> result = new ArrayList<>(chain.size());
+            for (Layer layer : chain) {
+                if (layer.rank().by() >= NpcBinding.Rank.TAG) {
+                    result.add(layer);
+                }
+            }
+            return result;
         }
 
         /** The bindings for every entity of a kind. */
         private static List<Layer> dynamic(List<Layer> chain) {
-            return chain.stream().filter(layer -> layer.rank().by() == NpcBinding.Rank.KIND).toList();
+            List<Layer> result = new ArrayList<>(chain.size());
+            for (Layer layer : chain) {
+                if (layer.rank().by() == NpcBinding.Rank.KIND) {
+                    result.add(layer);
+                }
+            }
+            return result;
         }
 
         /** The value of the first binding of the chain that writes the setting, noting where it came from. */

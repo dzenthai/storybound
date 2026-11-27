@@ -24,10 +24,17 @@ final class SceneScreen extends Screen {
     private static final int SPEAKER_COLOR = 0xFFE1B34D;
     /** How long Space must be held continuously to skip a skippable scene, so mid-jump taps never skip by mistake. */
     static final long SKIP_HOLD_MS = 2200L;
+    private static final Component SKIP_HINT = Component.translatable("storybound.scene.controls.skip");
 
     private long skipHoldStartMs = -1L;
     private boolean requireFreshSpacePress;
     private boolean skipSent;
+    private Component cachedLine;
+    private int cachedLineWidth = -1;
+    private List<FormattedCharSequence> cachedLineRows = List.of();
+    private Component cachedCaption;
+    private int cachedCaptionWidth = -1;
+    private List<FormattedCharSequence> cachedCaptionRows = List.of();
 
     SceneScreen() {
         super(Component.empty());
@@ -90,38 +97,46 @@ final class SceneScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         float holdProgress = updateSkipHold();
         int bar = Math.round(height * BAR * ClientScene.letterboxProgress(partialTick));
-        if (bar > 0) {
-            graphics.fill(0, 0, width, bar, 0xFF000000);
-            graphics.fill(0, height - bar, width, height, 0xFF000000);
-        }
-        caption(graphics, bar, partialTick);
-        skipHint(graphics, bar, partialTick, holdProgress);
-        Component line = ClientScene.line();
-        if (line == null) {
-            return;
-        }
-        Minecraft client = Minecraft.getInstance();
-        float alpha = ClientScene.lineAlpha(partialTick);
-        if (alpha <= 0.02f) {
-            // Below that the game draws text opaque: nothing is left of it anyway.
-            return;
-        }
-        int shade = (int) (alpha * 255) << 24;
-        List<FormattedCharSequence> rows = client.font.split(line, Math.min(LINE_WIDTH, width - 40));
-        int rowHeight = client.font.lineHeight + 2;
-        Component speaker = ClientScene.speaker();
-        int lines = rows.size() + (speaker != null ? 1 : 0);
-        int bottom = height - Math.max(bar, 24) - 8;
-        int y = bottom - lines * rowHeight;
-        if (speaker != null) {
-            Component name = speaker.copy().withStyle(ChatFormatting.BOLD);
-            graphics.drawString(client.font, name, (width - client.font.width(name)) / 2, y, shade | (SPEAKER_COLOR & 0xFFFFFF), true);
-            y += rowHeight;
-        }
-        for (FormattedCharSequence row : rows) {
-            graphics.drawString(client.font, row, (width - client.font.width(row)) / 2, y, shade | 0xFFFFFF, true);
-            y += rowHeight;
-        }
+        graphics.drawManaged(() -> {
+            if (bar > 0) {
+                graphics.fill(0, 0, width, bar, 0xFF000000);
+                graphics.fill(0, height - bar, width, height, 0xFF000000);
+            }
+            caption(graphics, bar, partialTick);
+            skipHint(graphics, bar, partialTick, holdProgress);
+            Component line = ClientScene.line();
+            if (line == null) {
+                return;
+            }
+            Minecraft client = Minecraft.getInstance();
+            float alpha = ClientScene.lineAlpha(partialTick);
+            if (alpha <= 0.02f) {
+                // Below that the game draws text opaque: nothing is left of it anyway.
+                return;
+            }
+            int shade = (int) (alpha * 255) << 24;
+            int maxWidth = Math.min(LINE_WIDTH, width - 40);
+            if (line != cachedLine || maxWidth != cachedLineWidth) {
+                cachedLine = line;
+                cachedLineWidth = maxWidth;
+                cachedLineRows = client.font.split(line, maxWidth);
+            }
+            List<FormattedCharSequence> rows = cachedLineRows;
+            int rowHeight = client.font.lineHeight + 2;
+            Component speaker = ClientScene.speaker();
+            int lines = rows.size() + (speaker != null ? 1 : 0);
+            int bottom = height - Math.max(bar, 24) - 8;
+            int y = bottom - lines * rowHeight;
+            if (speaker != null) {
+                Component name = speaker.copy().withStyle(ChatFormatting.BOLD);
+                graphics.drawString(client.font, name, (width - client.font.width(name)) / 2, y, shade | (SPEAKER_COLOR & 0xFFFFFF), true);
+                y += rowHeight;
+            }
+            for (FormattedCharSequence row : rows) {
+                graphics.drawString(client.font, row, (width - client.font.width(row)) / 2, y, shade | 0xFFFFFF, true);
+                y += rowHeight;
+            }
+        });
     }
 
     /** Updates the Space hold timer and triggers the skip once held long enough; returns 0..1 progress. */
@@ -180,7 +195,13 @@ final class SceneScreen extends Screen {
         }
         int textColor = ((int) (alpha * 255) << 24) | 0xF2EAD8;
         int position = ClientScene.captionPosition();
-        List<FormattedCharSequence> rows = client.font.split(caption, Math.min(LINE_WIDTH, width - 48));
+        int maxWidth = Math.min(LINE_WIDTH, width - 48);
+        if (caption != cachedCaption || maxWidth != cachedCaptionWidth) {
+            cachedCaption = caption;
+            cachedCaptionWidth = maxWidth;
+            cachedCaptionRows = client.font.split(caption, maxWidth);
+        }
+        List<FormattedCharSequence> rows = cachedCaptionRows;
         int rowHeight = client.font.lineHeight + 3;
         int blockHeight = rows.size() * rowHeight;
         int margin = 24;
@@ -208,14 +229,13 @@ final class SceneScreen extends Screen {
             return;
         }
         Minecraft client = Minecraft.getInstance();
-        Component hint = Component.translatable("storybound.scene.controls.skip");
-        int textWidth = client.font.width(hint);
+        int textWidth = client.font.width(SKIP_HINT);
         int x = width - textWidth - 16;
         int y = bar > client.font.lineHeight + 8
                 ? height - bar / 2 - client.font.lineHeight / 2 - 2
                 : height - client.font.lineHeight - 14;
         int rgb = holding ? 0xF5EFE0 : 0xD6D0C4;
-        graphics.drawString(client.font, hint, x, y, (a << 24) | rgb, true);
+        graphics.drawString(client.font, SKIP_HINT, x, y, (a << 24) | rgb, true);
         int barY = y + client.font.lineHeight + 3;
         int trackAlpha = holding ? 0x99 : (int) Math.round(fade * 0x45);
         graphics.fill(x, barY, x + textWidth, barY + 2, (trackAlpha << 24) | 0x3A342C);

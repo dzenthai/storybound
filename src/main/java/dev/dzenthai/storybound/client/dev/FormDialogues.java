@@ -100,7 +100,8 @@ abstract class FormDialogues extends FormWaypoints {
             // A boss and a Codex entry: who or what it is; its sections in the tab, each with its text and when it
             // opens; what a victory does.
             Map.entry("boss", List.of("title", "entity", "notify", "lore", "tactics", "rewards", "participation", "on_first_kill", "on_kill")),
-            Map.entry("codex", List.of("title", "category", "entity", "show_kills", "notify", "sections")),
+            Map.entry("codex", List.of("title", "category", "entity", "place", "image", "photo", "show_kills", "notify", "sections")),
+            Map.entry("codex.place", List.of("dimension", "biome", "structure", "poi", "radius", "area")),
             Map.entry("codex.section", List.of("title", "text", "unlock", "id")),
             Map.entry("unlock", List.of("on", "count", "conditions")),
             // A story event, a script block, a flag: when and what; what the block is and where it leads, its file
@@ -190,6 +191,14 @@ abstract class FormDialogues extends FormWaypoints {
         if (form.equals("codex") && name.equals("show_kills")) {
             // Kills are counted of the entry's entity.
             return object != null && (object.has("entity") || object.has("show_kills"));
+        }
+        if (form.equals("codex") && name.equals("photo")) {
+            // Automatic for place entries; only reveal in the form if explicitly set in JSON.
+            return object != null && object.has("photo");
+        }
+        if (form.equals("codex.place") && name.equals("radius")) {
+            // Radius only applies to points of interest.
+            return object != null && (object.has("poi") || object.has("radius"));
         }
         if (form.equals("unlock") && name.equals("count")) {
             // A read counts once, an action opens at once: only sightings and kills are counted.

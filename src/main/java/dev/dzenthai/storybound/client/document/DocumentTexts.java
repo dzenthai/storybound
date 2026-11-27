@@ -20,6 +20,15 @@ public final class DocumentTexts {
 
     private DocumentTexts() {}
 
+    /**
+     * Whether a text that is not there is named in red: for whoever may open the dev mode (permission 2), who can write
+     * it; a player sees nothing in its place.
+     */
+    public static boolean showsMissing() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.player != null && minecraft.player.hasPermissions(2);
+    }
+
     public static Optional<String> load(ResourceLocation content) {
         String language = Minecraft.getInstance().getLanguageManager().getSelected();
         Optional<String> text = ClientConfigTexts.document(content, language).or(() -> read(content, language));

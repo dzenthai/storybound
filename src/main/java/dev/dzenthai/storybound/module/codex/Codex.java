@@ -61,6 +61,7 @@ public final class Codex {
         int counter = switch (source) {
             case Unlock.Source.Seen seen -> data.countSeen(entry);
             case Unlock.Source.Killed killed -> data.countKill(entry);
+            case Unlock.Source.Visited visited -> Integer.MAX_VALUE;
             case Unlock.Source.Read read -> Integer.MAX_VALUE;
             case Unlock.Source.Observed observed -> Integer.MAX_VALUE;
             case Unlock.Source.Manual manual -> 0;

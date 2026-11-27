@@ -265,7 +265,7 @@ abstract class FormStory extends FormDialogues {
                 main.addProperty("id", "base");
                 JsonObject unlock = new JsonObject();
                 JsonArray on = new JsonArray();
-                on.add(host.root().has("entity") ? "seen" : "manual");
+                on.add(host.root().has("place") ? "visited" : host.root().has("entity") ? "seen" : "manual");
                 unlock.add("on", on);
                 main.add("unlock", unlock);
                 JsonArray list = ensureArray(sectionsPath);
@@ -345,6 +345,9 @@ abstract class FormStory extends FormDialogues {
         if (path.size() == 1 && path.getFirst() instanceof String part && BOSS_PARTS.contains(part)) {
             return List.of("killed");
         }
+        if (host.root().has("place")) {
+            return List.of("visited");
+        }
         return List.of(host.root().has("entity") ? "seen" : "manual");
     }
 
@@ -369,11 +372,11 @@ abstract class FormStory extends FormDialogues {
     void unlockSourcesField(List<Object> path, @Nullable JsonObject unlock, Component label) {
         List<String> written = stringsOf(unlock != null ? unlock.get("on") : null);
         List<String> sources = written.isEmpty() ? defaultSources(path.subList(0, Math.max(0, path.size() - 1))) : written;
+        boolean placeEntry = host.root().has("place");
+        List<String> switches = placeEntry ? List.of("visited", "manual") : List.of("seen", "killed", "observed", "manual");
         if (row(LABEL_H + CONTROL_H)) {
             labelRow(label);
             int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
-            // Two rows of two: seen, killed; studied, by an action.
-            List<String> switches = List.of("seen", "killed", "observed", "manual");
             int each = (w - 2) / 2;
             for (int i = 0; i < switches.size(); i++) {
                 String source = switches.get(i);
@@ -392,8 +395,10 @@ abstract class FormStory extends FormDialogues {
                 screen.add(toggle);
             }
         }
-        // The second row of switches.
-        row(CONTROL_H);
+        if (switches.size() > 2) {
+            // The second row of switches.
+            row(CONTROL_H);
+        }
         String study = observedSource(sources);
         if (study != null && row(LABEL_H + CONTROL_H)) {
             labelRow(DevUi.text("unlock.observed_time"));
@@ -472,8 +477,8 @@ abstract class FormStory extends FormDialogues {
         labelRow(DevUi.text("field.codex.category"));
         int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
         String current = entry != null && entry.get("category") instanceof JsonPrimitive written ? shortType(written.getAsString()) : "monsters";
-        // The Codex is the bestiary: groups of creatures. Those stay offered where an entry already has them.
-        java.util.Set<String> categories = new java.util.LinkedHashSet<>(List.of("monsters", "animals", "characters", "companions"));
+        java.util.Set<String> categories = new java.util.LinkedHashSet<>(
+                List.of("monsters", "animals", "characters", "companions", "structures", "biomes", "pois", "places", "lore"));
         ClientDevStore.byType(ClientDevStore.TYPE_CODEX).values().forEach(raw -> {
             if (ClientDevStore.parseObject(raw).get("category") instanceof JsonPrimitive category) {
                 categories.add(shortType(category.getAsString()));
@@ -505,6 +510,181 @@ abstract class FormStory extends FormDialogues {
         ResourceLocation id = ResourceLocation.tryParse(category.contains(":") ? category : "storybound:" + category);
         String key = id == null ? "" : id.getNamespace() + ".codex.category." + id.getPath();
         return Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : category;
+    }
+
+    private static final List<String> CODEX_MODES = List.of("creature", "place", "article");
+    private static final Set<String> PLACE_CATEGORIES = Set.of("structures", "biomes", "pois", "places");
+
+    /**
+     * Subject switcher for a Codex entry: creature ({@code entity}), world place ({@code place}: structure, biome,
+     * POI, dimension or area), or lore article (neither). Switching preserves cleared fields in {@link #switchedAway}
+     * and adjusts the default category and initial section unlock sensibly.
+     */
+    void codexAboutFields(List<Object> path, Node schema, @Nullable JsonObject entry) {
+        String modeKey = with(path, "codex_about").toString();
+        boolean hasEntity = entry != null && entry.has("entity");
+        boolean hasPlace = entry != null && entry.has("place");
+        if (hasEntity) {
+            entityModes.put(modeKey, "creature");
+        } else if (hasPlace) {
+            entityModes.put(modeKey, "place");
+        }
+        String fallback = defaultCodexMode(entry);
+        String mode = entityModes.getOrDefault(modeKey, fallback);
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("codex.about"));
+            Button switcher = Button.builder(Component.literal(DevUi.str("codex.about." + mode) + " \u25B8"), b -> {
+                JsonObject target = ensureObject(path);
+                String next = CODEX_MODES.get((CODEX_MODES.indexOf(mode) + 1) % CODEX_MODES.size());
+                String currentCategory = target.get("category") instanceof JsonPrimitive cat ? shortType(cat.getAsString()) : "monsters";
+                if (next.equals("place")) {
+                    putAway(with(path, "creature"), target, "entity");
+                    putAway(with(path, "creature"), target, "show_kills");
+                    giveBack(with(path, "place"), target, "place");
+                    if (!target.has("place")) {
+                        target.add("place", new JsonObject());
+                    }
+                    if (!PLACE_CATEGORIES.contains(currentCategory)) {
+                        target.addProperty("category", "structures");
+                    }
+                    updateInitialCodexUnlock(target, "visited");
+                } else if (next.equals("article")) {
+                    putAway(with(path, "creature"), target, "entity");
+                    putAway(with(path, "creature"), target, "show_kills");
+                    putAway(with(path, "place"), target, "place");
+                    if (!currentCategory.equals("lore")) {
+                        target.addProperty("category", "lore");
+                    }
+                    updateInitialCodexUnlock(target, "manual");
+                } else {
+                    putAway(with(path, "place"), target, "place");
+                    giveBack(with(path, "creature"), target, "entity");
+                    giveBack(with(path, "creature"), target, "show_kills");
+                    if (PLACE_CATEGORIES.contains(currentCategory) || currentCategory.equals("lore")) {
+                        target.remove("category");
+                    }
+                    updateInitialCodexUnlock(target, target.has("entity") ? "seen" : "manual");
+                }
+                entityModes.put(modeKey, next);
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            switcher.setTooltip(Tooltip.create(DevUi.text("codex.about.tooltip")));
+            screen.add(switcher);
+        }
+        Map<String, Node> props = Schemas.properties(schema);
+        if (mode.equals("creature") && props.containsKey("entity")) {
+            field(path, "entity", props.get("entity"), false, schema);
+        } else if (mode.equals("place") && props.containsKey("place")) {
+            if (row(LABEL_H + CONTROL_H)) {
+                labelRow(DevUi.text("codex.place_field"));
+                JsonObject place = entry != null && entry.get("place") instanceof JsonObject obj ? obj : null;
+                String line = codexPlaceSummary(place);
+                String clipped = screen.font().plainSubstrByWidth(line, w - 16);
+                Component shown = Component.literal(clipped + (screen.font().width(line) > w - 16 ? "…" : "") + " \u25B8");
+                Node placeNode = props.get("place");
+                Button button = Button.builder(shown, b -> push(with(path, "place"), placeNode, DevUi.str("codex.place_title"), false))
+                        .tooltip(Tooltip.create(Component.literal(line)))
+                        .bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+                screen.add(button);
+            }
+        }
+    }
+
+    private static String defaultCodexMode(@Nullable JsonObject entry) {
+        if (entry == null) {
+            return "creature";
+        }
+        String category = entry.get("category") instanceof JsonPrimitive cat ? shortType(cat.getAsString()) : "monsters";
+        if (PLACE_CATEGORIES.contains(category)) {
+            return "place";
+        }
+        return category.equals("lore") ? "article" : "creature";
+    }
+
+    /** Updates the default single-source unlock of section 0 when switching a Codex entry between creature, place, and article. */
+    private static void updateInitialCodexUnlock(JsonObject entry, String nextSource) {
+        if (!(entry.get("sections") instanceof JsonArray sections) || sections.isEmpty()
+                || !(sections.get(0) instanceof JsonObject first) || !(first.get("unlock") instanceof JsonObject unlock)) {
+            return;
+        }
+        List<String> sources = stringsOf(unlock.get("on"));
+        if (sources.size() == 1 && (sources.getFirst().equals("manual") || sources.getFirst().equals("seen") || sources.getFirst().equals("visited"))) {
+            JsonArray on = new JsonArray();
+            on.add(nextSource);
+            unlock.add("on", on);
+        }
+    }
+
+    private static String codexPlaceSummary(@Nullable JsonObject place) {
+        if (place == null || place.isEmpty()) {
+            return DevUi.str("codex.place_empty");
+        }
+        List<String> parts = new ArrayList<>();
+        if (place.get("dimension") instanceof JsonPrimitive dimension) {
+            parts.add(dimensionName(dimension.getAsString()));
+        }
+        for (String field : List.of("structure", "biome", "poi")) {
+            List<String> ids = stringsOf(place.get(field) instanceof JsonPrimitive one ? asList(one) : place.get(field));
+            ids.forEach(id -> parts.add(DevUi.humanize(id.substring(id.indexOf(':') + 1))));
+        }
+        if (place.get("area") instanceof JsonObject area && !area.isEmpty()) {
+            parts.add(DevUi.str("field.area"));
+        }
+        return parts.isEmpty() ? DevUi.str("codex.place_empty") : "🗺 " + String.join(" · ", parts);
+    }
+
+    /**
+     * Illustration shown in a book frame at the top of the Codex page: pick from {@code config/storybound/images/},
+     * capture directly from the world with the camera viewfinder, or clear.
+     */
+    void codexImageField(List<Object> path, @Nullable JsonObject entry) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(DevUi.text("codex.image"));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        String current = entry != null && entry.get("image") instanceof JsonPrimitive written && !written.getAsString().isBlank()
+                ? written.getAsString() : null;
+        String shownText = current != null ? "🖼 " + DevUi.shortId(current) : DevUi.str("codex.image_none");
+        String clipped = screen.font().plainSubstrByWidth(shownText, w - 56);
+        Button pick = Button.builder(Component.literal(clipped + " \u25B8"), b -> screen.catalog().open(
+                DevUi.text("codex.pick_image"), Catalog.Kind.IMAGE, current, (kind, chosen) -> {
+                    if (chosen.id().startsWith(Catalog.PROBLEM)) {
+                        screen.status(DevUi.text("image.problem." + chosen.id().substring(Catalog.PROBLEM.length())), DevUi.BAD);
+                        return;
+                    }
+                    if (chosen.id().equals(Catalog.CLEAR)) {
+                        ensureObject(path).remove("image");
+                    } else {
+                        ensureObject(path).addProperty("image", chosen.id());
+                    }
+                    host.changed();
+                }))
+                .tooltip(Tooltip.create(DevUi.text("codex.image_tooltip", dev.dzenthai.storybound.client.sound.StoryAssets.imageFolder().toString())))
+                .bounds(x, rowTop, w - 40, CONTROL_H).build();
+        screen.add(pick);
+        screen.add(Button.builder(Component.literal("📷"), b -> {
+            ResourceLocation shotId = defaultShotId();
+            DevFrameCapture.start(screen, shotId, savedId -> {
+                ensureObject(path).addProperty("image", savedId.toString());
+                host.changed();
+                screen.status(DevUi.text("codex.capture.saved", savedId.toString()), DevUi.OK);
+            });
+        }).tooltip(Tooltip.create(DevUi.text("codex.capture.button_tooltip"))).bounds(x + w - 38, rowTop, 18, CONTROL_H).build());
+        Button clear = removeButton(rowTop, DevUi.text("codex.image_clear"), b -> {
+            ensureObject(path).remove("image");
+            host.changed();
+        });
+        clear.active = current != null;
+        screen.add(clear);
+    }
+
+    private ResourceLocation defaultShotId() {
+        StoryLinks.NodeKey key = host.node();
+        String namespace = key != null ? key.id().getNamespace() : ClientDevStore.namespace();
+        String rawPath = key != null ? key.id().getPath() : "entry";
+        String safe = ("codex_" + rawPath.replace('/', '_')).toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9_.-]", "_");
+        return ResourceLocation.fromNamespaceAndPath(namespace, safe);
     }
 
     /**

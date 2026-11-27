@@ -140,40 +140,44 @@ final class BookmarkPixels {
     /** Open cloth root runs into the paper; only its horizontal seams remain visible. */
     static void drawPageJoin(GuiGraphics graphics, int index, int left, int top, int right, int height) {
         int[] colors = COLORS[index];
-        for (int row = 0; row < height; row++) {
-            int color = row < 2 || row >= height - 2 ? colors[0]
-                    : row == 3 || row == height - 4 ? colors[3]
-                    : row > height - 6 ? colors[1] : colors[2];
-            graphics.fill(left, top + row, right, top + row + 1, color);
-            ditherRow(graphics, colors[1], left, right, top + row, row, height, left + 4, left + 4);
-        }
+        graphics.drawManaged(() -> {
+            for (int row = 0; row < height; row++) {
+                int color = row < 2 || row >= height - 2 ? colors[0]
+                        : row == 3 || row == height - 4 ? colors[3]
+                        : row > height - 6 ? colors[1] : colors[2];
+                graphics.fill(left, top + row, right, top + row + 1, color);
+                ditherRow(graphics, colors[1], left, right, top + row, row, height, left + 4, left + 4);
+            }
+        });
     }
 
     static void draw(GuiGraphics graphics, int index, int width, int height, float pageJoin) {
         int[] colors = COLORS[index];
-        for (int y = 0; y < height; y++) {
-            int notch = Math.max(0, Math.min(y, height - 1 - y) - height / 5);
-            int right = width - notch;
-            graphics.fill(0, y, right, y + 1, colors[0]);
-            if (y > 1 && y < height - 2) {
-                graphics.fill(2, y, right - 3, y + 1, colors[y > height - 6 ? 1 : 2]);
-                graphics.fill(right - 4, y, right - 3, y + 1, colors[y < height / 2 ? 3 : 1]);
-                if (y == 3 || y == height - 4) graphics.fill(4, y, right - 4, y + 1, colors[3]);
-                int rootEnd = Math.round(6 * (1 - pageJoin));
-                int fadeEnd = Math.round(10 * (1 - pageJoin));
-                ditherRow(graphics, colors[1], 3, right - 4, y, y, height, rootEnd, fadeEnd);
-            }
-        }
         int iconX = iconLeft(width, height);
         int iconY = (height - ICON) / 2;
-        for (int row = 0; row < ICON; row++) {
-            for (int col = 0; col < ICON; col++) {
-                char pixel = ICONS[index][row].charAt(col);
-                if (pixel == '.') continue;
-                int color = INKS[index][pixel == 'h' ? 0 : pixel == 'b' ? 1 : 2];
-                graphics.fill(iconX + col, iconY + row, iconX + col + 1, iconY + row + 1, color);
+        graphics.drawManaged(() -> {
+            for (int y = 0; y < height; y++) {
+                int notch = Math.max(0, Math.min(y, height - 1 - y) - height / 5);
+                int right = width - notch;
+                graphics.fill(0, y, right, y + 1, colors[0]);
+                if (y > 1 && y < height - 2) {
+                    graphics.fill(2, y, right - 3, y + 1, colors[y > height - 6 ? 1 : 2]);
+                    graphics.fill(right - 4, y, right - 3, y + 1, colors[y < height / 2 ? 3 : 1]);
+                    if (y == 3 || y == height - 4) graphics.fill(4, y, right - 4, y + 1, colors[3]);
+                    int rootEnd = Math.round(6 * (1 - pageJoin));
+                    int fadeEnd = Math.round(10 * (1 - pageJoin));
+                    ditherRow(graphics, colors[1], 3, right - 4, y, y, height, rootEnd, fadeEnd);
+                }
             }
-        }
+            for (int row = 0; row < ICON; row++) {
+                for (int col = 0; col < ICON; col++) {
+                    char pixel = ICONS[index][row].charAt(col);
+                    if (pixel == '.') continue;
+                    int color = INKS[index][pixel == 'h' ? 0 : pixel == 'b' ? 1 : 2];
+                    graphics.fill(iconX + col, iconY + row, iconX + col + 1, iconY + row + 1, color);
+                }
+            }
+        });
     }
 
     /**

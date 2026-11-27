@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.state.StoryMigrations;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,14 +65,25 @@ public final class NpcParts extends SavedData {
     }
 
     private final Map<ResourceLocation, Part> parts = new LinkedHashMap<>();
+    /** O(1) reverse index of active (non-ended) part holders: holder UUID -> binding id. */
+    private final Map<UUID, ResourceLocation> byHolder = new HashMap<>();
     /**
-     * Entities not loaded when a part left them (freed, its binding renamed or gone) → the tags to take off them when
+     * Entities not loaded when a part left them (freed, its binding renamed or gone) -> the tags to take off them when
      * they are next worked out.
      */
     private final Map<UUID, List<String>> untag = new LinkedHashMap<>();
     private int generation = -1;
 
     private NpcParts() {}
+
+    private void rebuildIndex() {
+        byHolder.clear();
+        parts.forEach((id, part) -> {
+            if (!part.ended()) {
+                byHolder.putIfAbsent(part.holder(), id);
+            }
+        });
+    }
 
     static void register(IEventBus gameBus) {
         gameBus.addListener(NpcParts::onLeave);
@@ -112,6 +124,7 @@ public final class NpcParts extends SavedData {
         if (!next.equals(parts)) {
             parts.clear();
             parts.putAll(next);
+            rebuildIndex();
             setDirty();
         }
     }
@@ -127,10 +140,7 @@ public final class NpcParts extends SavedData {
         if (server == null) {
             return Optional.empty();
         }
-        UUID uuid = entity.getUUID();
-        return get(server).parts.entrySet().stream()
-                .filter(entry -> !entry.getValue().ended() && entry.getValue().holder().equals(uuid))
-                .map(Map.Entry::getKey).findFirst();
+        return Optional.ofNullable(get(server).byHolder.get(entity.getUUID()));
     }
 
     /** Who holds the binding's part; empty while nobody does (not picked yet, or ended). */
@@ -187,6 +197,7 @@ public final class NpcParts extends SavedData {
                 return;
             }
             data.parts.put(entry.getKey(), new Part(entity.getUUID(), level.dimension(), entity.blockPosition(), false));
+            data.rebuildIndex();
             data.setDirty();
             entity.addTag(tagOf(entry.getKey()));
             NpcBindings.forget(entity);
@@ -215,14 +226,19 @@ public final class NpcParts extends SavedData {
      */
     static void notBack(MinecraftServer server, UUID holder) {
         NpcParts data = get(server);
+        boolean[] changed = {false};
         data.parts.replaceAll((id, part) -> {
             if (part.ended() || !part.holder().equals(holder)) {
                 return part;
             }
+            changed[0] = true;
             data.setDirty();
             Storybound.LOGGER.debug("Storybound: NPC {} did not come back: its part has ended", id);
             return new Part(part.holder(), part.dimension(), part.pos(), true);
         });
+        if (changed[0]) {
+            data.rebuildIndex();
+        }
     }
 
     /** Whether a binding by hand (or one stored on the entity) is for the entity. */
@@ -243,6 +259,7 @@ public final class NpcParts extends SavedData {
         if (part == null) {
             return false;
         }
+        data.rebuildIndex();
         data.setDirty();
         data.takeTag(server, part.holder(), tagOf(binding));
         return true;
@@ -263,6 +280,7 @@ public final class NpcParts extends SavedData {
             NpcParts data = get(level.getServer());
             Part part = data.parts.get(held.get());
             data.parts.put(held.get(), new Part(part.holder(), level.dimension(), entity.blockPosition(), true));
+            data.rebuildIndex();
             data.setDirty();
             Storybound.LOGGER.debug("Storybound: NPC {} is gone for good ({}): its part has ended", held.get(), reason);
         }
@@ -273,6 +291,7 @@ public final class NpcParts extends SavedData {
         Codec.unboundedMap(ResourceLocation.CODEC, Part.CODEC).parse(NbtOps.INSTANCE, tag.get("parts"))
                 .resultOrPartial(error -> Storybound.LOGGER.error("Storybound: failed to load the NPCs' parts: {}", error))
                 .ifPresent(data.parts::putAll);
+        data.rebuildIndex();
         if (tag.contains("untag")) {
             UNTAG.parse(NbtOps.INSTANCE, tag.get("untag"))
                     .resultOrPartial(error -> Storybound.LOGGER.error("Storybound: failed to load the tags to take off NPCs: {}", error))
@@ -301,6 +320,7 @@ public final class NpcParts extends SavedData {
     public static void clearForTests(MinecraftServer server) {
         NpcParts data = get(server);
         data.parts.clear();
+        data.byHolder.clear();
         data.untag.clear();
         data.setDirty();
     }

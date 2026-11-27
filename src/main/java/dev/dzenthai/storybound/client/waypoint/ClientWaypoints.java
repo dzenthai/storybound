@@ -24,6 +24,7 @@ public final class ClientWaypoints {
     private static final Map<String, ClientWaypoint> WAYPOINTS = new LinkedHashMap<>();
     private static final List<WaypointRenderer> RENDERERS = new CopyOnWriteArrayList<>();
     private static int version;
+    private static boolean hasAreaRings;
     private static int shownVersion = -1;
     private static List<ResourceLocation> shownTracked = List.of();
     private static @Nullable ClientLevel shownLevel;
@@ -43,7 +44,33 @@ public final class ClientWaypoints {
         }
         removed.forEach(WAYPOINTS::remove);
         changed.forEach(waypoint -> WAYPOINTS.put(waypoint.key(), waypoint));
+        recomputeFlags();
         version++;
+    }
+
+    private static void recomputeFlags() {
+        boolean rings = false;
+        for (ClientWaypoint waypoint : WAYPOINTS.values()) {
+            if (waypoint.placed() && waypoint.radius() > 0 && waypoint.showRing() && !waypoint.isTrace()) {
+                rings = true;
+                break;
+            }
+        }
+        hasAreaRings = rings;
+    }
+
+    public static boolean isEmpty() {
+        return WAYPOINTS.isEmpty();
+    }
+
+    /** True when at least one placed waypoint requests an area ring; lets {@link AreaRings} short-circuit cheaply. */
+    public static boolean hasAreaRings() {
+        return hasAreaRings;
+    }
+
+    /** Live unmodifiable view without copying; safe on the render thread when not mutating waypoints. */
+    public static Collection<ClientWaypoint> values() {
+        return java.util.Collections.unmodifiableCollection(WAYPOINTS.values());
     }
 
     public static Collection<ClientWaypoint> all() {
@@ -109,6 +136,7 @@ public final class ClientWaypoints {
 
     public static void clear() {
         WAYPOINTS.clear();
+        hasAreaRings = false;
         version++;
         for (WaypointRenderer renderer : RENDERERS) {
             try {

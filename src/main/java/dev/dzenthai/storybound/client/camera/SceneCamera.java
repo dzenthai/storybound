@@ -32,9 +32,13 @@ public final class SceneCamera {
     /** How long a shot that eases in glides from the last one, in ticks. */
     private static final double GLIDE = 10;
     private static final ResourceLocation FADE_LAYER = Storybound.id("screen_fade");
+    private static final SceneDefinition.Ease[] EASES = SceneDefinition.Ease.values();
 
     /** The editor's camera view: where the camera is this frame (the partial tick given), or null while it is closed. */
     private static java.util.function.@Nullable Function<Float, Pose> preview;
+    /** Cached path for the currently playing shot so playback does not rebuild ScenePath every frame. */
+    private static @Nullable ScenePayloads.Shot cachedPathShot;
+    private static @Nullable ScenePath cachedPath;
     /** Active camera FOV set by the current frame's pose (0 when using the player's own FOV). */
     private static float activeFov;
     /** Active camera roll (Dutch tilt / bank + shake) in degrees for the current frame. */
@@ -87,6 +91,18 @@ public final class SceneCamera {
         impulseIntensity = 0f;
         impulseStart = 0.0;
         impulseDuration = 0.0;
+        cachedPathShot = null;
+        cachedPath = null;
+    }
+
+    private static ScenePath pathFor(ScenePayloads.Shot shot) {
+        if (shot == cachedPathShot && cachedPath != null) {
+            return cachedPath;
+        }
+        ScenePath built = ScenePath.of(shot.from(), shot.via(), shot.to());
+        cachedPathShot = shot;
+        cachedPath = built;
+        return built;
     }
 
     /** Triggers a decaying camera-shake impulse (horn blast, heavy footstep, explosion) on the scene's clock. */
@@ -218,9 +234,8 @@ public final class SceneCamera {
 
     /** Live pose during playback: applies spring-damped smoothing to entity look targets so step-ups never jerk the camera. */
     private static Pose livePose(ScenePayloads.Shot shot, int shotIndex, double t, float partialTick, double dt) {
-        SceneDefinition.Ease[] eases = SceneDefinition.Ease.values();
-        double gone = eases[Math.max(0, Math.min(eases.length - 1, shot.ease()))].apply(t);
-        ScenePath path = ScenePath.of(shot.from(), shot.via(), shot.to());
+        double gone = EASES[Math.max(0, Math.min(EASES.length - 1, shot.ease()))].apply(t);
+        ScenePath path = pathFor(shot);
         Vec3 pos = path.pointAt(gone);
         Vec3 target = shot.lookPoint();
         if (shot.look() == ScenePayloads.LOOK_ENTITY) {
@@ -257,9 +272,8 @@ public final class SceneCamera {
 
     /** Where the camera is at {@code t} (0 to 1) of the shot, and where it looks. */
     public static Pose pose(ScenePayloads.Shot shot, double t, float partialTick) {
-        SceneDefinition.Ease[] eases = SceneDefinition.Ease.values();
-        double gone = eases[Math.max(0, Math.min(eases.length - 1, shot.ease()))].apply(t);
-        ScenePath path = ScenePath.of(shot.from(), shot.via(), shot.to());
+        double gone = EASES[Math.max(0, Math.min(EASES.length - 1, shot.ease()))].apply(t);
+        ScenePath path = pathFor(shot);
         Vec3 pos = path.pointAt(gone);
         Vec3 target = shot.lookPoint();
         if (shot.look() == ScenePayloads.LOOK_ENTITY) {

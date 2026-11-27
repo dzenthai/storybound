@@ -6,8 +6,11 @@ import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
 import dev.dzenthai.storybound.core.logic.LogicOwners;
 import dev.dzenthai.storybound.core.logic.References;
+import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.Trigger;
+import dev.dzenthai.storybound.core.logic.TriggerType;
 import dev.dzenthai.storybound.core.logic.EntitySelector;
+import dev.dzenthai.storybound.core.logic.trigger.BuiltinTriggers;
 import dev.dzenthai.storybound.core.logic.trigger.CoreTriggers;
 import dev.dzenthai.storybound.core.logic.trigger.Subscription;
 import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
@@ -20,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Unit;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
@@ -57,6 +61,7 @@ public final class CodexEvents {
                     Trigger<?> trigger = switch (source) {
                         case Unlock.Source.Seen seen -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntitySeen(Optional.of(EntitySelector.ofTypes(set)))).orElse(null);
                         case Unlock.Source.Killed killed -> definition.entity().<Trigger<?>>map(set -> new CoreTriggers.EntityKilled(Optional.of(EntitySelector.ofTypes(set)), true, false)).orElse(null);
+                        case Unlock.Source.Visited visited -> definition.place().filter(place -> !place.isEmpty()).<Trigger<?>>map(PlaceVisited::new).orElse(null);
                         case Unlock.Source.Read read -> new DocumentLogic.Read(Optional.of(read.document()), false);
                         case Unlock.Source.Observed observed -> definition.entity().<Trigger<?>>map(set -> CoreTriggers.Observed.of(
                                 EntitySelector.ofTypes(set), observed.seconds())).orElse(null);
@@ -88,8 +93,9 @@ public final class CodexEvents {
         });
     }
 
-    /** The conditions and the documents of every section's unlock. */
+    /** The place, conditions, and documents of every section's unlock. */
     public static void collectReferences(CodexDefinition definition, References references) {
+        definition.place().ifPresent(place -> references.place(place.worldPlace()));
         for (CodexDefinition.Section section : definition.sections()) {
             collectReferences(section.unlock(), references);
         }
@@ -111,6 +117,9 @@ public final class CodexEvents {
             if (entry.sections().isEmpty()) {
                 sink.accept(ValidationIssue.error(type.id(), id, "Has no sections"));
             }
+            if (entry.place().isPresent() && entry.place().get().isEmpty()) {
+                sink.accept(ValidationIssue.warning(type.id(), id, "'place' has no dimension, biome, structure, poi or area"));
+            }
             Set<String> ids = new HashSet<>();
             for (CodexDefinition.Section section : entry.sections()) {
                 if (!ids.add(section.id())) {
@@ -123,6 +132,10 @@ public final class CodexEvents {
                         || source instanceof Unlock.Source.Observed);
                 if (needsEntity && entry.entity().isEmpty()) {
                     sink.accept(ValidationIssue.error(type.id(), id, "Section '" + section.id() + "' opens on seen, killed or observed, but the entry has no 'entity'"));
+                }
+                boolean needsPlace = section.unlock().on().stream().anyMatch(source -> source instanceof Unlock.Source.Visited);
+                if (needsPlace && (entry.place().isEmpty() || entry.place().get().isEmpty())) {
+                    sink.accept(ValidationIssue.error(type.id(), id, "Section '" + section.id() + "' opens on visited, but the entry has no 'place'"));
                 }
             }
         });
@@ -137,5 +150,23 @@ public final class CodexEvents {
                 }
             }
         });
+    }
+
+    /** Internal trigger fired when a player enters a Codex entry's {@code place}; polled via {@link TriggerDispatcher#tickAreas}. */
+    private record PlaceVisited(CodexDefinition.Place place) implements CoreTriggers.Entered {
+        @Override
+        public TriggerType<?, Unit> type() {
+            return BuiltinTriggers.AREA_ENTERED.get();
+        }
+
+        @Override
+        public boolean fireOnLogin() {
+            return true;
+        }
+
+        @Override
+        public boolean matches(StoryContext context, Unit event) {
+            return place.matches(context.player());
+        }
     }
 }

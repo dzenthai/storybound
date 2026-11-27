@@ -17,6 +17,7 @@ import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryEvent;
 import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.logic.trigger.SeenTracker;
+import dev.dzenthai.storybound.core.logic.trigger.TriggerDispatcher;
 import dev.dzenthai.storybound.core.state.PartyManager;
 import dev.dzenthai.storybound.core.state.QuestProgress;
 import dev.dzenthai.storybound.core.state.QuestStatus;
@@ -443,6 +444,57 @@ public final class CodexGameTests {
         });
         CodexEvents.rebuild();
         helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    /**
+     * World lore entries with {@code place} unlock on {@code visited} when the player enters the matching place,
+     * keep {@code image} in the definition, and validate that {@code visited} requires a {@code place}.
+     */
+    @GameTest(template = "empty")
+    public static void codexPlaceEntryUnlocksOnVisitedAndValidatesPlace(GameTestHelper helper) {
+        ServerPlayer player = at(helper, helper.makeMockServerPlayerInLevel(), 0.5, 1, 0.5);
+        ResourceLocation ruins = key("old_ruins");
+        ResourceLocation brokenPlace = key("broken_place");
+        Vec3 target = helper.absoluteVec(new Vec3(10.5, 1, 10.5));
+        String ruinsJson = """
+                { "category": "structures", "title": "gametest.codex.ruins",
+                  "image": "gametest:ruins_shot",
+                  "place": {
+                    "dimension": "minecraft:overworld",
+                    "area": { "center": [%.1f, %.1f, %.1f], "radius": 3 }
+                  },
+                  "sections": [ { "id": "base", "unlock": { "on": ["visited"] } } ] }
+                """.formatted(target.x, target.y, target.z);
+        String brokenJson = """
+                { "category": "biomes", "title": "gametest.codex.broken_place",
+                  "sections": [ { "id": "base", "unlock": { "on": ["visited"] } } ] }
+                """;
+        with(helper, CodexRegistries.CODEX.serverStore(), CodexDefinition.CODEC, Map.of(
+                ruins, ruinsJson,
+                brokenPlace, brokenJson
+        ), () -> {
+            CodexEvents.rebuild();
+            CodexDefinition loaded = CodexRegistries.CODEX.serverStore().getOrNull(ruins);
+            helper.assertTrue(loaded != null && loaded.place().isPresent(), "place parsed");
+            helper.assertTrue(loaded.canPhotograph(), "place entry allows player photography by default");
+            expect(helper, loaded.image(), Optional.of(key("ruins_shot")), "image preserved");
+
+            // Prime TriggerDispatcher outside the area, then walk inside.
+            TriggerDispatcher.tickAreas(helper.getLevel().getServer());
+            helper.assertFalse(Codex.data(player).isUnlocked(ruins, "base"), "not unlocked while outside place");
+
+            player.moveTo(target);
+            TriggerDispatcher.tickAreas(helper.getLevel().getServer());
+            helper.assertTrue(Codex.data(player).isUnlocked(ruins, "base"), "unlocked on entering place");
+
+            List<String> brokenErrors = errors(ValidationService.validate().issues(), brokenPlace);
+            helper.assertTrue(brokenErrors.stream().anyMatch(msg -> msg.contains("has no 'place'")),
+                    "visited without place must fail validation, got " + brokenErrors);
+            Codex.lock(player, ruins, null);
+        });
+        CodexEvents.rebuild();
+        remove(helper, player);
         helper.succeed();
     }
 
