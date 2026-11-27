@@ -7,6 +7,10 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.data.ValidationIssue;
 import dev.dzenthai.storybound.core.data.ValidationService;
+import dev.dzenthai.storybound.core.logic.Actions;
+import dev.dzenthai.storybound.core.logic.LogicCodecs;
+import dev.dzenthai.storybound.core.logic.OnFail;
+import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
@@ -31,8 +35,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Skeleton;
@@ -364,6 +370,49 @@ public final class WorldRuleGameTests {
             exempt.discard();
         }
         helper.succeed();
+    }
+
+    /**
+     * A mob lock never stops the story's own {@code spawn_entity} (its spawn type is EVENT, as a raid's) and never
+     * removes what it spawned, riders written in the NBT included.
+     */
+    @GameTest(template = "empty")
+    public static void mobLockSparesTheStorysOwnSpawns(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerLevel level = helper.getLevel();
+        BlockPos abs = helper.absolutePos(new BlockPos(3, 2, 3));
+        player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
+        withRules(helper, Map.of(
+                key("lock_story_zombies"), """
+                        { "type": "mob", "entities": "minecraft:zombie", "despawn_existing": true }
+                        """
+        ), () -> {
+            runActions(helper, player, """
+                    [
+                      { "type": "spawn_entity", "entity": "minecraft:zombie", "tag": "gametest_story_zombie" },
+                      { "type": "spawn_entity", "entity": "minecraft:spider", "tag": "gametest_story_spider",
+                        "nbt": { "Passengers": [ { "id": "minecraft:zombie", "Tags": ["gametest_story_rider"] } ] } }
+                    ]
+                    """);
+            AABB box = new AABB(abs).inflate(8.0);
+            List<Zombie> spawned = level.getEntitiesOfClass(Zombie.class, box, zombie -> zombie.getTags().contains("gametest_story_zombie"));
+            helper.assertTrue(spawned.size() == 1, "the story's zombie spawned despite the lock");
+            List<Zombie> riders = level.getEntitiesOfClass(Zombie.class, box, zombie -> zombie.getTags().contains("gametest_story_rider"));
+            helper.assertTrue(riders.size() == 1, "the rider from the NBT spawned");
+            WorldRules.sweepExistingMobs(level.getServer());
+            helper.assertFalse(spawned.getFirst().isRemoved(), "the story's zombie is not removed by despawn_existing");
+            helper.assertFalse(riders.getFirst().isRemoved(), "its rider is not removed either");
+            level.getEntitiesOfClass(Mob.class, box,
+                    mob -> mob.getTags().stream().anyMatch(tag -> tag.startsWith("gametest_story_"))).forEach(Entity::discard);
+        });
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    private static void runActions(GameTestHelper helper, ServerPlayer player, String json) {
+        Actions.runAll(LogicCodecs.ACTIONS.parse(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().registryAccess()),
+                        JsonParser.parseString(json)).getOrThrow(GameTestAssertException::new),
+                StoryContext.of(player), "gametest", OnFail.ABORT);
     }
 
     @GameTest(template = "empty")

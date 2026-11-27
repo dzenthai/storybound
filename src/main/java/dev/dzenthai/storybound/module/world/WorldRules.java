@@ -4,6 +4,7 @@ import dev.dzenthai.storybound.core.logic.Condition;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.logic.StructureRef;
+import dev.dzenthai.storybound.core.logic.action.SceneActions;
 import dev.dzenthai.storybound.core.text.ResolvedText;
 import dev.dzenthai.storybound.core.text.StoryText;
 import dev.dzenthai.storybound.module.boss.Bosses;
@@ -66,7 +67,7 @@ import org.joml.Vector3f;
  */
 public final class WorldRules {
     public static final double MOB_UNLOCK_RADIUS = 128.0;
-    public static final String EXEMPT_TAG = "storybound:mob_lock_exempt";
+    public static final String EXEMPT_TAG = SceneActions.SpawnEntity.STORY_SPAWN_TAG;
     private static final double MOB_UNLOCK_RADIUS_SQR = MOB_UNLOCK_RADIUS * MOB_UNLOCK_RADIUS;
     private static final long NOTIFY_COOLDOWN_MS = 1500;
     private static final long HAZARD_NOTIFY_COOLDOWN_MS = 3000;
@@ -443,8 +444,8 @@ public final class WorldRules {
 
     /**
      * Entities never removed by {@code despawn_existing}: custom-named mobs, tamed pets, leashed mobs,
-     * player-ridden mounts, Storybound NPCs/bosses, and entities tagged {@link #EXEMPT_TAG} (summoned, bred,
-     * bucketed, replacement, or allowed spawner mobs).
+     * player-ridden mounts, Storybound NPCs/bosses, and entities tagged {@link #EXEMPT_TAG} (spawned by the story's
+     * {@code spawn_entity}, summoned, bred, bucketed, replacement, or allowed spawner mobs).
      */
     public static boolean isProtectedFromDespawn(Mob mob) {
         if (mob.getTags().contains(EXEMPT_TAG) || mob.hasCustomName() || mob.isLeashed()) {

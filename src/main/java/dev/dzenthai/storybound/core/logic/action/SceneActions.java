@@ -143,6 +143,11 @@ public final class SceneActions {
                               boolean persistent, Optional<Boolean> unique, Optional<EntitySelector> leashedTo) implements Action {
         /** How far from the place a lead's holder is looked for: a lead breaks beyond 10 blocks. */
         static final double LEASH_RANGE = 8;
+        /**
+         * The tag every mob spawned by the story carries (its riders too): a world rule's mob lock neither stops its
+         * spawn nor removes it, since the author asked for it.
+         */
+        public static final String STORY_SPAWN_TAG = "storybound:mob_lock_exempt";
         private static final Codec<List<String>> TAGS = Codec.either(Codec.STRING, Codec.STRING.listOf())
                 .xmap(either -> either.map(List::of, list -> list), list -> list.size() == 1 ? Either.left(list.getFirst())
                         : Either.right(list));
@@ -201,6 +206,8 @@ public final class SceneActions {
                             + FREE_UP + " blocks up or " + FREE_AROUND + " around " + BlockPos.containing(at.pos()).toShortString());
                 }
                 if (spawned instanceof Mob mob) {
+                    // Before the spawn event, which a mob lock reads.
+                    mob.addTag(STORY_SPAWN_TAG);
                     if (nbt.isEmpty()) {
                         // As /summon without NBT: equipment and variants the way the mob spawns naturally.
                         EventHooks.finalizeMobSpawn(mob, at.level(), at.level().getCurrentDifficultyAt(BlockPos.containing(at.pos())), MobSpawnType.EVENT, null);
@@ -210,6 +217,12 @@ public final class SceneActions {
                     }
                 }
                 tags.forEach(spawned::addTag);
+                // Riders too: a spider jockey's skeleton, passengers written in the NBT.
+                spawned.getIndirectPassengers().forEach(rider -> {
+                    if (rider instanceof Mob) {
+                        rider.addTag(STORY_SPAWN_TAG);
+                    }
+                });
                 name.ifPresent(text -> spawned.setCustomName(text.resolve(context.player()).toComponent()));
                 if (!at.level().tryAddFreshEntityWithPassengers(spawned)) {
                     throw new StoryException(Component.literal("Could not spawn " + BuiltInRegistries.ENTITY_TYPE.getKey(entity) + ": the same uuid exists"));
