@@ -1,0 +1,303 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "storybound/world_rule.schema.json",
+  "title": "Storybound world rule",
+  "description": "data/<namespace>/storybound/world_rules/<path>.json. World-level rules managed in Dev Mode's World Setup tab: item locks, mob spawn locks, place locks, and general loot modifiers.",
+  "type": "object",
+  "required": ["type"],
+  "oneOf": [
+    {
+      "title": "Item lock",
+      "description": "Locks items or item tags until the unlock conditions pass.",
+      "type": "object",
+      "required": ["type", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "item" },
+        "title": {
+          "type": "string",
+          "description": "Optional label shown in the World Setup editor (never shown to players)."
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this rule is active. Turn off to disable it without deleting."
+        },
+        "items": {
+          "description": "Locked items: an item id, a #tag (#minecraft:swords), or a list of them.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "unlock": {
+          "description": "Story conditions that unlock these items. While empty or unmet, the items stay locked.",
+          "$ref": "logic.schema.json#/definitions/conditions"
+        },
+        "block_use": {
+          "type": "boolean",
+          "default": true,
+          "description": "Block right-clicking with the item and mining blocks with it."
+        },
+        "block_attack": {
+          "type": "boolean",
+          "default": true,
+          "description": "Block attacking entities while holding the item."
+        },
+        "block_equip": {
+          "type": "boolean",
+          "default": true,
+          "description": "Block wearing the item in armor slots or holding it in the offhand."
+        },
+        "block_craft": {
+          "type": "boolean",
+          "default": false,
+          "description": "Block taking the item from a crafting result slot."
+        },
+        "block_pickup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Block picking the item up from the ground."
+        },
+        "hide_in_jei": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hide these items from JEI while they are locked for the player."
+        },
+        "message": {
+          "description": "Shown in the item tooltip and action bar while locked. Empty: uses a default locked message.",
+          "$ref": "logic.schema.json#/definitions/story_text"
+        }
+      }
+    },
+    {
+      "title": "Mob spawn lock",
+      "description": "Prevents mobs from spawning (or replaces them) until nearby players pass the unlock conditions.",
+      "type": "object",
+      "required": ["type", "entities"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "mob" },
+        "title": {
+          "type": "string",
+          "description": "Optional label shown in the World Setup editor (never shown to players)."
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this rule is active. Turn off to disable it without deleting."
+        },
+        "entities": {
+          "description": "Locked mobs: an entity id, a #tag (#minecraft:undead), or a list of them.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "dimension": {
+          "description": "Only in this dimension (empty: any dimension).",
+          "$ref": "logic.schema.json#/definitions/id"
+        },
+        "biome": {
+          "description": "Only in these biomes: an id, a #tag, or a list.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "structure": {
+          "description": "Only inside these structures: an id, a #tag, or a list.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "unlock": {
+          "description": "Story conditions checked for nearby players (within 128 blocks). While nobody nearby satisfies them (or when empty), the spawn is blocked.",
+          "$ref": "logic.schema.json#/definitions/conditions"
+        },
+        "despawn_existing": {
+          "type": "boolean",
+          "default": true,
+          "description": "Remove already-existing matching mobs in loaded chunks (and when chunks load). Never removes custom-named, tamed, leashed, summoned, or Storybound NPC/boss entities."
+        },
+        "block_spawners": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also block monster spawners and trial spawners (otherwise only natural, chunk, patrol, and reinforcement spawns are blocked)."
+        },
+        "replace_with": {
+          "description": "Optional mob to spawn instead when this mob is blocked (e.g. minecraft:zombie).",
+          "$ref": "logic.schema.json#/definitions/id"
+        }
+      }
+    },
+    {
+      "title": "Place lock",
+      "description": "Restricts entering a dimension, biome, or structure until the unlock conditions pass.",
+      "type": "object",
+      "required": ["type"],
+      "anyOf": [
+        { "required": ["dimension"] },
+        { "required": ["biome"] },
+        { "required": ["structure"] }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "place" },
+        "title": {
+          "type": "string",
+          "description": "Optional label shown in the World Setup editor (never shown to players)."
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this rule is active. Turn off to disable it without deleting."
+        },
+        "dimension": {
+          "description": "Locked dimension (or limit the biome/structure check to this dimension).",
+          "$ref": "logic.schema.json#/definitions/id"
+        },
+        "biome": {
+          "description": "Locked biomes: an id, a #tag, or a list.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "structure": {
+          "description": "Locked structures: an id, a #tag, or a list.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "unlock": {
+          "description": "Story conditions that allow entering this place. While empty or unmet, the lock applies.",
+          "$ref": "logic.schema.json#/definitions/conditions"
+        },
+        "mode": {
+          "enum": ["barrier", "hazard"],
+          "default": "barrier",
+          "description": "barrier: blocks dimension travel and pushes players back out of locked biomes or structures. hazard: lets players enter but applies effects and/or damage while inside."
+        },
+        "effects": {
+          "type": "array",
+          "description": "Hazard mode only: status effects applied while inside the locked place.",
+          "items": { "$ref": "#/definitions/hazard_effect" }
+        },
+        "damage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20,
+          "default": 0,
+          "description": "Hazard mode only: magic damage dealt every second while inside (2 = 1 heart; 0 = no direct damage)."
+        },
+        "message": {
+          "description": "Shown in the action bar when blocked or warned. Empty: uses a default locked message.",
+          "$ref": "logic.schema.json#/definitions/story_text"
+        }
+      }
+    },
+    {
+      "title": "Loot modifier",
+      "description": "Adds, replaces, or removes any items in chests, loot tables, or mob drops.",
+      "type": "object",
+      "required": ["type"],
+      "anyOf": [
+        { "required": ["item"] },
+        { "required": ["target"] }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "loot" },
+        "title": {
+          "type": "string",
+          "description": "Optional label shown in the World Setup editor (never shown to players)."
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this rule is active. Turn off to disable it without deleting."
+        },
+        "operation": {
+          "enum": ["add", "replace", "remove"],
+          "default": "add",
+          "description": "add: appends the item to generated loot. replace: replaces matching items in generated loot. remove: strips matching items from generated loot."
+        },
+        "tables": {
+          "description": "Specific loot tables (e.g. minecraft:chests/simple_dungeon). When both tables and entities are empty, matches any chest loot table.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "entities": {
+          "description": "Mob drops: an entity id, a #tag (#minecraft:undead), or a list of mobs whose loot is modified.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "dimension": {
+          "description": "Only in this dimension (empty: any dimension).",
+          "$ref": "logic.schema.json#/definitions/id"
+        },
+        "biome": {
+          "description": "Only in these biomes: an id, a #tag, or a list.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "structure": {
+          "description": "Only inside these structures: an id, a #tag, or a list.",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "conditions": {
+          "description": "Optional story conditions checked for the player opening the chest or killing the mob.",
+          "$ref": "logic.schema.json#/definitions/conditions"
+        },
+        "chance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1,
+          "description": "Chance from 0 to 1 (0.25 = 25%). Default: 1 (always)."
+        },
+        "once": {
+          "enum": ["none", "player", "world"],
+          "default": "none",
+          "description": "none: can trigger repeatedly. player: at most once per player. world: at most once in the whole world."
+        },
+        "target": {
+          "description": "For replace and remove: items to match (an item id, a #tag, or a list).",
+          "$ref": "logic.schema.json#/definitions/id_list"
+        },
+        "item": {
+          "description": "For add and replace: the item id to add or replace with.",
+          "$ref": "logic.schema.json#/definitions/id"
+        },
+        "min_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64,
+          "default": 1,
+          "description": "For add and replace: minimum stack count."
+        },
+        "max_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64,
+          "default": 1,
+          "description": "For add and replace: maximum stack count."
+        },
+        "components": {
+          "type": "object",
+          "description": "Optional Minecraft item data components (enchantments, custom name, etc.)."
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "hazard_effect": {
+      "type": "object",
+      "required": ["effect"],
+      "additionalProperties": false,
+      "properties": {
+        "effect": {
+          "description": "Status effect id (e.g. minecraft:wither, minecraft:blindness, minecraft:slowness).",
+          "$ref": "logic.schema.json#/definitions/id"
+        },
+        "amplifier": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 0,
+          "description": "Effect level minus one (0 = I, 1 = II, 2 = III)."
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 4,
+          "description": "Effect duration in seconds, refreshed while inside."
+        }
+      }
+    }
+  }
+}
+

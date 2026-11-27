@@ -59,6 +59,12 @@
   when following ends; also configurable in Dev Mode.
 - Dialogues: `start_dialogue` accepts an optional `speaker` entity selector so dialogues launched from a cutscene's
   `on_end` or a quest stage bind to a live 3D NPC speaker.
+- Dialogues with several NPCs: a participant `"type": "entity"` is another NPC standing nearby, found by its NPC
+  binding (`npc`) or by a selector (`entity`) within `radius` blocks. If it is not there, its lines are skipped. A line's
+  `to` says who it is said to: the speaker turns to them and the camera films the two; the others look at the speaker.
+  `shot: "group_shot"` shows everyone in the talk at once. An NPC talking with another player is not taken. In the
+  editor: the participant's type and "NPC / selector" switches, "rowan → vex" on a line's card, an arrow from the
+  dialogue to its NPCs. Debug scenario `council`.
 - Fixed: `note_torn` document style now uses valid texture dimensions and readable default font metrics.
 - A Codex entry's or a document's text that is not there shows in red ("Missing text: …") only to whoever may open the
   dev mode; a player sees nothing in its place.

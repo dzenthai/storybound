@@ -259,7 +259,11 @@ final class StoryFinder {
             return true;
         }
         close();
-        view.revealAnywhere(screen, key);
+        if (key.type().equals(ClientDevStore.TYPE_WORLD_RULE)) {
+            screen.openWorld(key.id());
+        } else {
+            view.revealAnywhere(screen, key);
+        }
         return true;
     }
 

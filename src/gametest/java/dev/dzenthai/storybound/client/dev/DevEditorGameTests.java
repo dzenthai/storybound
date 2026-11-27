@@ -65,7 +65,13 @@ public final class DevEditorGameTests {
         for (DefinitionType<?> type : DefinitionTypes.all()) {
             Node schema = Schemas.definition(type.id());
             helper.assertTrue(schema != null, "a schema for " + type.id());
-            parse(helper, type.codec(), sampleObject(schema), "a new " + type.id() + " with its required fields");
+            if (Schemas.properties(schema).isEmpty() && !Schemas.variants(schema).isEmpty()) {
+                for (Node variant : Schemas.variants(schema)) {
+                    parse(helper, type.codec(), sampleObject(variant), "a new " + type.id() + " variant with its required fields");
+                }
+            } else {
+                parse(helper, type.codec(), sampleObject(schema), "a new " + type.id() + " with its required fields");
+            }
         }
         helper.succeed();
     }

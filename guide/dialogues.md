@@ -35,7 +35,7 @@ answer is greyed out until the player has five emeralds, and can only be picked 
 
 | Field | Default | What it does |
 | --- | --- | --- |
-| `participants` | `{ "npc": { "type": "bound" } }` | Who speaks besides `player`. A `bound` participant is the NPC the dialogue was started with, and there can be only one. A `virtual` participant is a narrator, with a `name` and an optional `portrait` texture. A `name` replaces the entity's own name. |
+| `participants` | `{ "npc": { "type": "bound" } }` | Who speaks besides `player`. A `bound` participant is the NPC the dialogue was started with, and there can be only one. An `entity` participant is another NPC standing nearby, see [Several NPCs](#several-npcs). A `virtual` participant is a narrator, with a `name` and an optional `portrait` texture. A `name` replaces the entity's own name. |
 | `start` | required | The first node. |
 | `nodes` | required | The nodes, by id. |
 | `presentation` | `screen` | How the dialogue is shown: `screen`, `hud` or `bubble`. See [Presentation](#presentation). |
@@ -50,7 +50,7 @@ answer is greyed out until the player has five emeralds, and can only be picked 
 
 | Node | Fields | What it does |
 | --- | --- | --- |
-| `line` | `speaker`, `text`, `next?`, `sound?`, `duration?`, `shot?`, `transition?`, `fade?`, `look_at?` | A line said by `player` or by a participant. With `duration` (seconds) it moves on by itself. `shot`, `transition`, `fade` and `look_at` direct the camera, see [The camera](#the-camera). |
+| `line` | `speaker`, `to?`, `text`, `next?`, `sound?`, `duration?`, `shot?`, `transition?`, `fade?`, `look_at?` | A line said by `player` or by a participant. `to` names who it is said to, when that is not the player. With `duration` (seconds) it moves on by itself. `shot`, `transition`, `fade` and `look_at` direct the camera, see [The camera](#the-camera). |
 | `choice` | `options`, `timeout?` | The player picks an answer. With `timeout: { "seconds", "next" }` the dialogue picks for them when time runs out, for tense scenes. |
 | `condition` | `conditions`, `then`, `else` | Goes one way or the other without showing anything. |
 | `action` | `actions`, `next?`, `on_fail?` | Runs actions. If the list stops because an action failed, the dialogue is interrupted. |
@@ -82,6 +82,33 @@ Before the NPC answers, it thinks for a moment: dots show for 1.5 to 4 seconds, 
 `"think": 0` on an answer makes the NPC reply at once, and `"think": 3` makes it wait three seconds. Players can make
 the pause shorter or longer in their settings.
 
+## Several NPCs
+
+A dialogue can have more than one NPC in it. The NPC the player talks to is the `bound` participant. Others standing
+nearby are `entity` participants, each found either by its [NPC binding](#npc-bindings) or by an entity selector:
+
+```json
+"participants": {
+  "rowan": { "type": "bound" },
+  "vex":   { "type": "entity", "npc": "mypack:vex", "radius": 24 },
+  "golem": { "type": "entity", "entity": { "type": "minecraft:iron_golem", "tag": "village_golem" },
+             "name": "mypack.npc.golem" }
+}
+```
+
+- Each participant takes the nearest matching entity within `radius` blocks of the player (32 by default). Two
+  participants never take the same entity. An NPC already talking with another player is not taken.
+- If a participant is not there, or dies or walks off during the talk, its lines are skipped and the talk goes on.
+  With `/storybound debug trace` on, the trace says which line was skipped and why.
+- `"to": "vex"` on a line says who it is said to: the speaker turns to Vex, and the camera films the two of them. The
+  other NPCs look at whoever is speaking. Without `to`, an NPC speaks to the player, and the player answers the NPC
+  who spoke last.
+- Fights count for every participant: a mob attacking any of them pauses the talk, as with the one NPC.
+- After a `jump` or a `call` into another dialogue, a participant stays the same entity only if the new dialogue
+  names it with the same id in the same way. Otherwise it is looked for again.
+
+`/storybound debug scenario council` shows a talk with three NPCs.
+
 ## Presentation
 
 `screen` shows the dialogue in a panel at the bottom of the screen, as in a visual novel: a portrait, the speaker's
@@ -104,8 +131,9 @@ listener, and if nothing fits it stays in first person.
 
 You can direct each line:
 
-- `shot` picks the framing: `auto`, `two_shot` (both speakers from the side), `close_up` (the speaker's face) or
-  `first_person`.
+- `shot` picks the framing: `auto`, `two_shot` (the speaker and who they speak to, from the side), `group_shot`
+  (everyone in the talk at once, for [several NPCs](#several-npcs)), `close_up` (the speaker's face) or
+  `first_person`. If the group doesn't fit, `group_shot` falls back to `two_shot`.
 - `transition` is `cut` or `ease`. With `ease` the camera glides to the new shot.
 - `fade` fades the screen when the line shows, with `in`, `stay` and `out` in seconds and a `color`, just like the
   `fade` action. Use it for "Three hours later" on black, or for waking up.

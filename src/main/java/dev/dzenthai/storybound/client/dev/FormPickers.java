@@ -50,6 +50,10 @@ abstract class FormPickers extends FormCore {
         if (properties.containsKey("count")) {
             target.addProperty("count", stack.getCount());
         }
+        if (properties.containsKey("min_count") && properties.containsKey("max_count")) {
+            target.addProperty("min_count", stack.getCount());
+            target.addProperty("max_count", stack.getCount());
+        }
         Minecraft minecraft = Minecraft.getInstance();
         DataComponentPatch patch = stack.getComponentsPatch();
         if (properties.containsKey("components") && !patch.isEmpty() && minecraft.level != null) {
@@ -378,8 +382,9 @@ abstract class FormPickers extends FormCore {
             case "entry" -> ClientDevStore.TYPE_CODEX;
             case "waypoint" -> ClientDevStore.TYPE_WAYPOINT;
             case "key", "variant_by" -> ClientDevStore.TYPE_FLAG;
-            // A waypoint's target, add_waypoint, a scene's anchor (with its waypoint beside it).
-            case "npc" -> Schemas.properties(owner).containsKey("range") || Schemas.properties(owner).containsKey("waypoint") ? ClientDevStore.TYPE_NPC : null;
+            // A waypoint's target, add_waypoint, a scene's anchor (with its waypoint beside it), or a dialogue participant.
+            case "npc" -> Schemas.properties(owner).containsKey("range") || Schemas.properties(owner).containsKey("waypoint")
+                    || Schemas.properties(owner).containsKey("portrait") ? ClientDevStore.TYPE_NPC : null;
             default -> null;
         };
         if (story != null) {
@@ -508,7 +513,53 @@ abstract class FormPickers extends FormCore {
         if (field.equals("icon") && properties.containsKey("order")) {
             return new Picker(Catalog.Kind.ITEM, null, List.of(), DevUi.text("form.pick_title.item"));
         }
+        if ((field.equals("items") && properties.containsKey("block_use"))
+                || (field.equals("target") && properties.containsKey("operation"))) {
+            return itemsAndTagsPicker();
+        }
+        if (field.equals("entities") && (properties.containsKey("block_spawners") || properties.containsKey("operation"))) {
+            return new Picker(Catalog.Kind.MOB, null, List.of(), DevUi.text("form.pick_title.mob"));
+        }
+        if (field.equals("replace_with") && properties.containsKey("block_spawners")) {
+            return singleMobPicker();
+        }
         return null;
+    }
+
+    /** Held item first, then item #tags, then every registered item. */
+    private static Picker itemsAndTagsPicker() {
+        List<Entry> rows = new ArrayList<>();
+        net.minecraft.world.entity.player.Player player = Minecraft.getInstance().player;
+        ItemStack held = player != null ? player.getMainHandItem() : ItemStack.EMPTY;
+        if (!held.isEmpty()) {
+            rows.add(new Entry(BuiltInRegistries.ITEM.getKey(held.getItem()).toString(),
+                    "✋ " + DevUi.str("catalog.held", held.getHoverName().getString(), held.getCount()), held.copy(), true));
+        }
+        rows.add(new Entry(Catalog.SECTION + "item_tags", DevUi.str("pick.section.item_tags"), ItemStack.EMPTY));
+        BuiltInRegistries.ITEM.getTagNames().map(tag -> tag.location().toString()).sorted()
+                .forEach(tag -> rows.add(new Entry("#" + tag, "#" + tag, new ItemStack(Items.NAME_TAG))));
+        rows.add(new Entry(Catalog.SECTION + "items", DevUi.str("pick.section.items"), ItemStack.EMPTY));
+        BuiltInRegistries.ITEM.entrySet().stream()
+                .filter(entry -> entry.getValue() != Items.AIR)
+                .sorted(java.util.Comparator.comparing(entry -> entry.getKey().location().toString()))
+                .forEach(entry -> rows.add(new Entry(entry.getKey().location().toString(),
+                        entry.getValue().getDescription().getString() + " (" + entry.getKey().location() + ")",
+                        new ItemStack(entry.getValue()))));
+        return Picker.rows(rows, DevUi.text("form.pick_title.item"), DevUi.text("pick.empty"));
+    }
+
+    /** Single concrete mobs only (no #tags), for {@code replace_with}. */
+    private static Picker singleMobPicker() {
+        List<Entry> rows = new ArrayList<>();
+        BuiltInRegistries.ENTITY_TYPE.entrySet().stream()
+                .filter(entry -> entry.getValue().getCategory() != net.minecraft.world.entity.MobCategory.MISC
+                        || entry.getValue() == net.minecraft.world.entity.EntityType.VILLAGER
+                        || entry.getValue() == net.minecraft.world.entity.EntityType.IRON_GOLEM)
+                .sorted(java.util.Comparator.comparing(entry -> entry.getKey().location().toString()))
+                .forEach(entry -> rows.add(new Entry(entry.getKey().location().toString(),
+                        entry.getValue().getDescription().getString() + " (" + entry.getKey().location() + ")",
+                        new ItemStack(Items.SPAWNER))));
+        return Picker.rows(rows, DevUi.text("form.pick_title.mob"), DevUi.text("pick.empty"));
     }
 
     void pick(Picker picker, Consumer<Entry> picked) {

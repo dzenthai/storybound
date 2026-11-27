@@ -23,10 +23,12 @@ public final class StoryboundJeiPlugin implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         JeiQuests.available(jeiRuntime);
+        JeiWorldLocks.available(jeiRuntime);
     }
 
     @Override
     public void onRuntimeUnavailable() {
         JeiQuests.unavailable();
+        JeiWorldLocks.unavailable();
     }
 }

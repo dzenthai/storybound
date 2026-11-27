@@ -253,7 +253,8 @@ public final class DialogueGameTests {
             expect(helper, state(player).dialogue(), talk, "the jump goes on in the other dialogue");
             expect(helper, state(player).session(), session, "the same conversation");
             helper.assertTrue(Dialogues.holdsTheScreen(player), "now on the screen");
-            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, npc.getId(), CameraCue.Look.NONE), "the camera frames the NPC");
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT,
+                    npc.getId(), player.getId(), List.of(player.getId(), npc.getId()), CameraCue.Look.NONE), "the camera frames the NPC");
             advance(player);
             helper.assertTrue(state(player).waitingForChoice(), "its answers");
             Dialogues.interrupt(player, EndReason.STOPPED);
@@ -320,9 +321,11 @@ public final class DialogueGameTests {
                 hud, "{ \"presentation\": \"hud\", \"start\": \"a\", \"nodes\": { \"a\": { \"type\": \"line\", \"speaker\": \"npc\", \"text\": \"gametest.a\" } } }"
         ), () -> {
             Dialogues.start(player, scene, npc);
-            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.CLOSE_UP, CameraCue.Transition.EASE, npc.getId(), CameraCue.Look.NONE), "the line's own shot");
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.CLOSE_UP, CameraCue.Transition.EASE,
+                    npc.getId(), player.getId(), List.of(player.getId(), npc.getId()), CameraCue.Look.NONE), "the line's own shot");
             advance(player);
-            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, npc.getId(), CameraCue.Look.NONE), "defaults");
+            expect(helper, state(player).camera(), new CameraCue(true, CameraCue.Shot.AUTO, CameraCue.Transition.CUT,
+                    npc.getId(), npc.getId(), List.of(player.getId(), npc.getId()), CameraCue.Look.NONE), "defaults");
             advance(player);
             helper.assertTrue(state(player).waitingForChoice() && state(player).camera().enabled(), "a choice is framed too");
             Dialogues.interrupt(player, EndReason.STOPPED);
@@ -1017,6 +1020,288 @@ public final class DialogueGameTests {
             store.replace(previous);
         }
         helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.succeed();
+    }
+
+    /**
+     * Multi-NPC dialogues resolve extra live participants by NPC binding or entity selector, hold them still,
+     * populate addressee/cast camera cues (including group_shot), support dialogues without a bound speaker,
+     * and cleanly skip lines of absent entity participants.
+     */
+    @GameTest(template = "empty")
+    public static void multiNpcDialogueResolvesExtraParticipantsAndSkipsAbsent(GameTestHelper helper) {
+        Villager elder = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
+        Villager guard = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 1);
+        guard.addTag("gametest_multi_guard");
+        Villager scout = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 2, 3);
+        scout.addTag("gametest_multi_scout");
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 1.5, 2, 2.5);
+        helper.runAfterDelay(2, () -> runMultiNpcTest(helper, elder, guard, scout, player));
+    }
+
+    private static void runMultiNpcTest(GameTestHelper helper, Villager elder, Villager guard, Villager scout, ServerPlayer player) {
+        ResourceLocation guardNpcId = key("multi_guard");
+        ResourceLocation trioId = key("multi_trio");
+        ResourceLocation entityOnlyId = key("multi_entity_only");
+        with(helper, DialogueRegistries.NPC_BINDINGS.serverStore(), NpcBinding.CODEC, Map.of(
+                guardNpcId, """
+                        { "entity": { "type": "minecraft:villager", "tag": "gametest_multi_guard" } }
+                        """
+        ), () -> {
+            NpcBindings.rebuild();
+            with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(
+                    trioId, """
+                            {
+                              "start": "n1",
+                              "participants": {
+                                "elder": { "type": "bound" },
+                                "guard": { "type": "entity", "npc": "%s", "radius": 24 },
+                                "scout": { "type": "entity", "entity": { "type": "minecraft:villager", "tag": "gametest_multi_scout" }, "radius": 16 }
+                              },
+                              "nodes": {
+                                "n1": { "type": "line", "speaker": "elder", "to": "guard", "text": { "literal": "Look over here." }, "next": "n2" },
+                                "n2": { "type": "line", "speaker": "guard", "to": "elder", "shot": "two_shot", "text": { "literal": "I see it." }, "next": "n3" },
+                                "n3": { "type": "line", "speaker": "scout", "shot": "group_shot", "text": { "literal": "All clear!" }, "next": "n4" },
+                                "n4": { "type": "line", "speaker": "player", "to": "guard", "text": { "literal": "Lead on." }, "next": "@end" }
+                              }
+                            }
+                            """.formatted(guardNpcId),
+                    entityOnlyId, """
+                            {
+                              "start": "a",
+                              "participants": {
+                                "guard": { "type": "entity", "npc": "%s" }
+                              },
+                              "nodes": {
+                                "a": { "type": "line", "speaker": "guard", "text": { "literal": "Over here!" }, "next": "@end" }
+                              }
+                            }
+                            """.formatted(guardNpcId)
+            ), () -> {
+                helper.assertTrue(Dialogues.start(player, trioId, elder), "trio dialogue starts");
+                helper.assertTrue(Dialogues.holdsStill(elder), "bound elder is held still");
+                helper.assertTrue(Dialogues.holdsStill(guard), "extra guard NPC is held still");
+                helper.assertTrue(Dialogues.holdsStill(scout), "extra scout entity is held still");
+                helper.assertTrue(Dialogues.inDialogue(guard), "guard counts as inDialogue");
+                CameraCue cue1 = state(player).camera();
+                helper.assertTrue(cue1.enabled(), "camera enabled on n1");
+                expect(helper, cue1.partner(), elder.getId(), "n1 frames elder");
+                expect(helper, cue1.listener(), guard.getId(), "n1 addresses guard");
+                helper.assertTrue(cue1.cast().containsAll(List.of(player.getId(), elder.getId(), guard.getId(), scout.getId())),
+                        "cast contains all 4 live speakers: " + cue1.cast());
+
+                advance(player);
+                CameraCue cue2 = state(player).camera();
+                expect(helper, state(player).node(), "n2", "moved to guard's line");
+                expect(helper, cue2.partner(), guard.getId(), "n2 focuses guard");
+                expect(helper, cue2.listener(), elder.getId(), "n2 addresses elder");
+                expect(helper, cue2.shot(), CameraCue.Shot.TWO_SHOT, "n2 uses two_shot");
+
+                advance(player);
+                CameraCue cue3 = state(player).camera();
+                expect(helper, state(player).node(), "n3", "moved to scout's line");
+                expect(helper, cue3.partner(), scout.getId(), "n3 focuses scout");
+                expect(helper, cue3.listener(), player.getId(), "n3 defaults listener to player");
+                expect(helper, cue3.shot(), CameraCue.Shot.GROUP_SHOT, "n3 uses group_shot");
+                expect(helper, cue3.cast().size(), 4, "group_shot has all 4 cast members");
+
+                advance(player);
+                CameraCue cue4 = state(player).camera();
+                expect(helper, state(player).node(), "n4", "moved to player's line");
+                expect(helper, cue4.partner(), guard.getId(), "player addressing guard frames guard as partner");
+                expect(helper, cue4.listener(), guard.getId(), "player addressing guard sets listener to guard");
+
+                advance(player);
+                expect(helper, Dialogues.state(player), Optional.empty(), "dialogue ended cleanly");
+                helper.assertFalse(Dialogues.inDialogue(guard), "guard released after dialogue end");
+
+                // Remove the scout and replay: scout's line n3 must be skipped cleanly without aborting.
+                scout.discard();
+                helper.assertTrue(Dialogues.start(player, trioId, elder), "trio dialogue restarts without scout");
+                advance(player); // n1 -> n2
+                expect(helper, state(player).node(), "n2", "guard still speaks");
+                advance(player); // n2 -> skips absent scout's n3 -> n4
+                expect(helper, state(player).node(), "n4", "absent scout's line was skipped directly to n4");
+                Dialogues.interrupt(player, EndReason.STOPPED);
+
+                // Entity-only dialogue (no bound speaker) still starts and enables camera on the resolved NPC.
+                helper.assertTrue(Dialogues.start(player, entityOnlyId, null), "entity-only dialogue starts with null bound");
+                CameraCue entityCue = state(player).camera();
+                helper.assertTrue(entityCue.enabled(), "camera enabled for entity-only dialogue");
+                expect(helper, entityCue.partner(), guard.getId(), "camera frames resolved entity participant");
+                Dialogues.interrupt(player, EndReason.STOPPED);
+            });
+        });
+        NpcBindings.rebuild();
+        elder.discard();
+        guard.discard();
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * A villager another player is talking with is not taken as an extra participant: its lines are skipped, nobody
+     * is told to look at it, and it keeps looking at the player it talks with.
+     */
+    @GameTest(template = "empty")
+    public static void multiNpcSkipsAnNpcInAnotherPlayersTalk(GameTestHelper helper) {
+        Villager elder = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
+        Villager guard = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 1);
+        guard.addTag("gametest_busy_guard");
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 1.5, 2, 2.5);
+        ServerPlayer other = near(helper, helper.makeMockServerPlayerInLevel(), 3.5, 2, 2.5);
+        ResourceLocation soloId = key("busy_solo");
+        ResourceLocation trioId = key("busy_trio");
+        with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(
+                soloId, """
+                        { "start": "a", "nodes": { "a": { "type": "line", "speaker": "npc", "text": { "literal": "Busy." } } } }
+                        """,
+                trioId, """
+                        {
+                          "start": "n1",
+                          "participants": {
+                            "elder": { "type": "bound" },
+                            "guard": { "type": "entity", "entity": { "type": "minecraft:villager", "tag": "gametest_busy_guard" } }
+                          },
+                          "nodes": {
+                            "n1": { "type": "line", "speaker": "elder", "to": "guard", "text": { "literal": "Guard?" }, "next": "n2" },
+                            "n2": { "type": "line", "speaker": "guard", "text": { "literal": "Here." }, "next": "n3" },
+                            "n3": { "type": "line", "speaker": "elder", "text": { "literal": "Gone." } }
+                          }
+                        }
+                        """
+        ), () -> {
+            helper.assertTrue(Dialogues.start(other, soloId, guard), "the other player talks with the guard");
+            helper.assertTrue(Dialogues.start(player, trioId, elder), "the council starts");
+            CameraCue cue = state(player).camera();
+            expect(helper, cue.listener(), player.getId(), "the guard is busy: the elder speaks to the player");
+            helper.assertFalse(cue.cast().contains(guard.getId()), "the busy guard is not in the cast: " + cue.cast());
+            advance(player);
+            expect(helper, state(player).node(), "n3", "the busy guard's line is skipped");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+            expect(helper, state(other).node(), "a", "the other player's talk goes on");
+            Dialogues.interrupt(other, EndReason.STOPPED);
+        });
+        elder.discard();
+        guard.discard();
+        remove(helper, player);
+        remove(helper, other);
+        helper.succeed();
+    }
+
+    /**
+     * A jump into another dialogue keeps only the participants it names the same way: the same id with another
+     * selector finds its own entity, and one the new dialogue does not name is let go.
+     */
+    @GameTest(template = "empty")
+    public static void multiNpcJumpRefindsParticipants(GameTestHelper helper) {
+        Villager first = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
+        first.addTag("gametest_jump_first");
+        Villager second = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 2, 1);
+        second.addTag("gametest_jump_second");
+        Villager extra = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 2, 3);
+        extra.addTag("gametest_jump_extra");
+        ServerPlayer player = near(helper, helper.makeMockServerPlayerInLevel(), 1.5, 2, 2.5);
+        ResourceLocation fromId = key("jump_from");
+        ResourceLocation toId = key("jump_to");
+        with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(
+                fromId, """
+                        {
+                          "start": "a",
+                          "participants": {
+                            "x": { "type": "entity", "entity": { "type": "minecraft:villager", "tag": "gametest_jump_first" } },
+                            "y": { "type": "entity", "entity": { "type": "minecraft:villager", "tag": "gametest_jump_extra" } }
+                          },
+                          "nodes": {
+                            "a": { "type": "line", "speaker": "x", "text": { "literal": "First." }, "next": "go" },
+                            "go": { "type": "jump", "dialogue": "%s" }
+                          }
+                        }
+                        """.formatted(toId),
+                toId, """
+                        {
+                          "start": "b",
+                          "participants": {
+                            "x": { "type": "entity", "entity": { "type": "minecraft:villager", "tag": "gametest_jump_second" } }
+                          },
+                          "nodes": { "b": { "type": "line", "speaker": "x", "text": { "literal": "Second." } } }
+                        }
+                        """
+        ), () -> {
+            helper.assertTrue(Dialogues.start(player, fromId, null), "the first dialogue starts");
+            expect(helper, state(player).camera().partner(), first.getId(), "x is the first villager");
+            helper.assertTrue(Dialogues.holdsStill(extra), "y is in the talk");
+            advance(player);
+            expect(helper, state(player).dialogue(), toId, "jumped");
+            expect(helper, state(player).camera().partner(), second.getId(), "x is found again by the new selector");
+            helper.assertFalse(Dialogues.inDialogue(first), "the first villager is let go");
+            helper.assertFalse(Dialogues.inDialogue(extra), "y, not named by the new dialogue, is let go");
+            Dialogues.interrupt(player, EndReason.STOPPED);
+        });
+        first.discard();
+        second.discard();
+        extra.discard();
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void multiNpcValidationCatchesBadParticipantsAndAddressees(GameTestHelper helper) {
+        helper.assertTrue(DialogueDefinition.CODEC.parse(ops(helper), JsonParser.parseString("""
+                { "start": "a", "participants": { "x": { "type": "entity" } },
+                  "nodes": { "a": { "type": "line", "speaker": "x", "text": { "literal": "hi" } } } }
+                """)).isError(), "entity participant without npc or entity fails codec");
+        helper.assertTrue(DialogueDefinition.CODEC.parse(ops(helper), JsonParser.parseString("""
+                { "start": "a", "participants": { "x": { "type": "entity", "npc": "gametest:a", "entity": { "tag": "t" } } },
+                  "nodes": { "a": { "type": "line", "speaker": "x", "text": { "literal": "hi" } } } }
+                """)).isError(), "entity participant with both npc and entity fails codec");
+
+        ResourceLocation badId = key("multi_bad");
+        with(helper, DialogueRegistries.DIALOGUES.serverStore(), DialogueDefinition.CODEC, Map.of(
+                badId, """
+                        {
+                          "start": "a",
+                          "participants": {
+                            "ghost": { "type": "entity", "npc": "gametest:no_such_npc" }
+                          },
+                          "nodes": {
+                            "a": { "type": "line", "speaker": "ghost", "to": "nobody", "text": { "literal": "x" }, "next": "b" },
+                            "b": { "type": "line", "speaker": "ghost", "to": "ghost", "text": { "literal": "y" } }
+                          }
+                        }
+                        """
+        ), () -> {
+            List<ValidationIssue> issues = ValidationService.validate().issues();
+            List<String> errors = messages(issues, badId, true);
+            List<String> warnings = messages(issues, badId, false);
+            helper.assertTrue(errors.stream().anyMatch(m -> m.contains("unknown NPC")), "unknown participant npc error: " + errors);
+            helper.assertTrue(errors.stream().anyMatch(m -> m.contains("unknown participant 'nobody'")), "unknown addressee error: " + errors);
+            helper.assertTrue(warnings.stream().anyMatch(m -> m.contains("addresses itself")), "self-addressing warning: " + warnings);
+        });
+
+        List<dev.dzenthai.storybound.core.story.StoryLinks.Edge> edges = dev.dzenthai.storybound.core.story.StoryLinks.collect(
+                new dev.dzenthai.storybound.core.story.StoryLinks.Source() {
+                    @Override
+                    public Map<ResourceLocation, String> byType(ResourceLocation type) {
+                        return type.equals(dev.dzenthai.storybound.core.story.StoryLinks.DIALOGUE)
+                                ? Map.of(badId, """
+                                        { "start": "a",
+                                          "participants": { "guard": { "type": "entity", "npc": "gametest:guard_npc" } },
+                                          "nodes": { "a": { "type": "line", "speaker": "guard", "text": { "literal": "hi" } } } }
+                                        """)
+                                : Map.of();
+                    }
+
+                    @Override
+                    public @Nullable dev.dzenthai.storybound.core.story.StoryLinks.ScriptFile scriptFile(String path) {
+                        return null;
+                    }
+                });
+        helper.assertTrue(edges.stream().anyMatch(edge ->
+                        edge.from().equals(new dev.dzenthai.storybound.core.story.StoryLinks.NodeKey(dev.dzenthai.storybound.core.story.StoryLinks.DIALOGUE, badId))
+                        && edge.to().equals(new dev.dzenthai.storybound.core.story.StoryLinks.NodeKey(dev.dzenthai.storybound.core.story.StoryLinks.NPC, key("guard_npc")))
+                        && edge.label().equals("participant")),
+                "StoryLinks emits dialogue -> npc participant edge: " + edges);
         helper.succeed();
     }
 

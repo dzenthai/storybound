@@ -402,10 +402,61 @@ public final class ScenarioGameTests {
         return Quests.progress(player, id(scenario + "/quest")).map(QuestProgress::status);
     }
 
+    /**
+     * The council scenario: spawns three NPCs (Rowan bound, Vex by NPC binding, Iron Guard by entity selector),
+     * runs through group_shot, NPC-to-NPC exchanges and two_shot, and cleanly skips the golem's line when removed.
+     */
+    @GameTest(template = "open", batch = "scenario_council", timeoutTicks = 200)
+    public static void councilScenarioRunsMultiNpcDialogueAndSkipsMissingGolem(GameTestHelper helper) {
+        ServerPlayer player = player(helper);
+        Entity[] rowan = new Entity[1];
+        Entity[] golem = new Entity[1];
+        helper.startSequence()
+                .thenExecute(() -> {
+                    fire(player, "council");
+                    List<net.minecraft.world.entity.npc.Villager> rowans = tagged(helper, player, EntityType.VILLAGER, "scenario_council_rowan");
+                    List<net.minecraft.world.entity.npc.Villager> vexes = tagged(helper, player, EntityType.VILLAGER, "scenario_council_vex");
+                    List<net.minecraft.world.entity.animal.IronGolem> golems = tagged(helper, player, EntityType.IRON_GOLEM, "scenario_council_golem");
+                    expect(helper, rowans.size(), 1, "council: Captain Rowan");
+                    expect(helper, vexes.size(), 1, "council: Scout Vex");
+                    expect(helper, golems.size(), 1, "council: Iron Guard");
+                    rowan[0] = rowans.getFirst();
+                    golem[0] = golems.getFirst();
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    helper.assertTrue(Dialogues.start(player, id("council/meeting"), rowan[0]), "council meeting starts");
+                    expect(helper, node(player), "open", "starts on group_shot opening");
+                    expect(helper, Dialogues.state(player).orElseThrow().camera().shot(),
+                            dev.dzenthai.storybound.module.dialogue.CameraCue.Shot.GROUP_SHOT, "opening uses group_shot");
+                    expect(helper, Dialogues.state(player).orElseThrow().camera().cast().size(), 4, "all 4 participants in cast");
+                    advance(player); // ask_vex
+                    expect(helper, node(player), "ask_vex", "Rowan asks Vex");
+                    advance(player); // vex_report
+                    expect(helper, node(player), "vex_report", "Vex reports to Rowan");
+                    advance(player); // golem_plan
+                    expect(helper, node(player), "golem_plan", "Iron Guard speaks");
+                    advance(player); // vex_to_player
+                    expect(helper, node(player), "vex_to_player", "Vex addresses player");
+                    Dialogues.interrupt(player, EndReason.STOPPED);
+
+                    // Remove the Iron Guard and replay: golem_plan must be skipped cleanly.
+                    golem[0].discard();
+                    helper.assertTrue(Dialogues.start(player, id("council/meeting"), rowan[0]), "council restarts without golem");
+                    advance(player); // ask_vex
+                    advance(player); // vex_report
+                    advance(player); // skips golem_plan -> vex_to_player
+                    expect(helper, node(player), "vex_to_player", "golem line skipped when absent");
+                })
+                .thenExecute(() -> done(helper, player))
+                .thenSucceed();
+    }
+
     private static void done(GameTestHelper helper, ServerPlayer player) {
         Dialogues.interrupt(player, EndReason.STOPPED);
         for (String tag : List.of("scenario_brann", "scenario_tikhon", "scenario_mira", "scenario_ambush_husk", "scenario_campfire_husk",
-                "scenario_grom", "scenario_kamen", "scenario_shoulder_husk")) {
+                "scenario_grom", "scenario_kamen", "scenario_shoulder_husk",
+                "scenario_council_rowan", "scenario_council_vex", "scenario_council_golem")) {
             helper.getLevel().getEntities((Entity) null, new AABB(player.blockPosition()).inflate(32), entity -> entity.getTags().contains(tag))
                     .forEach(Entity::discard);
         }

@@ -99,9 +99,13 @@ final class FormView extends FormScenes {
         // A scene's shot and its camera: what the shot is against first, then how the camera flies.
         boolean shot = own.containsKey("camera") && own.containsKey("transition");
         boolean camera = own.containsKey("from") && own.containsKey("speed");
-        String form = node != null ? "node." + node : option ? "option" : document ? "document" : lootRule ? "document.loot" : journal ? "journal" : quest ? "quest"
+        String worldRuleForm = path.isEmpty() && schema.file().startsWith("world_rule") ? context(schema) : null;
+        boolean worldMob = "world.mob".equals(worldRuleForm);
+        boolean worldPlace = "world.place".equals(worldRuleForm);
+        boolean worldLoot = "world.loot".equals(worldRuleForm);
+        String form = node != null ? "node." + node : participant ? "participant" : option ? "option" : document ? "document" : lootRule ? "document.loot" : journal ? "journal" : quest ? "quest"
                 : inside != null ? inside : boss ? "boss" : codex ? "codex" : codexPlace ? "codex.place" : section ? "codex.section" : unlock ? "unlock" : observed ? "observed"
-                : shot ? "scene.shot" : camera ? "scene.camera" : rootForm;
+                : shot ? "scene.shot" : camera ? "scene.camera" : worldRuleForm != null ? worldRuleForm : rootForm;
         Map<String, String> groups = npc ? NPC_GROUPS : waypoint ? WAYPOINT_GROUPS : dialogue ? DIALOGUE_GROUPS
                 : form != null ? NODE_GROUPS.getOrDefault(form, Map.of()) : Map.of();
         JsonObject object = objectAt(path);
@@ -138,6 +142,18 @@ final class FormView extends FormScenes {
             }
             if (codexPlace && (name.equals("biome") || name.equals("structure"))) {
                 // Rendered together with dimension via placeRows(path, true).
+                continue;
+            }
+            if ((worldMob || worldPlace) && (name.equals("biome") || name.equals("structure"))) {
+                // Rendered together with dimension via placeRows(path, true).
+                continue;
+            }
+            if (worldLoot && (name.equals("biome") || name.equals("structure") || name.equals("tables") || name.equals("entities"))) {
+                // Rendered together with dimension inside worldLootSourceFields.
+                continue;
+            }
+            if (participant && name.equals("entity")) {
+                // Rendered together with npc inside participantEntityFields according to the active source mode.
                 continue;
             }
             if (addWaypoint && ADD_WAYPOINT_TARGET.contains(name)) {
@@ -200,12 +216,28 @@ final class FormView extends FormScenes {
                 codexSectionsField(path, property.getValue(), object);
             } else if ("codex.place".equals(form) && name.equals("dimension")) {
                 placeRows(path, true);
+            } else if ((worldMob || worldPlace) && name.equals("dimension")) {
+                placeRows(path, true);
+            } else if (worldPlace && name.equals("mode")) {
+                worldPlaceModeField(path, property.getValue(), schema, object);
+            } else if (worldLoot && name.equals("operation")) {
+                worldLootOperationField(path, property.getValue(), object);
+            } else if (worldLoot && name.equals("dimension")) {
+                worldLootSourceFields(path, schema, object);
+            } else if (worldLoot && name.equals("chance")) {
+                percentField(path, name, property.getValue(), object, fieldLabel(name, false, schema));
+            } else if (worldLoot && name.equals("components")) {
+                lootComponentsField(path, schema, object);
             } else if ("unlock".equals(form) && name.equals("on")) {
                 unlockSourcesField(path, object, fieldLabel(name, false, schema));
             } else if ("node.jump".equals(form) && name.equals("dialogue")) {
                 if (jumpModeField(path, object)) {
                     field(path, name, property.getValue(), required.contains(name), schema);
                 }
+            } else if (participant && name.equals("type")) {
+                participantTypeField(path, property.getValue(), object);
+            } else if (participant && name.equals("npc")) {
+                participantEntityFields(path, schema, object);
             } else {
                 field(path, name, property.getValue(), required.contains(name), schema);
             }
@@ -656,7 +688,14 @@ final class FormView extends FormScenes {
         screen.add(Button.builder(Component.literal("+"), b -> {
             String key = name.getValue().trim();
             if (!key.isEmpty() && (map == null || !map.has(key))) {
-                ensureObject(path).add(key, Schemas.kind(values) == Kind.OBJECT ? Schemas.skeleton(values) : new JsonObject());
+                JsonObject created = Schemas.kind(values) == Kind.OBJECT ? Schemas.skeleton(values) : new JsonObject();
+                // Only one participant can be "bound": once one exists, default new participants to a live nearby NPC.
+                boolean participants = path.size() == 1 && "participants".equals(path.getFirst()) && Schemas.properties(values).containsKey("portrait");
+                if (participants && map != null && map.asMap().values().stream().anyMatch(
+                        el -> el instanceof JsonObject p && p.get("type") instanceof JsonPrimitive t && t.getAsString().equals("bound"))) {
+                    created.addProperty("type", "entity");
+                }
+                ensureObject(path).add(key, created);
                 frames.push(new Frame(with(path, key), values, key, false));
                 resetScroll();
                 host.changed();

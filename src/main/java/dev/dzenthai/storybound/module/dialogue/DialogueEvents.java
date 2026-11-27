@@ -163,6 +163,7 @@ public final class DialogueEvents {
 
     /** Walks the conditions and actions of every node, option and {@code on_abort}. */
     public static void collectReferences(DialogueDefinition dialogue, References references) {
+        dialogue.participants().values().forEach(participant -> participant.entity().ifPresent(selector -> references.place(selector.place())));
         dialogue.onAbort().forEach(action -> action.collectReferences(references));
         for (Node node : dialogue.nodes().values()) {
             switch (node) {
@@ -198,6 +199,12 @@ public final class DialogueEvents {
             if (dialogue.participants().containsKey(DialogueDefinition.PLAYER)) {
                 error.accept("'player' is reserved for the player and cannot be a participant id");
             }
+            dialogue.participants().forEach((participantId, participant) -> {
+                if (participant.kind() == DialogueDefinition.Participant.Kind.ENTITY && participant.npc().isPresent()
+                        && !DialogueRegistries.NPC_BINDINGS.serverStore().contains(participant.npc().get())) {
+                    error.accept("Participant '" + participantId + "' names unknown NPC " + participant.npc().get());
+                }
+            });
             DialogueDefinition.Combat combat = dialogue.combat();
             combat.resume().ifPresent(resume -> {
                 if (!nodes.containsKey(resume)) {
@@ -223,6 +230,13 @@ public final class DialogueEvents {
                         if (!line.speaker().equals(DialogueDefinition.PLAYER) && !dialogue.participants().containsKey(line.speaker())) {
                             error.accept("Node '" + nodeId + "' has unknown speaker '" + line.speaker() + "'");
                         }
+                        line.to().ifPresent(addressee -> {
+                            if (!addressee.equals(DialogueDefinition.PLAYER) && !dialogue.participants().containsKey(addressee)) {
+                                error.accept("Node '" + nodeId + "' addresses unknown participant '" + addressee + "'");
+                            } else if (addressee.equals(line.speaker())) {
+                                warning.accept("Node '" + nodeId + "' addresses itself ('" + addressee + "')");
+                            }
+                        });
                     }
                     case DialogueDefinition.Choice choice -> {
                         if (choice.options().isEmpty()) {

@@ -1,0 +1,16 @@
+{
+  "display_name": "scenario.council.rowan",
+  "movement": "stay",
+  "entity": {
+    "type": "minecraft:villager",
+    "tag": "scenario_council_rowan"
+  },
+  "dialogues": [
+    {
+      "dialogue": "scenario:council/meeting"
+    }
+  ],
+  "override_interact": true,
+  "invulnerable": true
+}
+

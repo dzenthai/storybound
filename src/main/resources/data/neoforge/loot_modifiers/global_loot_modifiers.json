@@ -1,7 +1,8 @@
 {
   "replace": false,
   "entries": [
-    "storybound:document_loot"
+    "storybound:document_loot",
+    "storybound:world_loot"
   ]
 }
 

@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.module.dialogue;
 
 import com.mojang.serialization.Codec;
 import io.netty.buffer.ByteBuf;
+import java.util.List;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.util.StringRepresentable;
@@ -10,12 +11,18 @@ import net.minecraft.util.StringRepresentable;
  * What the dialogue camera may do for one line or choice. The server only says whether the camera is allowed and
  * which shot the author asked for; the client frames it, because only it knows where walls and entities are drawn.
  *
- * @param enabled the server config, the dialogue and its presentation all allow the camera
- * @param partner the entity the player talks to (the bound participant), or -1; the camera needs both sides
- * @param look    what the line looks at instead of the speakers ({@code look_at}), or {@link Look#NONE}
+ * @param enabled  the server config, the dialogue and its presentation all allow the camera
+ * @param partner  the active partner NPC entity id (speaking NPC, addressee, or bound participant), or -1
+ * @param listener the entity id the speaker is addressing (the player or another NPC), or -1 to default
+ * @param cast     entity ids of all live participants currently in the conversation (for {@link Shot#GROUP_SHOT})
+ * @param look     what the line looks at instead of the speakers ({@code look_at}), or {@link Look#NONE}
  */
-public record CameraCue(boolean enabled, Shot shot, Transition transition, int partner, Look look) {
-    public static final CameraCue OFF = new CameraCue(false, Shot.AUTO, Transition.CUT, -1, Look.NONE);
+public record CameraCue(boolean enabled, Shot shot, Transition transition, int partner, int listener, List<Integer> cast, Look look) {
+    public static final CameraCue OFF = new CameraCue(false, Shot.AUTO, Transition.CUT, -1, -1, List.of(), Look.NONE);
+
+    public CameraCue(boolean enabled, Shot shot, Transition transition, int partner, Look look) {
+        this(enabled, shot, transition, partner, -1, List.of(), look);
+    }
 
     /**
      * A line's {@code look_at} as found on the server: an entity the camera follows, or a fixed point.
@@ -39,19 +46,36 @@ public record CameraCue(boolean enabled, Shot shot, Transition transition, int p
         }
     }
 
-    public static final StreamCodec<ByteBuf, CameraCue> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.BOOL, CameraCue::enabled,
-            ByteBufCodecs.idMapper(index -> Shot.values()[index], Shot::ordinal), CameraCue::shot,
-            ByteBufCodecs.idMapper(index -> Transition.values()[index], Transition::ordinal), CameraCue::transition,
-            ByteBufCodecs.VAR_INT, CameraCue::partner,
-            Look.STREAM_CODEC, CameraCue::look,
-            CameraCue::new);
+    public static final StreamCodec<ByteBuf, CameraCue> STREAM_CODEC = StreamCodec.ofMember(CameraCue::write, CameraCue::read);
+
+    private static CameraCue read(ByteBuf buf) {
+        boolean enabled = ByteBufCodecs.BOOL.decode(buf);
+        Shot shot = Shot.values()[ByteBufCodecs.VAR_INT.decode(buf)];
+        Transition transition = Transition.values()[ByteBufCodecs.VAR_INT.decode(buf)];
+        int partner = ByteBufCodecs.VAR_INT.decode(buf);
+        int listener = ByteBufCodecs.VAR_INT.decode(buf);
+        List<Integer> cast = ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list()).decode(buf);
+        Look look = Look.STREAM_CODEC.decode(buf);
+        return new CameraCue(enabled, shot, transition, partner, listener, cast, look);
+    }
+
+    private void write(ByteBuf buf) {
+        ByteBufCodecs.BOOL.encode(buf, enabled);
+        ByteBufCodecs.VAR_INT.encode(buf, shot.ordinal());
+        ByteBufCodecs.VAR_INT.encode(buf, transition.ordinal());
+        ByteBufCodecs.VAR_INT.encode(buf, partner);
+        ByteBufCodecs.VAR_INT.encode(buf, listener);
+        ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list()).encode(buf, cast);
+        Look.STREAM_CODEC.encode(buf, look);
+    }
 
     public enum Shot implements StringRepresentable {
         /** Shot-reverse-shot: over the listener's shoulder at whoever speaks; a choice shows the player. */
         AUTO("auto"),
-        /** Both speakers from the side. */
+        /** Speaker and listener from the side. */
         TWO_SHOT("two_shot"),
+        /** Wide shot framing all live participants together. */
+        GROUP_SHOT("group_shot"),
         /** The speaker's face from the front. */
         CLOSE_UP("close_up"),
         /** No camera movement for this line. */

@@ -47,20 +47,101 @@ abstract class FormDialogues extends FormWaypoints {
         return !name.equals("camera") || screen || dialogue != null && dialogue.has("camera");
     }
 
-    /** A portrait is for a speaker without an entity; one with an entity shows the entity. */
+    /** Shows fields relevant to the participant's kind: bound, live entity nearby, or virtual narrator. */
     static boolean participantFieldShown(String name, @Nullable JsonObject participant) {
-        boolean virtual = participant != null && participant.get("type") instanceof JsonPrimitive type && type.getAsString().equals("virtual");
-        if (name.equals("name")) {
-            // The NPC talked to is named by its NPC: a name here only for a voice without an entity, or when the file
-            // still writes one.
-            return virtual || participant != null && participant.has("name");
-        }
-        return !name.equals("portrait") || virtual || participant != null && participant.has("portrait");
+        String type = participant != null && participant.get("type") instanceof JsonPrimitive written ? written.getAsString() : "bound";
+        boolean virtual = type.equals("virtual");
+        boolean entity = type.equals("entity");
+        return switch (name) {
+            case "npc", "entity", "radius" -> entity;
+            case "name" -> virtual || entity || participant != null && participant.has("name");
+            case "portrait" -> virtual || participant != null && participant.has("portrait");
+            default -> true;
+        };
     }
 
     /**
-     * Who speaks besides the player, in words: "npc (started with) · narrator «Narrator»". Without any written, the
-     * default: the entity the dialogue was started with.
+     * Participant kind switcher ({@code bound}, {@code entity}, {@code virtual}): stashes kind-specific fields when
+     * switching away and restores them if switched back, so the JSON stays clean and valid.
+     */
+    void participantTypeField(List<Object> path, Node node, @Nullable JsonObject participant) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(fieldLabel("type", true));
+        List<String> types = List.of("bound", "entity", "virtual");
+        String current = participant != null && participant.get("type") instanceof JsonPrimitive written ? written.getAsString() : "bound";
+        Button button = Button.builder(enumLabel("type", current), b -> {
+            JsonObject target = ensureObject(path);
+            String next = nextChoice(types, current, "bound");
+            if (current.equals("entity")) {
+                putAway(with(path, "type_entity"), target, "npc");
+                putAway(with(path, "type_entity"), target, "entity");
+                putAway(with(path, "type_entity"), target, "radius");
+            } else if (current.equals("virtual")) {
+                putAway(with(path, "type_virtual"), target, "portrait");
+            }
+            target.addProperty("type", next);
+            if (next.equals("entity")) {
+                giveBack(with(path, "type_entity"), target, "npc");
+                giveBack(with(path, "type_entity"), target, "entity");
+                giveBack(with(path, "type_entity"), target, "radius");
+            } else if (next.equals("virtual")) {
+                giveBack(with(path, "type_virtual"), target, "portrait");
+            }
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        String description = !node.description().isEmpty() ? node.description() : Schemas.resolve(node).description();
+        if (!description.isEmpty()) {
+            button.setTooltip(Tooltip.create(Component.literal(described(description))));
+        }
+        screen.add(button);
+    }
+
+    /**
+     * Source switcher for a live {@code entity} participant: either an existing Storybound NPC binding ({@code npc}) or
+     * a custom entity selector ({@code entity}). Keeps them mutually exclusive while preserving cleared values.
+     */
+    void participantEntityFields(List<Object> path, Node schema, @Nullable JsonObject participant) {
+        String modeKey = with(path, "participant_source").toString();
+        boolean hasNpc = participant != null && participant.has("npc");
+        boolean hasEntity = participant != null && participant.has("entity");
+        if (hasEntity && !hasNpc) {
+            entityModes.put(modeKey, "entity");
+        } else if (hasNpc) {
+            entityModes.put(modeKey, "npc");
+        }
+        String mode = entityModes.getOrDefault(modeKey, "npc");
+        boolean byEntity = mode.equals("entity");
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("dialogue.participant.source"));
+            Button switcher = Button.builder(Component.literal(DevUi.str("dialogue.participant.source." + mode) + " \u25B8"), b -> {
+                JsonObject target = ensureObject(path);
+                if (byEntity) {
+                    putAway(with(path, "src_entity"), target, "entity");
+                    giveBack(with(path, "src_npc"), target, "npc");
+                    entityModes.put(modeKey, "npc");
+                } else {
+                    putAway(with(path, "src_npc"), target, "npc");
+                    giveBack(with(path, "src_entity"), target, "entity");
+                    entityModes.put(modeKey, "entity");
+                }
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            switcher.setTooltip(Tooltip.create(DevUi.text("dialogue.participant.source.tooltip")));
+            screen.add(switcher);
+        }
+        Map<String, Node> props = Schemas.properties(schema);
+        if (byEntity && props.containsKey("entity")) {
+            field(path, "entity", props.get("entity"), true, schema);
+        } else if (!byEntity && props.containsKey("npc")) {
+            field(path, "npc", props.get("npc"), true, schema);
+        }
+    }
+
+    /**
+     * Who speaks besides the player, in words: "npc (started with) · guard (NPC nearby: elder) · narrator «Narrator»".
+     * Without any written, the default: the entity the dialogue was started with.
      */
     static String participantsSummary(@Nullable JsonElement value) {
         if (!(value instanceof JsonObject participants) || participants.isEmpty()) {
@@ -73,8 +154,18 @@ abstract class FormDialogues extends FormWaypoints {
 
     static String participantSummary(String key, JsonElement value) {
         JsonObject participant = value instanceof JsonObject object ? object : new JsonObject();
-        boolean virtual = participant.get("type") instanceof JsonPrimitive type && type.getAsString().equals("virtual");
+        String type = participant.get("type") instanceof JsonPrimitive written ? written.getAsString() : "bound";
         String name = ClientDevStore.readStoryText(participant, "name", "");
+        if (type.equals("entity")) {
+            String target = participant.get("npc") instanceof JsonPrimitive npc && !npc.getAsString().isBlank()
+                    ? DevUi.shortId(npc.getAsString())
+                    : participant.get("entity") instanceof JsonObject selector ? entitySummary(selector) : "";
+            String detail = target.isBlank() || target.equals("—")
+                    ? DevUi.str("dialogue.participant.entity")
+                    : DevUi.str("dialogue.participant.entity") + ": " + target;
+            return key + " (" + detail + (name.isBlank() ? "" : " «" + name + "»") + ")";
+        }
+        boolean virtual = type.equals("virtual");
         return key + " (" + DevUi.str(virtual ? "dialogue.participant.virtual" : "dialogue.participant.bound")
                 + (name.isBlank() ? "" : " «" + name + "»") + ")";
     }
@@ -85,6 +176,8 @@ abstract class FormDialogues extends FormWaypoints {
      * camera on).
      */
     static final Map<String, List<String>> NODE_ORDER = Map.ofEntries(
+            Map.entry("participant", List.of("type", "npc", "entity", "radius", "name", "portrait")),
+            Map.entry("node.line", List.of("speaker", "to", "text", "next", "duration", "resume", "shot", "transition", "look_at", "fade", "sound")),
             Map.entry("node.jump", List.of("dialogue", "node")),
             Map.entry("option", List.of("text", "next", "conditions", "locked", "locked_text", "actions", "once", "think", "id")),
             // A document.
@@ -114,7 +207,16 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("script", List.of("title", "description", "hidden", "leads_to", "file", "hook")),
             Map.entry("flag", List.of("description", "type", "default", "scope", "sync")),
             // The trigger "observed": what is looked at, how long and from how far, what the bar says.
-            Map.entry("observed", List.of("entity", "block", "pos", "item", "dimension", "time", "distance", "text")));
+            Map.entry("observed", List.of("entity", "block", "pos", "item", "dimension", "time", "distance", "text")),
+            // World Setup rules.
+            Map.entry("world.item", List.of("title", "items", "unlock", "block_use", "block_attack", "block_equip",
+                    "block_craft", "block_pickup", "hide_in_jei", "message")),
+            Map.entry("world.mob", List.of("title", "entities", "dimension", "biome", "structure", "unlock",
+                    "despawn_existing", "block_spawners", "replace_with")),
+            Map.entry("world.place", List.of("title", "dimension", "biome", "structure", "unlock", "mode",
+                    "effects", "damage", "message")),
+            Map.entry("world.loot", List.of("title", "operation", "target", "item", "min_count", "max_count",
+                    "components", "dimension", "biome", "structure", "tables", "entities", "chance", "once", "conditions")));
 
     /**
      * The headings of a form's groups, each at its first field. A small page (a dialogue's jump, a condition) has none:
@@ -144,7 +246,15 @@ abstract class FormDialogues extends FormWaypoints {
             Map.entry("scene", Map.of("shots", "scene.group.shots", "letterbox", "scene.group.watching", "on_end", "scene.group.after")),
             Map.entry("script", Map.of("title", "script.group.block", "leads_to", "script.group.leads", "file", "script.group.file")),
             Map.entry("flag", Map.of("description", "flag.group.what", "scope", "flag.group.where")),
-            Map.entry("chapter", Map.of("title", "chapter.group.chapter")));
+            Map.entry("chapter", Map.of("title", "chapter.group.chapter")),
+            Map.entry("world.item", Map.of("title", "world.group.what", "unlock", "world.group.unlock",
+                    "block_use", "world.group.restrictions", "message", "world.group.feedback")),
+            Map.entry("world.mob", Map.of("title", "world.group.what", "dimension", "world.group.where",
+                    "unlock", "world.group.unlock", "despawn_existing", "world.group.behavior")),
+            Map.entry("world.place", Map.of("title", "world.group.where", "unlock", "world.group.unlock",
+                    "mode", "world.group.behavior", "message", "world.group.feedback")),
+            Map.entry("world.loot", Map.of("title", "world.group.loot_what", "dimension", "world.group.where",
+                    "chance", "world.group.loot_how")));
 
     static boolean nodeFieldShown(String form, String name, @Nullable JsonObject object, @Nullable JsonObject dialogue) {
         if (form.equals("scene") && name.equals("music")) {
@@ -204,6 +314,19 @@ abstract class FormDialogues extends FormWaypoints {
             // A read counts once, an action opens at once: only sightings and kills are counted.
             List<String> sources = stringsOf(object != null ? object.get("on") : null);
             return sources.isEmpty() || sources.contains("seen") || sources.contains("killed") || object.has("count");
+        }
+        if (form.equals("world.place") && (name.equals("effects") || name.equals("damage"))) {
+            boolean hazard = object != null && object.get("mode") instanceof JsonPrimitive m && m.getAsString().equals("hazard");
+            return hazard || object != null && object.has(name);
+        }
+        if (form.equals("world.loot")) {
+            String op = object != null && object.get("operation") instanceof JsonPrimitive p ? p.getAsString() : "add";
+            if (name.equals("target")) {
+                return op.equals("replace") || op.equals("remove");
+            }
+            if (name.equals("item") || name.equals("min_count") || name.equals("max_count") || name.equals("components")) {
+                return op.equals("add") || op.equals("replace");
+            }
         }
         return true;
     }

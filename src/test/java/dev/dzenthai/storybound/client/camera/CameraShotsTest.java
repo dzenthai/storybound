@@ -12,6 +12,7 @@ import dev.dzenthai.storybound.client.camera.CameraShots.Obstacles;
 import dev.dzenthai.storybound.client.camera.CameraShots.Pose;
 import dev.dzenthai.storybound.client.camera.CameraShots.ScreenPoint;
 import dev.dzenthai.storybound.module.dialogue.CameraCue.Shot;
+import java.util.List;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -241,5 +242,48 @@ class CameraShotsTest {
         assertTrue(pose.pos().z < player.z, "a little behind the player");
         assertEquals(CameraShots.FAR_FOV, pose.fov());
         assertEquals(0f, Mth.wrapDegrees(pose.yaw()), 3f, "facing the target (south, yaw 0)");
+    }
+
+    @Test
+    void groupShotFramesThreeParticipantsInOpenAndCrampedRoom() {
+        Vec3 player = eyes(1.2, 64, 2.5);
+        Vec3 npcA = eyes(2.5, 64, 1.3);
+        Vec3 npcB = eyes(3.8, 64, 2.5);
+        List<Vec3> cast = List.of(player, npcA, npcB);
+
+        Framing open = CameraShots.groupShot(cast, npcA, 1, ASPECT, Block.NONE);
+        assertNotNull(open, "group shot frames three speakers in open space");
+        for (Vec3 member : cast) {
+            ScreenPoint projected = open.pose().project(member, ASPECT, PLAYER_FOV);
+            assertNotNull(projected, "every member is in front of the group camera: " + member);
+            assertTrue(Math.abs(projected.x()) <= 0.98 && Math.abs(projected.y()) <= 0.98,
+                    "every member sits inside the frame: " + projected);
+            assertTrue(open.pose().pos().distanceTo(member) >= 0.7, "camera is not inside a participant");
+        }
+
+        Block room = (x, y, z) -> !(x >= 0 && x < 5 && z >= 0 && z < 5 && y >= 64 && y < 67);
+        Framing indoor = CameraShots.groupShot(cast, npcA, 1, ASPECT, room);
+        assertNotNull(indoor, "group shot fits a 5x5 room");
+        assertClear(indoor.pose(), room);
+        assertSees(indoor.pose().pos(), npcA, room);
+
+        assertNull(CameraShots.groupShot(List.of(player), player, 1, ASPECT, Block.NONE), "fewer than two members returns null");
+    }
+
+    @Test
+    void npcToNpcExchangeKeeps180RuleAndTwoShotFramesBothNpcs() {
+        Vec3 npcA = eyes(0.5, 64, 0.5);
+        Vec3 npcB = eyes(3.5, 64, 0.5);
+        Framing aSpeaks = CameraShots.frame(Shot.AUTO, npcA, npcB, npcA, npcB, 1, ASPECT, Block.NONE);
+        Framing bSpeaks = CameraShots.frame(Shot.AUTO, npcB, npcA, npcA, npcB, 1, ASPECT, Block.NONE);
+        assertNotNull(aSpeaks);
+        assertNotNull(bSpeaks);
+        assertEquals(sideOfAxis(npcA, npcB, aSpeaks.pose().pos()), sideOfAxis(npcA, npcB, bSpeaks.pose().pos()),
+                "NPC-to-NPC reverse shot keeps the 180-degree rule");
+
+        Framing two = CameraShots.frame(Shot.TWO_SHOT, npcA, npcB, npcA, npcB, 1, ASPECT, Block.NONE);
+        assertNotNull(two);
+        assertNotNull(two.pose().project(npcA, ASPECT, PLAYER_FOV));
+        assertNotNull(two.pose().project(npcB, ASPECT, PLAYER_FOV));
     }
 }

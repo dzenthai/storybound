@@ -67,9 +67,12 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "description": "bound: the entity the dialogue was started with. virtual: no entity (a narrator).",
-          "enum": ["bound", "virtual"]
+          "description": "bound: the entity the dialogue was started with. entity: another live NPC found nearby in the world. virtual: no entity (a narrator).",
+          "enum": ["bound", "entity", "virtual"]
         },
+        "npc": { "description": "For type 'entity': an NPC binding id to find nearby (uses its one-of-a-kind holder or nearest matching entity).", "$ref": "logic.schema.json#/definitions/id" },
+        "entity": { "description": "For type 'entity': an entity selector to find the nearest matching entity nearby.", "$ref": "logic.schema.json#/definitions/entity_selector" },
+        "radius": { "description": "For type 'entity': how far from the player (in blocks) to look for this participant. Lines of an absent participant are skipped.", "type": "number", "minimum": 2, "maximum": 64, "default": 32 },
         "name": { "description": "Overrides the entity's name; needed for virtual speakers.", "$ref": "logic.schema.json#/definitions/story_text" },
         "portrait": { "description": "A texture for a virtual speaker, e.g. mypack:textures/portrait/narrator.png.", "$ref": "logic.schema.json#/definitions/id" }
       }
@@ -113,13 +116,14 @@
             "look_at": { "description": "What the camera looks at on this line instead of the speakers (screen presentation with the camera on): the nearest entity matching a selector within 64 blocks (followed as it moves), a waypoint the player sees (a structure it found), or a point beside the speaker or the player (offset: right, up, forward). Nothing found, too close, another dimension: the usual shot. The next line without it goes back to the speakers.", "type": "object", "additionalProperties": false, "properties": { "entity": { "$ref": "logic.schema.json#/definitions/entity_selector" }, "waypoint": { "$ref": "logic.schema.json#/definitions/id" }, "offset": { "$ref": "logic.schema.json#/definitions/vec3" }, "from": { "enum": ["speaker", "player"], "default": "speaker" } }, "oneOf": [ { "required": ["entity"] }, { "required": ["waypoint"] }, { "required": ["offset"] } ] },
             "fade": { "description": "A fade of the screen begun as the line shows, as the fade action: in, stay, out (seconds), color.", "type": "object", "additionalProperties": false, "properties": { "in": { "type": "number", "minimum": 0, "maximum": 10, "default": 0.5 }, "stay": { "type": "number", "minimum": 0, "maximum": 60, "default": 1 }, "out": { "type": "number", "minimum": 0, "maximum": 10, "default": 0.5 }, "color": { "type": "string", "pattern": "^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", "default": "#000000" } } },
             "speaker": { "description": "'player' or a participant id.", "type": "string" },
+            "to": { "description": "Optional addressee ('player' or another participant id). Frames NPC-to-NPC exchanges and turns the speaker toward them; defaults to 'player' (or the last speaking NPC for player lines).", "type": "string" },
             "text": { "$ref": "logic.schema.json#/definitions/story_text" },
             "next": { "$ref": "#/definitions/target", "default": "@end" },
             "sound": { "description": "The line's voice-over, played instead of the speaker's voice: an .ogg (Ogg Vorbis, mono) in config/storybound/sounds/<namespace>/ is the sound <namespace>:<name>, or any sound the game knows.", "$ref": "logic.schema.json#/definitions/id" },
             "duration": { "description": "Seconds after which the line moves on by itself (a click still moves on sooner). Empty: it waits for the player.", "type": "number", "minimum": 0.1, "maximum": 600 },
             "shot": {
-              "description": "The camera for this line. auto: over the listener's shoulder at the speaker. two_shot: both from the side. close_up: the speaker's face. first_person: no camera movement.",
-              "enum": ["auto", "two_shot", "close_up", "first_person"],
+              "description": "The camera for this line. auto: over the listener's shoulder at the speaker. two_shot: speaker and listener from the side. group_shot: wide shot framing all live participants together. close_up: the speaker's face. first_person: no camera movement.",
+              "enum": ["auto", "two_shot", "group_shot", "close_up", "first_person"],
               "default": "auto"
             },
             "transition": {

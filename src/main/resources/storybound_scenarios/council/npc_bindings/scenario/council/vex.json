@@ -1,0 +1,18 @@
+{
+  "display_name": "scenario.council.vex",
+  "movement": "stay",
+  "entity": {
+    "type": "minecraft:villager",
+    "tag": "scenario_council_vex"
+  },
+  "dialogues": [
+    {
+      "phrases": {
+        "text": "scenario.council.vex.wait"
+      }
+    }
+  ],
+  "override_interact": true,
+  "invulnerable": true
+}
+

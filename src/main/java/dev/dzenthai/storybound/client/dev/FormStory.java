@@ -974,6 +974,227 @@ abstract class FormStory extends FormDialogues {
         }
     }
 
+    private static final List<String> WORLD_LOOT_MODES = List.of("place", "mobs", "tables");
+    private static final List<String> WORLD_LOOT_OPS = List.of("add", "replace", "remove");
+
+    /**
+     * Clean 3-state operation switcher ({@code add}, {@code replace}, {@code remove}) for {@code world.loot}:
+     * stashes operation-specific fields ({@code target} vs {@code item}/{@code min_count}/{@code max_count}/
+     * {@code components}) when switching away and restores them if switched back.
+     */
+    void worldLootOperationField(List<Object> path, Node node, @Nullable JsonObject rule) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(fieldLabel("operation", false));
+        String current = rule != null && rule.get("operation") instanceof JsonPrimitive p ? p.getAsString() : "add";
+        if (!WORLD_LOOT_OPS.contains(current)) {
+            current = "add";
+        }
+        String active = current;
+        Button button = Button.builder(Component.empty().append(enumLabel("operation", active)).append(" \u25B8"), b -> {
+            JsonObject target = ensureObject(path);
+            String next = WORLD_LOOT_OPS.get((WORLD_LOOT_OPS.indexOf(active) + 1) % WORLD_LOOT_OPS.size());
+            boolean hadTarget = active.equals("replace") || active.equals("remove");
+            boolean needsTarget = next.equals("replace") || next.equals("remove");
+            boolean hadResult = active.equals("add") || active.equals("replace");
+            boolean needsResult = next.equals("add") || next.equals("replace");
+            if (hadTarget && !needsTarget) {
+                putAway(with(path, "wl_op_target"), target, "target");
+            }
+            if (hadResult && !needsResult) {
+                putAway(with(path, "wl_op_result"), target, "item");
+                putAway(with(path, "wl_op_result"), target, "min_count");
+                putAway(with(path, "wl_op_result"), target, "max_count");
+                putAway(with(path, "wl_op_result"), target, "components");
+            }
+            target.addProperty("operation", next);
+            if (!hadTarget && needsTarget) {
+                giveBack(with(path, "wl_op_target"), target, "target");
+            }
+            if (!hadResult && needsResult) {
+                giveBack(with(path, "wl_op_result"), target, "item");
+                giveBack(with(path, "wl_op_result"), target, "min_count");
+                giveBack(with(path, "wl_op_result"), target, "max_count");
+                giveBack(with(path, "wl_op_result"), target, "components");
+            }
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        String description = !node.description().isEmpty() ? node.description() : Schemas.resolve(node).description();
+        if (!description.isEmpty()) {
+            button.setTooltip(Tooltip.create(Component.literal(described(description))));
+        }
+        screen.add(button);
+    }
+
+    /**
+     * Clean 2-state mode switcher ({@code barrier} vs {@code hazard}) for {@code world.place}: stashes
+     * {@code effects} and {@code damage} when switching back to barrier and restores them when returning to hazard.
+     */
+    void worldPlaceModeField(List<Object> path, Node node, Node owner, @Nullable JsonObject rule) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(fieldLabel("mode", false, owner));
+        boolean hazard = rule != null && rule.get("mode") instanceof JsonPrimitive p && p.getAsString().equals("hazard");
+        String active = hazard ? "hazard" : "barrier";
+        Button button = Button.builder(Component.empty().append(enumLabel("mode", active)).append(" \u25B8"), b -> {
+            JsonObject target = ensureObject(path);
+            if (hazard) {
+                putAway(with(path, "wp_hazard"), target, "effects");
+                putAway(with(path, "wp_hazard"), target, "damage");
+                target.addProperty("mode", "barrier");
+            } else {
+                target.addProperty("mode", "hazard");
+                giveBack(with(path, "wp_hazard"), target, "effects");
+                giveBack(with(path, "wp_hazard"), target, "damage");
+            }
+            host.changed();
+        }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+        String description = !node.description().isEmpty() ? node.description() : Schemas.resolve(node).description();
+        if (!description.isEmpty()) {
+            button.setTooltip(Tooltip.create(Component.literal(described(description))));
+        }
+        screen.add(button);
+    }
+
+    /**
+     * Source selector for a general {@code world.loot} rule: chests by place, mob drops (entity id/tag), or
+     * specific loot tables, with optional place restriction on mob drops and tables.
+     */
+    void worldLootSourceFields(List<Object> path, Node schema, @Nullable JsonObject rule) {
+        String modeKey = with(path, "world_loot_mode").toString();
+        String limitKey = with(path, "world_loot_limit_place").toString();
+        boolean hasTables = rule != null && rule.has("tables");
+        boolean hasEntities = rule != null && rule.has("entities");
+        if (hasEntities && !hasTables) {
+            entityModes.put(modeKey, "mobs");
+        } else if (hasTables) {
+            entityModes.put(modeKey, "tables");
+        }
+        String mode = entityModes.getOrDefault(modeKey, "place");
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("world.loot.source"));
+            Button switcher = Button.builder(Component.literal(DevUi.str("world.loot.source." + mode) + " \u25B8"), b -> {
+                JsonObject target = ensureObject(path);
+                String next = WORLD_LOOT_MODES.get((WORLD_LOOT_MODES.indexOf(mode) + 1) % WORLD_LOOT_MODES.size());
+                if (mode.equals("place")) {
+                    putAway(with(path, "wl_place"), target, "dimension");
+                    putAway(with(path, "wl_place"), target, "biome");
+                    putAway(with(path, "wl_place"), target, "structure");
+                } else if (mode.equals("mobs")) {
+                    putAway(with(path, "wl_mobs"), target, "entities");
+                } else {
+                    putAway(with(path, "wl_tables"), target, "tables");
+                }
+                if (next.equals("place")) {
+                    giveBack(with(path, "wl_place"), target, "dimension");
+                    giveBack(with(path, "wl_place"), target, "biome");
+                    giveBack(with(path, "wl_place"), target, "structure");
+                } else if (next.equals("mobs")) {
+                    giveBack(with(path, "wl_mobs"), target, "entities");
+                    entityModes.remove(limitKey);
+                } else {
+                    giveBack(with(path, "wl_tables"), target, "tables");
+                    entityModes.remove(limitKey);
+                }
+                entityModes.put(modeKey, next);
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            switcher.setTooltip(Tooltip.create(DevUi.text("world.loot.source.tooltip")));
+            screen.add(switcher);
+        }
+        if (mode.equals("place")) {
+            placeRows(path, true);
+            boolean hasPlace = rule != null && (rule.has("dimension") || rule.has("biome") || rule.has("structure"));
+            if (!hasPlace) {
+                text(DevUi.text("document.loot.place_empty"), DevUi.MUTED);
+            }
+            return;
+        }
+        if (mode.equals("mobs")) {
+            Picker mobPicker = picker("entities", schema, path);
+            if (mobPicker != null) {
+                idListRows(path, "entities", mobPicker, fieldLabel("entities", false, schema));
+            }
+            if (!hasEntities) {
+                text(DevUi.text("world.loot.mobs_empty"), DevUi.MUTED);
+            }
+        } else {
+            Picker tablesPicker = picker("tables", schema, path);
+            if (tablesPicker != null) {
+                idListRows(path, "tables", tablesPicker, fieldLabel("tables", false, schema));
+            }
+            if (!hasTables) {
+                text(DevUi.text("document.loot.tables_empty"), DevUi.MUTED);
+            }
+        }
+        boolean hasPlace = rule != null && (rule.has("dimension") || rule.has("biome") || rule.has("structure"));
+        boolean limitPlace = hasPlace || "on".equals(entityModes.get(limitKey));
+        if (row(LABEL_H + CONTROL_H)) {
+            labelRow(DevUi.text("document.loot.limit_place"));
+            Button toggle = Button.builder(Component.literal(DevUi.yesNo(limitPlace)), b -> {
+                JsonObject target = ensureObject(path);
+                if (limitPlace) {
+                    putAway(with(path, "wl_extra_place"), target, "dimension");
+                    putAway(with(path, "wl_extra_place"), target, "biome");
+                    putAway(with(path, "wl_extra_place"), target, "structure");
+                    entityModes.remove(limitKey);
+                } else {
+                    giveBack(with(path, "wl_extra_place"), target, "dimension");
+                    giveBack(with(path, "wl_extra_place"), target, "biome");
+                    giveBack(with(path, "wl_extra_place"), target, "structure");
+                    entityModes.put(limitKey, "on");
+                }
+                host.changed();
+            }).bounds(x, rowY(LABEL_H + CONTROL_H) + LABEL_H, w, CONTROL_H).build();
+            toggle.setTooltip(Tooltip.create(DevUi.text("document.loot.limit_place.tooltip")));
+            screen.add(toggle);
+        }
+        if (limitPlace) {
+            placeRows(path, true);
+        }
+    }
+
+    /**
+     * Compact component bar for {@code world.loot}: displays current component count and lets the author copy item,
+     * count, and components directly from their held item in one click, or clear components.
+     */
+    void lootComponentsField(List<Object> path, Node schema, @Nullable JsonObject rule) {
+        if (!row(LABEL_H + CONTROL_H)) {
+            return;
+        }
+        labelRow(fieldLabel("components", false, schema));
+        int rowTop = rowY(LABEL_H + CONTROL_H) + LABEL_H;
+        JsonObject components = rule != null && rule.get("components") instanceof JsonObject obj && !obj.isEmpty() ? obj : null;
+        int clearW = components != null ? 20 : 0;
+        Component label = components != null
+                ? Component.literal("✋ ").append(DevUi.text("world.loot.components_set", components.size()))
+                : Component.literal("✋ ").append(DevUi.text("world.loot.from_hand"));
+        Button copy = Button.builder(label, b -> {
+            net.minecraft.world.entity.player.Player player = net.minecraft.client.Minecraft.getInstance().player;
+            net.minecraft.world.item.ItemStack stack = player != null ? player.getMainHandItem() : net.minecraft.world.item.ItemStack.EMPTY;
+            if (stack.isEmpty()) {
+                screen.status(DevUi.text("world.loot.hand_empty"), DevUi.WARN);
+                return;
+            }
+            JsonObject target = ensureObject(path);
+            target.addProperty("item", net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+            target.remove("components");
+            held(target, schema, stack);
+            host.changed();
+            screen.status(DevUi.text("world.loot.copied_hand", stack.getHoverName().getString()), DevUi.OK);
+        }).tooltip(Tooltip.create(DevUi.text("world.loot.from_hand.tooltip")))
+                .bounds(x, rowTop, w - clearW, CONTROL_H).build();
+        screen.add(copy);
+        if (components != null) {
+            screen.add(removeButton(rowTop, DevUi.text("world.loot.components_clear"), b -> {
+                ensureObject(path).remove("components");
+                host.changed();
+            }));
+        }
+    }
+
     /** Crisp summary of one document loot rule for the document's "Where it appears" list. */
     private static String lootRuleSummary(JsonObject rule) {
         List<String> parts = new ArrayList<>();

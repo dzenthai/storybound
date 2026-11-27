@@ -40,6 +40,8 @@ public final class StoryLinks {
     public static final ResourceLocation SCENE = Storybound.id("scene");
     /** An NPC's phrases: its chatter and what it says when hit. */
     public static final ResourceLocation PHRASES = Storybound.id("phrases");
+    /** World-level rules: item/mob/place locks and general loot modifiers. */
+    public static final ResourceLocation WORLD_RULE = Storybound.id("world_rule");
 
     /** A definition: its type and id. */
     public record NodeKey(ResourceLocation type, ResourceLocation id) {}
@@ -104,7 +106,20 @@ public final class StoryLinks {
             }
         });
         // Phrases name nothing: no edges from them.
-        source.byType(DIALOGUE).forEach((id, raw) -> collectLogicEdges(new NodeKey(DIALOGUE, id), parseObject(raw), edges, hooks));
+        source.byType(DIALOGUE).forEach((id, raw) -> {
+            NodeKey from = new NodeKey(DIALOGUE, id);
+            JsonObject obj = parseObject(raw);
+            if (obj.get("participants") instanceof JsonObject participants) {
+                for (JsonElement element : participants.asMap().values()) {
+                    if (element instanceof JsonObject participant
+                            && participant.get("type") instanceof JsonPrimitive type && type.getAsString().equals("entity")
+                            && participant.get("npc") instanceof JsonPrimitive npc) {
+                        parseId(npc.getAsString()).ifPresent(binding -> edges.add(new Edge(from, new NodeKey(NPC, binding), "participant")));
+                    }
+                }
+            }
+            collectLogicEdges(from, obj, edges, hooks);
+        });
         source.byType(DOCUMENT).forEach((id, raw) -> {
             NodeKey from = new NodeKey(DOCUMENT, id);
             JsonObject obj = parseObject(raw);
@@ -187,7 +202,7 @@ public final class StoryLinks {
             }
             collectLogicEdges(from, obj, edges, hooks);
         });
-        for (ResourceLocation type : List.of(NPC, BOSS, CODEX)) {
+        for (ResourceLocation type : List.of(NPC, BOSS, CODEX, WORLD_RULE)) {
             source.byType(type).forEach((id, raw) -> collectLogicEdges(new NodeKey(type, id), parseObject(raw), edges, hooks));
         }
         source.byType(SCRIPT).forEach((id, raw) -> scriptEdges(source, new NodeKey(SCRIPT, id), parseObject(raw), edges));

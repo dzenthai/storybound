@@ -23,12 +23,58 @@ final class DevChecks {
         if (definition == null || minecraft.level == null) {
             return Optional.empty();
         }
-        Optional<String> plain = type.equals(ClientDevStore.TYPE_WAYPOINT) ? waypointTarget(json) : Optional.empty();
+        Optional<String> plain = type.equals(ClientDevStore.TYPE_WAYPOINT) ? waypointTarget(json)
+                : type.equals(ClientDevStore.TYPE_WORLD_RULE) ? worldRuleProblem(json)
+                : Optional.empty();
         if (plain.isPresent()) {
             return plain;
         }
         return definition.codec().parse(RegistryOps.create(JsonOps.INSTANCE, minecraft.level.registryAccess()), json).error()
                 .map(error -> error.message());
+    }
+
+    /** Friendly localized validation messages for incomplete world rules before falling back to raw codec errors. */
+    private static Optional<String> worldRuleProblem(JsonObject rule) {
+        String type = rule.get("type") instanceof com.google.gson.JsonPrimitive p ? p.getAsString() : "";
+        return switch (type) {
+            case "item" -> isEmptyListOrBlank(rule.get("items"))
+                    ? Optional.of(DevUi.str("check.world.items")) : Optional.empty();
+            case "mob" -> isEmptyListOrBlank(rule.get("entities"))
+                    ? Optional.of(DevUi.str("check.world.entities")) : Optional.empty();
+            case "place" -> isEmptyListOrBlank(rule.get("dimension"))
+                    && isEmptyListOrBlank(rule.get("biome"))
+                    && isEmptyListOrBlank(rule.get("structure"))
+                    ? Optional.of(DevUi.str("check.world.place")) : Optional.empty();
+            case "loot" -> {
+                String op = rule.get("operation") instanceof com.google.gson.JsonPrimitive p ? p.getAsString() : "add";
+                if ((op.equals("replace") || op.equals("remove")) && isEmptyListOrBlank(rule.get("target"))) {
+                    yield Optional.of(DevUi.str("check.world.loot_target"));
+                }
+                if ((op.equals("add") || op.equals("replace")) && isEmptyListOrBlank(rule.get("item"))) {
+                    yield Optional.of(DevUi.str("check.world.loot_item"));
+                }
+                if (rule.get("min_count") instanceof com.google.gson.JsonPrimitive min && min.isNumber()
+                        && rule.get("max_count") instanceof com.google.gson.JsonPrimitive max && max.isNumber()
+                        && max.getAsInt() < min.getAsInt()) {
+                    yield Optional.of(DevUi.str("check.world.loot_count"));
+                }
+                yield Optional.empty();
+            }
+            default -> Optional.empty();
+        };
+    }
+
+    private static boolean isEmptyListOrBlank(com.google.gson.JsonElement el) {
+        if (el == null || el.isJsonNull()) {
+            return true;
+        }
+        if (el instanceof com.google.gson.JsonPrimitive p) {
+            return p.getAsString().isBlank();
+        }
+        if (el instanceof com.google.gson.JsonArray arr) {
+            return arr.isEmpty();
+        }
+        return false;
     }
 
     /**

@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.module.dialogue;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
@@ -45,10 +46,22 @@ final class DialogueCombat {
      * aside: a boss taunting the player is not a fight with itself).
      */
     static boolean inFight(ServerPlayer player, @Nullable Entity partner, long quietTicks, long now) {
-        if (Math.floorMod(now + player.getId(), SCAN_INTERVAL) == 0 && targeted(player, partner)) {
+        return inFight(player, partner == null ? List.of() : List.of(partner), quietTicks, now);
+    }
+
+    static boolean inFight(ServerPlayer player, List<Entity> partners, long quietTicks, long now) {
+        if (Math.floorMod(now + player.getId(), SCAN_INTERVAL) == 0 && targeted(player, partners)) {
             LAST_FIGHT.put(player.getUUID(), now);
         }
-        return recent(player, quietTicks, now) || partner != null && recent(partner, quietTicks, now);
+        if (recent(player, quietTicks, now)) {
+            return true;
+        }
+        for (Entity partner : partners) {
+            if (partner != null && recent(partner, quietTicks, now)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Forgets old hits; every few seconds. */
@@ -65,17 +78,17 @@ final class DialogueCombat {
         return last != null && now - last < quietTicks;
     }
 
-    private static boolean targeted(ServerPlayer player, @Nullable Entity partner) {
+    private static boolean targeted(ServerPlayer player, List<Entity> partners) {
         return !player.level().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(TARGET_RANGE),
-                mob -> mob != partner && mob.isAlive() && targets(mob, player, partner)).isEmpty();
+                mob -> !partners.contains(mob) && mob.isAlive() && targets(mob, player, partners)).isEmpty();
     }
 
     /** A mob's target, or, for brain-driven ones (piglins, wardens), its attack target memory. */
-    private static boolean targets(Mob mob, ServerPlayer player, @Nullable Entity partner) {
+    private static boolean targets(Mob mob, ServerPlayer player, List<Entity> partners) {
         LivingEntity target = mob.getTarget();
         if (target == null && mob.getBrain().checkMemory(MemoryModuleType.ATTACK_TARGET, MemoryStatus.REGISTERED)) {
             target = mob.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET).orElse(null);
         }
-        return target != null && (target == player || target == partner);
+        return target != null && (target == player || partners.contains(target));
     }
 }

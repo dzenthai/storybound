@@ -115,6 +115,8 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onRenderFramePre);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.dev.DevFrameCapture::onRenderFramePost);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.codex.CodexPhotoPrompt::onKey);
+        NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.world.ClientWorldRules::onItemTooltip);
+        dev.dzenthai.storybound.module.world.WorldRules.setClientCraftBlocker(dev.dzenthai.storybound.client.world.ClientWorldRules::isCraftBlocked);
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
@@ -275,5 +277,6 @@ public final class StoryboundClient {
         SeenMarks.reset();
         AdventureMenu.reset();
         ClientConfigTexts.clear();
+        dev.dzenthai.storybound.client.world.ClientWorldRules.clear();
     }
 }

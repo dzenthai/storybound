@@ -1,6 +1,7 @@
 package dev.dzenthai.storybound.client.camera;
 
 import dev.dzenthai.storybound.module.dialogue.CameraCue;
+import java.util.List;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
@@ -62,6 +63,12 @@ public final class CameraShots {
     private static final double CLEAN_SINGLE_AHEAD = 0.6;
     private static final double MIN_TWO_SHOT_DISTANCE = 1.2;
     private static final double MIN_CLOSE_UP_DISTANCE = 0.6;
+    private static final float GROUP_SHOT_FOV = 55f;
+    private static final double MIN_GROUP_CLEARANCE = 1.35;
+    private static final double MIN_GROUP_DISTANCE = 2.2;
+    private static final double MAX_GROUP_DISTANCE = 8.5;
+    private static final double GROUP_MEMBER_MARGIN = 0.45;
+    private static final double[] GROUP_ANGLE_OFFSETS = {0.0, 25.0, -25.0};
     /** Rays start this far around the ideal line, like the vanilla third-person camera, so the near plane stays out of walls. */
     private static final double RAY_SPREAD = 0.1;
     /** Distance kept from the wall a ray hit. */
@@ -124,17 +131,18 @@ public final class CameraShots {
     /**
      * Frames {@code focus}, the face being shown, with {@code listener} as the other speaker.
      *
-     * @param player  the eyes of the player in the dialogue; with {@code partner} it defines the axis
-     * @param side    +1 for the right of the axis from the player to the partner, -1 for the left
+     * @param axisA   first speaker defining the 180° axis (typically the player, or the lower-id NPC)
+     * @param axisB   second speaker defining the 180° axis; also paired with {@code axisA} for {@code two_shot}
+     * @param side    +1 for the right of the axis from {@code axisA} to {@code axisB}, -1 for the left
      * @param aspect  the window's width over its height
      * @return null when nothing fits: play the shot in first person
      */
-    public static @Nullable Framing frame(CameraCue.Shot shot, Vec3 focus, Vec3 listener, Vec3 player, Vec3 partner, int side,
+    public static @Nullable Framing frame(CameraCue.Shot shot, Vec3 focus, Vec3 listener, Vec3 axisA, Vec3 axisB, int side,
                                           double aspect, Obstacles obstacles) {
         if (shot == CameraCue.Shot.FIRST_PERSON) {
             return null;
         }
-        Vec3 right = right(player, partner);
+        Vec3 right = right(axisA, axisB);
         Framing framing = null;
         if (shot == CameraCue.Shot.CLOSE_UP) {
             framing = closeUp(focus, listener, right, side, obstacles);
@@ -149,12 +157,139 @@ public final class CameraShots {
             }
         }
         if (framing == null) {
-            framing = twoShot(player, partner, right, side, obstacles);
+            framing = twoShot(axisA, axisB, right, side, obstacles);
         }
         if (framing == null) {
-            framing = twoShot(player, partner, right, -side, obstacles);
+            framing = twoShot(axisA, axisB, right, -side, obstacles);
         }
         return framing;
+    }
+
+    /**
+     * Wide establishing shot framing all live participants together ({@code group_shot}), keeping the camera clear of
+     * walls and preferring the current conversation side. Returns null when fewer than two members fit cleanly so the
+     * caller can fall back to a two-shot.
+     */
+    public static @Nullable Framing groupShot(List<Vec3> members, Vec3 focus, int side, double aspect, Obstacles obstacles) {
+        if (members.size() < 2) {
+            return null;
+        }
+        double cx = 0;
+        double cy = 0;
+        double cz = 0;
+        for (Vec3 member : members) {
+            cx += member.x;
+            cy += member.y;
+            cz += member.z;
+        }
+        double inv = 1.0 / members.size();
+        // Aim slightly below eye level so heads sit cleanly above the bottom dialogue box.
+        Vec3 middle = new Vec3(cx * inv, cy * inv - 0.1, cz * inv);
+
+        // Find the widest horizontal spread across the group and view perpendicular to it.
+        Vec3 spread = Vec3.ZERO;
+        double bestSpanSqr = -1;
+        for (int i = 0; i < members.size(); i++) {
+            Vec3 a = members.get(i);
+            for (int j = i + 1; j < members.size(); j++) {
+                Vec3 b = members.get(j);
+                double dx = b.x - a.x;
+                double dz = b.z - a.z;
+                double spanSqr = dx * dx + dz * dz;
+                if (spanSqr > bestSpanSqr) {
+                    bestSpanSqr = spanSqr;
+                    spread = new Vec3(dx, 0, dz);
+                }
+            }
+        }
+        spread = horizontal(spread);
+        if (spread.lengthSqr() < 1e-8) {
+            spread = new Vec3(1, 0, 0);
+        }
+        Vec3 basePerp = new Vec3(-spread.z, 0, spread.x);
+
+        int preferred = side == 0 ? 1 : side;
+        Framing best = null;
+        int bestVisible = 1;
+        double bestScore = Double.MAX_VALUE;
+        double tanBase = Math.tan(Math.toRadians(GROUP_SHOT_FOV) / 2.0);
+        double hLimit = 0.78 * tanBase * Math.max(0.5, aspect);
+        double vLimit = 0.72 * tanBase;
+
+        for (int s : new int[]{preferred, -preferred}) {
+            Vec3 sidePerp = basePerp.scale(s);
+            for (double angleDeg : GROUP_ANGLE_OFFSETS) {
+                Vec3 viewDir = rotateHorizontal(sidePerp, Math.toRadians(angleDeg));
+                Vec3 viewRight = new Vec3(-viewDir.z, 0, viewDir.x);
+
+                double needed = MIN_GROUP_DISTANCE;
+                for (Vec3 member : members) {
+                    Vec3 rel = member.subtract(middle);
+                    double forward = rel.dot(viewDir);
+                    double lateral = Math.abs(rel.dot(viewRight)) + GROUP_MEMBER_MARGIN;
+                    double vertical = Math.abs(rel.y) + GROUP_MEMBER_MARGIN;
+                    needed = Math.max(needed, forward + MIN_GROUP_CLEARANCE);
+                    needed = Math.max(needed, forward + lateral / hLimit);
+                    needed = Math.max(needed, forward + vertical / vLimit);
+                }
+                double idealDist = Math.clamp(needed, MIN_GROUP_DISTANCE, MAX_GROUP_DISTANCE);
+                Vec3 ideal = middle.add(viewDir.scale(idealDist)).add(0, 0.35, 0);
+                Vec3 pos = reach(middle, ideal, obstacles);
+                double actualDist = pos.distanceTo(middle);
+                if (actualDist < MIN_TWO_SHOT_DISTANCE || !sees(pos, focus, obstacles)) {
+                    continue;
+                }
+                boolean tooClose = false;
+                for (Vec3 member : members) {
+                    if (pos.distanceTo(member) < 0.7) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (tooClose) {
+                    continue;
+                }
+                // Widen the lens slightly if a wall pushed the camera closer than ideal or the group is wide.
+                float fov = GROUP_SHOT_FOV;
+                if (actualDist < needed) {
+                    double ratio = Math.min(1.6, needed / Math.max(0.5, actualDist));
+                    fov = (float) Math.clamp(Math.toDegrees(2.0 * Math.atan(tanBase * ratio)), GROUP_SHOT_FOV, MAX_FOV);
+                }
+                Pose pose = Pose.looking(pos, middle, fov);
+                int visible = 0;
+                double maxEdge = 0;
+                for (Vec3 member : members) {
+                    if (!sees(pos, member, obstacles)) {
+                        continue;
+                    }
+                    ScreenPoint point = pose.project(member, aspect, fov);
+                    if (point != null && Math.abs(point.x()) <= 0.98 && Math.abs(point.y()) <= 0.98) {
+                        visible++;
+                        maxEdge = Math.max(maxEdge, Math.max(Math.abs(point.x()), Math.abs(point.y())));
+                    }
+                }
+                if (visible < 2) {
+                    continue;
+                }
+                double score = maxEdge + (s == preferred ? 0.0 : 0.25) + Math.abs(angleDeg) * 0.004
+                        + Math.max(0.0, (idealDist - actualDist) * 0.15);
+                if (visible > bestVisible || (visible == bestVisible && score < bestScore)) {
+                    bestVisible = visible;
+                    bestScore = score;
+                    best = new Framing(pose, s);
+                }
+            }
+        }
+        return best;
+    }
+
+    private static Vec3 rotateHorizontal(Vec3 dir, double radians) {
+        if (radians == 0.0) {
+            return dir;
+        }
+        double cos = Math.cos(radians);
+        double sin = Math.sin(radians);
+        return new Vec3(dir.x * cos - dir.z * sin, 0, dir.x * sin + dir.z * cos);
     }
 
     /** The best-composed position behind the listener's shoulder on this side, or null when none fits. */

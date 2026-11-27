@@ -55,21 +55,32 @@ public record StructureRef(ResourceLocation id, boolean tag) {
      * structure or an unloaded chunk.
      */
     public boolean contains(ServerLevel level, BlockPos pos) {
+        return boundingBox(level, pos).isPresent();
+    }
+
+    /**
+     * Bounding box of the matching structure containing {@code pos}, or empty when {@code pos} is outside any
+     * matching structure, the structure is unknown, or the chunk is unloaded.
+     */
+    public Optional<net.minecraft.world.level.levelgen.structure.BoundingBox> boundingBox(ServerLevel level, BlockPos pos) {
         Optional<? extends HolderSet<Structure>> set = known(level);
         if (set.isEmpty() || !level.isLoaded(pos)) {
-            return false;
+            return Optional.empty();
         }
         StructureManager manager = level.structureManager();
         Map<Structure, LongSet> here = manager.getAllStructuresAt(pos);
         if (here.isEmpty()) {
-            return false;
+            return Optional.empty();
         }
         for (Holder<Structure> holder : set.get()) {
-            if (here.containsKey(holder.value()) && manager.getStructureAt(pos, holder.value()).isValid()) {
-                return true;
+            if (here.containsKey(holder.value())) {
+                net.minecraft.world.level.levelgen.structure.StructureStart start = manager.getStructureAt(pos, holder.value());
+                if (start.isValid()) {
+                    return Optional.of(start.getBoundingBox());
+                }
             }
         }
-        return false;
+        return Optional.empty();
     }
 
     /**

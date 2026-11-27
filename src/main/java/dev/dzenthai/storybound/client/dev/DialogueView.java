@@ -183,7 +183,7 @@ final class DialogueView extends GraphView {
                     targets.add(DialogueGraph.EXIT);
                     yield targets;
                 }
-                case "speaker" -> {
+                case "speaker", "to" -> {
                     List<String> speakers = new ArrayList<>(speakers());
                     speakers.add("player");
                     yield speakers;
@@ -354,9 +354,19 @@ final class DialogueView extends GraphView {
                     DevUi.str("node.scene"), 0xFF6FA8B8, look("scene", false), new ItemStack(Items.SPYGLASS), x, y, start, false);
             case "end" -> new Card(id, type, DialogueGraph.END, DevUi.str("node.end"), 0xFFB33A2F, look("end", false), new ItemStack(Items.BARRIER), x, y, start, false);
             default -> {
-                boolean player = "player".equalsIgnoreCase(node.has("speaker") ? node.get("speaker").getAsString() : "");
+                String speaker = node.has("speaker") && node.get("speaker").isJsonPrimitive() ? node.get("speaker").getAsString() : "";
+                boolean player = "player".equalsIgnoreCase(speaker);
+                String to = node.has("to") && node.get("to").isJsonPrimitive() ? node.get("to").getAsString() : "";
                 String text = ClientDevStore.readStoryText(node, "text", "", language);
-                yield new Card(id, type, text.isBlank() ? DevUi.str("node.empty_line") : text, DevUi.str(player ? "node.player_line" : "node.npc_line"),
+                String badge;
+                if (player) {
+                    badge = to.isBlank() ? DevUi.str("node.player_line") : DevUi.str("node.player_line") + " → " + to;
+                } else if (speaker.isBlank() || speaker.equals("npc")) {
+                    badge = to.isBlank() ? DevUi.str("node.npc_line") : DevUi.str("node.npc_line") + " → " + to;
+                } else {
+                    badge = to.isBlank() ? speaker : speaker + " → " + to;
+                }
+                yield new Card(id, type, text.isBlank() ? DevUi.str("node.empty_line") : text, badge,
                         player ? 0xFF92AACC : 0xFF708B34, look("line", player), new ItemStack(player ? Items.PLAYER_HEAD : Items.FEATHER), x, y, start,
                         translating && untranslated(node, language));
             }

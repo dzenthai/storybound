@@ -1,0 +1,24 @@
+{
+  "category": "side",
+  "title": "scenario.council.quest.title",
+  "text": {
+    "active": "scenario.council.quest.text",
+    "completed": "scenario.council.quest.done"
+  },
+  "stages": [
+    {
+      "id": "meet",
+      "objectives": [
+        {
+          "id": "talk",
+          "text": "scenario.council.quest.talk",
+          "trigger": {
+            "type": "dialogue_ended",
+            "dialogue": "scenario:council/meeting"
+          }
+        }
+      ]
+    }
+  ]
+}
+

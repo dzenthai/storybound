@@ -1,0 +1,129 @@
+{
+  "participants": {
+    "rowan": {
+      "type": "bound"
+    },
+    "vex": {
+      "type": "entity",
+      "npc": "scenario:council/vex",
+      "radius": 24
+    },
+    "golem": {
+      "type": "entity",
+      "entity": {
+        "type": "minecraft:iron_golem",
+        "tag": "scenario_council_golem"
+      },
+      "radius": 24,
+      "name": "scenario.council.golem"
+    }
+  },
+  "presentation": "screen",
+  "start": "open",
+  "nodes": {
+    "open": {
+      "type": "line",
+      "speaker": "rowan",
+      "shot": "group_shot",
+      "transition": "ease",
+      "text": "scenario.council.open",
+      "next": "ask_vex"
+    },
+    "ask_vex": {
+      "type": "line",
+      "speaker": "rowan",
+      "to": "vex",
+      "text": "scenario.council.ask_vex",
+      "next": "vex_report"
+    },
+    "vex_report": {
+      "type": "line",
+      "speaker": "vex",
+      "to": "rowan",
+      "text": "scenario.council.vex_report",
+      "next": "golem_plan"
+    },
+    "golem_plan": {
+      "type": "line",
+      "speaker": "golem",
+      "to": "vex",
+      "shot": "two_shot",
+      "transition": "ease",
+      "text": "scenario.council.golem_plan",
+      "next": "vex_to_player"
+    },
+    "vex_to_player": {
+      "type": "line",
+      "speaker": "vex",
+      "text": "scenario.council.vex_to_player",
+      "next": "choose_plan"
+    },
+    "choose_plan": {
+      "type": "choice",
+      "options": [
+        {
+          "text": "scenario.council.choice.bridge",
+          "next": "p_bridge"
+        },
+        {
+          "text": "scenario.council.choice.gate",
+          "next": "p_gate"
+        },
+        {
+          "text": "scenario.council.choice.again",
+          "next": "open"
+        }
+      ]
+    },
+    "p_bridge": {
+      "type": "line",
+      "speaker": "player",
+      "to": "vex",
+      "text": "scenario.council.p_bridge",
+      "next": "vex_agrees"
+    },
+    "vex_agrees": {
+      "type": "line",
+      "speaker": "vex",
+      "shot": "close_up",
+      "text": "scenario.council.vex_agrees",
+      "next": "rowan_bridge"
+    },
+    "rowan_bridge": {
+      "type": "line",
+      "speaker": "rowan",
+      "to": "vex",
+      "text": "scenario.council.rowan_bridge",
+      "next": "closing"
+    },
+    "p_gate": {
+      "type": "line",
+      "speaker": "player",
+      "to": "golem",
+      "text": "scenario.council.p_gate",
+      "next": "golem_agrees"
+    },
+    "golem_agrees": {
+      "type": "line",
+      "speaker": "golem",
+      "shot": "close_up",
+      "text": "scenario.council.golem_agrees",
+      "next": "rowan_gate"
+    },
+    "rowan_gate": {
+      "type": "line",
+      "speaker": "rowan",
+      "text": "scenario.council.rowan_gate",
+      "next": "closing"
+    },
+    "closing": {
+      "type": "line",
+      "speaker": "rowan",
+      "shot": "group_shot",
+      "transition": "ease",
+      "text": "scenario.council.closing",
+      "next": "@end"
+    }
+  }
+}
+

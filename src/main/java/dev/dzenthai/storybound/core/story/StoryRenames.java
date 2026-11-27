@@ -30,11 +30,11 @@ public final class StoryRenames {
     /** The story's nodes and flags; not chapters (their title is their name) or the editor's own files. */
     public static final Set<ResourceLocation> RENAMEABLE = Set.of(StoryLinks.QUEST, StoryLinks.DIALOGUE, StoryLinks.NPC, StoryLinks.DOCUMENT,
             StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, StoryLinks.VANILLA_SCRIPT,
-            StoryLinks.SCENE, FLAG, StoryLinks.PHRASES);
+            StoryLinks.SCENE, FLAG, StoryLinks.PHRASES, StoryLinks.WORLD_RULE);
     /** The definitions that may name a renamed id. */
     public static final Set<ResourceLocation> REFERRING = Set.of(StoryLinks.QUEST, StoryLinks.DIALOGUE, StoryLinks.NPC, StoryLinks.DOCUMENT,
             StoryLinks.WAYPOINT, StoryLinks.BOSS, StoryLinks.CODEX, StoryLinks.EVENT, StoryLinks.SCRIPT, StoryLinks.VANILLA_SCRIPT,
-            StoryLinks.SCENE, MUSIC, FLAG, CHAPTER, StoryLinks.PHRASES);
+            StoryLinks.SCENE, MUSIC, FLAG, CHAPTER, StoryLinks.PHRASES, StoryLinks.WORLD_RULE);
     /** An NPC's relationship scale is the flag {@code <ns>:rep/<npc path>}. */
     public static final String RELATIONSHIP_PREFIX = "rep/";
 

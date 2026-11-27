@@ -515,6 +515,16 @@ abstract class FormCore {
         screen.rebuild();
     }
 
+    /** Steps back one nested form page; returns false when already on the root page. */
+    boolean popFrame() {
+        if (frames.isEmpty()) {
+            return false;
+        }
+        frames.pop();
+        resetScroll();
+        return true;
+    }
+
     void remove(Frame frame) {
         List<Object> path = frame.path();
         JsonElement parent = get(path.subList(0, path.size() - 1));
@@ -912,18 +922,30 @@ abstract class FormCore {
         if (properties.containsKey("order") && properties.containsKey("lines")) {
             return "phrases";
         }
+        // Check world_rule before document loot_rule because world_rule's loot variant also has tables + once.
+        Node type = properties.get("type");
+        JsonObject typeJson = type != null ? Schemas.resolve(type).json() : null;
+        if (typeJson != null && typeJson.get("const") instanceof JsonPrimitive constant) {
+            if (owner.file().startsWith("world_rule")) {
+                return "world." + constant.getAsString();
+            }
+            if (owner.file().startsWith("dialogue")) {
+                return "node." + constant.getAsString();
+            }
+        }
         if (properties.containsKey("tables") && properties.containsKey("once")) {
             return "loot_rule";
         }
         if (properties.containsKey("poi") && properties.containsKey("radius") && properties.containsKey("area")) {
             return "codex_place";
         }
-        // A dialogue node's own words, by its type:
-        // "storybound.dev.field.node.call.next".
-        Node type = properties.get("type");
-        JsonObject typeJson = type != null ? Schemas.resolve(type).json() : null;
-        return typeJson != null && typeJson.get("const") instanceof JsonPrimitive constant
-                && owner.file().startsWith("dialogue") ? "node." + constant.getAsString() : null;
+        if (properties.containsKey("portrait") && properties.containsKey("npc")) {
+            return "participant";
+        }
+        if (properties.containsKey("effect") && properties.containsKey("amplifier") && properties.containsKey("duration")) {
+            return "world_hazard_effect";
+        }
+        return null;
     }
 
     /**
@@ -1026,6 +1048,16 @@ abstract class FormCore {
         JsonObject object = element.getAsJsonObject();
         if (isEntitySelector(items)) {
             return entitySummary(object);
+        }
+        if (Schemas.properties(items).containsKey("effect") && Schemas.properties(items).containsKey("amplifier")
+                && object.get("effect") instanceof JsonPrimitive effectId) {
+            ResourceLocation id = ResourceLocation.tryParse(effectId.getAsString());
+            String name = id != null && BuiltInRegistries.MOB_EFFECT.containsKey(id)
+                    ? Component.translatable(BuiltInRegistries.MOB_EFFECT.get(id).getDescriptionId()).getString()
+                    : effectId.getAsString();
+            int level = (object.get("amplifier") instanceof JsonPrimitive amp && amp.isNumber() ? amp.getAsInt() : 0) + 1;
+            int seconds = object.get("duration") instanceof JsonPrimitive dur && dur.isNumber() ? dur.getAsInt() : 4;
+            return name + " " + level + " (" + seconds + "s)";
         }
         if (Schemas.properties(items).containsKey("weight") && object.get("next") instanceof JsonPrimitive next) {
             int weight = object.get("weight") instanceof JsonPrimitive value && value.isNumber() ? value.getAsInt() : 1;

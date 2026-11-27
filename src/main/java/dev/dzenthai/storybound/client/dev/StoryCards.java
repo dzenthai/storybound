@@ -578,6 +578,9 @@ abstract class StoryCards extends GraphView {
         if (type.equals(ClientDevStore.TYPE_BOSS)) {
             return "🐉";
         }
+        if (type.equals(ClientDevStore.TYPE_WORLD_RULE)) {
+            return "🔒";
+        }
         return type.equals(ClientDevStore.TYPE_CODEX) ? "📚" : "⚡";
     }
 
@@ -603,6 +606,10 @@ abstract class StoryCards extends GraphView {
     }
 
     static String displayTitle(NodeKey key, JsonObject json) {
+        if (key.type().equals(ClientDevStore.TYPE_WORLD_RULE)) {
+            String type = json.get("type") instanceof JsonPrimitive p ? p.getAsString() : "item";
+            return WorldView.displayTitle(key.id(), WorldView.Category.ofType(type), json);
+        }
         String field = json.has("title") ? "title" : json.has("name") ? "name" : null;
         if (field == null) {
             return key.id().getPath();

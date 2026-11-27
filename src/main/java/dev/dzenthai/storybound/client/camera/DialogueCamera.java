@@ -10,6 +10,10 @@ import dev.dzenthai.storybound.client.dialogue.DialogueScreen;
 import dev.dzenthai.storybound.mixin.client.CameraAccessor;
 import dev.dzenthai.storybound.mixin.client.MouseHandlerAccessor;
 import dev.dzenthai.storybound.module.dialogue.CameraCue;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import net.minecraft.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -68,7 +72,7 @@ public final class DialogueCamera {
 
     /** @param pose null when the shot is played in first person */
     /** @param look what the shot looks at instead of the speakers, or {@link CameraCue.Look#NONE} */
-    private record Shot(int focus, int listener, CameraCue.Shot type, @Nullable Pose pose, CameraCue.Look look) {}
+    private record Shot(int focus, int listener, CameraCue.Shot type, List<Integer> cast, @Nullable Pose pose, CameraCue.Look look) {}
 
     /** A shot is on screen: the HUD, the hand and the block outline are hidden. */
     public static boolean isFraming() {
@@ -262,8 +266,10 @@ public final class DialogueCamera {
             stop();
             return;
         }
-        Entity partner = level.getEntity(cue.partner());
-        if (partner == null) {
+        Entity partner = cue.partner() >= 0 ? level.getEntity(cue.partner()) : null;
+        Entity speakerEntity = speaker >= 0 ? level.getEntity(speaker) : null;
+        Entity listenerEntity = cue.listener() >= 0 ? level.getEntity(cue.listener()) : null;
+        if (partner == null && speakerEntity == null) {
             stop();
             return;
         }
@@ -273,14 +279,15 @@ public final class DialogueCamera {
         Entity focus;
         Entity listener;
         CameraCue.Shot type = cue.shot();
-        if (speaker == partner.getId()) {
-            focus = partner;
-            listener = player;
-        } else if (speaker == player.getId()) {
-            focus = player;
-            listener = partner;
-        } else if (shot != null) {
-            // A narrator has no face to show: the current shot stays.
+        if (speakerEntity != null) {
+            focus = speakerEntity;
+            if (listenerEntity != null && listenerEntity != speakerEntity) {
+                listener = listenerEntity;
+            } else {
+                listener = speakerEntity == player ? partner : player;
+            }
+        } else if (shot != null && type != CameraCue.Shot.GROUP_SHOT) {
+            // A narrator has no face to show: the current shot stays unless a group shot is requested.
             return;
         } else {
             focus = partner;
@@ -289,19 +296,54 @@ public final class DialogueCamera {
                 type = CameraCue.Shot.TWO_SHOT;
             }
         }
-        if (shot != null && !shot.look().any() && shot.focus() == focus.getId() && shot.listener() == listener.getId() && shot.type() == type) {
+        if (focus == null || listener == null || focus == listener) {
+            stop();
+            return;
+        }
+        if (shot != null && !shot.look().any() && shot.focus() == focus.getId() && shot.listener() == listener.getId()
+                && shot.type() == type && (type != CameraCue.Shot.GROUP_SHOT || shot.cast().equals(cue.cast()))) {
             return;
         }
         Pose previous = pose();
         Pose pose = null;
         if (type != CameraCue.Shot.FIRST_PERSON) {
-            if (!running) {
-                // Face the partner first, so the reverse shot shows the player looking at them.
-                player.lookAt(EntityAnchorArgument.Anchor.EYES, partner.getEyePosition());
+            // Turn the player towards the speaking NPC (or addressed NPC on player lines/choices) so reverse shots face them.
+            Entity faceTarget = focus != player ? focus : listener;
+            boolean switchedNpc = !running || shot == null
+                    || (focus != player ? shot.focus() != focus.getId() : shot.listener() != listener.getId());
+            if (faceTarget != player && switchedNpc) {
+                player.lookAt(EntityAnchorArgument.Anchor.EYES, faceTarget.getEyePosition());
             }
             double aspect = (double) minecraft.getWindow().getWidth() / Math.max(1, minecraft.getWindow().getHeight());
-            Framing framing = CameraShots.frame(type, focus.getEyePosition(), listener.getEyePosition(),
-                    player.getEyePosition(), partner.getEyePosition(), side == 0 ? 1 : side, aspect, obstacles(level));
+            CameraShots.Obstacles world = obstacles(level);
+            int preferredSide = side == 0 ? 1 : side;
+            Entity axisA;
+            Entity axisB;
+            if (focus == player) {
+                axisA = player;
+                axisB = listener;
+            } else if (listener == player) {
+                axisA = player;
+                axisB = focus;
+            } else if (focus.getId() < listener.getId()) {
+                axisA = focus;
+                axisB = listener;
+            } else {
+                axisA = listener;
+                axisB = focus;
+            }
+            Framing framing = null;
+            if (type == CameraCue.Shot.GROUP_SHOT) {
+                List<Vec3> members = castEyes(level, cue.cast(), focus, listener, player);
+                framing = CameraShots.groupShot(members, focus.getEyePosition(), preferredSide, aspect, world);
+                if (framing == null) {
+                    framing = CameraShots.frame(CameraCue.Shot.TWO_SHOT, focus.getEyePosition(), listener.getEyePosition(),
+                            axisA.getEyePosition(), axisB.getEyePosition(), preferredSide, aspect, world);
+                }
+            } else {
+                framing = CameraShots.frame(type, focus.getEyePosition(), listener.getEyePosition(),
+                        axisA.getEyePosition(), axisB.getEyePosition(), preferredSide, aspect, world);
+            }
             if (framing != null) {
                 pose = framing.pose();
                 if (side == 0) {
@@ -316,7 +358,28 @@ public final class DialogueCamera {
         }
         easeFrom = cue.transition() == CameraCue.Transition.EASE && previous != null && pose != null ? previous : null;
         easeStart = Util.getMillis();
-        shot = new Shot(focus.getId(), listener.getId(), type, pose, CameraCue.Look.NONE);
+        shot = new Shot(focus.getId(), listener.getId(), type, List.copyOf(cue.cast()), pose, CameraCue.Look.NONE);
+    }
+
+    private static List<Vec3> castEyes(ClientLevel level, List<Integer> castIds, Entity focus, Entity listener, LocalPlayer player) {
+        Set<Integer> seen = new LinkedHashSet<>();
+        List<Vec3> eyes = new ArrayList<>();
+        for (int id : castIds) {
+            if (seen.add(id)) {
+                Entity member = level.getEntity(id);
+                if (member != null && member.isAlive()) {
+                    eyes.add(member.getEyePosition());
+                }
+            }
+        }
+        if (eyes.size() < 2) {
+            for (Entity fallback : new Entity[]{player, focus, listener}) {
+                if (fallback != null && seen.add(fallback.getId())) {
+                    eyes.add(fallback.getEyePosition());
+                }
+            }
+        }
+        return eyes;
     }
 
     /**
@@ -343,7 +406,7 @@ public final class DialogueCamera {
         }
         easeFrom = cue.transition() == CameraCue.Transition.EASE && previous != null ? previous : null;
         easeStart = Util.getMillis();
-        shot = new Shot(-1, -1, cue.shot(), pose, cue.look());
+        shot = new Shot(-1, -1, cue.shot(), List.of(), pose, cue.look());
         return true;
     }
 

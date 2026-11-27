@@ -632,16 +632,19 @@ public final class DevModeServer {
         BossEvents.rebuild();
         Waypoints.rebuild();
         NpcBindings.rebuild();
+        dev.dzenthai.storybound.module.world.WorldRules.rebuild();
     }
 
     static void rebuildAndSync(MinecraftServer server) {
         rebuild();
+        dev.dzenthai.storybound.module.world.WorldRules.sweepExistingMobs(server);
         ValidationService.publish(ValidationService.validate());
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
             DefinitionSync.sendTo(online);
             Quests.sync(online);
             StoryboundNetwork.sendToPlayer(online, new ConfigTextsPayload(ConfigTexts.current()));
             Waypoints.syncFull(online);
+            dev.dzenthai.storybound.module.world.WorldRules.syncPlayer(online, true);
         }
     }
 

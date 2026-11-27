@@ -7,6 +7,7 @@ import dev.dzenthai.storybound.core.event.DialogueEvent.EndReason;
 import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.logic.Actions;
 import dev.dzenthai.storybound.core.logic.Conditions;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
@@ -33,8 +34,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -98,10 +102,10 @@ public final class Dialogues {
     }
 
     /** What the player's conversation is waiting for; empty when they are not in one. */
-    /** Another player talking with the entity now (it is their dialogue's bound participant); null when nobody is. */
+    /** Another player talking with the entity now (bound or extra participant); null when nobody is. */
     public static @Nullable ServerPlayer talkingWith(Entity entity, ServerPlayer except) {
         for (DialogueSession session : SESSIONS.values()) {
-            if (!session.closed && session.bound == entity && session.player != except) {
+            if (!session.closed && session.involves(entity) && session.player != except) {
                 return session.player;
             }
         }
@@ -156,6 +160,7 @@ public final class Dialogues {
                 "speaker", speaker != null ? BuiltInRegistries.ENTITY_TYPE.getKey(speaker.getType()) + " " + speaker.getUUID() : "none");
         long now = player.server.getTickCount();
         DialogueSession session = new DialogueSession(nextSession++, player, speaker, dialogueId, dialogue, now);
+        resolveAllParticipants(session);
         NeoForge.EVENT_BUS.post(new DialogueEvent.Started(player, dialogueId, speaker));
         if (dialogue.pausesForFights() && inFight(session, now)) {
             session.notStarted = true;
@@ -349,7 +354,7 @@ public final class Dialogues {
      */
     static void attackedBy(ServerPlayer player, LivingEntity npc, long now) {
         DialogueSession session = SESSIONS.get(player.getUUID());
-        if (session == null || session.closed || session.bound != npc) {
+        if (session == null || session.closed || !session.involves(npc)) {
             return;
         }
         if (session.base().pausesForFights()) {
@@ -384,8 +389,7 @@ public final class Dialogues {
     }
 
     private static boolean inFight(DialogueSession session, long now) {
-        Entity partner = session.bound != session.player ? session.bound : null;
-        return DialogueCombat.inFight(session.player, partner, Math.round(session.base().combat().quiet() * 20), now);
+        return DialogueCombat.inFight(session.player, session.liveNpcs(), Math.round(session.base().combat().quiet() * 20), now);
     }
 
     /** A running dialogue in a fight: paused or interrupted when its {@code combat} says so, in subtitles or bubbles. */
@@ -526,8 +530,11 @@ public final class Dialogues {
                     abort(session, EndReason.TOO_FAR);
                     continue;
                 }
-                if (session.base().npcStops()) {
-                    holdStill(session, bound);
+            }
+            pruneParticipants(session);
+            if (session.base().npcStops()) {
+                for (Entity npc : session.liveNpcs()) {
+                    holdStill(session, npc);
                 }
             }
             if (session.closed) {
@@ -589,7 +596,6 @@ public final class Dialogues {
         }
     }
 
-    /** Whether the entity is the NPC of anyone's dialogue now, a paused one too: then it does not chatter. */
     /** The music of the dialogue the player is in, while it runs (a paused one too); empty when it has none. */
     public static Optional<ResourceLocation> music(ServerPlayer player) {
         DialogueSession session = SESSIONS.get(player.getUUID());
@@ -599,10 +605,11 @@ public final class Dialogues {
         return session.base().music();
     }
 
-    static boolean inDialogue(Entity entity) {
+    /** Whether the entity is involved in anyone's dialogue now, a paused one too: then it does not chatter. */
+    public static boolean inDialogue(Entity entity) {
         for (Map<UUID, DialogueSession> sessions : List.of(SESSIONS, PAUSED)) {
             for (DialogueSession session : sessions.values()) {
-                if (!session.closed && session.bound == entity) {
+                if (!session.closed && session.involves(entity)) {
                     return true;
                 }
             }
@@ -611,9 +618,9 @@ public final class Dialogues {
     }
 
     /** Whether an active dialogue holds this entity still ({@code npc_stops: true}); false for walking HUD talks or paused talks. */
-    static boolean holdsStill(Entity entity) {
+    public static boolean holdsStill(Entity entity) {
         for (DialogueSession session : SESSIONS.values()) {
-            if (!session.closed && session.bound == entity && session.base().npcStops()) {
+            if (!session.closed && session.involves(entity) && session.base().npcStops()) {
                 return true;
             }
         }
@@ -623,7 +630,7 @@ public final class Dialogues {
     /** True while the player talks to this entity; their right-clicks on it do nothing else. */
     static boolean isTalkingTo(ServerPlayer player, Entity entity) {
         DialogueSession session = SESSIONS.get(player.getUUID());
-        return session != null && session.bound == entity;
+        return session != null && session.involves(entity);
     }
 
     static void reset() {
@@ -654,8 +661,7 @@ public final class Dialogues {
                     finish(session);
                     return;
                 }
-                session.dialogueId = caller.dialogueId();
-                session.dialogue = caller.dialogue();
+                enter(session, caller.dialogueId(), caller.dialogue());
                 target = caller.next();
                 continue;
             }
@@ -667,6 +673,15 @@ public final class Dialogues {
             session.node = target;
             switch (node) {
                 case Line line -> {
+                    Participant speakerPart = line.speaker().equals(DialogueDefinition.PLAYER)
+                            ? null : session.dialogue.participants().get(line.speaker());
+                    if (speakerPart != null && speakerPart.kind() == Participant.Kind.ENTITY
+                            && resolveParticipant(session, line.speaker(), speakerPart) == null) {
+                        StoryTrace.note(session.player, "dialogue " + session.dialogueId,
+                                "skipped '" + target + "': participant '" + line.speaker() + "' is not nearby");
+                        target = nextAfterLine(session, line);
+                        continue;
+                    }
                     showLine(session, line);
                     return;
                 }
@@ -699,8 +714,7 @@ public final class Dialogues {
                             fail(session, "jump to unknown dialogue " + jump.dialogue().get());
                             return;
                         }
-                        session.dialogueId = jump.dialogue().get();
-                        session.dialogue = other;
+                        enter(session, jump.dialogue().get(), other);
                         target = jump.node().orElse(other.start());
                     } else {
                         target = jump.node().orElseThrow();
@@ -713,8 +727,7 @@ public final class Dialogues {
                         return;
                     }
                     session.callers.push(new DialogueSession.Frame(session.dialogueId, session.dialogue, call.next(), false));
-                    session.dialogueId = call.dialogue();
-                    session.dialogue = other;
+                    enter(session, call.dialogue(), other);
                     target = call.node().orElse(other.start());
                 }
                 case DialogueDefinition.SceneNode scene -> {
@@ -751,6 +764,10 @@ public final class Dialogues {
         Line line = (Line) session.dialogue.nodes().get(session.node);
         session.waiting = Waiting.NONE;
         session.deadline = -1;
+        proceed(session, nextAfterLine(session, line));
+    }
+
+    private static String nextAfterLine(DialogueSession session, Line line) {
         String next = line.next();
         if (session.thenChoice != null && session.node.equals(session.replayLine) && session.dialogueId.equals(session.lastLineIn)) {
             // The question said again after a fight: back to its choice.
@@ -758,7 +775,214 @@ public final class Dialogues {
             session.thenChoice = null;
             session.replayLine = null;
         }
-        proceed(session, next);
+        return next;
+    }
+
+    /**
+     * Moves the conversation into another dialogue (a jump, a call, the return from a call): a participant found for
+     * the last one stays only when the new one names it under the same id the same way (the same NPC or the same
+     * selector); the rest are let go, and the new dialogue's participants are looked for.
+     */
+    private static void enter(DialogueSession session, ResourceLocation dialogueId, DialogueDefinition dialogue) {
+        DialogueDefinition before = session.dialogue;
+        session.dialogueId = dialogueId;
+        session.dialogue = dialogue;
+        if (dialogue != before) {
+            session.participants.entrySet().removeIf(entry -> {
+                Participant was = before.participants().get(entry.getKey());
+                Participant now = dialogue.participants().get(entry.getKey());
+                boolean same = was != null && now != null && now.kind() == Participant.Kind.ENTITY
+                        && Objects.equals(was.npc(), now.npc()) && Objects.equals(was.entity(), now.entity());
+                if (!same) {
+                    release(session, entry.getValue());
+                }
+                return !same;
+            });
+        }
+        dialogue.participants().forEach((id, participant) -> {
+            if (participant.kind() == Participant.Kind.ENTITY) {
+                resolveParticipant(session, id, participant);
+            }
+        });
+    }
+
+    /** Looks for every {@code entity} participant of the dialogue the conversation starts with. */
+    private static void resolveAllParticipants(DialogueSession session) {
+        enter(session, session.dialogueId, session.dialogue);
+    }
+
+    /** An entity leaves the conversation: it no longer looks where this conversation told it to. */
+    private static void release(DialogueSession session, @Nullable Entity entity) {
+        if (entity != null) {
+            ADDRESSED.remove(entity.getUUID(), session.player.getUUID());
+            session.gazeTargets.remove(entity.getUUID());
+        }
+    }
+
+    /** Whether another player's conversation, a paused one too, has this entity: then it is not taken as a participant. */
+    private static boolean busyElsewhere(Entity entity, ServerPlayer player) {
+        for (Map<UUID, DialogueSession> sessions : List.of(SESSIONS, PAUSED)) {
+            for (DialogueSession other : sessions.values()) {
+                if (!other.closed && other.player != player && other.involves(entity)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Drops resolved extra participants that died, changed dimension, or walked outside their search radius. */
+    private static void pruneParticipants(DialogueSession session) {
+        if (session.participants.isEmpty()) {
+            return;
+        }
+        ServerPlayer player = session.player;
+        session.participants.entrySet().removeIf(entry -> {
+            Entity entity = entry.getValue();
+            Participant def = session.dialogue.participants().get(entry.getKey());
+            double radius = def != null ? def.searchRadius() : Participant.DEFAULT_RADIUS;
+            boolean gone = entity == null || !entity.isAlive() || entity.level() != player.level()
+                    || entity.distanceToSqr(player) > radius * radius;
+            if (gone) {
+                release(session, entity);
+            }
+            return gone;
+        });
+    }
+
+    /**
+     * Finds or refreshes the live entity for an {@code entity} participant: by Storybound NPC binding id (using its
+     * one-of-a-kind holder or nearest matching entity) or by an entity selector. Never picks the player, an entity
+     * already assigned to another participant slot in this conversation, or one in another player's conversation.
+     */
+    private static @Nullable Entity resolveParticipant(DialogueSession session, String id, Participant participant) {
+        ServerPlayer player = session.player;
+        double radius = participant.searchRadius();
+        double maxDistSqr = radius * radius;
+        Entity existing = session.participants.get(id);
+        if (existing != null) {
+            if (existing.isAlive() && existing.level() == player.level() && existing.distanceToSqr(player) <= maxDistSqr) {
+                return existing;
+            }
+            session.participants.remove(id);
+            release(session, existing);
+        }
+        Set<Entity> taken = session.claimedEntities(id);
+        Predicate<Entity> free = candidate -> candidate != player && !taken.contains(candidate) && !busyElsewhere(candidate, player);
+        Entity found = null;
+        if (participant.npc().isPresent()) {
+            found = findByNpcBinding(player, participant.npc().get(), radius, free);
+        } else if (participant.entity().isPresent()) {
+            EntitySelector selector = participant.entity().get();
+            double bestDist = maxDistSqr;
+            for (Entity candidate : player.serverLevel().getEntities(player, player.getBoundingBox().inflate(radius), Entity::isAlive)) {
+                double dist = candidate.distanceToSqr(player);
+                if (dist <= bestDist && selector.matches(candidate) && free.test(candidate)) {
+                    found = candidate;
+                    bestDist = dist;
+                }
+            }
+        }
+        if (found != null) {
+            session.participants.put(id, found);
+        }
+        return found;
+    }
+
+    private static @Nullable Entity findByNpcBinding(ServerPlayer player, ResourceLocation npcId, double radius, Predicate<Entity> free) {
+        NpcBinding binding = DialogueRegistries.NPC_BINDINGS.serverStore().getOrNull(npcId);
+        if (binding == null) {
+            return null;
+        }
+        double maxDistSqr = radius * radius;
+        if (binding.isOne()) {
+            NpcParts.Part part = NpcParts.holding(player.server, npcId);
+            if (part == null) {
+                for (Entity candidate : player.serverLevel().getEntities(player, player.getBoundingBox().inflate(radius), Entity::isAlive)) {
+                    NpcParts.consider(candidate);
+                    part = NpcParts.holding(player.server, npcId);
+                    if (part != null) {
+                        NpcNames.apply(candidate);
+                        break;
+                    }
+                }
+            }
+            Entity holder = part != null ? player.serverLevel().getEntity(part.holder()) : null;
+            return holder != null && holder.isAlive() && holder.level() == player.level()
+                    && holder.distanceToSqr(player) <= maxDistSqr && free.test(holder) ? holder : null;
+        }
+        Entity best = null;
+        double bestDist = maxDistSqr;
+        for (Entity candidate : player.serverLevel().getEntities(player, player.getBoundingBox().inflate(radius), Entity::isAlive)) {
+            double dist = candidate.distanceToSqr(player);
+            if (dist <= bestDist && NpcBindings.find(candidate)
+                    .map(found -> found.chain().stream().anyMatch(layer -> npcId.equals(layer.id()))).orElse(false)
+                    && free.test(candidate)) {
+                best = candidate;
+                bestDist = dist;
+            }
+        }
+        return best;
+    }
+
+    /** Resolves who a participant id currently refers to as a live entity, or null for virtual/absent speakers. */
+    private static @Nullable Entity entityFor(DialogueSession session, String participantId) {
+        if (participantId.equals(DialogueDefinition.PLAYER)) {
+            return session.player;
+        }
+        Participant participant = session.dialogue.participants().get(participantId);
+        if (participant == null) {
+            return null;
+        }
+        return switch (participant.kind()) {
+            case BOUND -> session.bound != null && session.bound.isAlive() && session.bound.level() == session.player.level() ? session.bound : null;
+            case ENTITY -> resolveParticipant(session, participantId, participant);
+            case VIRTUAL -> null;
+        };
+    }
+
+    /** Best live NPC partner for player lines, choices, or fallback camera framing. */
+    private static @Nullable Entity bestNpcPartner(DialogueSession session) {
+        ServerPlayer player = session.player;
+        Entity last = session.lastNpcSpeaker;
+        if (last != null && last != player && last.isAlive() && last.level() == player.level() && session.involves(last)) {
+            return last;
+        }
+        if (session.bound != null && session.bound != player && session.bound.isAlive() && session.bound.level() == player.level()) {
+            return session.bound;
+        }
+        List<Entity> live = session.liveNpcs();
+        return live.isEmpty() ? null : live.getFirst();
+    }
+
+    /** Who the current speaker is addressing: explicit {@code to} if alive, else player (or last NPC for player lines). */
+    private static @Nullable Entity resolveAddressee(DialogueSession session, Line line, @Nullable Entity speaker) {
+        if (line.to().isPresent()) {
+            Entity explicit = entityFor(session, line.to().get());
+            if (explicit != null && explicit != speaker) {
+                return explicit;
+            }
+        }
+        return speaker == session.player ? bestNpcPartner(session) : session.player;
+    }
+
+    /**
+     * Sets gaze for every live NPC: the speaker looks at their addressee; all other NPCs look at the speaker. An NPC
+     * that last spoke to another player keeps looking at them until it speaks in this conversation.
+     */
+    private static void updateGaze(DialogueSession session, @Nullable Entity speaker, @Nullable Entity listener) {
+        session.gazeTargets.clear();
+        ServerPlayer player = session.player;
+        for (Entity npc : session.liveNpcs()) {
+            Entity target;
+            if (npc == speaker) {
+                target = listener != null && listener != npc ? listener : player;
+            } else {
+                target = speaker != null && speaker != npc ? speaker : player;
+            }
+            session.gazeTargets.put(npc.getUUID(), target);
+            ADDRESSED.putIfAbsent(npc.getUUID(), player.getUUID());
+        }
     }
 
     private static void showLine(DialogueSession session, Line line) {
@@ -777,15 +1001,22 @@ public final class Dialogues {
                 name = participant.name().map(text -> text.resolve(player));
                 if (participant.kind() == Participant.Kind.BOUND) {
                     entity = session.bound;
-                    if (name.isEmpty() && entity != null) {
-                        // The NPC's own name, also while it is not shown over its head.
-                        name = NpcNames.nameOf(entity).map(text -> text.resolve(player));
-                    }
+                } else if (participant.kind() == Participant.Kind.ENTITY) {
+                    entity = resolveParticipant(session, line.speaker(), participant);
                 } else {
                     portrait = participant.portrait();
                 }
+                if (name.isEmpty() && entity != null) {
+                    // The NPC's own name, also while it is not shown over its head.
+                    name = NpcNames.nameOf(entity).map(text -> text.resolve(player));
+                }
             }
         }
+        if (entity != null && entity != player) {
+            session.lastNpcSpeaker = entity;
+        }
+        Entity listener = resolveAddressee(session, line, entity);
+        updateGaze(session, entity, listener);
         Optional<Component> entityName = Optional.ofNullable(entity).map(Entity::getDisplayName);
         ResolvedText text = line.text().resolve(player);
         // Only an NPC answering the option just chosen pauses; the code reaches the clients, which time the dots.
@@ -797,7 +1028,7 @@ public final class Dialogues {
         session.shown = List.of();
         session.deadline = line.duration().map(seconds -> player.server.getTickCount() + thinkTicks + Math.max(1, Math.round(seconds * 20))).orElse(-1L);
         DialogueLinePayload.Speaker speaker = new DialogueLinePayload.Speaker(name, entityName, entity != null ? entity.getId() : -1, portrait);
-        session.camera = cameraCue(session, line.shot(), line.transition(), line.lookAt(), entity);
+        session.camera = cameraCue(session, line.shot(), line.transition(), line.lookAt(), entity, listener);
         StoryboundNetwork.sendToPlayer(player, new DialogueLinePayload(session.id, session.step, session.dialogue.presentation(),
                 session.dialogue.closable(), speaker, text, line.duration().isPresent(), think, session.camera));
         Entity source = entity;
@@ -857,17 +1088,19 @@ public final class Dialogues {
         boolean asks = session.dialogue.presentation() != DialogueDefinition.Presentation.SCREEN;
         session.choiceOpen = !asks;
         session.choiceLeft = -1;
-        session.camera = cameraCue(session, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, Optional.empty(), null);
+        Entity partner = bestNpcPartner(session);
+        updateGaze(session, player, partner);
+        session.camera = cameraCue(session, CameraCue.Shot.AUTO, CameraCue.Transition.CUT, Optional.empty(), player, partner);
         StoryboundNetwork.sendToPlayer(player, new DialogueChoicesPayload(session.id, session.step,
                 DialogueChoicesPayload.flags(session.dialogue.closable(), asks), options, timeoutTicks, session.camera));
         return true;
     }
 
-    /** The camera needs the server's permission, a dialogue that allows it, the dialogue screen and someone to talk to. */
-    /** @param speaker the line's speaker entity, which a {@code look_at} offset may be beside */
+    /** The camera needs the server's permission, a dialogue that allows it, the dialogue screen and at least one live NPC. */
     private static CameraCue cameraCue(DialogueSession session, CameraCue.Shot shot, CameraCue.Transition transition, Optional<LookAt> look,
-                                       @Nullable Entity speaker) {
-        Entity partner = session.bound;
+                                       @Nullable Entity speaker, @Nullable Entity listener) {
+        Entity partner = speaker != null && speaker != session.player ? speaker
+                : listener != null && listener != session.player ? listener : bestNpcPartner(session);
         boolean enabled = StoryboundConfig.COMMON.cameraAllowed.get()
                 && session.dialogue.camera() == DialogueDefinition.Camera.AUTO
                 && session.dialogue.presentation() == DialogueDefinition.Presentation.SCREEN
@@ -875,7 +1108,8 @@ public final class Dialogues {
         if (!enabled) {
             return CameraCue.OFF;
         }
-        return new CameraCue(true, shot, transition, partner.getId(),
+        int listenerId = listener != null ? listener.getId() : -1;
+        return new CameraCue(true, shot, transition, partner.getId(), listenerId, session.liveCastIds(),
                 look.map(target -> target.resolve(session.player, speaker)).orElse(CameraCue.Look.NONE));
     }
 
@@ -925,6 +1159,13 @@ public final class Dialogues {
         if (session.bound != null) {
             ADDRESSED.remove(session.bound.getUUID(), session.player.getUUID());
         }
+        for (Entity extra : session.participants.values()) {
+            if (extra != null) {
+                ADDRESSED.remove(extra.getUUID(), session.player.getUUID());
+            }
+        }
+        session.participants.clear();
+        session.gazeTargets.clear();
         StoryboundNetwork.sendToPlayer(session.player, new DialogueClosePayload(session.id));
     }
 
@@ -988,10 +1229,14 @@ public final class Dialogues {
         }
         UUID addressed = ADDRESSED.get(mob.getUUID());
         if (addressed == null || addressed.equals(session.player.getUUID())) {
-            mob.getLookControl().setLookAt(session.player);
+            Entity gaze = session.gazeTargets.getOrDefault(mob.getUUID(), session.player);
+            if (gaze == null || !gaze.isAlive() || gaze.level() != mob.level() || gaze == mob) {
+                gaze = session.player;
+            }
+            mob.getLookControl().setLookAt(gaze);
             // Brain-driven mobs (villagers) look where their LOOK_TARGET memory says.
             if (brain.checkMemory(MemoryModuleType.LOOK_TARGET, MemoryStatus.REGISTERED)) {
-                brain.setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(session.player, true));
+                brain.setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(gaze, true));
             }
         }
     }

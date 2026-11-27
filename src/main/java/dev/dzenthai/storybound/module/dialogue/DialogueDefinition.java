@@ -6,6 +6,7 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.logic.Action;
 import dev.dzenthai.storybound.core.logic.Condition;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.LogicCodecs;
 import dev.dzenthai.storybound.core.logic.OnFail;
 import dev.dzenthai.storybound.core.logic.condition.LogicConditions;
@@ -153,19 +154,47 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
     }
 
     /**
-     * @param name     overrides the entity's name ({@code bound}); required in practice for {@code virtual}
+     * @param name     overrides the entity's name ({@code bound} / {@code entity}); required in practice for {@code virtual}
      * @param portrait a texture shown instead of an entity ({@code virtual} only)
+     * @param npc      for {@code entity}: an NPC binding id whose nearby entity joins the conversation
+     * @param entity   for {@code entity}: an entity selector matching the nearby entity joining the conversation
+     * @param radius   for {@code entity}: maximum distance from the player in blocks (default {@value #DEFAULT_RADIUS})
      */
-    public record Participant(Kind kind, Optional<StoryText> name, Optional<ResourceLocation> portrait) {
-        public static final Codec<Participant> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+    public record Participant(Kind kind, Optional<StoryText> name, Optional<ResourceLocation> portrait,
+                              Optional<ResourceLocation> npc, Optional<EntitySelector> entity, Optional<Float> radius) {
+        public static final float DEFAULT_RADIUS = 32f;
+
+        public Participant(Kind kind, Optional<StoryText> name, Optional<ResourceLocation> portrait) {
+            this(kind, name, portrait, Optional.empty(), Optional.empty(), Optional.empty());
+        }
+
+        public float searchRadius() {
+            return radius.orElse(DEFAULT_RADIUS);
+        }
+
+        public static final Codec<Participant> CODEC = RecordCodecBuilder.<Participant>create(instance -> instance.group(
                 Kind.CODEC.fieldOf("type").forGetter(Participant::kind),
                 StoryText.CODEC.optionalFieldOf("name").forGetter(Participant::name),
-                ResourceLocation.CODEC.optionalFieldOf("portrait").forGetter(Participant::portrait)
-        ).apply(instance, Participant::new));
+                ResourceLocation.CODEC.optionalFieldOf("portrait").forGetter(Participant::portrait),
+                ResourceLocation.CODEC.optionalFieldOf("npc").forGetter(Participant::npc),
+                EntitySelector.CODEC.optionalFieldOf("entity").forGetter(Participant::entity),
+                Codec.floatRange(2f, 64f).optionalFieldOf("radius").forGetter(Participant::radius)
+        ).apply(instance, Participant::new)).validate(participant -> {
+            if (participant.kind() == Kind.ENTITY) {
+                boolean hasNpc = participant.npc().isPresent();
+                boolean hasEntity = participant.entity().isPresent();
+                if (hasNpc == hasEntity) {
+                    return DataResult.error(() -> "Participant of type 'entity' needs either 'npc' or 'entity'");
+                }
+            }
+            return DataResult.success(participant);
+        });
 
         public enum Kind implements StringRepresentable {
             /** The entity the dialogue was started with (the interacted NPC, the command's speaker). */
             BOUND("bound"),
+            /** Another live NPC found nearby in the world by NPC binding id or entity selector. */
+            ENTITY("entity"),
             /** No entity: a narrator, a voice, a letter read aloud. */
             VIRTUAL("virtual");
 
@@ -234,6 +263,7 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
      * A spoken line. The player moves on with a click; with {@code duration} (seconds) it also moves on by itself.
      *
      * @param speaker {@code player} or a participant id
+     * @param to      optional addressee ({@code player} or another participant id) for NPC-to-NPC gaze and camera framing
      * @param sound   played when the line is shown, e.g. a voice clip from a resource pack
      * @param shot    the camera shot for this line; {@code auto} is shot-reverse-shot
      * @param resume  the node played before this line comes back after a fight paused it, instead of the dialogue's
@@ -241,11 +271,12 @@ public record DialogueDefinition(Map<String, Participant> participants, String s
      * @param fade    a fade of the screen begun as the line shows (see {@link dev.dzenthai.storybound.core.logic.action.ScreenFade})
      * @param lookAt  what the camera looks at instead of the speakers (see {@link LookAt})
      */
-    public record Line(String speaker, StoryText text, String next, Optional<ResourceLocation> sound, Optional<Float> duration,
+    public record Line(String speaker, Optional<String> to, StoryText text, String next, Optional<ResourceLocation> sound, Optional<Float> duration,
                        CameraCue.Shot shot, CameraCue.Transition transition, Optional<String> resume,
                        Optional<dev.dzenthai.storybound.core.logic.action.ScreenFade> fade, Optional<LookAt> lookAt) implements Node {
         public static final MapCodec<Line> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Codec.STRING.fieldOf("speaker").forGetter(Line::speaker),
+                Codec.STRING.optionalFieldOf("to").forGetter(Line::to),
                 StoryText.CODEC.fieldOf("text").forGetter(Line::text),
                 Codec.STRING.optionalFieldOf("next", END).forGetter(Line::next),
                 ResourceLocation.CODEC.optionalFieldOf("sound").forGetter(Line::sound),

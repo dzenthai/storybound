@@ -45,21 +45,23 @@ public class DevModeScreen extends Screen implements Catalog.Host {
     private static StoryView STORY = new StoryView();
     private static DialogueView DIALOGUE = new DialogueView();
     private static QuestView QUEST = new QuestView();
+    private static WorldView WORLD = new WorldView();
     private static DevHistory HISTORY = new DevHistory();
     private static boolean inspectorCollapsed;
-    private record Workspace(StoryView story, DialogueView dialogue, QuestView quest, DevHistory history) {}
+    private record Workspace(StoryView story, DialogueView dialogue, QuestView quest, WorldView world, DevHistory history) {}
     private static final Map<String, Workspace> WORKSPACES = new HashMap<>();
     private static String workspace = "";
 
     private void selectWorkspace() {
         if (!workspace.equals(ClientDevStore.projectId())) {
-            WORKSPACES.put(workspace, new Workspace(STORY, DIALOGUE, QUEST, HISTORY));
+            WORKSPACES.put(workspace, new Workspace(STORY, DIALOGUE, QUEST, WORLD, HISTORY));
             workspace = ClientDevStore.projectId();
             Workspace next = WORKSPACES.computeIfAbsent(workspace,
-                    key -> new Workspace(new StoryView(), new DialogueView(), new QuestView(), new DevHistory()));
+                    key -> new Workspace(new StoryView(), new DialogueView(), new QuestView(), new WorldView(), new DevHistory()));
             STORY = next.story();
             DIALOGUE = next.dialogue();
             QUEST = next.quest();
+            WORLD = next.world();
             HISTORY = next.history();
             finder = new StoryFinder(STORY);
         }
@@ -71,6 +73,7 @@ public class DevModeScreen extends Screen implements Catalog.Host {
         STORY = new StoryView();
         DIALOGUE = new DialogueView();
         QUEST = new QuestView();
+        WORLD = new WorldView();
         HISTORY = new DevHistory();
     }
 
@@ -124,7 +127,7 @@ public class DevModeScreen extends Screen implements Catalog.Host {
     }
 
     private GraphView view() {
-        return DIALOGUE.isOpen() ? DIALOGUE : QUEST.isOpen() ? QUEST : STORY;
+        return DIALOGUE.isOpen() ? DIALOGUE : QUEST.isOpen() ? QUEST : WORLD.isOpen() ? WORLD : STORY;
     }
 
     @Override
@@ -155,6 +158,9 @@ public class DevModeScreen extends Screen implements Catalog.Host {
         STORY.reload();
         if (QUEST.isOpen()) {
             QUEST.reload();
+        }
+        if (WORLD.isOpen()) {
+            WORLD.reload();
         }
         if (DIALOGUE.isOpen()) {
             DIALOGUE.reload();
@@ -371,6 +377,31 @@ public class DevModeScreen extends Screen implements Catalog.Host {
         status(DevUi.text("status.back_to_story"), DevUi.NEUTRAL);
     }
 
+    void openRestrictions() {
+        view().saveEdits(this);
+        WORLD.openSection(WorldView.Section.RESTRICTIONS);
+        rebuild();
+    }
+
+    void openLoot() {
+        view().saveEdits(this);
+        WORLD.openSection(WorldView.Section.LOOT);
+        rebuild();
+    }
+
+    void openWorld(@Nullable ResourceLocation ruleId) {
+        view().saveEdits(this);
+        WORLD.open(ruleId);
+        rebuild();
+    }
+
+    void closeWorld() {
+        WORLD.close(this);
+        STORY.reload();
+        rebuild();
+        status(DevUi.text("status.back_to_story"), DevUi.NEUTRAL);
+    }
+
     // --- top bar
 
     private void addTopBar() {
@@ -582,6 +613,9 @@ public class DevModeScreen extends Screen implements Catalog.Host {
         if (QUEST.isOpen()) {
             QUEST.reload();
         }
+        if (WORLD.isOpen()) {
+            WORLD.reload();
+        }
         if (DIALOGUE.isOpen()) {
             DIALOGUE.reload();
         }
@@ -752,7 +786,7 @@ public class DevModeScreen extends Screen implements Catalog.Host {
         // its widgets before anything can be clicked.
         if (!modalNow().equals(builtFor)) {
             rebuild();
-        } else if (view().inspectorVisible(this) && view().animateInspector()) {
+        } else if ((view().inspectorVisible(this) || WORLD.isOpen()) && view().animateInspector()) {
             // The inspector's rows glided a pixel: laid out again where they are now.
             rebuild();
         }
@@ -848,7 +882,7 @@ public class DevModeScreen extends Screen implements Catalog.Host {
 
     /** Opens the story's search or its problems over the map (the top bar's 🔍 and ⚠, Ctrl+F). */
     void openFinder(StoryFinder.Mode mode) {
-        STORY.saveEdits(this);
+        view().saveEdits(this);
         finder.open(mode);
         rebuild();
     }

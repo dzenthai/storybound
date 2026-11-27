@@ -1,0 +1,66 @@
+{
+  "trigger": {
+    "type": "custom",
+    "id": "scenario:council"
+  },
+  "actions": [
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "scenario_council_rowan",
+      "unique": true,
+      "offset": [
+        3,
+        0,
+        0
+      ],
+      "nbt": {
+        "VillagerData": {
+          "profession": "minecraft:armorer",
+          "level": 3,
+          "type": "minecraft:plains"
+        }
+      }
+    },
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:villager",
+      "tag": "scenario_council_vex",
+      "unique": true,
+      "offset": [
+        2,
+        0,
+        -2
+      ],
+      "nbt": {
+        "VillagerData": {
+          "profession": "minecraft:fletcher",
+          "level": 2,
+          "type": "minecraft:taiga"
+        }
+      }
+    },
+    {
+      "type": "spawn_entity",
+      "entity": "minecraft:iron_golem",
+      "tag": "scenario_council_golem",
+      "unique": true,
+      "offset": [
+        2,
+        0,
+        2
+      ]
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:council/quest",
+      "state": "unknown"
+    },
+    {
+      "type": "set_quest_state",
+      "quest": "scenario:council/quest",
+      "state": "active"
+    }
+  ]
+}
+

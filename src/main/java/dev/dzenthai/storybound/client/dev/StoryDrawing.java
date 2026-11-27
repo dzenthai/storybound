@@ -117,15 +117,20 @@ abstract class StoryDrawing extends StoryEditing {
         return buttons;
     }
 
-    /** Between the language and the settings: the story's problems, their count in their colour, or ✔ none. */
+    /** Between the language and the settings: restrictions, loot tables, and the story's problems. */
     @Override
     List<DevModeScreen.TopButton> topRight(DevModeScreen screen) {
         int problems = ClientDevStore.issues().size();
         boolean errors = ClientDevStore.issues().stream().anyMatch(line -> line.startsWith("[ERROR]"));
         Component label = problems == 0 ? Component.literal("✔") : Component.literal("⚠ " + problems)
                 .withColor(errors ? DevUi.ERROR : DevUi.WARN);
-        return List.of(new DevModeScreen.TopButton(label, DevUi.text(problems == 0 ? "top.problems_none.tooltip" : "top.problems.tooltip"),
-                () -> screen.openFinder(StoryFinder.Mode.PROBLEMS)));
+        return List.of(
+                new DevModeScreen.TopButton(Component.literal("🔒"), DevUi.text("world.restrictions.tab.tooltip"),
+                        screen::openRestrictions),
+                new DevModeScreen.TopButton(Component.literal("📦"), DevUi.text("world.loot.tab.tooltip"),
+                        screen::openLoot),
+                new DevModeScreen.TopButton(label, DevUi.text(problems == 0 ? "top.problems_none.tooltip" : "top.problems.tooltip"),
+                        () -> screen.openFinder(StoryFinder.Mode.PROBLEMS)));
     }
 
     @Override
