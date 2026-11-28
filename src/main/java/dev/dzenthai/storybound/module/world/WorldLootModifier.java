@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
+import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
@@ -193,7 +194,7 @@ public final class WorldLootModifier extends LootModifier {
             return false;
         }
         if (rule.structure().isPresent()
-                && (pos == null || !dev.dzenthai.storybound.core.logic.StructureRef.containsAny(level, pos, rule.structure().get()))) {
+                && (pos == null || !StructureRef.containsAny(level, pos, rule.structure().get()))) {
             return false;
         }
         if (rule.once() == DocumentDefinition.LootRule.Once.WORLD) {

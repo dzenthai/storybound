@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
 import dev.dzenthai.storybound.client.ClientModules;
 import dev.dzenthai.storybound.client.HudScale;
+import dev.dzenthai.storybound.client.ScreenProjection;
 import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.client.text.ClientConfigTexts;
 import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
@@ -159,7 +160,7 @@ public final class WaypointMarkers {
         }
         Minecraft minecraft = Minecraft.getInstance();
         StoryboundClientConfig config = StoryboundClientConfig.INSTANCE;
-        if (minecraft.level == null || minecraft.player == null || !dev.dzenthai.storybound.client.ScreenProjection.ready()
+        if (minecraft.level == null || minecraft.player == null || !ScreenProjection.ready()
                 || !config.waypointMarkers.get() || !ClientModules.isEnabled("waypoints") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())) {
             return;
         }
@@ -608,11 +609,11 @@ public final class WaypointMarkers {
      * screen edge along its direction from the centre, for the edge arrow.
      */
     static Screen project(Vec3 point, int width, int height) {
-        Vec3 cameraPos = dev.dzenthai.storybound.client.ScreenProjection.camera();
+        Vec3 cameraPos = ScreenProjection.camera();
         SCRATCH_EYE.set((float) (point.x - cameraPos.x), (float) (point.y - cameraPos.y), (float) (point.z - cameraPos.z), 1f);
-        dev.dzenthai.storybound.client.ScreenProjection.viewMatrix().transform(SCRATCH_EYE);
+        ScreenProjection.viewMatrix().transform(SCRATCH_EYE);
         SCRATCH_CLIP.set(SCRATCH_EYE);
-        dev.dzenthai.storybound.client.ScreenProjection.projectionMatrix().transform(SCRATCH_CLIP);
+        ScreenProjection.projectionMatrix().transform(SCRATCH_CLIP);
         if (SCRATCH_CLIP.w > 0.05f) {
             float ndcX = SCRATCH_CLIP.x / SCRATCH_CLIP.w;
             float ndcY = SCRATCH_CLIP.y / SCRATCH_CLIP.w;

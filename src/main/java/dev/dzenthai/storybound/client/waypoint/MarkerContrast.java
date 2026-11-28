@@ -1,5 +1,6 @@
 package dev.dzenthai.storybound.client.waypoint;
 
+import java.util.concurrent.ConcurrentHashMap;
 /**
  * How a waypoint's colour is shown in the world: no darker than reads against the icons' dark outline and the font's
  * dark shadow, which stay the same for every colour. A colour darker than {@link #MIN_LIGHTNESS} (OKLab lightness,
@@ -12,7 +13,7 @@ public final class MarkerContrast {
     /** The least lightness a marker's colour is shown with (OKLab, 0 black to 1 white). */
     static final double MIN_LIGHTNESS = 0.65;
     private static final int MAX_CACHE = 512;
-    private static final java.util.concurrent.ConcurrentHashMap<Integer, Integer> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, Integer> CACHE = new ConcurrentHashMap<>();
 
     private MarkerContrast() {}
 

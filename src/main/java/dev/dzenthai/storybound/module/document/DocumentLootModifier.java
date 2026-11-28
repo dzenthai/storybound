@@ -6,11 +6,17 @@ import dev.dzenthai.storybound.Storybound;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
+import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -47,17 +53,17 @@ public final class DocumentLootModifier extends LootModifier {
 
     private record IndexedDoc(ResourceLocation id, DocumentDefinition doc) {}
 
-    private record LootIndex(Map<ResourceLocation, java.util.List<IndexedDoc>> byTable, java.util.List<IndexedDoc> chestDocs, boolean empty) {}
+    private record LootIndex(Map<ResourceLocation, List<IndexedDoc>> byTable, List<IndexedDoc> chestDocs, boolean empty) {}
 
     private static volatile Map<ResourceLocation, DocumentDefinition> indexedFor;
-    private static volatile LootIndex lootIndex = new LootIndex(Map.of(), java.util.List.of(), true);
+    private static volatile LootIndex lootIndex = new LootIndex(Map.of(), List.of(), true);
 
     private static LootIndex indexFor(Map<ResourceLocation, DocumentDefinition> documents) {
         if (documents == indexedFor) {
             return lootIndex;
         }
-        Map<ResourceLocation, java.util.List<IndexedDoc>> byTable = new java.util.HashMap<>();
-        java.util.List<IndexedDoc> chestDocs = new java.util.ArrayList<>();
+        Map<ResourceLocation, List<IndexedDoc>> byTable = new HashMap<>();
+        List<IndexedDoc> chestDocs = new ArrayList<>();
         for (Map.Entry<ResourceLocation, DocumentDefinition> entry : documents.entrySet()) {
             DocumentDefinition doc = entry.getValue();
             if (doc.loot().isEmpty()) {
@@ -65,7 +71,7 @@ public final class DocumentLootModifier extends LootModifier {
             }
             IndexedDoc indexed = new IndexedDoc(entry.getKey(), doc);
             boolean addedChest = false;
-            java.util.Set<ResourceLocation> addedTables = null;
+            Set<ResourceLocation> addedTables = null;
             for (DocumentDefinition.LootRule rule : doc.loot()) {
                 if (rule.tables().isEmpty()) {
                     if (!addedChest) {
@@ -74,17 +80,17 @@ public final class DocumentLootModifier extends LootModifier {
                     }
                 } else {
                     if (addedTables == null) {
-                        addedTables = new java.util.HashSet<>();
+                        addedTables = new HashSet<>();
                     }
                     for (ResourceLocation table : rule.tables()) {
                         if (addedTables.add(table)) {
-                            byTable.computeIfAbsent(table, k -> new java.util.ArrayList<>()).add(indexed);
+                            byTable.computeIfAbsent(table, k -> new ArrayList<>()).add(indexed);
                         }
                     }
                 }
             }
         }
-        LootIndex built = new LootIndex(byTable, java.util.List.copyOf(chestDocs), byTable.isEmpty() && chestDocs.isEmpty());
+        LootIndex built = new LootIndex(byTable, List.copyOf(chestDocs), byTable.isEmpty() && chestDocs.isEmpty());
         lootIndex = built;
         indexedFor = documents;
         return built;
@@ -101,7 +107,7 @@ public final class DocumentLootModifier extends LootModifier {
             return generatedLoot;
         }
         ResourceLocation tableId = context.getQueriedLootTableId();
-        java.util.List<IndexedDoc> tableDocs = index.byTable().get(tableId);
+        List<IndexedDoc> tableDocs = index.byTable().get(tableId);
         boolean checkChests = !index.chestDocs().isEmpty() && DocumentDefinition.LootRule.isChestTable(tableId);
         if (tableDocs == null && !checkChests) {
             return generatedLoot;
@@ -110,7 +116,7 @@ public final class DocumentLootModifier extends LootModifier {
         Vec3 origin = context.getParamOrNull(LootContextParams.ORIGIN);
         BlockPos pos = origin != null ? BlockPos.containing(origin) : null;
         ServerPlayer player = findPlayer(context);
-        java.util.Set<ResourceLocation> spawned = (tableDocs != null && checkChests) ? new java.util.HashSet<>() : null;
+        Set<ResourceLocation> spawned = (tableDocs != null && checkChests) ? new HashSet<>() : null;
 
         if (tableDocs != null) {
             applyDocs(generatedLoot, tableDocs, spawned, tableId, level, pos, player, context);
@@ -121,8 +127,8 @@ public final class DocumentLootModifier extends LootModifier {
         return generatedLoot;
     }
 
-    private static void applyDocs(ObjectArrayList<ItemStack> generatedLoot, java.util.List<IndexedDoc> docs,
-                                  @Nullable java.util.Set<ResourceLocation> spawned, ResourceLocation tableId,
+    private static void applyDocs(ObjectArrayList<ItemStack> generatedLoot, List<IndexedDoc> docs,
+                                  @Nullable Set<ResourceLocation> spawned, ResourceLocation tableId,
                                   ServerLevel level, @Nullable BlockPos pos, @Nullable ServerPlayer player, LootContext context) {
         for (int i = 0; i < docs.size(); i++) {
             IndexedDoc entry = docs.get(i);
@@ -163,7 +169,7 @@ public final class DocumentLootModifier extends LootModifier {
             return false;
         }
         if (rule.structure().isPresent()
-                && (pos == null || !dev.dzenthai.storybound.core.logic.StructureRef.containsAny(level, pos, rule.structure().get()))) {
+                && (pos == null || !StructureRef.containsAny(level, pos, rule.structure().get()))) {
             return false;
         }
         if (rule.once() == DocumentDefinition.LootRule.Once.WORLD) {

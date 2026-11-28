@@ -86,7 +86,7 @@ public final class TriggerEvents {
         }
         boolean checkParty = killer != null && TriggerDispatcher.hasSharedKill();
         TriggerDispatcher.asOne(() -> {
-            List<ServerPlayer> credited = checkBystanders ? new java.util.ArrayList<>() : null;
+            List<ServerPlayer> credited = checkBystanders ? new ArrayList<>() : null;
             if (killer != null) {
                 if (credited != null) {
                     credited.add(killer);

@@ -7,8 +7,10 @@ import dev.dzenthai.storybound.module.quest.QuestDefinition;
 import dev.dzenthai.storybound.module.quest.Quests;
 import dev.dzenthai.storybound.network.MusicPayload;
 import dev.dzenthai.storybound.network.StoryboundNetwork;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,24 +33,24 @@ public final class StoryMusic {
     private static final Map<UUID, Optional<ResourceLocation>> PLAYING = new HashMap<>();
     /** Music definitions pre-sorted by (-priority, id) per store snapshot so track() short-circuits on first match. */
     private static volatile Map<ResourceLocation, MusicDefinition> sortedFor;
-    private static volatile java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> sortedTracks = java.util.List.of();
+    private static volatile List<Map.Entry<ResourceLocation, MusicDefinition>> sortedTracks = List.of();
 
     private StoryMusic() {}
 
-    private static java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> sortedTracks() {
+    private static List<Map.Entry<ResourceLocation, MusicDefinition>> sortedTracks() {
         Map<ResourceLocation, MusicDefinition> all = MusicRegistries.MUSIC.serverStore().all();
         if (all == sortedFor) {
             return sortedTracks;
         }
         if (all.isEmpty()) {
-            sortedTracks = java.util.List.of();
+            sortedTracks = List.of();
             sortedFor = all;
             return sortedTracks;
         }
-        java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> list = new java.util.ArrayList<>(all.entrySet());
+        List<Map.Entry<ResourceLocation, MusicDefinition>> list = new ArrayList<>(all.entrySet());
         list.sort(Comparator.comparingInt((Map.Entry<ResourceLocation, MusicDefinition> entry) -> -entry.getValue().priority())
                 .thenComparing(entry -> entry.getKey().toString()));
-        java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> immutable = java.util.List.copyOf(list);
+        List<Map.Entry<ResourceLocation, MusicDefinition>> immutable = List.copyOf(list);
         sortedTracks = immutable;
         sortedFor = all;
         return immutable;
@@ -98,7 +100,7 @@ public final class StoryMusic {
         if (stage.isPresent()) {
             return stage;
         }
-        java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> entries = sortedTracks();
+        List<Map.Entry<ResourceLocation, MusicDefinition>> entries = sortedTracks();
         if (entries.isEmpty()) {
             return Optional.empty();
         }

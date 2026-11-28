@@ -11,7 +11,9 @@ import dev.dzenthai.storybound.client.StoryboundClientConfig;
 import dev.dzenthai.storybound.compat.cutscene.CutsceneClient;
 import dev.dzenthai.storybound.module.waypoint.ClientWaypoint;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalDouble;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -26,6 +28,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The edge of search areas (waypoints with a radius and {@code show_ring}) as a line in the waypoint's colour (the
@@ -113,8 +116,8 @@ public final class AreaRings {
     /** Cached 8-sample ground-edge height per (blockX, blockZ, radius) refreshed every 10 ticks to avoid 16 lookups/frame. */
     private record EdgeHeightKey(int x, int z, int radiusTenths) {}
     private record EdgeHeightValue(double high, long bucket) {}
-    private static @org.jetbrains.annotations.Nullable ClientLevel edgeHeightLevel;
-    private static final java.util.Map<EdgeHeightKey, EdgeHeightValue> EDGE_HEIGHT_CACHE = new java.util.HashMap<>();
+    private static @Nullable ClientLevel edgeHeightLevel;
+    private static final Map<EdgeHeightKey, EdgeHeightValue> EDGE_HEIGHT_CACHE = new HashMap<>();
 
     private AreaRings() {}
 

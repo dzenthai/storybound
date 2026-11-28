@@ -67,6 +67,8 @@
   dialogue to its NPCs. Debug scenario `council`.
 - `location` condition takes `"outdoors": true`: only sky and leaves above the player, not a cave, a roof or water.
   For something that should happen in the open, such as an ambush in the woods.
+- Less work every tick on servers and in the game when a story does not use a feature. Codex images and photos free
+  their memory when you leave a world.
 - Fixed: `note_torn` document style now uses valid texture dimensions and readable default font metrics.
 - A Codex entry's or a document's text that is not there shows in red ("Missing text: …") only to whoever may open the
   dev mode; a player sees nothing in its place.

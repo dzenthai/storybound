@@ -17,6 +17,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
@@ -24,6 +25,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Lines of other players' dialogues and NPCs' phrases above the speaker's head, with a background that fades out.
@@ -177,7 +179,7 @@ public final class SpeechBubbles {
         private final long createdAt;
         private final long showAt;
         private final long expiresAt;
-        private net.minecraft.locale.@org.jetbrains.annotations.Nullable Language cachedLanguage;
+        private @Nullable Language cachedLanguage;
         List<FormattedCharSequence> cachedLines = List.of();
         int[] cachedWidths = new int[0];
 
@@ -194,7 +196,7 @@ public final class SpeechBubbles {
         long expiresAt() { return expiresAt; }
 
         void ensureLayout(Font font) {
-            net.minecraft.locale.Language lang = net.minecraft.locale.Language.getInstance();
+            Language lang = Language.getInstance();
             if (cachedLanguage == lang) {
                 return;
             }

@@ -20,11 +20,13 @@ import dev.dzenthai.storybound.network.WaypointSyncPayload;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -63,7 +65,7 @@ public final class Waypoints {
         }
     };
     /** Players whose last visible() pass had at least one active moving waypoint target. */
-    private static final java.util.Set<UUID> FOLLOWING_PLAYERS = new java.util.HashSet<>();
+    private static final Set<UUID> FOLLOWING_PLAYERS = new HashSet<>();
     /**
      * Structure searches from a player start from the middle of the 256-block cell they stand in, so players near
      * each other share one background search, and walking within a cell starts none.
@@ -139,7 +141,7 @@ public final class Waypoints {
             return result;
         }
         StoryContext context = StoryContext.of(player);
-        java.util.Set<String> activeKeys = new java.util.HashSet<>();
+        Set<String> activeKeys = new HashSet<>();
         boolean[] hasMoving = {false};
         WaypointRegistries.WAYPOINTS.serverStore().all().forEach((id, definition) -> {
             List<Binding> bindings = new ArrayList<>(stageBindings.getOrDefault(id, List.of()));
@@ -196,7 +198,7 @@ public final class Waypoints {
         return result;
     }
 
-    private static <V> void pruneStaleKeys(Map<UUID, Map<String, V>> byPlayer, UUID playerId, java.util.Set<String> activeKeys) {
+    private static <V> void pruneStaleKeys(Map<UUID, Map<String, V>> byPlayer, UUID playerId, Set<String> activeKeys) {
         Map<String, V> map = byPlayer.get(playerId);
         if (map != null) {
             if (activeKeys.isEmpty()) {

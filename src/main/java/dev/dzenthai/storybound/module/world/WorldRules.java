@@ -21,6 +21,7 @@ import dev.dzenthai.storybound.network.WorldLocksPayload;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -131,7 +132,7 @@ public final class WorldRules {
         Map<Item, List<Entry<ItemLock>>> nextItemMap = new IdentityHashMap<>();
         Map<EntityType<?>, List<Entry<MobLock>>> nextMobMap = new IdentityHashMap<>();
         Map<EntityType<?>, List<Entry<MobLock>>> nextDespawnMobMap = new IdentityHashMap<>();
-        Set<ResourceKey<Level>> nextDespawnDims = new java.util.HashSet<>();
+        Set<ResourceKey<Level>> nextDespawnDims = new HashSet<>();
         boolean nextDespawnAnyDim = false;
         List<Entry<PlaceLock>> nextPlaces = new ArrayList<>();
         List<Entry<PlaceLock>> nextBarriers = new ArrayList<>();

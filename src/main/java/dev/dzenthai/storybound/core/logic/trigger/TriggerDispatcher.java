@@ -16,10 +16,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Unit;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.neoforged.neoforge.common.NeoForge;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,8 +37,8 @@ public final class TriggerDispatcher {
     private static final Map<String, List<Subscription<?>>> SOURCES = new LinkedHashMap<>();
     private static Map<TriggerType<?, ?>, List<Subscription<?>>> index = Map.of();
     private static List<Subscription<?>> areaSubscriptions = List.of();
-    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Subscription<?>>> KILLED_BY_TYPE = new HashMap<>();
-    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Subscription<?>>> SEEN_BY_TYPE = new HashMap<>();
+    private static final Map<EntityType<?>, List<Subscription<?>>> KILLED_BY_TYPE = new HashMap<>();
+    private static final Map<EntityType<?>, List<Subscription<?>>> SEEN_BY_TYPE = new HashMap<>();
     private static boolean hasSharedKill;
     private static boolean hasByAnyoneKill;
     private static int generation;
@@ -101,15 +104,15 @@ public final class TriggerDispatcher {
         return hasByAnyoneKill;
     }
 
-    static boolean hasEntityKilledFor(net.minecraft.world.entity.EntityType<?> type) {
+    static boolean hasEntityKilledFor(EntityType<?> type) {
         return !killedFor(type).isEmpty();
     }
 
-    static boolean hasEntitySeenFor(net.minecraft.world.entity.EntityType<?> type) {
+    static boolean hasEntitySeenFor(EntityType<?> type) {
         return !seenFor(type).isEmpty();
     }
 
-    private static List<Subscription<?>> killedFor(net.minecraft.world.entity.EntityType<?> type) {
+    private static List<Subscription<?>> killedFor(EntityType<?> type) {
         List<Subscription<?>> all = index.get(BuiltinTriggers.ENTITY_KILLED.get());
         if (all == null || all.isEmpty()) {
             return List.of();
@@ -118,7 +121,7 @@ public final class TriggerDispatcher {
         if (cached != null) {
             return cached;
         }
-        var holder = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
+        var holder = BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
         List<Subscription<?>> matching = null;
         for (Subscription<?> sub : all) {
             boolean fits = true;
@@ -138,7 +141,7 @@ public final class TriggerDispatcher {
         return result;
     }
 
-    private static List<Subscription<?>> seenFor(net.minecraft.world.entity.EntityType<?> type) {
+    private static List<Subscription<?>> seenFor(EntityType<?> type) {
         List<Subscription<?>> all = index.get(BuiltinTriggers.ENTITY_SEEN.get());
         if (all == null || all.isEmpty()) {
             return List.of();
@@ -147,7 +150,7 @@ public final class TriggerDispatcher {
         if (cached != null) {
             return cached;
         }
-        var holder = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
+        var holder = BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
         List<Subscription<?>> matching = null;
         for (Subscription<?> sub : all) {
             boolean fits = true;
@@ -267,7 +270,7 @@ public final class TriggerDispatcher {
         if (type == BuiltinTriggers.ENTITY_KILLED.get() && event instanceof CoreTriggers.Kill kill) {
             return killedFor(kill.victim().getType());
         }
-        if (type == BuiltinTriggers.ENTITY_SEEN.get() && event instanceof net.minecraft.world.entity.Entity entity) {
+        if (type == BuiltinTriggers.ENTITY_SEEN.get() && event instanceof Entity entity) {
             return seenFor(entity.getType());
         }
         return index.get(type);

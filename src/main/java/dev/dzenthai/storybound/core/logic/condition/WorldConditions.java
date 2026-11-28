@@ -7,7 +7,11 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.action.SceneActions;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import dev.dzenthai.storybound.core.logic.Area;
@@ -62,7 +66,7 @@ public final class WorldConditions {
     public static boolean hasAtLeast(Player player, ItemMatcher matcher, int target, boolean worn) {
         int found = 0;
         if (worn) {
-            for (net.minecraft.world.item.ItemStack stack : player.getInventory().armor) {
+            for (ItemStack stack : player.getInventory().armor) {
                 if (matcher.test(stack)) {
                     found += stack.getCount();
                     if (found >= target) {
@@ -74,7 +78,7 @@ public final class WorldConditions {
         }
         Inventory inventory = player.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            net.minecraft.world.item.ItemStack stack = inventory.getItem(slot);
+            ItemStack stack = inventory.getItem(slot);
             if (matcher.test(stack)) {
                 found += stack.getCount();
                 if (found >= target) {
@@ -359,8 +363,8 @@ public final class WorldConditions {
             }
             Vec3 centre = where.pos();
             double reach = radius * radius;
-            java.util.List<LivingEntity> matched = new java.util.ArrayList<>(Math.min(limit, 16));
-            where.level().getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(LivingEntity.class),
+            List<LivingEntity> matched = new ArrayList<>(Math.min(limit, 16));
+            where.level().getEntities(EntityTypeTest.forClass(LivingEntity.class),
                     new AABB(centre, centre).inflate(radius),
                     found -> found.isAlive() && !found.isSpectator() && found.distanceToSqr(centre) <= reach && entity.matches(found),
                     matched, limit);

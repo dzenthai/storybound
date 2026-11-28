@@ -11,8 +11,10 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+import org.jetbrains.annotations.Nullable;
 
 /** Subtitles of {@code presentation: hud} dialogues (and of bubble lines with no bubble to show), above the hotbar; the player keeps moving. */
 public final class DialogueHud {
@@ -24,9 +26,9 @@ public final class DialogueHud {
     private static final int PROMPT_HEIGHT = 11;
     private static final Component ANSWER_PROMPT = Component.translatable("storybound.dialogue.answer_prompt");
 
-    private static ClientDialogue.@org.jetbrains.annotations.Nullable Line cachedLine;
+    private static ClientDialogue.@Nullable Line cachedLine;
     private static int cachedMaxWidth = -1;
-    private static net.minecraft.locale.@org.jetbrains.annotations.Nullable Language cachedLanguage;
+    private static @Nullable Language cachedLanguage;
     private static List<FormattedCharSequence> cachedWrapped = List.of();
     private static boolean cachedNamed;
     private static int cachedTextWidth;
@@ -89,7 +91,7 @@ public final class DialogueHud {
         boolean portrait = DialogueChrome.hasPortrait(minecraft, line);
         int portraitSpace = portrait ? DialogueChrome.PORTRAIT_SIZE + 8 : 0;
         int maxTextWidth = Math.max(80, Math.min(MAX_WIDTH, graphics.guiWidth() - 24 - portraitSpace - PADDING * 2));
-        net.minecraft.locale.Language lang = net.minecraft.locale.Language.getInstance();
+        Language lang = Language.getInstance();
         if (cachedLine != line || cachedMaxWidth != maxTextWidth || cachedLanguage != lang) {
             cachedLine = line;
             cachedMaxWidth = maxTextWidth;

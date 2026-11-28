@@ -9,6 +9,7 @@ import dev.dzenthai.storybound.core.logic.Trigger;
 import dev.dzenthai.storybound.core.logic.TriggerType;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -192,7 +193,7 @@ public final class ProgressTriggers {
      */
     public static void checkValues(MinecraftServer server) {
         boolean levels = TriggerDispatcher.hasSubscribers(BuiltinTriggers.LEVEL_REACHED.get());
-        java.util.List<Subscription<?>> statSubs = TriggerDispatcher.subscriptions(BuiltinTriggers.STAT_REACHED.get());
+        List<Subscription<?>> statSubs = TriggerDispatcher.subscriptions(BuiltinTriggers.STAT_REACHED.get());
         if (!levels && statSubs.isEmpty()) {
             return;
         }

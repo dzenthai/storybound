@@ -5,7 +5,9 @@ import dev.dzenthai.storybound.client.sound.StoryAssets;
 import dev.dzenthai.storybound.client.sound.StoryImageFiles;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
@@ -83,7 +85,7 @@ public final class CodexImages implements ResourceManagerReloadListener {
 
     public static void clear() {
         if (!LIVE.isEmpty()) {
-            java.util.List<ResourceLocation> toRelease = new java.util.ArrayList<>(LIVE.keySet());
+            List<ResourceLocation> toRelease = new ArrayList<>(LIVE.keySet());
             LIVE.clear();
             Minecraft mc = Minecraft.getInstance();
             if (mc != null && mc.getTextureManager() != null) {

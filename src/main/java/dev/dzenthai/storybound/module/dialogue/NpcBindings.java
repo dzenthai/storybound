@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.config.StoryboundConfig;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.DialogueEvent;
 import dev.dzenthai.storybound.core.event.NpcInteractEvent;
+import dev.dzenthai.storybound.core.logic.EntitySelector;
 import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StoryTrace;
 import dev.dzenthai.storybound.core.state.StoryScope;
@@ -30,6 +31,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.AABB;
@@ -59,9 +61,9 @@ public final class NpcBindings {
     private static List<Map.Entry<ResourceLocation, NpcBinding>> files = List.of();
     private static List<Map.Entry<ResourceLocation, NpcBinding>> oneFiles = List.of();
     /** Non-"one" bindings pre-filtered lazily per EntityType in id order, cleared on reload. */
-    private static final Map<net.minecraft.world.entity.EntityType<?>, TypeCandidates> BY_TYPE = new HashMap<>();
+    private static final Map<EntityType<?>, TypeCandidates> BY_TYPE = new HashMap<>();
     /** "One" bindings pre-filtered lazily per EntityType in id order, cleared on reload. */
-    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Map.Entry<ResourceLocation, NpcBinding>>> ONE_BY_TYPE = new HashMap<>();
+    private static final Map<EntityType<?>, List<Map.Entry<ResourceLocation, NpcBinding>>> ONE_BY_TYPE = new HashMap<>();
     /** "One" bindings indexed by id for O(1) lookup via NpcParts.partOf. */
     private static final Map<ResourceLocation, NpcBinding> ONE_BY_ID = new HashMap<>();
     private static boolean anyOneMoves;
@@ -150,7 +152,7 @@ public final class NpcBindings {
         moves = anyMoves;
     }
 
-    private static TypeCandidates typeCandidates(net.minecraft.world.entity.EntityType<?> type) {
+    private static TypeCandidates typeCandidates(EntityType<?> type) {
         TypeCandidates cached = BY_TYPE.get(type);
         if (cached != null) {
             return cached;
@@ -186,7 +188,7 @@ public final class NpcBindings {
     }
 
     /** "One" binding files whose entity selector may match {@code type}, cached lazily. */
-    static List<Map.Entry<ResourceLocation, NpcBinding>> oneCandidatesFor(net.minecraft.world.entity.EntityType<?> type) {
+    static List<Map.Entry<ResourceLocation, NpcBinding>> oneCandidatesFor(EntityType<?> type) {
         if (oneFiles.isEmpty()) {
             return List.of();
         }
@@ -296,7 +298,7 @@ public final class NpcBindings {
         }
         // Only enter sharingSavedData when at least one candidate for this entity type actually inspects NBT/data.
         Found resolved = tc.usesSavedData()
-                ? dev.dzenthai.storybound.core.logic.EntitySelector.sharingSavedData(() -> resolve(entity, hasOwn, part, tc.list()))
+                ? EntitySelector.sharingSavedData(() -> resolve(entity, hasOwn, part, tc.list()))
                 : resolve(entity, hasOwn, part, tc.list());
         Optional<Found> found = Optional.ofNullable(resolved);
         Set<String> entityTags = entity.getTags();

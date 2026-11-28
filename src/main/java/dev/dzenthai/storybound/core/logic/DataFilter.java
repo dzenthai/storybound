@@ -11,11 +11,19 @@ import com.mojang.serialization.JsonOps;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NumericTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.monster.ZombieVillager;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerData;
+import net.minecraft.world.entity.npc.VillagerDataHolder;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * What a mob's saved data must hold: an entity selector's {@code data}, a field to one value or a list of them, any
@@ -34,7 +42,7 @@ public record DataFilter(Map<String, List<Value>> fields) {
             .xmap(map -> new DataFilter(new LinkedHashMap<>(map)), DataFilter::fields);
 
     private static final int MAX_PATH_CACHE = 1024;
-    private static final java.util.concurrent.ConcurrentHashMap<String, String[]> PATH_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, String[]> PATH_CACHE = new ConcurrentHashMap<>();
 
     private static String[] splitPath(String path) {
         String[] cached = PATH_CACHE.get(path);
@@ -64,10 +72,10 @@ public record DataFilter(Map<String, List<Value>> fields) {
      * {@code entity.saveWithoutId(...)}. Returns null if any field is not a supported VillagerData path so the caller
      * falls back to full NBT serialization.
      */
-    @org.jetbrains.annotations.Nullable Boolean matchVanillaVillager(net.minecraft.world.entity.Entity entity) {
+    @Nullable Boolean matchVanillaVillager(Entity entity) {
         Class<?> clazz = entity.getClass();
-        if (clazz != net.minecraft.world.entity.npc.Villager.class
-                && clazz != net.minecraft.world.entity.monster.ZombieVillager.class) {
+        if (clazz != Villager.class
+                && clazz != ZombieVillager.class) {
             return null;
         }
         for (String path : fields.keySet()) {
@@ -75,13 +83,13 @@ public record DataFilter(Map<String, List<Value>> fields) {
                 return null;
             }
         }
-        net.minecraft.world.entity.npc.VillagerData data = ((net.minecraft.world.entity.npc.VillagerDataHolder) entity).getVillagerData();
+        VillagerData data = ((VillagerDataHolder) entity).getVillagerData();
         for (Map.Entry<String, List<Value>> entry : fields.entrySet()) {
             String path = entry.getKey();
             List<Value> values = entry.getValue();
             boolean matched = false;
             if (path.equals("VillagerData/profession")) {
-                String actual = String.valueOf(net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(data.getProfession()));
+                String actual = String.valueOf(BuiltInRegistries.VILLAGER_PROFESSION.getKey(data.getProfession()));
                 for (int i = 0; i < values.size(); i++) {
                     if (values.get(i) instanceof Value.Text(String text) && text.equals(actual)) {
                         matched = true;
@@ -89,7 +97,7 @@ public record DataFilter(Map<String, List<Value>> fields) {
                     }
                 }
             } else if (path.equals("VillagerData/type")) {
-                String actual = String.valueOf(net.minecraft.core.registries.BuiltInRegistries.VILLAGER_TYPE.getKey(data.getType()));
+                String actual = String.valueOf(BuiltInRegistries.VILLAGER_TYPE.getKey(data.getType()));
                 for (int i = 0; i < values.size(); i++) {
                     if (values.get(i) instanceof Value.Text(String text) && text.equals(actual)) {
                         matched = true;

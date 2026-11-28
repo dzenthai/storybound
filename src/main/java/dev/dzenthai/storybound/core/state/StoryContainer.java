@@ -6,6 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
@@ -67,7 +68,7 @@ public final class StoryContainer {
     @Nullable
     StoryValue put(ResourceLocation key, StoryValue value) {
         StoryValue old = values.put(key, value);
-        if (!java.util.Objects.equals(old, value)) {
+        if (!Objects.equals(old, value)) {
             onChange.run();
         }
         return old;
@@ -92,7 +93,7 @@ public final class StoryContainer {
             return;
         }
         QuestProgress old = quests.put(quest, progress);
-        if (!java.util.Objects.equals(old, progress)) {
+        if (!Objects.equals(old, progress)) {
             onChange.run();
         }
     }

@@ -12,6 +12,7 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /** Data lifecycle: loading, cross-reference validation, sending to clients. */
 public final class StoryboundDataEvents {
@@ -26,7 +27,7 @@ public final class StoryboundDataEvents {
         gameBus.addListener(net.neoforged.bus.api.EventPriority.HIGH, StoryboundDataEvents::onServerStarted);
         gameBus.addListener(StoryboundDataEvents::onDatapackSync);
         gameBus.addListener(StoryboundDataEvents::onPlayerLoggedIn);
-        gameBus.addListener((net.neoforged.neoforge.event.server.ServerStoppedEvent event) -> DefinitionLoader.clearPending());
+        gameBus.addListener((ServerStoppedEvent event) -> DefinitionLoader.clearPending());
     }
 
     private static void onAddReloadListeners(AddReloadListenerEvent event) {

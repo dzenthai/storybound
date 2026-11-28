@@ -6,6 +6,7 @@ import dev.dzenthai.storybound.client.ShaderPacks;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.WeakHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.util.Mth;
@@ -53,7 +54,7 @@ public final class ScentStrands {
 
     private static final int PIECES = 14;
     private static final List<Strand> STRANDS = new ArrayList<>();
-    private static final java.util.WeakHashMap<List<Vec3>, double[]> ALONG_CACHE = new java.util.WeakHashMap<>();
+    private static final WeakHashMap<List<Vec3>, double[]> ALONG_CACHE = new WeakHashMap<>();
     /** Render-thread scratch arrays so drawing active scent strands allocates zero Vec3/array objects per frame. */
     private static final double[] SCRATCH_X = new double[PIECES + 1];
     private static final double[] SCRATCH_Y = new double[PIECES + 1];

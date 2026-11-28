@@ -3,8 +3,10 @@ package dev.dzenthai.storybound.core.state;
 import dev.dzenthai.storybound.core.CoreDefinitions;
 import dev.dzenthai.storybound.core.StoryException;
 import dev.dzenthai.storybound.core.event.StoryValueChangedEvent;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -132,8 +134,8 @@ public final class StoryState {
                 PartyData parties = PartyData.get(server);
                 Optional<Party> party = parties.party(owner);
                 if (party.isPresent()) {
-                    java.util.Set<UUID> members = party.get().members();
-                    List<ServerPlayer> result = new java.util.ArrayList<>(members.size());
+                    Set<UUID> members = party.get().members();
+                    List<ServerPlayer> result = new ArrayList<>(members.size());
                     for (UUID memberId : members) {
                         ServerPlayer member = playerList.getPlayer(memberId);
                         if (member != null) {

@@ -27,10 +27,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.neoforge.common.NeoForge;
 import org.jetbrains.annotations.Nullable;
@@ -43,7 +45,7 @@ import org.jetbrains.annotations.Nullable;
 public final class Bosses {
     private static List<Map.Entry<ResourceLocation, BossDefinition>> bosses = List.of();
     /** Lazily indexed boss definitions per EntityType so bossOf() skips non-boss types in O(1). */
-    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Map.Entry<ResourceLocation, BossDefinition>>> BY_TYPE = new HashMap<>();
+    private static final Map<EntityType<?>, List<Map.Entry<ResourceLocation, BossDefinition>>> BY_TYPE = new HashMap<>();
     /** Boss entity -> its fight. */
     private static final Map<UUID, Fight> FIGHTS = new HashMap<>();
 
@@ -70,7 +72,7 @@ public final class Bosses {
         bosses = List.copyOf(sorted);
     }
 
-    private static List<Map.Entry<ResourceLocation, BossDefinition>> candidatesFor(net.minecraft.world.entity.EntityType<?> type) {
+    private static List<Map.Entry<ResourceLocation, BossDefinition>> candidatesFor(EntityType<?> type) {
         if (bosses.isEmpty()) {
             return List.of();
         }
@@ -78,7 +80,7 @@ public final class Bosses {
         if (cached != null) {
             return cached;
         }
-        var holder = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
+        var holder = BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
         List<Map.Entry<ResourceLocation, BossDefinition>> matching = null;
         for (Map.Entry<ResourceLocation, BossDefinition> entry : bosses) {
             var types = entry.getValue().entity().type();

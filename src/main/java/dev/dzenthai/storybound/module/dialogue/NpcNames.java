@@ -3,6 +3,8 @@ package dev.dzenthai.storybound.module.dialogue;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.dzenthai.storybound.core.text.StoryText;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -88,9 +90,9 @@ public final class NpcNames {
                 continue;
             }
             if (sortByDistance && around.size() > 1) {
-                around = new java.util.ArrayList<>(around);
+                around = new ArrayList<>(around);
                 // Nearest first: "one" picks the fitting entity nearest the player.
-                around.sort(java.util.Comparator.comparingDouble(entity -> entity.distanceToSqr(player)));
+                around.sort(Comparator.comparingDouble(entity -> entity.distanceToSqr(player)));
             }
             for (Entity entity : around) {
                 if (seen.add(entity)) {

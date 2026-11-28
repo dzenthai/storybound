@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.RegistryOps;
@@ -48,7 +49,7 @@ public final class StoryTrace {
     private static @Nullable BufferedWriter writer;
     private static @Nullable MinecraftServer server;
     /** Players someone watches live ({@code /storybound debug}): their lines also go to {@link #tap}, file or not. */
-    private static java.util.function.BooleanSupplier anyWatching = () -> false;
+    private static BooleanSupplier anyWatching = () -> false;
     private static Predicate<UUID> watched = player -> false;
     private static BiConsumer<UUID, JsonObject> tap = (player, line) -> {};
 
@@ -63,7 +64,7 @@ public final class StoryTrace {
     }
 
     /** Overload supplying a cheap O(1) {@code hasAnyWatcher} check so {@link #active} short-circuits when idle. */
-    public static void tap(java.util.function.BooleanSupplier hasAnyWatcher, Predicate<UUID> watching, BiConsumer<UUID, JsonObject> sink) {
+    public static void tap(BooleanSupplier hasAnyWatcher, Predicate<UUID> watching, BiConsumer<UUID, JsonObject> sink) {
         anyWatching = hasAnyWatcher;
         watched = watching;
         tap = sink;
