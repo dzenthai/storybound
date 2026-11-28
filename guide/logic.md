@@ -154,7 +154,7 @@ depth of 16 and writes an error to the log.
 | `flag` | `key`, `scope?`, `value?` (true) | The flag equals `value`. |
 | `var` | `key`, `scope?`, `op?` (`=`, `!=`, `>`, `>=`, `<`, `<=`), `value` | The variable compares to `value` this way. Texts and true/false values only work with `=` and `!=`. |
 | `has_item` | `item` or `tag`, `count?` (1), `worn?` | The player carries at least that many, armour slots included. With `"worn": true`, only what the player has on: `{ "type": "has_item", "tag": "minecraft:chest_armor", "worn": true }`. |
-| `location` | `dimension?`, `biome?`, `area?`, `structure?` | The player is in a place where every part you gave matches. |
+| `location` | `dimension?`, `biome?`, `area?`, `structure?`, `outdoors?` | The player is in a place where every part you gave matches. `"outdoors": true` means only sky and leaves are above the player: not in a cave, under a roof or in water. `false` means the opposite. |
 | `in_party` | `min_size?` (1) | The player is in a real party with at least that many members. |
 | `time` | `period?` (`day`, `sunset`, `night`, `sunrise`), `min?`, `max?` (ticks from 0 to 24000) | The time of day fits. If `min` is larger than `max`, the range goes over midnight. |
 | `weather` | `weather` (`clear`, `rain` or `thunder`) | The weather in the player's dimension matches. `rain` also covers thunder and snow. |
