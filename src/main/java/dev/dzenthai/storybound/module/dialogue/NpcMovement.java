@@ -84,7 +84,7 @@ public final class NpcMovement {
     /** Minimum ticks between failed catch-up teleport searches. */
     private static final int TELEPORT_RETRY_TICKS = 10;
     /** Ticks without making progress before a stuck follower teleports to catch up (only when teleporting is enabled). */
-    private static final int STUCK_TICKS = 100;
+    private static final int STUCK_TICKS = 60;
     /** Moved farther than this in one tick, it was put there: its place moves with it. */
     private static final double JUMP = 8;
     /** Stays: looks at the nearest player this close. */
@@ -491,7 +491,10 @@ public final class NpcMovement {
                 }
             }
         }
-        walkToPlayer(mob, target, follow.speed(), Math.max(1, (int) Math.floor(stopDist)), held);
+        float catchupBoost = dist > stopDist + 3.0
+                ? (float) (1.0 + Math.min(0.45, (dist - stopDist - 3.0) * 0.05))
+                : 1.0f;
+        walkToPlayer(mob, target, follow.speed() * catchupBoost, Math.max(1, (int) Math.floor(stopDist)), held);
     }
 
     /** Hard interruptions where neither walking nor catch-up teleporting may touch the mob. */
@@ -851,5 +854,23 @@ public final class NpcMovement {
     public static @Nullable UUID followingPlayer(Mob mob) {
         Held held = HELD.get(mob.getUUID());
         return held != null ? held.following : null;
+    }
+
+    /**
+     * Dialogue reach (in blocks) for an entity actively following {@code player}, or {@code 0} when not following them.
+     * Prevents sprint-jumping ahead during road conversations from aborting the dialogue before catch-up completes.
+     */
+    static double followDialogueReach(Entity entity, ServerPlayer player) {
+        UUID playerId = player.getUUID();
+        Held held = HELD.get(entity.getUUID());
+        if (held != null && playerId.equals(held.following)) {
+            float tp = held.follow != null ? held.follow.teleportDistance() : 0f;
+            return tp > 0f ? Math.max(48.0, tp + 32.0) : 36.0;
+        }
+        TrackedFollow tracked = TRACKED.get(entity.getUUID());
+        if (tracked != null && playerId.equals(tracked.player()) && player.level().dimension().equals(tracked.dimension())) {
+            return Math.max(48.0, tracked.teleportDistance() + 32.0);
+        }
+        return 0.0;
     }
 }

@@ -2,6 +2,7 @@ package dev.dzenthai.storybound.client.dev;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -129,6 +130,26 @@ class ScenePreviewTimelineTest {
         Map<String, TimedCue> at22 = ScenePreview.latestCuesByChannel(cues, 2.2, 0, -1);
         assertEquals(2, at22.get("shake").cueIndex(), "later shake replaces earlier shake");
         assertEquals(1, at22.get("title").cueIndex(), "title channel remains unaffected");
+    }
+
+    @Test
+    void cueShakeDecaysQuadraticallyAndMatchesPeakIntensity() {
+        List<TimedCue> cues = List.of(
+                new TimedCue(0, 0, 1.0, json("{\"at\":1.0,\"shake\":{\"intensity\":0.8,\"duration\":1.0}}"))
+        );
+        assertEquals(0.0f, ScenePreview.cueShakeAt(cues, 0.99), 1e-5f);
+        assertEquals(0.8f, ScenePreview.cueShakeAt(cues, 1.0), 1e-5f);
+        assertEquals(0.2f, ScenePreview.cueShakeAt(cues, 1.5), 1e-5f, "halfway through quadratic decay -> 0.8 * 0.25 = 0.2");
+        assertEquals(0.0f, ScenePreview.cueShakeAt(cues, 2.0), 1e-5f);
+    }
+
+    @Test
+    void sceneMusicFieldRemainsVisibleAfterClearing() {
+        assertTrue(FormDialogues.NODE_ORDER.get("scene").contains("music"), "scene music appears in ordered form fields");
+        assertTrue(FormDialogues.nodeFieldShown("scene", "music", new JsonObject(), null),
+                "clearing scene music must not hide the music field");
+        assertTrue(FormDialogues.nodeFieldShown("scene", "music", null, null),
+                "scene music field is visible even on a brand new scene");
     }
 }
 

@@ -8,11 +8,11 @@ import org.junit.jupiter.api.Test;
 class ClientSceneTest {
     @Test
     void aTextFadesOverItsFirstAndLastTicks() {
-        // 100 ticks: 15 up, 15 down.
+        // 100 ticks: 8 up, 8 down.
         assertEquals(0f, ClientScene.fadeAlpha(0, 0, 100), 1e-6f);
-        assertEquals(0.5f, ClientScene.fadeAlpha(7.5, 0, 100), 1e-6f);
+        assertEquals(0.5f, ClientScene.fadeAlpha(4.0, 0, 100), 1e-6f);
         assertEquals(1f, ClientScene.fadeAlpha(50, 0, 100), 1e-6f);
-        assertEquals(0.5f, ClientScene.fadeAlpha(92.5, 0, 100), 1e-6f);
+        assertEquals(0.5f, ClientScene.fadeAlpha(96.0, 0, 100), 1e-6f);
         assertEquals(0f, ClientScene.fadeAlpha(100, 0, 100), 1e-6f);
         assertEquals(0f, ClientScene.fadeAlpha(120, 0, 100), 1e-6f);
         // Not before it starts.
@@ -20,11 +20,11 @@ class ClientSceneTest {
     }
 
     @Test
-    void aShortTextFadesOverAThirdOfItsTimeEachWay() {
-        // 30 ticks: 10 up, 10 down.
-        assertEquals(0.5f, ClientScene.fadeAlpha(5, 0, 30), 1e-6f);
-        assertEquals(1f, ClientScene.fadeAlpha(15, 0, 30), 1e-6f);
-        assertEquals(0.5f, ClientScene.fadeAlpha(25, 0, 30), 1e-6f);
+    void aShortTextFadesOverAQuarterOfItsTimeEachWay() {
+        // 24 ticks: 6 up, 6 down (leaving half at full opacity).
+        assertEquals(0.5f, ClientScene.fadeAlpha(3, 0, 24), 1e-6f);
+        assertEquals(1f, ClientScene.fadeAlpha(12, 0, 24), 1e-6f);
+        assertEquals(0.5f, ClientScene.fadeAlpha(21, 0, 24), 1e-6f);
     }
 
     @Test

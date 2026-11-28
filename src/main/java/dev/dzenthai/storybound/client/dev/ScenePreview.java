@@ -11,6 +11,7 @@ import dev.dzenthai.storybound.client.ScreenProjection;
 import dev.dzenthai.storybound.client.ShaderPacks;
 import dev.dzenthai.storybound.client.camera.SceneCamera;
 import dev.dzenthai.storybound.core.logic.action.ScreenFade;
+import dev.dzenthai.storybound.module.scene.SceneCameraSafety;
 import dev.dzenthai.storybound.module.scene.SceneDefinition;
 import dev.dzenthai.storybound.module.scene.ScenePath;
 import dev.dzenthai.storybound.module.scene.Scenes;
@@ -43,7 +44,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -110,6 +110,8 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private int shot;
     private final Map<Integer, Anchor> anchors = new HashMap<>();
     private final Map<Integer, Anchor> lookAnchors = new HashMap<>();
+    private final Map<Integer, SceneCameraSafety.Plan> planCache = new HashMap<>();
+    private long planCacheTick = Long.MIN_VALUE;
     private final Map<Integer, Integer> requests = new HashMap<>();
     /** Pending server anchor requests for a shot's fallback anchor or {@code look} object anchor. */
     private final Map<Integer, Integer> fallbackRequests = new HashMap<>();
@@ -443,6 +445,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private void writeVia(List<Vec3> points) {
         if (points.isEmpty()) {
             camera().remove("via");
+            invalidatePlans();
             return;
         }
         JsonArray array = new JsonArray();
@@ -450,6 +453,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             array.add(vec(point));
         }
         camera().add("via", array);
+        invalidatePlans();
     }
 
     private Vec3 localTo(int index) {
@@ -477,6 +481,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             via.set(pointIndex - 1, value);
             writeVia(via);
         }
+        invalidatePlans();
     }
 
     /** Per-control-point {@code [yaw, pitch]} rotations relative to anchor yaw (for {@code look: "free"}). */
@@ -499,6 +504,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private void writeRotations(int index, List<Vec2> rots) {
         if (rots.isEmpty()) {
             camera(index).remove("rotations");
+            invalidatePlans();
             return;
         }
         JsonArray arr = new JsonArray();
@@ -509,19 +515,21 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             arr.add(pair);
         }
         camera(index).add("rotations", arr);
+        invalidatePlans();
     }
 
     /** World-space {@code [yaw, pitch]} per control point for {@code look: "free"} interpolation. */
     private List<Vec2> worldRotations(int index) {
-        List<Vec3> pts = pathControlPositions(index);
+        SceneCameraSafety.Plan planned = plannedShot(index);
+        List<Vec3> pts = planned.controlPoints();
         List<Vec2> authored = localRotations(index);
-        float anchorYaw = anchor(index).yaw();
+        float effectiveYaw = planned.yaw();
         Vec3 target = anchorTarget(index, 0f);
         List<Vec2> out = new java.util.ArrayList<>(pts.size());
         for (int i = 0; i < pts.size(); i++) {
             if (i < authored.size()) {
                 Vec2 r = authored.get(i);
-                out.add(new Vec2(Mth.wrapDegrees(anchorYaw + r.x), Mth.clamp(r.y, -89.9f, 89.9f)));
+                out.add(new Vec2(Mth.wrapDegrees(effectiveYaw + r.x), Mth.clamp(r.y, -89.9f, 89.9f)));
             } else if (!out.isEmpty()) {
                 out.add(out.getLast());
             } else {
@@ -538,11 +546,13 @@ public final class ScenePreview extends Screen implements Catalog.Host {
      */
     private void ensureFreeLookBaked(int index) {
         int count = controlPointsLocal(index).size();
-        float anchorYaw = anchor(index).yaw();
         List<Vec2> existing = localRotations(index);
         if (look(index).equals("free") && existing.size() == count) {
             return;
         }
+        // Bake any safe_angle yaw rotation into the control points before switching to free look so nothing snaps.
+        bakeEffectiveYawIfRotated(index);
+        float anchorYaw = anchor(index).yaw();
         List<Vec2> baked = new java.util.ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             if (look(index).equals("free") && i < existing.size()) {
@@ -591,51 +601,134 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         filling = false;
     }
 
-    private ScenePath shotPath(int index) {
-        Vec3 start = world(index, localFrom(index));
-        Vec3 end = world(index, localTo(index));
-        List<Vec3> localVia = localVia(index);
-        List<Vec3> worldVia = new java.util.ArrayList<>(localVia.size());
-        for (Vec3 point : localVia) {
-            worldVia.add(world(index, point));
+    private void invalidatePlans() {
+        planCache.clear();
+    }
+
+    /** True when the shot's resolved anchor is an entity (player, NPC, mob), matching {@link Scenes}. */
+    private boolean isEntityAnchor(int index) {
+        Anchor anchor = anchor(index);
+        if (anchor.found()) {
+            return anchor.entity() >= 0;
         }
-        float clearance = shotAboveGround(index);
+        JsonElement raw = shotJson(index).get("anchor");
+        if (raw == null || raw instanceof JsonPrimitive) {
+            return true;
+        }
+        JsonObject obj = raw.getAsJsonObject();
+        return !obj.has("structure") && !obj.has("poi") && !obj.has("waypoint");
+    }
+
+    /** World-space subject eye point used for entity LOS checks, matching {@link Scenes}. */
+    private Vec3 lookOriginForSafety(int index) {
+        return switch (look(index)) {
+            case "player" -> Minecraft.getInstance().player != null
+                    ? Minecraft.getInstance().player.getEyePosition() : anchorTarget(index, 0f);
+            case "other" -> {
+                Anchor other = lookAnchors.get(index);
+                if (other != null) {
+                    Minecraft mc = Minecraft.getInstance();
+                    Entity entity = other.entity() >= 0 && mc.level != null ? mc.level.getEntity(other.entity()) : null;
+                    yield entity != null ? entity.getEyePosition() : other.pos();
+                }
+                yield anchorTarget(index, 0f);
+            }
+            default -> anchorTarget(index, 0f);
+        };
+    }
+
+    /** Runs the exact shared {@link SceneCameraSafety} planner so the editor matches real playback 1-to-1. */
+    private SceneCameraSafety.Plan plannedShot(int index) {
         Level level = Minecraft.getInstance().level;
-        if (clearance > 0f && level != null) {
-            start = liftAboveGround(level, start, clearance);
-            for (int i = 0; i < worldVia.size(); i++) {
-                worldVia.set(i, liftAboveGround(level, worldVia.get(i), clearance));
+        long tick = level != null ? level.getGameTime() : Long.MIN_VALUE;
+        if (tick != planCacheTick) {
+            planCache.clear();
+            planCacheTick = tick;
+        }
+        return planCache.computeIfAbsent(index, i -> {
+            Anchor anchor = anchor(i);
+            String lookMode = look(i);
+            boolean lookAtAnchor = lookMode.equals("anchor");
+            boolean lookAtSubject = lookAtAnchor || lookMode.equals("player") || lookMode.equals("other");
+            return SceneCameraSafety.plan(
+                    level,
+                    anchor.pos(),
+                    anchor.yaw(),
+                    isEntityAnchor(i),
+                    lookOriginForSafety(i),
+                    localFrom(i),
+                    localVia(i),
+                    localTo(i),
+                    lookAtSubject,
+                    lookAtAnchor,
+                    shotAboveGround(i),
+                    shotSafeAngle(i)
+            );
+        });
+    }
+
+    /**
+     * When {@code safe_angle} rotated an entity shot to an open yaw, bakes that safe yaw into the authored local points
+     * right before a manual edit so Pilot / handle moves continue smoothly with zero jump.
+     */
+    private void bakeEffectiveYawIfRotated(int index) {
+        SceneCameraSafety.Plan planned = plannedShot(index);
+        float yawDelta = Mth.wrapDegrees(planned.yaw() - anchor(index).yaw());
+        if (Math.abs(yawDelta) <= 0.1f) {
+            return;
+        }
+        JsonObject cam = camera(index);
+        cam.add("from", vec(local(index, planned.from())));
+        if (!planned.via().isEmpty()) {
+            JsonArray arr = new JsonArray();
+            for (Vec3 pt : planned.via()) {
+                arr.add(vec(local(index, pt)));
             }
-            end = liftAboveGround(level, end, clearance);
-            ScenePath prelim = ScenePath.of(start, worldVia, end);
-            double extraLift = 0.0;
-            for (double sample : new double[] {0.25, 0.5, 0.75}) {
-                Vec3 mid = prelim.pointAt(sample);
-                double need = maxSurfaceY(level, mid.x, mid.z) + clearance - mid.y;
-                if (need > extraLift) {
-                    extraLift = need;
+            cam.add("via", arr);
+        }
+        if (cam.has("to") || !planned.to().equals(planned.from())) {
+            cam.add("to", vec(local(index, planned.to())));
+        }
+        if (look(index).equals("free")) {
+            List<Vec2> rots = localRotations(index);
+            if (!rots.isEmpty()) {
+                List<Vec2> shifted = new java.util.ArrayList<>(rots.size());
+                for (Vec2 r : rots) {
+                    shifted.add(new Vec2(Mth.wrapDegrees(r.x + yawDelta), r.y));
                 }
-            }
-            if (extraLift > 0.0) {
-                start = start.add(0, extraLift, 0);
-                for (int i = 0; i < worldVia.size(); i++) {
-                    worldVia.set(i, worldVia.get(i).add(0, extraLift, 0));
-                }
-                end = end.add(0, extraLift, 0);
+                writeRotations(index, shifted);
             }
         }
-        return ScenePath.of(start, worldVia, end);
+        invalidatePlans();
+    }
+
+    /**
+     * Keeps interactive editor movement consistent with {@code safe_angle}: glides smoothly along solid walls when on
+     * (and preserves clear LOS on subject-focused entity shots), or flies freely through walls when off.
+     */
+    private Vec3 clampEditorMove(Vec3 fromWorld, Vec3 desiredWorld) {
+        Level level = Minecraft.getInstance().level;
+        if (!shotSafeAngle(shot) || level == null) {
+            return desiredWorld;
+        }
+        Vec3 moved = SceneCameraSafety.slideMove(level, fromWorld, desiredWorld);
+        if (shotAboveGround(shot) <= 0f && isEntityAnchor(shot)) {
+            String lookMode = look(shot);
+            boolean lookAtSubject = lookMode.equals("anchor") || lookMode.equals("player") || lookMode.equals("other");
+            if (lookAtSubject) {
+                moved = SceneCameraSafety.keepLineOfSightClear(level, lookOriginForSafety(shot), moved);
+            }
+        }
+        return moved;
+    }
+
+    private ScenePath shotPath(int index) {
+        return plannedShot(index).path();
     }
 
     /** World positions of all control points (From, Via..., To) as actually rendered along {@link #shotPath}. */
     private List<Vec3> pathControlPositions(int index) {
-        ScenePath path = shotPath(index);
-        int count = controlPointsLocal(index).size();
-        List<Vec3> points = new java.util.ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            points.add(path.pointAt(path.parameterOfControl(i)));
-        }
-        return points;
+        return plannedShot(index).controlPoints();
     }
 
     /** If {@code above_ground} would override the Y coordinate the author just placed manually, turn it off so Y responds immediately. */
@@ -645,7 +738,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (clearance <= 0f || level == null) {
             return;
         }
-        boolean blocked = worldPoint.y < maxSurfaceY(level, worldPoint.x, worldPoint.z) + clearance - 0.05;
+        boolean blocked = worldPoint.y < SceneCameraSafety.maxSurfaceY(level, worldPoint.x, worldPoint.z) + clearance - 0.05;
         if (!blocked && pointIndex >= 0) {
             List<Vec3> locals = controlPointsLocal(shot);
             List<Vec3> rendered = pathControlPositions(shot);
@@ -659,6 +752,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         }
         if (blocked) {
             camera().remove("above_ground");
+            invalidatePlans();
             if (aboveGroundSlider != null) {
                 aboveGroundSlider.sync();
             }
@@ -666,22 +760,6 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 aboveGroundResetButton.active = false;
             }
         }
-    }
-
-    private static Vec3 liftAboveGround(Level level, Vec3 pt, float clearance) {
-        double minY = maxSurfaceY(level, pt.x, pt.z) + clearance;
-        return pt.y < minY ? new Vec3(pt.x, minY, pt.z) : pt;
-    }
-
-    private static double maxSurfaceY(Level level, double x, double z) {
-        int cx = Mth.floor(x);
-        int cz = Mth.floor(z);
-        int max = level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz);
-        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx + 2, cz));
-        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx - 2, cz));
-        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz + 2));
-        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz - 2));
-        return max;
     }
 
     private float shotFov(int index) {
@@ -809,6 +887,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private void changed() {
         dirty = true;
         closeAsked = false;
+        invalidatePlans();
     }
 
     // --- the anchors
@@ -816,6 +895,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private void askAnchors() {
         anchors.clear();
         lookAnchors.clear();
+        invalidatePlans();
         requests.clear();
         fallbackRequests.clear();
         lookRequests.clear();
@@ -887,6 +967,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (lookIdx != null) {
             if (answer.found()) {
                 preview.lookAnchors.put(lookIdx, new Anchor(answer.pos(), answer.yaw(), answer.entity(), true, false));
+                preview.invalidatePlans();
             }
             return;
         }
@@ -894,6 +975,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (fbIdx != null) {
             preview.anchors.put(fbIdx, answer.found() ? new Anchor(answer.pos(), answer.yaw(), answer.entity(), true, false)
                     : new Anchor(preview.standInPos, preview.standInYaw, -1, false, false));
+            preview.invalidatePlans();
             return;
         }
         Integer index = preview.requests.remove(answer.request());
@@ -903,6 +985,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (answer.found()) {
             preview.anchors.put(index, new Anchor(answer.pos(), answer.yaw(), answer.entity(), true, false));
             preview.retries.remove(index);
+            preview.invalidatePlans();
             return;
         }
         // Primary anchor not found: honour shot's optional fallback anchor just like server playback.
@@ -910,6 +993,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (fallback instanceof JsonPrimitive text && text.getAsString().equals("player")) {
             Player player = Minecraft.getInstance().player;
             preview.anchors.put(index, new Anchor(preview.standInPos, preview.standInYaw, player != null ? player.getId() : -1, true, false));
+            preview.invalidatePlans();
             preview.scheduleRetry(index);
             return;
         }
@@ -921,6 +1005,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             return;
         }
         preview.anchors.put(index, new Anchor(preview.standInPos, preview.standInYaw, -1, false, false));
+        preview.invalidatePlans();
         preview.scheduleRetry(index);
     }
 
@@ -1019,14 +1104,55 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             base = SceneCamera.facing(pos, aimed).withFov(fov).withRoll(roll);
         }
         float breathing = playing ? shotShake(index) : 0f;
-        if (breathing > 0f) {
+        float trauma = playing ? activeCueShake(nowSeconds()) : 0f;
+        if (breathing > 0f || trauma > 0f) {
             double sec = nowSeconds();
-            float dYaw = (float) (breathing * (Math.sin(sec * 1.7) * 0.55 + Math.sin(sec * 4.1 + 1.3) * 0.25) * 1.6);
-            float dPitch = (float) (breathing * (Math.sin(sec * 1.3 + 0.7) * 0.50 + Math.sin(sec * 3.7 + 2.1) * 0.25) * 1.2);
-            float dRoll = (float) (breathing * Math.sin(sec * 1.1 + 2.4) * 0.65);
+            float dYaw = 0f;
+            float dPitch = 0f;
+            float dRoll = 0f;
+            if (breathing > 0f) {
+                dYaw += (float) (breathing * (Math.sin(sec * 1.7) * 0.55 + Math.sin(sec * 4.1 + 1.3) * 0.25) * 1.6);
+                dPitch += (float) (breathing * (Math.sin(sec * 1.3 + 0.7) * 0.50 + Math.sin(sec * 3.7 + 2.1) * 0.25) * 1.2);
+                dRoll += (float) (breathing * Math.sin(sec * 1.1 + 2.4) * 0.65);
+            }
+            if (trauma > 0f) {
+                dYaw += (float) (Math.sin(sec * 23.0) * trauma * 3.4);
+                dPitch += (float) (Math.sin(sec * 29.0 + 1.1) * trauma * 2.8);
+                dRoll += (float) (Math.sin(sec * 19.0 + 2.3) * trauma * 3.8);
+            }
             return new SceneCamera.Pose(base.pos(), base.yaw() + dYaw, base.pitch() + dPitch, base.fov(), base.roll() + dRoll);
         }
         return base;
+    }
+
+    /** Decaying camera-shake impulse from timeline {@code shake} cues at {@code atSeconds}, matching {@link SceneCamera}. */
+    private float activeCueShake(double atSeconds) {
+        return cueShakeAt(timelineCues(), atSeconds);
+    }
+
+    static float cueShakeAt(List<TimedCue> cues, double atSeconds) {
+        float strongest = 0f;
+        for (TimedCue entry : cues) {
+            if (!(entry.cue().get("shake") instanceof JsonObject inner)) {
+                continue;
+            }
+            double into = atSeconds - entry.start();
+            if (into < 0.0) {
+                continue;
+            }
+            double dur = Mth.clamp(parse(number(inner.get("duration")), 0.4), 0.05, 10.0);
+            if (into >= dur) {
+                continue;
+            }
+            double intensity = Mth.clamp(parse(number(inner.get("intensity")), 0.2), 0.01, 2.0);
+            double progress = into / dur;
+            double decay = (1.0 - progress) * (1.0 - progress);
+            float trauma = (float) (intensity * decay);
+            if (trauma > strongest) {
+                strongest = trauma;
+            }
+        }
+        return strongest;
     }
 
     /** The whole scene at its second: its shot, a glide from the last one when it eases in. */
@@ -1179,8 +1305,9 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             return;
         }
         pushUndoDebounced();
+        bakeEffectiveYawIfRotated(shot);
         double speed = FLY_SPEED * (down(window, minecraft.options.keySprint) ? 3 : 1);
-        Vec3 nextWorld = cur.pos().add(move.normalize().scale(speed * dt));
+        Vec3 nextWorld = clampEditorMove(cur.pos(), cur.pos().add(move.normalize().scale(speed * dt)));
         releaseAboveGroundIfBlocking(selectedPoint, nextWorld);
         setControlPointLocal(selectedPoint, local(shot, nextWorld));
         time = timeForControlPoint(shot, selectedPoint);
@@ -1273,8 +1400,11 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     private void captureFromHere() {
         if (view == View.FREE) {
             pushUndo();
-            releaseAboveGroundIfBlocking(selectedPoint, viewPos);
-            setControlPointLocal(selectedPoint, local(shot, viewPos));
+            bakeEffectiveYawIfRotated(shot);
+            Level level = Minecraft.getInstance().level;
+            Vec3 targetPos = shotSafeAngle(shot) && level != null ? SceneCameraSafety.keepOutOfSolids(level, viewPos) : viewPos;
+            releaseAboveGroundIfBlocking(selectedPoint, targetPos);
+            setControlPointLocal(selectedPoint, local(shot, targetPos));
             setRotationWorld(shot, selectedPoint, (float) viewYaw, (float) viewPitch);
             // If this is a static single-point shot without an explicit "to", keep end rotation aligned too.
             if (selectedPoint == 0 && !camera().has("to")) {
@@ -1304,9 +1434,9 @@ public final class ScenePreview extends Screen implements Catalog.Host {
     /** F: the free view turns to the hovered control point (or the anchor) and turns around it from now on. */
     private void focus() {
         goFree();
-        List<Vec3> controls = controlPointsLocal(shot);
+        List<Vec3> controls = pathControlPositions(shot);
         Vec3 target = hoveredPoint >= 0 && hoveredPoint < controls.size()
-                ? world(shot, controls.get(hoveredPoint)) : anchorTarget(shot, 0);
+                ? controls.get(hoveredPoint) : anchorTarget(shot, 0);
         pivot = target;
         if (viewPos.distanceTo(target) < 1) {
             viewPos = target.subtract(direction(viewYaw, viewPitch).scale(5));
@@ -1970,7 +2100,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     }
                 }
                 String text = inner != null ? ClientDevStore.readStoryText(inner, "text", "", ClientDevStore.activeLanguage()) : "";
-                yield Math.max(2.5, text.length() * 0.06);
+                yield kind.equals("caption") ? Math.max(4.5, text.length() * 0.08) : Math.max(3.0, text.length() * 0.065);
             }
             case "fade" -> {
                 JsonObject inner = cue.get("fade") instanceof JsonObject obj ? obj : null;
@@ -2847,11 +2977,14 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             return;
         }
         pushUndo();
+        bakeEffectiveYawIfRotated(shot);
         int insertAt = Mth.clamp(selectedPoint, 0, via.size());
         Vec3 added;
         double u = 0.5;
         if (view == View.FREE) {
-            added = local(shot, viewPos);
+            Level level = Minecraft.getInstance().level;
+            Vec3 worldPoint = shotSafeAngle(shot) && level != null ? SceneCameraSafety.keepOutOfSolids(level, viewPos) : viewPos;
+            added = local(shot, worldPoint);
         } else {
             ScenePath path = shotPath(shot);
             if (via.isEmpty()) {
@@ -3776,12 +3909,13 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             pushUndoDebounced();
             if (dragging == DRAG_PAN) {
                 SceneCamera.Pose cur = shotPose(shot, timeForControlPoint(shot, selectedPoint), 0f);
+                bakeEffectiveYawIfRotated(shot);
                 double fov = Math.toRadians(cur.fov() > 0f ? cur.fov() : FovSlider.playerFov());
                 double dist = Math.max(2.0, cur.pos().distanceTo(anchorTarget(shot, 0f)));
                 double perPixel = dist * 2 * Math.tan(fov / 2) / Math.max(1, height);
                 Vec3 side = right(cur.yaw());
                 Vec3 up = side.cross(direction(cur.yaw(), cur.pitch())).normalize();
-                Vec3 next = cur.pos().add(side.scale(-dragX * perPixel)).add(up.scale(dragY * perPixel));
+                Vec3 next = clampEditorMove(cur.pos(), cur.pos().add(side.scale(-dragX * perPixel)).add(up.scale(dragY * perPixel)));
                 releaseAboveGroundIfBlocking(selectedPoint, next);
                 setControlPointLocal(selectedPoint, local(shot, next));
                 time = timeForControlPoint(shot, selectedPoint);
@@ -3790,6 +3924,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             } else if (dragging == DRAG_LOOK || look(shot).equals("free")) {
                 boolean wasFree = look(shot).equals("free");
                 SceneCamera.Pose cur = shotPose(shot, timeForControlPoint(shot, selectedPoint), 0f);
+                bakeEffectiveYawIfRotated(shot);
                 setRotationWorld(shot, selectedPoint, cur.yaw() + (float) (dragX * 0.25), cur.pitch() + (float) (dragY * 0.25));
                 changed();
                 if (!wasFree) {
@@ -3800,6 +3935,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 }
             } else {
                 // Left-drag in Pilot while tracking an anchor: Blender turntable orbit around the anchor (non-inverted).
+                bakeEffectiveYawIfRotated(shot);
                 Vec3 center = anchorTarget(shot, 0f);
                 Vec3 pos = pathControlPositions(shot).get(Mth.clamp(selectedPoint, 0, controlPointsLocal(shot).size() - 1));
                 Vec3 offset = pos.subtract(center);
@@ -3808,7 +3944,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 double pitch = Mth.clamp(Math.toDegrees(Math.asin(Mth.clamp(offset.y / dist, -1, 1))) + dragY * 0.35, -85, 85);
                 double yRad = Math.toRadians(yaw);
                 double pRad = Math.toRadians(pitch);
-                Vec3 next = center.add(new Vec3(-Math.sin(yRad) * Math.cos(pRad), Math.sin(pRad), Math.cos(yRad) * Math.cos(pRad)).scale(dist));
+                Vec3 next = clampEditorMove(pos, center.add(new Vec3(-Math.sin(yRad) * Math.cos(pRad), Math.sin(pRad), Math.cos(yRad) * Math.cos(pRad)).scale(dist)));
                 releaseAboveGroundIfBlocking(selectedPoint, next);
                 setControlPointLocal(selectedPoint, local(shot, next));
                 time = timeForControlPoint(shot, selectedPoint);
@@ -3859,6 +3995,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
 
     /** Moves a control-point handle with the cursor across the view; with Shift, over the ground. */
     private void moveHandle(int pointIndex, double dragX, double dragY) {
+        bakeEffectiveYawIfRotated(shot);
         List<Vec3> rendered = pathControlPositions(shot);
         if (pointIndex < 0 || pointIndex >= rendered.size()) {
             return;
@@ -3875,6 +4012,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             Vec3 up = side.cross(look).normalize();
             moved = point.add(side.scale(dragX * perPixel)).add(up.scale(-dragY * perPixel));
         }
+        moved = clampEditorMove(point, moved);
         releaseAboveGroundIfBlocking(pointIndex, moved);
         setControlPointLocal(pointIndex, local(shot, moved));
         changed();
@@ -3908,8 +4046,9 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             if (view == View.PILOT && !talk(shot)) {
                 pushUndoDebounced();
                 SceneCamera.Pose cur = shotPose(shot, timeForControlPoint(shot, selectedPoint), 0f);
+                bakeEffectiveYawIfRotated(shot);
                 double step = scrollY * (hasShiftDown() ? 1.2 : 0.45);
-                Vec3 next = cur.pos().add(direction(cur.yaw(), cur.pitch()).scale(step));
+                Vec3 next = clampEditorMove(cur.pos(), cur.pos().add(direction(cur.yaw(), cur.pitch()).scale(step)));
                 releaseAboveGroundIfBlocking(selectedPoint, next);
                 setControlPointLocal(selectedPoint, local(shot, next));
                 time = timeForControlPoint(shot, selectedPoint);
@@ -4077,15 +4216,18 @@ public final class ScenePreview extends Screen implements Catalog.Host {
             graphics.drawString(font, Component.literal(title + (dirty ? " •" : "")), 23, 30, DevUi.ACCENT, false);
             graphics.drawString(font, shotText, PANEL - 8 - shotW, 30, DevUi.MUTED, false);
             Anchor anchor = anchor(shot);
-            String status = anchor.asking() ? DevUi.str("scene_view.anchor_asking") : anchor.found() ? DevUi.str("scene_view.anchor_found")
-                    : DevUi.str("scene_view.anchor_stand_in");
+            int farBlocks = shotBeyondViewDistance(shot);
+            String status = anchor.asking() ? DevUi.str("scene_view.anchor_asking")
+                    : !anchor.found() ? DevUi.str("scene_view.anchor_stand_in")
+                    : farBlocks > 0 ? DevUi.str("scene_view.too_far", farBlocks, loadedReachBlocks())
+                    : DevUi.str("scene_view.anchor_found");
             var anchorRows = font.split(Component.literal(DevUi.str("scene_view.anchor", anchorName())), PANEL - 16);
             int headerY = 42;
             for (var row : anchorRows) {
                 graphics.drawString(font, row, 8, headerY, DevUi.TEXT, false);
                 headerY += 10;
             }
-            graphics.drawString(font, fitWidth(status, PANEL - 16), 8, headerY, anchor.found() ? DevUi.MUTED : DevUi.WARN, false);
+            graphics.drawString(font, fitWidth(status, PANEL - 16), 8, headerY, farBlocks > 0 ? DevUi.BAD : anchor.found() ? DevUi.MUTED : DevUi.WARN, false);
             int panelTop = contentTop();
             int panelBottom = contentBottom();
             graphics.fill(6, panelTop - 3, PANEL - 6, panelTop - 2, DevUi.CARD_EDGE);
@@ -4409,8 +4551,38 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         lastAudioTime = -1;
     }
 
-    private @Nullable SoundInstance playPreviewSound(@Nullable String rawId, boolean stopVanillaMusic) {
-        if (rawId == null || rawId.isBlank()) {
+    /** Horizontal reach (blocks) matching {@link Scenes}'s view-distance skip threshold. */
+    private int loadedReachBlocks() {
+        Minecraft mc = Minecraft.getInstance();
+        int chunks = mc.options != null ? mc.options.getEffectiveRenderDistance() : 8;
+        if (mc.hasSingleplayerServer() && mc.getSingleplayerServer() != null) {
+            chunks = mc.getSingleplayerServer().getPlayerList().getViewDistance();
+        }
+        return Math.max(2, chunks - Scenes.MARGIN_CHUNKS) * 16;
+    }
+
+    /** Furthest horizontal distance (blocks) if any point of shot {@code index} exceeds loaded chunk reach, else 0. */
+    private int shotBeyondViewDistance(int index) {
+        if (talk(index)) {
+            return 0;
+        }
+        Player player = Minecraft.getInstance().player;
+        if (player == null) {
+            return 0;
+        }
+        int reach = loadedReachBlocks();
+        double maxDist = 0;
+        SceneCameraSafety.Plan planned = plannedShot(index);
+        for (Vec3 spot : planned.controlPoints()) {
+            maxDist = Math.max(maxDist, Math.hypot(spot.x - player.getX(), spot.z - player.getZ()));
+        }
+        Vec3 anchorPos = anchor(index).pos();
+        maxDist = Math.max(maxDist, Math.hypot(anchorPos.x - player.getX(), anchorPos.z - player.getZ()));
+        return maxDist > reach ? (int) Math.ceil(maxDist) : 0;
+    }
+
+    private @Nullable SoundInstance playPreviewSound(@Nullable String rawId, boolean stopVanillaMusic, float volume, float pitch) {
+        if (rawId == null || rawId.isBlank() || volume <= 0f) {
             return null;
         }
         ResourceLocation soundId = ResourceLocation.tryParse(rawId.trim());
@@ -4424,7 +4596,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (stopVanillaMusic) {
             minecraft.getMusicManager().stopPlaying();
         }
-        SoundInstance instance = SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(soundId), 1.0f, 1.0f);
+        SoundInstance instance = SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(soundId), pitch, volume);
         minecraft.getSoundManager().play(instance);
         return instance;
     }
@@ -4458,7 +4630,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                 minecraft.getSoundManager().stop(previewMusic);
             }
             previewMusicKey = musicKey;
-            previewMusic = playPreviewSound(trackId, true);
+            previewMusic = playPreviewSound(trackId, true, 1.0f, 1.0f);
         }
 
         // Sound channel: plays when its mark is reached, stopping any previous sound cue first.
@@ -4466,6 +4638,8 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         if (soundCue != null) {
             JsonObject inner = soundCue.cue().get("sound") instanceof JsonObject obj ? obj : null;
             String soundId = inner != null && inner.get("sound") instanceof JsonPrimitive p ? p.getAsString().trim() : "";
+            float volume = inner != null ? Mth.clamp((float) parse(number(inner.get("volume")), 1.0), 0.0f, 10.0f) : 1.0f;
+            float pitch = inner != null ? Mth.clamp((float) parse(number(inner.get("pitch")), 1.0), 0.5f, 2.0f) : 1.0f;
             String soundKey = soundCue.shotIndex() + ":" + soundCue.cueIndex() + ":" + soundId;
             boolean reached = lastAudioTime < 0 ? Math.abs(now - soundCue.start()) <= 0.12 : soundCue.start() > lastAudioTime - 0.01;
             if (!soundKey.equals(previewSoundKey) && reached) {
@@ -4473,7 +4647,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     minecraft.getSoundManager().stop(previewSound);
                 }
                 previewSoundKey = soundKey;
-                previewSound = playPreviewSound(soundId, false);
+                previewSound = playPreviewSound(soundId, false, volume, pitch);
             }
         }
 
@@ -4489,7 +4663,7 @@ public final class ScenePreview extends Screen implements Catalog.Host {
                     minecraft.getSoundManager().stop(previewVoice);
                 }
                 previewVoiceKey = voiceKey;
-                previewVoice = playPreviewSound(voiceId, false);
+                previewVoice = playPreviewSound(voiceId, false, 1.0f, 1.0f);
             }
         }
         lastAudioTime = now;
@@ -4635,8 +4809,8 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         }
     }
 
-    /** A caption's or a line's fade in and out, in seconds, as the game shows them ({@code ClientScene.fadeAlpha}: 15 ticks). */
-    private static final double TEXT_FADE = 0.75;
+    /** A caption's or a line's fade in and out, in seconds, as the game shows them ({@code ClientScene.fadeAlpha}: 8 ticks). */
+    private static final double TEXT_FADE = 0.4;
 
     /**
      * Opacity (0 to 1) of a text shown for {@code len} seconds, {@code into} seconds after its start: up over {@code in},
@@ -4762,6 +4936,22 @@ public final class ScenePreview extends Screen implements Catalog.Host {
         }
         if (preview.view == View.FREE) {
             frustum(lines, pose, preview.shotPose(index, preview.time, partialTick), 0xFFB8A9D9);
+            SceneCameraSafety.Plan planned = preview.plannedShot(index);
+            if (planned.adjusted()) {
+                List<Vec3> rawLocals = preview.controlPointsLocal(index);
+                List<Vec3> safePts = planned.controlPoints();
+                int count = Math.min(rawLocals.size(), safePts.size());
+                for (int i = 0; i < count; i++) {
+                    Vec3 rawPt = preview.world(index, rawLocals.get(i));
+                    Vec3 safePt = safePts.get(i);
+                    if (rawPt.distanceToSqr(safePt) > 0.04) {
+                        line(lines, pose, rawPt, safePt, 0xAAFFAA44);
+                        line(lines, pose, rawPt.add(-0.12, 0, 0), rawPt.add(0.12, 0, 0), 0x88FFAA44);
+                        line(lines, pose, rawPt.add(0, -0.12, 0), rawPt.add(0, 0.12, 0), 0x88FFAA44);
+                        line(lines, pose, rawPt.add(0, 0, -0.12), rawPt.add(0, 0, 0.12), 0x88FFAA44);
+                    }
+                }
+            }
         }
         Vec3 anchor = preview.anchor(index).pos();
         line(lines, pose, anchor, anchor.add(0, 2.2, 0), 0xFFFFFFFF);

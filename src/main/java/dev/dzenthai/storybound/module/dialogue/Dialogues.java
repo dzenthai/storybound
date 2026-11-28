@@ -439,9 +439,11 @@ public final class Dialogues {
             } else if (now - session.pausedAt > Math.round(session.base().combat().forgetAfter() * 20)) {
                 StoryTrace.note(session.player, "dialogue " + session.baseId(), "stopped: paused longer than " + session.base().combat().forgetAfter() + " s (forget_after)");
                 abort(session, EndReason.COMBAT);
-            } else if (!inFight(session, now) && !SESSIONS.containsKey(session.player.getUUID())
-                    && (!partner || bound.level() == session.player.level() && bound.distanceToSqr(session.player) <= maxDistance * maxDistance)) {
-                resume(session);
+            } else if (!inFight(session, now) && !SESSIONS.containsKey(session.player.getUUID())) {
+                double reach = partner ? effectiveMaxDistance(session, bound, maxDistance) : maxDistance;
+                if (!partner || bound.level() == session.player.level() && bound.distanceToSqr(session.player) <= reach * reach) {
+                    resume(session);
+                }
             }
         }
     }
@@ -526,7 +528,8 @@ public final class Dialogues {
                     abort(session, EndReason.SPEAKER_GONE);
                     continue;
                 }
-                if (bound.level() != session.player.level() || bound.distanceToSqr(session.player) > maxDistance * maxDistance) {
+                double reach = effectiveMaxDistance(session, bound, maxDistance);
+                if (bound.level() != session.player.level() || bound.distanceToSqr(session.player) > reach * reach) {
                     abort(session, EndReason.TOO_FAR);
                     continue;
                 }
@@ -555,6 +558,19 @@ public final class Dialogues {
                 }
             }
         }
+    }
+
+    /**
+     * Effective maximum distance before a dialogue aborts as {@code TOO_FAR}: stationary and non-escort dialogues use
+     * the configured range, while walk-and-talk ({@code npc_stops: false}) with an actively following companion gets
+     * generous escort reach so sprint-jumping ahead never cuts off a road conversation.
+     */
+    private static double effectiveMaxDistance(DialogueSession session, Entity bound, double configured) {
+        double followReach = NpcMovement.followDialogueReach(bound, session.player);
+        if (followReach > 0.0 && !session.base().npcStops()) {
+            return Math.max(configured, followReach);
+        }
+        return configured;
     }
 
     /** The next waiting dialogue of each player who is free; requests past their time are dropped. */

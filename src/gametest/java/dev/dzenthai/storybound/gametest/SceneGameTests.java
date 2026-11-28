@@ -12,6 +12,7 @@ import dev.dzenthai.storybound.core.logic.StoryEvents;
 import dev.dzenthai.storybound.core.state.StoryScope;
 import dev.dzenthai.storybound.core.state.StoryState;
 import dev.dzenthai.storybound.core.state.StoryValue;
+import dev.dzenthai.storybound.module.scene.SceneCameraSafety;
 import dev.dzenthai.storybound.module.scene.SceneDefinition;
 import dev.dzenthai.storybound.module.scene.SceneRegistries;
 import dev.dzenthai.storybound.module.scene.Scenes;
@@ -168,6 +169,10 @@ public final class SceneGameTests {
                     ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
             helper.assertTrue(los.getType() == HitResult.Type.MISS,
                     "safe_angle rotated away from the stone wall so LOS is completely clear, got from=" + safeShot.from());
+            var editorPlan = SceneCameraSafety.plan(helper.getLevel(), player.position(), player.getYRot(), true,
+                    player.getEyePosition(), new Vec3(0, 1.5, 4), List.of(), new Vec3(0, 1.5, 3), true, true, 0f, true);
+            helper.assertTrue(editorPlan.from().distanceTo(safeShot.from()) < 1.0e-4 && editorPlan.to().distanceTo(safeShot.to()) < 1.0e-4,
+                    "shared SceneCameraSafety plan matches server playback 1-to-1");
 
             // 3. Tall pillar under aerial path: above_ground lifts camera above pillar + clearance.
             BlockPos pillarBase = origin.offset(0, 0, -4);
@@ -181,6 +186,15 @@ public final class SceneGameTests {
             var aerialShot = Scenes.planForTests(player, aerialScene.shots().getFirst());
             helper.assertTrue(aerialShot != null && aerialShot.from().y >= pillarBase.getY() + 8 + 5.0 - 0.1,
                     "above_ground lifted aerial camera cleanly over 8-block pillar: from.y=" + (aerialShot != null ? aerialShot.from().y : -1));
+            SceneDefinition speedLiftScene = parse(helper, """
+                    { "shots": [ { "anchor": "player",
+                      "camera": { "from": [0, 2, -4], "to": [10, 2, -4], "speed": 2.0, "above_ground": 5.0 } } ] }
+                    """).getOrThrow(GameTestAssertException::new);
+            var speedCam = speedLiftScene.shots().getFirst().camera().orElseThrow();
+            var speedShot = Scenes.planForTests(player, speedLiftScene.shots().getFirst());
+            double actualLen = dev.dzenthai.storybound.module.scene.ScenePath.of(speedShot.from(), speedShot.via(), speedShot.to()).length();
+            helper.assertTrue(Math.abs(Scenes.plannedSeconds(speedCam, speedShot) - actualLen / 2.0) < 0.01,
+                    "plannedSeconds uses actual post-safety path length for speed shots");
 
             // 4. Free 6-DOF look resolves per-point rotations relative to the anchor's yaw.
             player.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 90f, 0f);
@@ -197,6 +211,48 @@ public final class SceneGameTests {
                     && Math.abs(plannedFree.rotations().get(0).y - (-8f)) < 0.1f
                     && Math.abs(plannedFree.rotations().get(1).x - 65f) < 0.1f,
                     "free look offsets yaw by anchor yaw (90+15=105, 90-25=65) and preserves pitch");
+
+            // 5. Village/POI flyaround with safe_angle: true preserves open-air points beyond walls and only pushes solid-embedded points out.
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = 0; dy <= 3; dy++) {
+                    helper.getLevel().setBlockAndUpdate(bellPos.offset(dx, dy, 2), Blocks.STONE.defaultBlockState());
+                }
+            }
+            SceneDefinition poiFlyScene = parse(helper, """
+                    { "shots": [ { "anchor": { "poi": "minecraft:meeting", "radius": 24 },
+                      "camera": { "from": [0, 1.5, 4], "to": [0, 1.5, 2], "duration": 3, "safe_angle": true } } ] }
+                    """).getOrThrow(GameTestAssertException::new);
+            var poiFlyShot = Scenes.planForTests(player, poiFlyScene.shots().getFirst());
+            Vec3 expectedPoiFrom = Vec3.atCenterOf(bellPos).add(0, 1.5, 4);
+            Vec3 rawPoiTo = Vec3.atCenterOf(bellPos).add(0, 1.5, 2);
+            helper.assertTrue(poiFlyShot != null && poiFlyShot.from().distanceTo(expectedPoiFrom) < 0.05,
+                    "POI/village flyaround keeps open-air waypoint beyond wall untouched, got from=" + (poiFlyShot != null ? poiFlyShot.from() : "null"));
+            helper.assertTrue(SceneCameraSafety.isCameraClear(helper.getLevel(), poiFlyShot.to())
+                            && poiFlyShot.to().distanceTo(rawPoiTo) < 1.5,
+                    "POI/village flyaround pushes wall-embedded point gently into clear air without pulling back to bell, got to=" + poiFlyShot.to());
+
+            // 6. Free-look flythrough on entity anchor with safe_angle: true keeps open-air points behind walls and escapes solid blocks.
+            player.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0f, 0f);
+            SceneDefinition freeFlyScene = parse(helper, """
+                    { "shots": [ { "anchor": "player",
+                      "camera": { "from": [0, 1.5, 4], "to": [0, 1.5, 2], "duration": 3,
+                                  "look": "free", "rotations": [[0, 0], [0, 0]], "safe_angle": true } } ] }
+                    """).getOrThrow(GameTestAssertException::new);
+            var freeFlyShot = Scenes.planForTests(player, freeFlyScene.shots().getFirst());
+            Vec3 expectedFreeFrom = new Vec3(origin.getX() + 0.5, origin.getY() + 1.5, origin.getZ() + 4.5);
+            helper.assertTrue(freeFlyShot != null && freeFlyShot.from().distanceTo(expectedFreeFrom) < 0.05,
+                    "free-look flythrough preserves open-air point behind wall, got from=" + (freeFlyShot != null ? freeFlyShot.from() : "null"));
+            helper.assertTrue(SceneCameraSafety.isCameraClear(helper.getLevel(), freeFlyShot.to()),
+                    "free-look flythrough pushes wall-embedded point into clear air, got to=" + freeFlyShot.to());
+
+            // 7. Pilot slideMove glides smoothly along solid walls without clipping through them.
+            Vec3 slideStart = new Vec3(origin.getX() + 0.5, origin.getY() + 1.5, origin.getZ() + 1.2);
+            Vec3 slideWant = slideStart.add(1.0, 0.0, 1.5);
+            Vec3 slid = SceneCameraSafety.slideMove(helper.getLevel(), slideStart, slideWant);
+            helper.assertTrue(SceneCameraSafety.isCameraClear(helper.getLevel(), slid)
+                            && slid.z < origin.getZ() + 2.0 - 0.25
+                            && slid.x > slideStart.x + 0.8,
+                    "slideMove stops cleanly outside wall face while gliding along X, got slid=" + slid);
         } finally {
             poiManager.remove(bellPos);
             remove(helper, player);

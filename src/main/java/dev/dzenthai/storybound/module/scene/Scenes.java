@@ -62,15 +62,10 @@ import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiRecord;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.AbstractVillager;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.CollisionContext;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
 import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
@@ -95,14 +90,17 @@ public final class Scenes {
     /** How near the watcher mobs are calmed and monsters kept from spawning. */
     static final double CALM_RADIUS = 64;
     /** How far a scene's places may be: what the client has loaded, a chunk short of the view distance. */
-    static final int MARGIN_CHUNKS = 1;
+    public static final int MARGIN_CHUNKS = 1;
     /** A fade between shots: down to black before the cut, back up after it, in ticks. */
     static final int FADE_TICKS = 8;
     /** Ticks after coming back before a scene left unfinished starts again: the world is drawn first. */
     static final int REPLAY_DELAY = 40;
-    /** Ticks a line stays at least, and for each character of its words. */
-    static final int LINE_MIN_TICKS = 50;
-    static final double LINE_TICKS_PER_CHAR = 1.2;
+    /** Ticks a subtitle line stays at least, and for each character of its words. */
+    static final int LINE_MIN_TICKS = 60;
+    static final double LINE_TICKS_PER_CHAR = 1.3;
+    /** Ticks a scene caption stays at least, and for each character of its words (comfortable reading pace). */
+    static final int CAPTION_MIN_TICKS = 90;
+    static final double CAPTION_TICKS_PER_CHAR = 1.6;
     /** The title's fade in, stay and fade out, as a quest's on screen. */
     public static final int TITLE_IN = 15;
     public static final int TITLE_STAY = 70;
@@ -373,7 +371,7 @@ public final class Scenes {
                 StoryTrace.note(player, "scene " + scene, "shot " + (index + 1) + " left out: " + planned.skipped());
                 continue;
             }
-            int ticks = Math.max(1, Math.round(camera.seconds() * 20));
+            int ticks = Math.max(1, Math.round(plannedSeconds(camera, planned.shot()) * 20));
             boolean first = shots.isEmpty();
             shots.add(planned.shot().withTime(at, ticks));
             if (shot.transition() == SceneDefinition.Transition.FADE) {
@@ -401,6 +399,11 @@ public final class Scenes {
             calm(player);
         }
         if (!shots.isEmpty()) {
+            // Clear any quest/server title already on screen (e.g. quest screen_text fired on the same tick)
+            // before runDue() sends the scene's own tick-0 cues.
+            if (player.connection != null) {
+                player.connection.send(new ClientboundClearTitlesPacket(true));
+            }
             // Send any instant-black opening fade (tick 0, in == 0) before switching the camera so frame 0 never flashes.
             ScreenFade openingFade = null;
             for (Timed entry : timeline) {
@@ -438,13 +441,6 @@ public final class Scenes {
         }
     }
 
-    /** Candidate yaw rotations (degrees) tried when the authored angle around an anchor is blocked by a wall or terrain. */
-    private static final float[] SAFE_YAW_DELTAS = {0f, 45f, -45f, 90f, -90f, 135f, -135f, 180f};
-    /** Margin kept in front of a block hit when pulling a blocked camera waypoint out of a wall. */
-    private static final double WALL_PADDING = 0.35;
-    /** Closest a pulled-back waypoint may approach the look origin. */
-    private static final double MIN_PULLBACK_DIST = 0.85;
-
     private static @Nullable Found resolveAnchor(ServerPlayer player, SceneDefinition.Anchor primary, Optional<SceneDefinition.Anchor> fallback, boolean skipPlayer) {
         Found found = skipPlayer && primary instanceof SceneDefinition.PlayerAnchor ? null : find(player, primary);
         if (found == null && fallback.isPresent()) {
@@ -452,6 +448,14 @@ public final class Scenes {
             found = skipPlayer && fb instanceof SceneDefinition.PlayerAnchor ? null : find(player, fb);
         }
         return found;
+    }
+
+    /** Shot duration in seconds using the final planned world path length when {@code speed} is used (matching {@code ScenePreview}). */
+    public static float plannedSeconds(SceneDefinition.Camera camera, ScenePayloads.Shot shot) {
+        return camera.duration().orElseGet(() -> {
+            double len = ScenePath.of(shot.from(), shot.via(), shot.to()).length();
+            return Mth.clamp((float) (len / camera.speed().orElseThrow()), 0.05f, SceneDefinition.Camera.MAX_SECONDS);
+        });
     }
 
     /** Plans a single shot against the world; exposed for GameTests verifying camera safety and anchors. */
@@ -469,49 +473,33 @@ public final class Scenes {
             return Planned.skip("its anchor " + describe(anchorOf) + " is not found near the player");
         }
         ServerLevel level = player.serverLevel();
-        Found placedAnchor = anchor;
-        if (camera.safeAngle() && camera.aboveGround() <= 0f && camera.look() instanceof SceneDefinition.AtAnchor) {
-            placedAnchor = chooseOpenAngle(level, anchor, camera);
+        Found lookTarget = anchor;
+        if (camera.look() instanceof SceneDefinition.AtOther other) {
+            Found found = find(player, other.anchor());
+            if (found != null) {
+                lookTarget = found;
+            }
         }
-        Vec3 from = place(placedAnchor, camera.from());
-        List<Vec3> via = new ArrayList<>(camera.via().size());
-        for (Vec3 point : camera.via()) {
-            via.add(place(placedAnchor, point));
-        }
-        Vec3 to = place(placedAnchor, camera.to());
-
-        if (camera.aboveGround() > 0f) {
-            float clearance = camera.aboveGround();
-            from = liftAboveGround(level, from, clearance);
-            for (int i = 0; i < via.size(); i++) {
-                via.set(i, liftAboveGround(level, via.get(i), clearance));
-            }
-            to = liftAboveGround(level, to, clearance);
-            // Also keep the flight chord above intermediate terrain ridges / roofs.
-            ScenePath prelim = ScenePath.of(from, via, to);
-            double extraLift = 0.0;
-            for (double sample : new double[] {0.25, 0.5, 0.75}) {
-                Vec3 mid = prelim.pointAt(sample);
-                double need = maxSurfaceY(level, mid.x, mid.z) + clearance - mid.y;
-                if (need > extraLift) {
-                    extraLift = need;
-                }
-            }
-            if (extraLift > 0.0) {
-                from = from.add(0, extraLift, 0);
-                for (int i = 0; i < via.size(); i++) {
-                    via.set(i, via.get(i).add(0, extraLift, 0));
-                }
-                to = to.add(0, extraLift, 0);
-            }
-        } else if (camera.safeAngle()) {
-            Vec3 origin = anchor.eye();
-            from = keepClear(level, origin, from);
-            for (int i = 0; i < via.size(); i++) {
-                via.set(i, keepClear(level, origin, via.get(i)));
-            }
-            to = keepClear(level, origin, to);
-        }
+        boolean entityAnchor = anchor.entity() != null;
+        boolean lookAtAnchor = camera.look() instanceof SceneDefinition.AtAnchor;
+        boolean lookAtSubject = lookAtAnchor || camera.look() instanceof SceneDefinition.AtOther;
+        SceneCameraSafety.Plan planned = SceneCameraSafety.plan(
+                level,
+                anchor.pos(),
+                anchor.yaw(),
+                entityAnchor,
+                lookTarget.eye(),
+                camera.from(),
+                camera.via(),
+                camera.to(),
+                lookAtSubject,
+                lookAtAnchor,
+                camera.aboveGround(),
+                camera.safeAngle()
+        );
+        Vec3 from = planned.from();
+        List<Vec3> via = planned.via();
+        Vec3 to = planned.to();
 
         int look;
         Vec3 point;
@@ -520,22 +508,19 @@ public final class Scenes {
         switch (camera.look()) {
             case SceneDefinition.AlongPath path -> {
                 look = ScenePayloads.LOOK_PATH;
-                Vec3 dir = ScenePath.of(from, via, to).tangentAt(0.0);
+                Vec3 dir = planned.path().tangentAt(0.0);
                 point = dir.lengthSqr() > 1.0e-6 ? from.add(dir) : anchor.eye();
             }
             case SceneDefinition.FreeLook free -> {
                 look = ScenePayloads.LOOK_FREE;
                 point = anchor.eye();
-                List<Vec3> controlPts = new ArrayList<>(via.size() + 2);
-                controlPts.add(from);
-                controlPts.addAll(via);
-                controlPts.add(to);
+                List<Vec3> controlPts = planned.controlPoints();
                 List<Vec2> worldRots = new ArrayList<>(controlPts.size());
                 List<SceneDefinition.Rotation> authored = camera.rotations();
                 for (int i = 0; i < controlPts.size(); i++) {
                     if (i < authored.size()) {
                         SceneDefinition.Rotation r = authored.get(i);
-                        worldRots.add(new Vec2(Mth.wrapDegrees(placedAnchor.yaw() + r.yaw()), Mth.clamp(r.pitch(), -89.9f, 89.9f)));
+                        worldRots.add(new Vec2(Mth.wrapDegrees(planned.yaw() + r.yaw()), Mth.clamp(r.pitch(), -89.9f, 89.9f)));
                     } else if (!worldRots.isEmpty()) {
                         worldRots.add(worldRots.getLast());
                     } else {
@@ -545,11 +530,9 @@ public final class Scenes {
                 rotations = List.copyOf(worldRots);
             }
             case SceneDefinition.AtOther other -> {
-                Found target = find(player, other.anchor());
-                Found seen = target != null ? target : anchor;
-                look = seen.entity() != null ? ScenePayloads.LOOK_ENTITY : ScenePayloads.LOOK_POINT;
-                point = seen.eye();
-                entity = seen.entity() != null ? seen.entity().getId() : -1;
+                look = lookTarget.entity() != null ? ScenePayloads.LOOK_ENTITY : ScenePayloads.LOOK_POINT;
+                point = lookTarget.eye();
+                entity = lookTarget.entity() != null ? lookTarget.entity().getId() : -1;
             }
             default -> {
                 look = anchor.entity() != null ? ScenePayloads.LOOK_ENTITY : ScenePayloads.LOOK_POINT;
@@ -586,103 +569,9 @@ public final class Scenes {
         return new Vec2((float) Math.toDegrees(Math.atan2(-dx, dz)), (float) -Math.toDegrees(Math.atan2(dy, flat)));
     }
 
-    /**
-     * Picks the clearest yaw rotation around {@code anchor} when the authored {@code 0°} direction would put the camera
-     * behind a wall, tree trunk, or hillside. If {@code 0°} is completely unobstructed, it is kept untouched.
-     */
-    private static Found chooseOpenAngle(ServerLevel level, Found anchor, SceneDefinition.Camera camera) {
-        Vec3 origin = anchor.eye();
-        List<Vec3> offsets = new ArrayList<>(camera.via().size() + 2);
-        offsets.add(camera.from());
-        offsets.addAll(camera.via());
-        if (!camera.to().equals(camera.from())) {
-            offsets.add(camera.to());
-        }
-        Found best = anchor;
-        double bestScore = Double.NEGATIVE_INFINITY;
-        for (float delta : SAFE_YAW_DELTAS) {
-            Found candidate = delta == 0f ? anchor : new Found(anchor.pos(), anchor.yaw() + delta, anchor.entity());
-            int clear = 0;
-            double freeRatioSum = 0.0;
-            for (Vec3 offset : offsets) {
-                Vec3 pt = place(candidate, offset);
-                double dist = origin.distanceTo(pt);
-                if (dist < 1.0e-4) {
-                    clear++;
-                    freeRatioSum += 1.0;
-                    continue;
-                }
-                BlockHitResult hit = level.clip(new ClipContext(origin, pt, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
-                boolean inAir = isClearPoint(level, pt);
-                if (hit.getType() == HitResult.Type.MISS && inAir) {
-                    clear++;
-                    freeRatioSum += 1.0;
-                } else {
-                    double hitDist = hit.getType() == HitResult.Type.MISS ? dist : origin.distanceTo(hit.getLocation());
-                    freeRatioSum += Math.clamp(hitDist / dist, 0.0, 1.0) * (inAir ? 1.0 : 0.5);
-                }
-            }
-            if (delta == 0f && clear == offsets.size()) {
-                return anchor;
-            }
-            double score = clear * 10.0 + freeRatioSum - Math.abs(delta) * 0.001;
-            if (score > bestScore) {
-                bestScore = score;
-                best = candidate;
-            }
-        }
-        return best;
-    }
-
-    /** Pulls a blocked waypoint safely in front of the nearest collider along {@code origin -> target}, and out of solid blocks. */
-    private static Vec3 keepClear(ServerLevel level, Vec3 origin, Vec3 target) {
-        Vec3 diff = target.subtract(origin);
-        double dist = diff.length();
-        Vec3 result = target;
-        if (dist > 1.0e-4) {
-            BlockHitResult hit = level.clip(new ClipContext(origin, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
-            if (hit.getType() != HitResult.Type.MISS) {
-                double hitDist = origin.distanceTo(hit.getLocation());
-                double safeDist = Math.max(Math.min(dist, MIN_PULLBACK_DIST), hitDist - WALL_PADDING);
-                if (safeDist < dist) {
-                    result = origin.add(diff.scale(safeDist / dist));
-                }
-            }
-        }
-        for (int step = 0; step < 6 && !isClearPoint(level, result); step++) {
-            result = result.add(0, 0.5, 0);
-        }
-        return result;
-    }
-
-    private static boolean isClearPoint(ServerLevel level, Vec3 pt) {
-        BlockPos pos = BlockPos.containing(pt);
-        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
-    }
-
-    /** Lifts {@code pt} to at least {@code clearance} blocks above the highest nearby motion-blocking surface (hills, canopies, roofs). */
-    private static Vec3 liftAboveGround(ServerLevel level, Vec3 pt, float clearance) {
-        double minY = maxSurfaceY(level, pt.x, pt.z) + clearance;
-        return pt.y < minY ? new Vec3(pt.x, minY, pt.z) : pt;
-    }
-
-    private static double maxSurfaceY(ServerLevel level, double x, double z) {
-        int cx = Mth.floor(x);
-        int cz = Mth.floor(z);
-        int max = level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz);
-        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx + 2, cz));
-        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx - 2, cz));
-        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz + 2));
-        max = Math.max(max, level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz - 2));
-        return max;
-    }
-
     /** A point given as right, up, forward of the anchor, turned the way it faces. */
     static Vec3 place(Found anchor, Vec3 offset) {
-        double yaw = Math.toRadians(anchor.yaw());
-        Vec3 forward = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
-        Vec3 right = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
-        return anchor.pos().add(right.scale(offset.x)).add(0, offset.y, 0).add(forward.scale(offset.z));
+        return SceneCameraSafety.place(anchor.pos(), anchor.yaw(), offset);
     }
 
     private static String describe(SceneDefinition.Anchor anchor) {
@@ -957,7 +846,7 @@ public final class Scenes {
         cue.caption().ifPresent(caption -> {
             net.minecraft.network.chat.Component text = caption.text().resolve(player).toComponent();
             int ticks = caption.duration().map(seconds -> Math.round(seconds * 20))
-                    .orElse(Math.max(LINE_MIN_TICKS, (int) Math.round(text.getString().length() * LINE_TICKS_PER_CHAR)));
+                    .orElse(Math.max(CAPTION_MIN_TICKS, (int) Math.round(text.getString().length() * CAPTION_TICKS_PER_CHAR)));
             StoryboundNetwork.sendToPlayer(player, new ScenePayloads.Caption(session.id, text, caption.position().ordinal(), caption.black(), ticks));
         });
         cue.music().ifPresent(track -> {

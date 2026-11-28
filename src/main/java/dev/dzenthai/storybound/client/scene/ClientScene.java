@@ -274,11 +274,11 @@ public final class ClientScene {
     }
 
     /**
-     * The opacity of a text shown from tick {@code from} to {@code until} at {@code now}: up over its first fifth of a
-     * second at most (a third of its time when it is short), down over its last.
+     * The opacity of a text shown from tick {@code from} to {@code until} at {@code now}: up over 8 ticks (0.4 s) at
+     * most (a quarter of its time when short), down over its last, leaving maximum crisp reading time at full opacity.
      */
     static float fadeAlpha(double now, double from, double until) {
-        double fade = Math.min(15, (until - from) / 3.0);
+        double fade = Math.min(8, (until - from) / 4.0);
         if (fade <= 0) {
             return now >= from && now < until ? 1 : 0;
         }

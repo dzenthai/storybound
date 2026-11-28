@@ -1587,12 +1587,19 @@ public final class NpcReactionGameTests {
                     helper.assertTrue(golem.position().distanceTo(beforeDialogue[0]) < 1.5,
                             "stayed put during npc_stops:true dialogue instead of teleporting: moved " + golem.position().distanceTo(beforeDialogue[0]));
                     Dialogues.interrupt(player, EndReason.STOPPED);
-                    // Walking dialogue (npc_stops: false) must NOT block follow teleporting!
+                    // Walking dialogue (npc_stops: false) must NOT block follow teleporting AND must NOT abort TOO_FAR when player sprints >8 blocks ahead!
                     helper.assertTrue(Dialogues.start(player, key("follow_walk_talk"), golem), "walking dialogue started");
+                    Vec3 sprintAhead = helper.absoluteVec(new Vec3(14.5, 1, 14.5));
+                    player.moveTo(sprintAhead);
+                    Dialogues.tick(helper.getLevel().getServer());
+                    helper.assertTrue(Dialogues.state(player).isPresent(),
+                            "walking dialogue with active follower survives sprint >15 blocks ahead without TOO_FAR abort");
+                    player.moveTo(origin);
                 })
                 .thenWaitUntil(() -> {
                     double dist = Math.hypot(golem.getX() - origin.x, golem.getZ() - origin.z);
                     helper.assertTrue(dist <= 4.5, "teleported smoothly during npc_stops:false walking dialogue: " + dist + " blocks off");
+                    helper.assertTrue(Dialogues.state(player).isPresent(), "walking dialogue stayed active after catch-up teleport");
                 })
                 .thenExecute(() -> {
                     Dialogues.interrupt(player, EndReason.STOPPED);
