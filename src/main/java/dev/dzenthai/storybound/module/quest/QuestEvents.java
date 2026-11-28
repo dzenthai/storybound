@@ -70,19 +70,26 @@ public final class QuestEvents {
 
     /** Subscribes quest starts and objectives to their triggers; nothing while the module is disabled. */
     public static void rebuild() {
-        // The game's own default: the primary story's; each story's quests use their own below.
-        DifficultyScale.set(DifficultyScale.load(StoryProjects.primaryRoot()));
-        Quests.setTrackGiven(ProjectSettings.trackGivenQuests(StoryProjects.primaryRoot()));
+        // The game's own default: the primary story's; only quests from another story with a different setting need entries.
+        DifficultyScale primaryScale = DifficultyScale.load(StoryProjects.primaryRoot());
+        boolean primaryTracking = ProjectSettings.trackGivenQuests(StoryProjects.primaryRoot());
         Map<Path, DifficultyScale> scales = new HashMap<>();
         Map<ResourceLocation, DifficultyScale> questScales = new HashMap<>();
         Map<Path, Boolean> tracking = new HashMap<>();
         Map<ResourceLocation, Boolean> questTracking = new HashMap<>();
         QuestRegistries.QUESTS.serverStore().all().keySet().forEach(id -> {
             var root = StoryProjects.owner(QuestRegistries.QUESTS, id);
-            questScales.put(id, scales.computeIfAbsent(root, DifficultyScale::load));
-            questTracking.put(id, tracking.computeIfAbsent(root, ProjectSettings::trackGivenQuests));
+            DifficultyScale scale = scales.computeIfAbsent(root, DifficultyScale::load);
+            if (!scale.equals(primaryScale)) {
+                questScales.put(id, scale);
+            }
+            boolean track = tracking.computeIfAbsent(root, ProjectSettings::trackGivenQuests);
+            if (track != primaryTracking) {
+                questTracking.put(id, track);
+            }
         });
-        DifficultyScale.setQuestScales(questScales);
+        DifficultyScale.setAll(primaryScale, questScales);
+        Quests.setTrackGiven(primaryTracking);
         Quests.setProjectTracking(questTracking);
         List<Subscription<?>> subscriptions = new ArrayList<>();
         if (Quests.isEnabled()) {
@@ -149,6 +156,9 @@ public final class QuestEvents {
     }
 
     private static void onServerTick(ServerTickEvent.Post event) {
+        if (!Quests.isEnabled() || QuestRegistries.QUESTS.serverStore().all().isEmpty()) {
+            return;
+        }
         int tick = event.getServer().getTickCount();
         for (ServerPlayer player : List.copyOf(event.getServer().getPlayerList().getPlayers())) {
             // Each player on a tick of their own: a full server spreads the checks over the second instead of a spike.

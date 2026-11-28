@@ -11,24 +11,42 @@ package dev.dzenthai.storybound.client.waypoint;
 public final class MarkerContrast {
     /** The least lightness a marker's colour is shown with (OKLab, 0 black to 1 white). */
     static final double MIN_LIGHTNESS = 0.65;
+    private static final int MAX_CACHE = 512;
+    private static final java.util.concurrent.ConcurrentHashMap<Integer, Integer> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
 
     private MarkerContrast() {}
 
     /** The colour as markers show it (opaque). */
     public static int readable(int rgb) {
+        int key = rgb & 0xFFFFFF;
+        Integer cached = CACHE.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        int computed = computeReadable(key);
+        if (CACHE.size() >= MAX_CACHE) {
+            CACHE.clear();
+        }
+        CACHE.put(key, computed);
+        return computed;
+    }
+
+    private static int computeReadable(int rgb) {
         double[] lab = toOklab(rgb);
         if (lab[0] >= MIN_LIGHTNESS) {
-            return 0xFF000000 | (rgb & 0xFFFFFF);
+            return 0xFF000000 | rgb;
         }
         double chroma = Math.hypot(lab[1], lab[2]);
         double hue = Math.atan2(lab[2], lab[1]);
+        double cos = Math.cos(hue);
+        double sin = Math.sin(hue);
         // The most chroma the screen can show at that lightness, by halving the range (it fits at 0: a grey).
         double low = 0;
         double high = chroma;
-        if (!inGamut(fromOklab(MIN_LIGHTNESS, high * Math.cos(hue), high * Math.sin(hue)))) {
+        if (!inGamut(fromOklab(MIN_LIGHTNESS, high * cos, high * sin))) {
             for (int i = 0; i < 24; i++) {
                 double middle = (low + high) / 2;
-                if (inGamut(fromOklab(MIN_LIGHTNESS, middle * Math.cos(hue), middle * Math.sin(hue)))) {
+                if (inGamut(fromOklab(MIN_LIGHTNESS, middle * cos, middle * sin))) {
                     low = middle;
                 } else {
                     high = middle;
@@ -36,7 +54,7 @@ public final class MarkerContrast {
             }
             high = low;
         }
-        return encode(fromOklab(MIN_LIGHTNESS, high * Math.cos(hue), high * Math.sin(hue)));
+        return encode(fromOklab(MIN_LIGHTNESS, high * cos, high * sin));
     }
 
     /** OKLab lightness of a colour, 0 to 1. */

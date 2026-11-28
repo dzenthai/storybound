@@ -62,7 +62,9 @@ public final class SeenTracker {
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getViewVector(1f);
         List<Entity> candidates = player.level().getEntities(player, player.getBoundingBox().inflate(radius),
-                entity -> entity instanceof LivingEntity && entity.isAlive() && entity.distanceToSqr(player) <= radius * radius);
+                entity -> entity instanceof LivingEntity && entity.isAlive()
+                        && TriggerDispatcher.hasEntitySeenFor(entity.getType())
+                        && entity.distanceToSqr(player) <= radius * radius);
         for (Entity entity : candidates) {
             StoryContext context = new StoryContext(player, entity);
             if (!TriggerDispatcher.anyMatches(BuiltinTriggers.ENTITY_SEEN.get(), context, entity)) {

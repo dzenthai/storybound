@@ -36,9 +36,11 @@ public final class SceneCamera {
 
     /** The editor's camera view: where the camera is this frame (the partial tick given), or null while it is closed. */
     private static java.util.function.@Nullable Function<Float, Pose> preview;
-    /** Cached path for the currently playing shot so playback does not rebuild ScenePath every frame. */
-    private static @Nullable ScenePayloads.Shot cachedPathShot;
-    private static @Nullable ScenePath cachedPath;
+    /** Two-slot path cache so ease transitions between consecutive shots never thrash and rebuild ScenePath per frame. */
+    private static @Nullable ScenePayloads.Shot cachedPathShotA;
+    private static @Nullable ScenePath cachedPathA;
+    private static @Nullable ScenePayloads.Shot cachedPathShotB;
+    private static @Nullable ScenePath cachedPathB;
     /** Active camera FOV set by the current frame's pose (0 when using the player's own FOV). */
     private static float activeFov;
     /** Active camera roll (Dutch tilt / bank + shake) in degrees for the current frame. */
@@ -91,17 +93,24 @@ public final class SceneCamera {
         impulseIntensity = 0f;
         impulseStart = 0.0;
         impulseDuration = 0.0;
-        cachedPathShot = null;
-        cachedPath = null;
+        cachedPathShotA = null;
+        cachedPathA = null;
+        cachedPathShotB = null;
+        cachedPathB = null;
     }
 
     private static ScenePath pathFor(ScenePayloads.Shot shot) {
-        if (shot == cachedPathShot && cachedPath != null) {
-            return cachedPath;
+        if (shot == cachedPathShotA && cachedPathA != null) {
+            return cachedPathA;
+        }
+        if (shot == cachedPathShotB && cachedPathB != null) {
+            return cachedPathB;
         }
         ScenePath built = ScenePath.of(shot.from(), shot.via(), shot.to());
-        cachedPathShot = shot;
-        cachedPath = built;
+        cachedPathShotB = cachedPathShotA;
+        cachedPathB = cachedPathA;
+        cachedPathShotA = shot;
+        cachedPathA = built;
         return built;
     }
 

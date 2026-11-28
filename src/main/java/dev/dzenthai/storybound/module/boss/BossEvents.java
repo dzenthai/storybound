@@ -59,7 +59,7 @@ public final class BossEvents {
         List<Subscription<?>> subscriptions = new ArrayList<>();
         if (Bosses.isEnabled()) {
             BossRegistries.BOSSES.serverStore().all().forEach((boss, definition) -> {
-                subscriptions.add(new Subscription<>("boss " + boss + " seen", new SeenBoss(definition.entity()), context -> Bosses.sighted(context, boss)));
+                subscriptions.add(new Subscription<>("boss " + boss + " seen", new CoreTriggers.EntitySeen(Optional.of(definition.entity())), context -> Bosses.sighted(context, boss)));
                 Set<ResourceLocation> documents = new LinkedHashSet<>();
                 Set<Unlock.Source.Observed> studies = new LinkedHashSet<>();
                 for (String section : BossDefinition.SECTIONS) {
@@ -149,18 +149,5 @@ public final class BossEvents {
                 }
             }
         });
-    }
-
-    /** {@code entity_seen} for the entities a boss selector picks; only for subscriptions, never written in JSON. */
-    private record SeenBoss(EntitySelector selector) implements Trigger<Entity> {
-        @Override
-        public TriggerType<?, Entity> type() {
-            return BuiltinTriggers.ENTITY_SEEN.get();
-        }
-
-        @Override
-        public boolean matches(StoryContext context, Entity entity) {
-            return selector.matches(entity);
-        }
     }
 }

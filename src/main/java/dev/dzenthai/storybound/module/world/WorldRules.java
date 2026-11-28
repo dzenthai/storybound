@@ -94,11 +94,19 @@ public final class WorldRules {
     private static volatile List<ItemIndexEntry> itemLocks = List.of();
     private static volatile Map<Item, List<Entry<ItemLock>>> itemLocksByItem = Map.of();
     private static volatile Map<EntityType<?>, List<Entry<MobLock>>> mobLocksByType = Map.of();
+    private static volatile Map<EntityType<?>, List<Entry<MobLock>>> despawnMobLocksByType = Map.of();
+    private static volatile Set<ResourceKey<Level>> despawnDimensions = Set.of();
+    private static volatile boolean despawnAnyDimension;
     private static volatile boolean hasDespawnMobLocks;
     private static volatile List<Entry<PlaceLock>> placeLocks = List.of();
+    private static volatile List<Entry<PlaceLock>> barrierPlaceLocks = List.of();
+    private static volatile List<Entry<PlaceLock>> hazardPlaceLocks = List.of();
     private static volatile boolean hasBarrierPlaceLocks;
     private static volatile boolean hasHazardPlaceLocks;
     private static volatile List<Entry<LootModifierRule>> lootRules = List.of();
+    private static volatile Map<ResourceLocation, List<Entry<LootModifierRule>>> lootByTable = Map.of();
+    private static volatile Map<EntityType<?>, List<Entry<LootModifierRule>>> lootByEntity = Map.of();
+    private static volatile List<Entry<LootModifierRule>> lootChestRules = List.of();
 
     private static final Map<UUID, List<WorldLocksPayload.Entry>> LAST_SYNCED = new HashMap<>();
     private static final Map<UUID, SafePos> LAST_SAFE = new HashMap<>();
@@ -122,11 +130,17 @@ public final class WorldRules {
         List<ItemIndexEntry> nextItems = new ArrayList<>();
         Map<Item, List<Entry<ItemLock>>> nextItemMap = new IdentityHashMap<>();
         Map<EntityType<?>, List<Entry<MobLock>>> nextMobMap = new IdentityHashMap<>();
+        Map<EntityType<?>, List<Entry<MobLock>>> nextDespawnMobMap = new IdentityHashMap<>();
+        Set<ResourceKey<Level>> nextDespawnDims = new java.util.HashSet<>();
+        boolean nextDespawnAnyDim = false;
         List<Entry<PlaceLock>> nextPlaces = new ArrayList<>();
+        List<Entry<PlaceLock>> nextBarriers = new ArrayList<>();
+        List<Entry<PlaceLock>> nextHazards = new ArrayList<>();
         List<Entry<LootModifierRule>> nextLoot = new ArrayList<>();
+        Map<ResourceLocation, List<Entry<LootModifierRule>>> nextLootByTable = new HashMap<>();
+        Map<EntityType<?>, List<Entry<LootModifierRule>>> nextLootByEntity = new IdentityHashMap<>();
+        List<Entry<LootModifierRule>> nextLootChests = new ArrayList<>();
         boolean despawnMobs = false;
-        boolean barriers = false;
-        boolean hazards = false;
 
         for (Map.Entry<ResourceLocation, WorldRuleDefinition> mapEntry : WorldRuleRegistries.WORLD_RULES.serverStore().all().entrySet()) {
             ResourceLocation id = mapEntry.getKey();
@@ -154,34 +168,65 @@ public final class WorldRules {
                     if (resolved.isEmpty()) {
                         continue;
                     }
+                    Entry<MobLock> entry = new Entry<>(id, mobLock);
                     if (mobLock.despawnExisting()) {
                         despawnMobs = true;
+                        if (mobLock.dimension().isPresent()) {
+                            nextDespawnDims.add(mobLock.dimension().get());
+                        } else {
+                            nextDespawnAnyDim = true;
+                        }
+                        for (EntityType<?> entityType : resolved) {
+                            nextDespawnMobMap.computeIfAbsent(entityType, k -> new ArrayList<>()).add(entry);
+                        }
                     }
-                    Entry<MobLock> entry = new Entry<>(id, mobLock);
                     for (EntityType<?> entityType : resolved) {
                         nextMobMap.computeIfAbsent(entityType, k -> new ArrayList<>()).add(entry);
                     }
                 }
                 case PlaceLock placeLock -> {
-                    nextPlaces.add(new Entry<>(id, placeLock));
+                    Entry<PlaceLock> entry = new Entry<>(id, placeLock);
+                    nextPlaces.add(entry);
                     if (placeLock.mode() == PlaceMode.BARRIER) {
-                        barriers = true;
+                        nextBarriers.add(entry);
                     } else {
-                        hazards = true;
+                        nextHazards.add(entry);
                     }
                 }
-                case LootModifierRule lootRule -> nextLoot.add(new Entry<>(id, lootRule));
+                case LootModifierRule lootRule -> {
+                    Entry<LootModifierRule> entry = new Entry<>(id, lootRule);
+                    nextLoot.add(entry);
+                    if (!lootRule.tables().isEmpty()) {
+                        for (ResourceLocation table : lootRule.tables()) {
+                            nextLootByTable.computeIfAbsent(table, k -> new ArrayList<>()).add(entry);
+                        }
+                    } else if (!lootRule.entities().isEmpty()) {
+                        for (EntityType<?> entityType : WorldRuleDefinition.resolveEntities(lootRule.entities())) {
+                            nextLootByEntity.computeIfAbsent(entityType, k -> new ArrayList<>()).add(entry);
+                        }
+                    } else {
+                        nextLootChests.add(entry);
+                    }
+                }
             }
         }
 
         itemLocks = List.copyOf(nextItems);
         itemLocksByItem = nextItemMap;
         mobLocksByType = nextMobMap;
+        despawnMobLocksByType = nextDespawnMobMap;
+        despawnDimensions = Set.copyOf(nextDespawnDims);
+        despawnAnyDimension = nextDespawnAnyDim;
         hasDespawnMobLocks = despawnMobs;
         placeLocks = List.copyOf(nextPlaces);
-        hasBarrierPlaceLocks = barriers;
-        hasHazardPlaceLocks = hazards;
+        barrierPlaceLocks = List.copyOf(nextBarriers);
+        hazardPlaceLocks = List.copyOf(nextHazards);
+        hasBarrierPlaceLocks = !nextBarriers.isEmpty();
+        hasHazardPlaceLocks = !nextHazards.isEmpty();
         lootRules = List.copyOf(nextLoot);
+        lootByTable = nextLootByTable;
+        lootByEntity = nextLootByEntity;
+        lootChestRules = List.copyOf(nextLootChests);
         LAST_SYNCED.clear();
         LAST_CHECK.clear();
     }
@@ -212,6 +257,18 @@ public final class WorldRules {
 
     public static List<Entry<LootModifierRule>> lootRules() {
         return lootRules;
+    }
+
+    static @Nullable List<Entry<LootModifierRule>> lootRulesForTable(ResourceLocation tableId) {
+        return lootByTable.get(tableId);
+    }
+
+    static @Nullable List<Entry<LootModifierRule>> lootRulesForEntity(EntityType<?> entityType) {
+        return lootByEntity.get(entityType);
+    }
+
+    static List<Entry<LootModifierRule>> lootChestRules() {
+        return lootChestRules;
     }
 
     // --- item locks
@@ -392,15 +449,20 @@ public final class WorldRules {
      * if allowed or protected.
      */
     public static @Nullable Entry<MobLock> findDespawnMobLock(ServerLevel level, Mob mob) {
-        if (!hasDespawnMobLocks || mob.getTags().contains(EXEMPT_TAG)) {
+        return findDespawnMobLock(level, mob, null);
+    }
+
+    private static @Nullable Entry<MobLock> findDespawnMobLock(ServerLevel level, Mob mob,
+                                                               @Nullable Map<Entry<MobLock>, Map<UUID, Boolean>> unlockCache) {
+        if (!hasDespawnMobLocks || isCheaplyProtectedFromDespawn(mob)) {
             return null;
         }
-        List<Entry<MobLock>> candidates = mobLocksByType.get(mob.getType());
+        List<Entry<MobLock>> candidates = despawnMobLocksByType.get(mob.getType());
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
-        Entry<MobLock> match = matchMobCandidates(level, candidates, false, true, mob.getX(), mob.getY(), mob.getZ());
-        if (match == null || isProtectedFromDespawn(mob)) {
+        Entry<MobLock> match = matchMobCandidates(level, candidates, false, true, mob.getX(), mob.getY(), mob.getZ(), unlockCache);
+        if (match == null || NpcBindings.find(mob).isPresent() || Bosses.bossOf(mob).isPresent()) {
             return null;
         }
         return match;
@@ -409,6 +471,13 @@ public final class WorldRules {
     private static @Nullable Entry<MobLock> matchMobCandidates(ServerLevel level, List<Entry<MobLock>> candidates,
                                                                boolean spawner, boolean requireDespawnExisting,
                                                                double x, double y, double z) {
+        return matchMobCandidates(level, candidates, spawner, requireDespawnExisting, x, y, z, null);
+    }
+
+    private static @Nullable Entry<MobLock> matchMobCandidates(ServerLevel level, List<Entry<MobLock>> candidates,
+                                                               boolean spawner, boolean requireDespawnExisting,
+                                                               double x, double y, double z,
+                                                               @Nullable Map<Entry<MobLock>, Map<UUID, Boolean>> unlockCache) {
         BlockPos pos = BlockPos.containing(x, y, z);
         Holder<Biome> biome = null;
         for (Entry<MobLock> entry : candidates) {
@@ -430,11 +499,10 @@ public final class WorldRules {
                     continue;
                 }
             }
-            if (rule.structure().isPresent()
-                    && rule.structure().get().stream().noneMatch(ref -> ref.contains(level, pos))) {
+            if (rule.structure().isPresent() && !StructureRef.containsAny(level, pos, rule.structure().get())) {
                 continue;
             }
-            if (rule.unlock().isPresent() && anyNearbyPlayerUnlocked(level, x, y, z, rule.unlock().get())) {
+            if (rule.unlock().isPresent() && anyNearbyPlayerUnlocked(level, x, y, z, entry, rule.unlock().get(), unlockCache)) {
                 continue;
             }
             return entry;
@@ -442,12 +510,8 @@ public final class WorldRules {
         return null;
     }
 
-    /**
-     * Entities never removed by {@code despawn_existing}: custom-named mobs, tamed pets, leashed mobs,
-     * player-ridden mounts, Storybound NPCs/bosses, and entities tagged {@link #EXEMPT_TAG} (spawned by the story's
-     * {@code spawn_entity}, summoned, bred, bucketed, replacement, or allowed spawner mobs).
-     */
-    public static boolean isProtectedFromDespawn(Mob mob) {
+    /** O(1) protection checks that need no selector or boss index scans. */
+    private static boolean isCheaplyProtectedFromDespawn(Mob mob) {
         if (mob.getTags().contains(EXEMPT_TAG) || mob.hasCustomName() || mob.isLeashed()) {
             return true;
         }
@@ -462,7 +526,19 @@ public final class WorldRules {
                 return true;
             }
         }
-        if (mob.hasData(DialogueRegistries.NPC_BINDING) || NpcBindings.find(mob).isPresent()) {
+        return mob.hasData(DialogueRegistries.NPC_BINDING);
+    }
+
+    /**
+     * Entities never removed by {@code despawn_existing}: custom-named mobs, tamed pets, leashed mobs,
+     * player-ridden mounts, Storybound NPCs/bosses, and entities tagged {@link #EXEMPT_TAG} (spawned by the story's
+     * {@code spawn_entity}, summoned, bred, bucketed, replacement, or allowed spawner mobs).
+     */
+    public static boolean isProtectedFromDespawn(Mob mob) {
+        if (isCheaplyProtectedFromDespawn(mob)) {
+            return true;
+        }
+        if (NpcBindings.find(mob).isPresent()) {
             return true;
         }
         return Bosses.bossOf(mob).isPresent();
@@ -477,16 +553,23 @@ public final class WorldRules {
             return 0;
         }
         int removed = 0;
+        Map<Entry<MobLock>, Map<UUID, Boolean>> unlockCache = null;
         for (ServerLevel level : server.getAllLevels()) {
+            if (!despawnAnyDimension && !despawnDimensions.contains(level.dimension())) {
+                continue;
+            }
             List<MobSweepHit> hits = null;
             for (Entity entity : level.getAllEntities()) {
                 if (!(entity instanceof Mob mob) || !mob.isAlive() || mob.isRemoved()) {
                     continue;
                 }
-                if (!mobLocksByType.containsKey(mob.getType())) {
+                if (!despawnMobLocksByType.containsKey(mob.getType())) {
                     continue;
                 }
-                Entry<MobLock> match = findDespawnMobLock(level, mob);
+                if (unlockCache == null) {
+                    unlockCache = new IdentityHashMap<>();
+                }
+                Entry<MobLock> match = findDespawnMobLock(level, mob, unlockCache);
                 if (match != null) {
                     if (hits == null) {
                         hits = new ArrayList<>();
@@ -568,13 +651,30 @@ public final class WorldRules {
         return type == MobSpawnType.SPAWNER || type == MobSpawnType.TRIAL_SPAWNER;
     }
 
-    private static boolean anyNearbyPlayerUnlocked(ServerLevel level, double x, double y, double z, Condition unlock) {
+    private static boolean anyNearbyPlayerUnlocked(ServerLevel level, double x, double y, double z,
+                                                   Entry<MobLock> entry, Condition unlock,
+                                                   @Nullable Map<Entry<MobLock>, Map<UUID, Boolean>> unlockCache) {
         for (ServerPlayer player : level.players()) {
             if (player.isSpectator()) {
                 continue;
             }
-            if (player.distanceToSqr(x, y, z) <= MOB_UNLOCK_RADIUS_SQR && unlock.test(StoryContext.of(player))) {
-                return true;
+            if (player.distanceToSqr(x, y, z) <= MOB_UNLOCK_RADIUS_SQR) {
+                boolean unlocked;
+                if (unlockCache != null) {
+                    Map<UUID, Boolean> byPlayer = unlockCache.computeIfAbsent(entry, k -> new HashMap<>());
+                    Boolean cached = byPlayer.get(player.getUUID());
+                    if (cached != null) {
+                        unlocked = cached;
+                    } else {
+                        unlocked = unlock.test(StoryContext.of(player));
+                        byPlayer.put(player.getUUID(), unlocked);
+                    }
+                } else {
+                    unlocked = unlock.test(StoryContext.of(player));
+                }
+                if (unlocked) {
+                    return true;
+                }
             }
         }
         return false;
@@ -670,11 +770,8 @@ public final class WorldRules {
     private static @Nullable Entry<PlaceLock> findActiveBarrier(ServerLevel level, ServerPlayer player, BlockPos pos) {
         Holder<Biome> biome = null;
         StoryContext context = null;
-        for (Entry<PlaceLock> entry : placeLocks) {
+        for (Entry<PlaceLock> entry : barrierPlaceLocks) {
             PlaceLock rule = entry.rule();
-            if (rule.mode() != PlaceMode.BARRIER) {
-                continue;
-            }
             if (rule.dimension().isPresent() && !level.dimension().equals(rule.dimension().get())) {
                 continue;
             }
@@ -686,8 +783,7 @@ public final class WorldRules {
                     continue;
                 }
             }
-            if (rule.structure().isPresent()
-                    && rule.structure().get().stream().noneMatch(ref -> ref.contains(level, pos))) {
+            if (rule.structure().isPresent() && !StructureRef.containsAny(level, pos, rule.structure().get())) {
                 continue;
             }
             if (rule.unlock().isPresent()) {
@@ -706,11 +802,8 @@ public final class WorldRules {
     private static void applyHazards(ServerPlayer player, ServerLevel level, BlockPos pos) {
         Holder<Biome> biome = null;
         StoryContext context = null;
-        for (Entry<PlaceLock> entry : placeLocks) {
+        for (Entry<PlaceLock> entry : hazardPlaceLocks) {
             PlaceLock rule = entry.rule();
-            if (rule.mode() != PlaceMode.HAZARD) {
-                continue;
-            }
             if (rule.dimension().isPresent() && !level.dimension().equals(rule.dimension().get())) {
                 continue;
             }
@@ -722,8 +815,7 @@ public final class WorldRules {
                     continue;
                 }
             }
-            if (rule.structure().isPresent()
-                    && rule.structure().get().stream().noneMatch(ref -> ref.contains(level, pos))) {
+            if (rule.structure().isPresent() && !StructureRef.containsAny(level, pos, rule.structure().get())) {
                 continue;
             }
             if (rule.unlock().isPresent()) {

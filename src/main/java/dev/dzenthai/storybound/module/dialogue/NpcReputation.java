@@ -47,6 +47,7 @@ public final class NpcReputation {
         gameBus.addListener(NpcReputation::onDialogueStarted);
         gameBus.addListener(NpcReputation::onDialogueEnded);
         gameBus.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> FOCUS.remove(event.getEntity().getUUID()));
+        gameBus.addListener((net.neoforged.neoforge.event.server.ServerStoppedEvent event) -> FOCUS.clear());
     }
 
     /** Whether the flag is an NPC's relationship scale: {@code rep/<npc>}, declared, a number. */

@@ -82,7 +82,24 @@ public final class CodexImages implements ResourceManagerReloadListener {
     }
 
     public static void clear() {
-        LIVE.clear();
+        if (!LIVE.isEmpty()) {
+            java.util.List<ResourceLocation> toRelease = new java.util.ArrayList<>(LIVE.keySet());
+            LIVE.clear();
+            Minecraft mc = Minecraft.getInstance();
+            if (mc != null && mc.getTextureManager() != null) {
+                Runnable releaseAll = () -> {
+                    var manager = mc.getTextureManager();
+                    for (ResourceLocation texture : toRelease) {
+                        manager.release(texture);
+                    }
+                };
+                if (mc.isSameThread()) {
+                    releaseAll.run();
+                } else {
+                    mc.execute(releaseAll);
+                }
+            }
+        }
         RESOURCE_CACHE.clear();
     }
 

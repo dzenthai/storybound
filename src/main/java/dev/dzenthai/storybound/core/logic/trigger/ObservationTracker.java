@@ -73,6 +73,8 @@ public final class ObservationTracker {
 
     private static final Map<UUID, Map<Subscription<?>, Progress>> PROGRESS = new HashMap<>();
     private static final Map<UUID, Map<Subscription<?>, Map<Object, Counted>>> COUNTED = new HashMap<>();
+    /** Last TriggerDispatcher generation pruned per player so retainAll only runs after a reload, not every 2 ticks. */
+    private static final Map<UUID, Integer> PRUNED_GEN = new HashMap<>();
     /** The players whose bar is shown, so it is hidden once. */
     private static final Map<UUID, Boolean> SHOWN = new HashMap<>();
     /** What keeps a player from looking at the world, given by the modules, as the core knows none of them. */
@@ -127,9 +129,17 @@ public final class ObservationTracker {
         List<Subscription<?>> subscriptions = TriggerDispatcher.subscriptions(BuiltinTriggers.OBSERVED.get());
         Map<Subscription<?>, Progress> progress = PROGRESS.computeIfAbsent(id, uuid -> new IdentityHashMap<>());
         Map<Subscription<?>, Map<Object, Counted>> counted = COUNTED.computeIfAbsent(id, uuid -> new IdentityHashMap<>());
-        // Subscriptions of a reload before are gone.
-        progress.keySet().retainAll(identities(subscriptions));
-        counted.keySet().retainAll(identities(subscriptions));
+        int gen = TriggerDispatcher.generation();
+        Integer lastGen = PRUNED_GEN.get(id);
+        if (lastGen == null || lastGen != gen) {
+            // Subscriptions of a reload before are gone.
+            if (!progress.isEmpty() || !counted.isEmpty()) {
+                List<Subscription<?>> alive = identities(subscriptions);
+                progress.keySet().retainAll(alive);
+                counted.keySet().retainAll(alive);
+            }
+            PRUNED_GEN.put(id, gen);
+        }
         double reach = 0;
         boolean items = false;
         for (Subscription<?> subscription : subscriptions) {
@@ -159,8 +169,12 @@ public final class ObservationTracker {
                 }
             }
             if (target == null && !blind && trigger.pos().isPresent()) {
-                Looked aimed = aimedAt(player, trigger.pos().get(), trigger.distance());
-                target = aimed != null && fits(subscription, trigger, aimed, done, player) ? aimed : null;
+                BlockPos targetPos = trigger.pos().get();
+                if (!done.containsKey(targetPos)
+                        && (trigger.dimension().isEmpty() || trigger.dimension().get().equals(dimension))) {
+                    Looked aimed = aimedAt(player, targetPos, trigger.distance());
+                    target = aimed != null && fits(subscription, trigger, aimed, done, player) ? aimed : null;
+                }
             }
             boolean observing = target != null;
             StoryContext context = target == null ? null : new StoryContext(player, target.target().entity());
@@ -353,11 +367,14 @@ public final class ObservationTracker {
     static void forget(UUID player) {
         PROGRESS.remove(player);
         COUNTED.remove(player);
+        PRUNED_GEN.remove(player);
+        SHOWN.remove(player);
     }
 
     static void reset() {
         PROGRESS.clear();
         COUNTED.clear();
+        PRUNED_GEN.clear();
         SHOWN.clear();
     }
 }

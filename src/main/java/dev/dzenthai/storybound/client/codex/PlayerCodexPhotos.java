@@ -84,8 +84,36 @@ public final class PlayerCodexPhotos {
     }
 
     public static void clear() {
-        CACHE.clear();
+        releaseCachedTextures();
         cachedWorldKey = null;
+    }
+
+    private static void releaseCachedTextures() {
+        if (CACHE.isEmpty()) {
+            return;
+        }
+        java.util.List<ResourceLocation> toRelease = new java.util.ArrayList<>();
+        for (Optional<CodexImages.Loaded> entry : CACHE.values()) {
+            entry.ifPresent(loaded -> toRelease.add(loaded.texture()));
+        }
+        CACHE.clear();
+        if (toRelease.isEmpty()) {
+            return;
+        }
+        Minecraft mc = Minecraft.getInstance();
+        if (mc != null && mc.getTextureManager() != null) {
+            Runnable releaseAll = () -> {
+                var manager = mc.getTextureManager();
+                for (ResourceLocation texture : toRelease) {
+                    manager.release(texture);
+                }
+            };
+            if (mc.isSameThread()) {
+                releaseAll.run();
+            } else {
+                mc.execute(releaseAll);
+            }
+        }
     }
 
     private static CodexImages.Loaded registerTexture(ResourceLocation entryId, NativeImage image) {
@@ -104,7 +132,7 @@ public final class PlayerCodexPhotos {
     private static void ensureWorld() {
         String key = currentWorldKey();
         if (key == null || !key.equals(cachedWorldKey)) {
-            CACHE.clear();
+            releaseCachedTextures();
             cachedWorldKey = key;
         }
     }

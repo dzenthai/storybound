@@ -33,6 +33,9 @@ public record StructureRef(ResourceLocation id, boolean tag) {
     public static final int DEFAULT_SEARCH_RADIUS = 100;
 
     private static final Set<StructureRef> REPORTED = ConcurrentHashMap.newKeySet();
+    /** Per-registry cache of resolved structure HolderSets so repeated checks avoid TagKey/HolderSet allocations. */
+    private static final Map<Registry<Structure>, ConcurrentHashMap<StructureRef, Optional<? extends HolderSet<Structure>>>> HOLDER_CACHE =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
 
     /** From script text; empty when it is not a resource location, with or without a leading {@code #}. */
     public static Optional<StructureRef> of(String text) {
@@ -72,7 +75,67 @@ public record StructureRef(ResourceLocation id, boolean tag) {
         if (here.isEmpty()) {
             return Optional.empty();
         }
-        for (Holder<Structure> holder : set.get()) {
+        return boundingBoxIn(level, manager, pos, here, set.get());
+    }
+
+    /**
+     * Checks whether {@code pos} lies in any of {@code refs}, performing chunk load and {@code getAllStructuresAt}
+     * lookups at most once across the entire list.
+     */
+    public static boolean containsAny(ServerLevel level, BlockPos pos, java.util.List<StructureRef> refs) {
+        return boundingBoxAny(level, pos, refs).isPresent();
+    }
+
+    /**
+     * Returns the bounding box of the first matching structure in {@code refs} containing {@code pos}, sharing a single
+     * {@code getAllStructuresAt} lookup across the list.
+     */
+    public static Optional<net.minecraft.world.level.levelgen.structure.BoundingBox> boundingBoxAny(
+            ServerLevel level, BlockPos pos, java.util.List<StructureRef> refs) {
+        if (refs.isEmpty() || !level.isLoaded(pos)) {
+            return Optional.empty();
+        }
+        StructureManager manager = level.structureManager();
+        Map<Structure, LongSet> here = manager.getAllStructuresAt(pos);
+        if (here.isEmpty()) {
+            return Optional.empty();
+        }
+        for (int i = 0; i < refs.size(); i++) {
+            Optional<? extends HolderSet<Structure>> set = refs.get(i).known(level);
+            if (set.isPresent()) {
+                Optional<net.minecraft.world.level.levelgen.structure.BoundingBox> box = boundingBoxIn(level, manager, pos, here, set.get());
+                if (box.isPresent()) {
+                    return box;
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Matches {@code this} against an already-fetched {@code getAllStructuresAt(pos)} map. */
+    public boolean containsIn(ServerLevel level, BlockPos pos, Map<Structure, LongSet> here) {
+        Optional<? extends HolderSet<Structure>> set = known(level);
+        if (set.isEmpty() || here.isEmpty()) {
+            return false;
+        }
+        return boundingBoxIn(level, level.structureManager(), pos, here, set.get()).isPresent();
+    }
+
+    private static Optional<net.minecraft.world.level.levelgen.structure.BoundingBox> boundingBoxIn(
+            ServerLevel level, StructureManager manager, BlockPos pos, Map<Structure, LongSet> here, HolderSet<Structure> set) {
+        if (here.size() < set.size()) {
+            Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+            for (Structure structure : here.keySet()) {
+                if (set.contains(registry.wrapAsHolder(structure))) {
+                    net.minecraft.world.level.levelgen.structure.StructureStart start = manager.getStructureAt(pos, structure);
+                    if (start.isValid()) {
+                        return Optional.of(start.getBoundingBox());
+                    }
+                }
+            }
+            return Optional.empty();
+        }
+        for (Holder<Structure> holder : set) {
             if (here.containsKey(holder.value())) {
                 net.minecraft.world.level.levelgen.structure.StructureStart start = manager.getStructureAt(pos, holder.value());
                 if (start.isValid()) {
@@ -116,8 +179,22 @@ public record StructureRef(ResourceLocation id, boolean tag) {
     /** The structures, or empty for an unknown id or tag (not logged). */
     public Optional<? extends HolderSet<Structure>> holders(net.minecraft.core.RegistryAccess access) {
         Registry<Structure> registry = access.registryOrThrow(Registries.STRUCTURE);
-        return tag ? registry.getTag(TagKey.create(Registries.STRUCTURE, id))
+        ConcurrentHashMap<StructureRef, Optional<? extends HolderSet<Structure>>> byRef;
+        synchronized (HOLDER_CACHE) {
+            byRef = HOLDER_CACHE.computeIfAbsent(registry, r -> new ConcurrentHashMap<>());
+        }
+        Optional<? extends HolderSet<Structure>> cached = byRef.get(this);
+        if (cached != null) {
+            return cached;
+        }
+        Optional<? extends HolderSet<Structure>> resolved = tag
+                ? registry.getTag(TagKey.create(Registries.STRUCTURE, id))
                 : registry.getHolder(ResourceKey.create(Registries.STRUCTURE, id)).map(HolderSet::direct);
+        // Only cache once non-empty (or after tags are bound) so pre-tag-binding queries never poison the cache.
+        if (resolved.isPresent()) {
+            byRef.put(this, resolved);
+        }
+        return resolved;
     }
 
     /**

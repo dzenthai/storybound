@@ -820,6 +820,9 @@ public final class Scenes {
     }
 
     private static void onServerTick(ServerTickEvent.Post event) {
+        if (SESSIONS.isEmpty() && AWAITING.isEmpty() && REPLAYS.isEmpty() && QUEUED.isEmpty()) {
+            return;
+        }
         MinecraftServer server = event.getServer();
         for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
             UUID uuid = player.getUUID();

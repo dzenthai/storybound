@@ -47,7 +47,7 @@ public final class NpcChatter {
                 continue;
             }
             for (Entity entity : player.level().getEntities(player, player.getBoundingBox().inflate(reach),
-                    candidate -> candidate instanceof LivingEntity && !(candidate instanceof Player) && candidate.isAlive())) {
+                    candidate -> candidate instanceof LivingEntity && !(candidate instanceof Player) && candidate.isAlive() && NpcBindings.mayChatter(candidate))) {
                 if (seen.add(entity)) {
                     NpcBindings.find(entity).flatMap(found -> found.binding().chatter())
                             .ifPresent(chatter -> consider((LivingEntity) entity, chatter, now));

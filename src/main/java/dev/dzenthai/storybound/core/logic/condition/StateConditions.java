@@ -35,9 +35,12 @@ public final class StateConditions {
 
         @Override
         public boolean test(StoryContext context) {
-            StoryScope resolved = scope.orElseGet(() -> StoryState.declaredScope(key));
-            StoryValue actual = StoryState.get(context.player(), resolved, key).orElse(new StoryValue.Bool(false));
-            return actual.equals(new StoryValue.Bool(value));
+            StoryScope resolved = scope.isPresent() ? scope.get() : StoryState.declaredScope(key);
+            Optional<StoryValue> stored = StoryState.get(context.player(), resolved, key);
+            if (stored.isEmpty()) {
+                return !value;
+            }
+            return stored.get() instanceof StoryValue.Bool(boolean actual) && actual == value;
         }
 
         @Override
@@ -69,7 +72,7 @@ public final class StateConditions {
 
         @Override
         public boolean test(StoryContext context) {
-            StoryScope resolved = scope.orElseGet(() -> StoryState.declaredScope(key));
+            StoryScope resolved = scope.isPresent() ? scope.get() : StoryState.declaredScope(key);
             // An unset, undeclared variable reads as 0, false or "" to match the compared value.
             StoryValue actual = StoryState.get(context.player(), resolved, key).orElse(value.type().zero());
             return op.test(actual, value);

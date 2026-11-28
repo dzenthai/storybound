@@ -192,12 +192,13 @@ public final class ProgressTriggers {
      */
     public static void checkValues(MinecraftServer server) {
         boolean levels = TriggerDispatcher.hasSubscribers(BuiltinTriggers.LEVEL_REACHED.get());
-        Set<StatRef> stats = new LinkedHashSet<>();
-        for (Subscription<?> subscription : TriggerDispatcher.subscriptions(BuiltinTriggers.STAT_REACHED.get())) {
-            stats.add(((StatReached) subscription.trigger()).stat());
-        }
-        if (!levels && stats.isEmpty()) {
+        java.util.List<Subscription<?>> statSubs = TriggerDispatcher.subscriptions(BuiltinTriggers.STAT_REACHED.get());
+        if (!levels && statSubs.isEmpty()) {
             return;
+        }
+        Set<StatRef> stats = statSubs.isEmpty() ? Set.of() : new LinkedHashSet<>(statSubs.size());
+        for (Subscription<?> subscription : statSubs) {
+            stats.add(((StatReached) subscription.trigger()).stat());
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             StoryContext context = StoryContext.of(player);

@@ -29,8 +29,30 @@ public final class StoryMusic {
     private static final int CHECK_TICKS = 10;
     /** What each player was last told to play. */
     private static final Map<UUID, Optional<ResourceLocation>> PLAYING = new HashMap<>();
+    /** Music definitions pre-sorted by (-priority, id) per store snapshot so track() short-circuits on first match. */
+    private static volatile Map<ResourceLocation, MusicDefinition> sortedFor;
+    private static volatile java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> sortedTracks = java.util.List.of();
 
     private StoryMusic() {}
+
+    private static java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> sortedTracks() {
+        Map<ResourceLocation, MusicDefinition> all = MusicRegistries.MUSIC.serverStore().all();
+        if (all == sortedFor) {
+            return sortedTracks;
+        }
+        if (all.isEmpty()) {
+            sortedTracks = java.util.List.of();
+            sortedFor = all;
+            return sortedTracks;
+        }
+        java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> list = new java.util.ArrayList<>(all.entrySet());
+        list.sort(Comparator.comparingInt((Map.Entry<ResourceLocation, MusicDefinition> entry) -> -entry.getValue().priority())
+                .thenComparing(entry -> entry.getKey().toString()));
+        java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> immutable = java.util.List.copyOf(list);
+        sortedTracks = immutable;
+        sortedFor = all;
+        return immutable;
+    }
 
     static void register(IEventBus gameBus) {
         gameBus.addListener((ServerTickEvent.Post event) -> {
@@ -76,12 +98,17 @@ public final class StoryMusic {
         if (stage.isPresent()) {
             return stage;
         }
+        java.util.List<Map.Entry<ResourceLocation, MusicDefinition>> entries = sortedTracks();
+        if (entries.isEmpty()) {
+            return Optional.empty();
+        }
         StoryContext context = StoryContext.of(player);
-        return MusicRegistries.MUSIC.serverStore().all().entrySet().stream()
-                .filter(entry -> entry.getValue().conditions().map(condition -> condition.test(context)).orElse(true))
-                .sorted(Comparator.comparingInt((Map.Entry<ResourceLocation, MusicDefinition> entry) -> -entry.getValue().priority())
-                        .thenComparing(entry -> entry.getKey().toString()))
-                .map(entry -> entry.getValue().track())
-                .findFirst();
+        for (int i = 0; i < entries.size(); i++) {
+            MusicDefinition def = entries.get(i).getValue();
+            if (def.conditions().isEmpty() || def.conditions().get().test(context)) {
+                return Optional.of(def.track());
+            }
+        }
+        return Optional.empty();
     }
 }

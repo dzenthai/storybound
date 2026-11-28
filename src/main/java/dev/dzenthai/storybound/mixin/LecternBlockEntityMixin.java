@@ -25,6 +25,9 @@ public abstract class LecternBlockEntityMixin extends BlockEntity {
     @Shadow
     ItemStack book;
 
+    @org.spongepowered.asm.mixin.Unique
+    private boolean storybound$wasDocument;
+
     protected LecternBlockEntityMixin(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
     }
@@ -36,16 +39,26 @@ public abstract class LecternBlockEntityMixin extends BlockEntity {
         }
     }
 
+    @Inject(method = "setBook(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/player/Player;)V", at = @At("HEAD"))
+    private void storybound$rememberBook(ItemStack stack, Player player, CallbackInfo ci) {
+        this.storybound$wasDocument = this.book.is(DocumentRegistries.DOCUMENT_ITEM.get());
+    }
+
     @Inject(method = "setBook(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/player/Player;)V", at = @At("TAIL"))
     private void storybound$syncBook(ItemStack stack, Player player, CallbackInfo ci) {
-        if (this.level != null && !this.level.isClientSide()) {
+        if (this.level != null && !this.level.isClientSide()
+                && (this.storybound$wasDocument || this.book.is(DocumentRegistries.DOCUMENT_ITEM.get()))) {
             this.level.sendBlockUpdated(this.worldPosition, this.getBlockState(), this.getBlockState(), 3);
         }
     }
 
     @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        return this.saveCustomOnly(registries);
+        // Only sync Storybound document stacks so vanilla written books do not bloat chunk/update packets.
+        if (this.book.is(DocumentRegistries.DOCUMENT_ITEM.get())) {
+            return this.saveCustomOnly(registries);
+        }
+        return new CompoundTag();
     }
 
     @Override

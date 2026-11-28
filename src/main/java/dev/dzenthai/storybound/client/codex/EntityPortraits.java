@@ -15,7 +15,7 @@ import org.jetbrains.annotations.Nullable;
  * Draws a creature by its type for Codex and Bosses entries. One client-only instance per type, never added
  * to the world; recreated when the level changes.
  */
-final class EntityPortraits {
+public final class EntityPortraits {
     private static final Map<EntityType<?>, LivingEntity> CACHE = new HashMap<>();
     private static @Nullable ClientLevel cachedFor;
 
@@ -48,7 +48,7 @@ final class EntityPortraits {
         return CACHE.get(type);
     }
 
-    static void clear() {
+    public static void clear() {
         CACHE.clear();
         cachedFor = null;
     }

@@ -58,6 +58,11 @@ public final class DialogueCamera {
     private static @Nullable Shot shot;
     private static @Nullable Pose easeFrom;
     private static long easeStart;
+    /** Per-tick cache for look_at entity shots so apply(), onComputeFov(), and projectFocus() share one raycast pass. */
+    private static @Nullable Shot cachedFollowShot;
+    private static long cachedFollowTick = Long.MIN_VALUE;
+    private static int cachedFollowSide;
+    private static @Nullable Pose cachedFollowPose;
     /** The mouse turning the frame while a line plays. */
     private static final FloatingCamera FLOATING = new FloatingCamera();
     /** The answers are shown: the frame returns to the shot's aim and the cursor is back. */
@@ -126,6 +131,9 @@ public final class DialogueCamera {
         }
         shot = null;
         easeFrom = null;
+        cachedFollowShot = null;
+        cachedFollowTick = Long.MIN_VALUE;
+        cachedFollowPose = null;
         side = 0;
         choosing = false;
         FLOATING.reset();
@@ -425,9 +433,18 @@ public final class DialogueCamera {
         if (current.look().entity() < 0 || minecraft.player == null || minecraft.level == null) {
             return current.pose();
         }
+        long gameTime = minecraft.level.getGameTime();
+        if (current == cachedFollowShot && gameTime == cachedFollowTick && side == cachedFollowSide && cachedFollowPose != null) {
+            return cachedFollowPose;
+        }
         Vec3 target = lookTarget(current.look(), minecraft.level);
         Pose pose = target != null ? CameraShots.lookAt(minecraft.player.getEyePosition(), target, side == 0 ? 1 : side, obstacles(minecraft.level)) : null;
-        return pose != null ? pose : current.pose();
+        Pose resolved = pose != null ? pose : current.pose();
+        cachedFollowShot = current;
+        cachedFollowTick = gameTime;
+        cachedFollowSide = side;
+        cachedFollowPose = resolved;
+        return resolved;
     }
 
     private static boolean allowed(CameraCue cue) {

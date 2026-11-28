@@ -58,30 +58,34 @@ public record DifficultyScale(Style style, List<Level> levels) {
                     Level::new).apply(ByteBufCodecs.list()), DifficultyScale::levels,
             DifficultyScale::new);
 
+    private record State(DifficultyScale current, Map<ResourceLocation, DifficultyScale> questScales) {}
+
     /** The scale in use: the server's from {@code project.json}, a client's from the last quest sync. */
-    private static volatile DifficultyScale current = DEFAULT;
+    private static volatile State state = new State(DEFAULT, Map.of());
 
     public static DifficultyScale current() {
-        return current;
+        return state.current();
     }
 
-    private static volatile Map<ResourceLocation, DifficultyScale> questScales = Map.of();
-
     public static DifficultyScale forQuest(ResourceLocation quest) {
-        return questScales.getOrDefault(quest, current);
+        State snapshot = state;
+        return snapshot.questScales().getOrDefault(quest, snapshot.current());
     }
 
     public static Map<ResourceLocation, DifficultyScale> questScales() {
-        return questScales;
+        return state.questScales();
     }
 
     public static void setQuestScales(Map<ResourceLocation, DifficultyScale> scales) {
-        questScales = Map.copyOf(scales);
+        state = new State(state.current(), Map.copyOf(scales));
     }
 
     public static void set(DifficultyScale scale) {
-        current = scale;
-        questScales = Map.of();
+        state = new State(scale, Map.of());
+    }
+
+    public static void setAll(DifficultyScale scale, Map<ResourceLocation, DifficultyScale> scales) {
+        state = new State(scale, Map.copyOf(scales));
     }
 
     /** Reads {@code difficulty} from {@code project.json}; anything wrong in it is logged and the default used. */

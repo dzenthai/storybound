@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -53,6 +54,7 @@ import net.minecraft.stats.Stats;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -888,6 +890,32 @@ public final class QuestGameTests {
         ItemStack iron = recipes.get(2).slots().getFirst().getFirst();
         helper.assertTrue(iron.is(Items.IRON_INGOT) && iron.getCount() == 3, "the reward with its count");
         helper.assertTrue(recipes.get(3).slots().size() == 2, "one slot per item to choose from");
+        helper.succeed();
+    }
+
+    /**
+     * {@code location} with {@code outdoors}: the open sky and leaves overhead count as outdoors; a block over the head
+     * or water at the feet do not.
+     */
+    @GameTest(template = "empty")
+    public static void outdoorsIsTheOpenSkyOrLeavesOnly(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        BlockPos feet = new BlockPos(2, 2, 2);
+        BlockPos above = feet.above(3);
+        Vec3 at = helper.absoluteVec(Vec3.atBottomCenterOf(feet));
+        player.teleportTo(at.x, at.y, at.z);
+        String outside = "{ \"type\": \"location\", \"outdoors\": true }";
+        String inside = "{ \"type\": \"location\", \"outdoors\": false }";
+        helper.assertTrue(test(helper, player, outside) && !test(helper, player, inside), "the open sky is outdoors");
+        helper.setBlock(above, Blocks.OAK_LEAVES);
+        helper.assertTrue(test(helper, player, outside), "leaves overhead are still outdoors");
+        helper.setBlock(above, Blocks.STONE);
+        helper.assertTrue(test(helper, player, inside) && !test(helper, player, outside), "a block overhead is indoors");
+        helper.setBlock(above, Blocks.AIR);
+        helper.setBlock(feet, Blocks.WATER);
+        helper.assertTrue(test(helper, player, inside), "standing in water is not outdoors");
+        helper.setBlock(feet, Blocks.AIR);
+        remove(helper, player);
         helper.succeed();
     }
 

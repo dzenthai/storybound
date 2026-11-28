@@ -79,8 +79,19 @@ public final class TraceTrails {
         previewDimension = dimension;
     }
 
+    /** Clears recording preview and active scent strands on world logout. */
+    public static void clear() {
+        preview = null;
+        previewDimension = null;
+        ScentStrands.tick(false);
+    }
+
     /** Every client tick: the strands move on, and the steps near the player give motes, or for a scent wisps and strands. */
     public static void tick() {
+        List<Vec3> recording = preview;
+        if (!ClientWaypoints.hasTraces() && recording == null && !ScentStrands.hasStrands()) {
+            return;
+        }
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
         boolean running = level != null && minecraft.player != null && ClientModules.isEnabled("waypoints") && !(CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing());
@@ -95,14 +106,15 @@ public final class TraceTrails {
         ScentStrands.tick(true);
         ResourceLocation here = level.dimension().location();
         Vec3 player = minecraft.player.position();
-        for (ClientWaypoint waypoint : ClientWaypoints.shown()) {
-            if (waypoint.isTrace() && waypoint.trace().size() >= 2 && waypoint.dimension().equals(here)) {
-                float rate = ClientWaypoints.display(waypoint) == ClientWaypoints.Display.DIMMED ? RATE * DIMMED_RATE : RATE;
-                walk(level, player, waypoint.traceKind(), waypoint.trace(), waypoint.traceSize(), MarkerContrast.readable(waypoint.color()), rate,
-                        waypoint.marker() == AreaLook.Marker.SCENT);
+        if (ClientWaypoints.hasTraces()) {
+            for (ClientWaypoint waypoint : ClientWaypoints.shown()) {
+                if (waypoint.isTrace() && waypoint.trace().size() >= 2 && waypoint.dimension().equals(here)) {
+                    float rate = ClientWaypoints.display(waypoint) == ClientWaypoints.Display.DIMMED ? RATE * DIMMED_RATE : RATE;
+                    walk(level, player, waypoint.traceKind(), waypoint.trace(), waypoint.traceSize(), MarkerContrast.readable(waypoint.color()), rate,
+                            waypoint.marker() == AreaLook.Marker.SCENT);
+                }
             }
         }
-        List<Vec3> recording = preview;
         if (recording != null && recording.size() >= 2 && here.equals(previewDimension)) {
             walk(level, player, WaypointTrace.Kind.RECORDED, recording, WaypointTracks.DEFAULT_WIDTH, MarkerContrast.readable(WaypointDefinition.DEFAULT_COLOR), RATE,
                     false);

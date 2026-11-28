@@ -51,21 +51,36 @@ public final class ScentStrands {
         }
     }
 
+    private static final int PIECES = 14;
     private static final List<Strand> STRANDS = new ArrayList<>();
+    private static final java.util.WeakHashMap<List<Vec3>, double[]> ALONG_CACHE = new java.util.WeakHashMap<>();
+    /** Render-thread scratch arrays so drawing active scent strands allocates zero Vec3/array objects per frame. */
+    private static final double[] SCRATCH_X = new double[PIECES + 1];
+    private static final double[] SCRATCH_Y = new double[PIECES + 1];
+    private static final double[] SCRATCH_Z = new double[PIECES + 1];
+    private static final boolean[] SCRATCH_VALID = new boolean[PIECES + 1];
+    private static final float[] SCRATCH_ALPHA = new float[PIECES + 1];
 
     private ScentStrands() {}
+
+    static boolean hasStrands() {
+        return !STRANDS.isEmpty();
+    }
 
     /** A strand starting at {@code distance} along the points (their flat length), {@code lift} over them. */
     static void start(List<Vec3> points, double distance, double lift, int rgb) {
         if (STRANDS.size() >= MAX || points.size() < 2) {
             return;
         }
-        double[] along = new double[points.size()];
-        for (int i = 1; i < points.size(); i++) {
-            Vec3 a = points.get(i - 1);
-            Vec3 b = points.get(i);
-            along[i] = along[i - 1] + Math.hypot(b.x - a.x, b.z - a.z);
-        }
+        double[] along = ALONG_CACHE.computeIfAbsent(points, pts -> {
+            double[] lengths = new double[pts.size()];
+            for (int i = 1; i < pts.size(); i++) {
+                Vec3 a = pts.get(i - 1);
+                Vec3 b = pts.get(i);
+                lengths[i] = lengths[i - 1] + Math.hypot(b.x - a.x, b.z - a.z);
+            }
+            return lengths;
+        });
         STRANDS.add(new Strand(points, along, distance, lift, rgb));
     }
 
@@ -109,14 +124,12 @@ public final class ScentStrands {
         double head = strand.head + strand.speed * partialTick;
         float life = (strand.age + partialTick) / strand.lifetime;
         float fade = ALPHA * Mth.clamp(Math.min(life / 0.2f, (1 - life) / 0.4f), 0, 1);
-        int pieces = 14;
-        Vec3[] centres = new Vec3[pieces + 1];
-        float[] alphas = new float[pieces + 1];
         double end = strand.along[strand.along.length - 1];
-        for (int k = 0; k <= pieces; k++) {
-            double u = k / (double) pieces;
+        for (int k = 0; k <= PIECES; k++) {
+            double u = k / (double) PIECES;
             double s = head - strand.length * (1 - u);
             if (s < 0 || s > end) {
+                SCRATCH_VALID[k] = false;
                 continue;
             }
             // The segment holding s, found by halves: a long trail has hundreds of points, drawn every frame.
@@ -125,39 +138,71 @@ public final class ScentStrands {
             Vec3 a = strand.points.get(i - 1);
             Vec3 b = strand.points.get(i);
             double segment = strand.along[i] - strand.along[i - 1];
-            Vec3 at = segment < 1.0e-6 ? b : a.lerp(b, (s - strand.along[i - 1]) / segment);
+            double atX;
+            double atY;
+            double atZ;
+            if (segment < 1.0e-6) {
+                atX = b.x;
+                atY = b.y;
+                atZ = b.z;
+            } else {
+                double t = (s - strand.along[i - 1]) / segment;
+                atX = a.x + (b.x - a.x) * t;
+                atY = a.y + (b.y - a.y) * t;
+                atZ = a.z + (b.z - a.z) * t;
+            }
             double dx = b.x - a.x;
             double dz = b.z - a.z;
             double flat = Math.max(1.0e-6, Math.hypot(dx, dz));
             double wave = strand.sway * Math.sin(s * 2.2 + strand.phase + (strand.age + partialTick) * 0.15);
             double rise = strand.lift + LIFT_WAVE * Math.sin(s * 1.3 + strand.phase);
-            centres[k] = new Vec3(at.x - dz / flat * wave, at.y + rise, at.z + dx / flat * wave);
-            alphas[k] = fade * (float) Math.sin(Math.PI * u);
+            SCRATCH_X[k] = atX - dz / flat * wave;
+            SCRATCH_Y[k] = atY + rise;
+            SCRATCH_Z[k] = atZ + dx / flat * wave;
+            SCRATCH_ALPHA[k] = fade * (float) Math.sin(Math.PI * u);
+            SCRATCH_VALID[k] = true;
         }
         int r = (strand.rgb >> 16) & 0xFF;
         int g = (strand.rgb >> 8) & 0xFF;
         int b = strand.rgb & 0xFF;
+        double camX = camera.x;
+        double camY = camera.y;
+        double camZ = camera.z;
         PoseStack.Pose last = pose.last();
-        for (int k = 0; k < pieces; k++) {
-            Vec3 from = centres[k];
-            Vec3 to = centres[k + 1];
-            if (from == null || to == null) {
+        for (int k = 0; k < PIECES; k++) {
+            if (!SCRATCH_VALID[k] || !SCRATCH_VALID[k + 1]) {
                 continue;
             }
+            double fx = SCRATCH_X[k];
+            double fy = SCRATCH_Y[k];
+            double fz = SCRATCH_Z[k];
+            double tx = SCRATCH_X[k + 1];
+            double ty = SCRATCH_Y[k + 1];
+            double tz = SCRATCH_Z[k + 1];
             // Across the strip: square to its way and to the line from the camera, so it is seen face on.
-            Vec3 across = to.subtract(from).cross(from.subtract(camera));
-            if (across.lengthSqr() < 1.0e-12) {
+            double dx = tx - fx;
+            double dy = ty - fy;
+            double dz = tz - fz;
+            double rx = fx - camX;
+            double ry = fy - camY;
+            double rz = fz - camZ;
+            double ax = dy * rz - dz * ry;
+            double ay = dz * rx - dx * rz;
+            double az = dx * ry - dy * rx;
+            double lenSqr = ax * ax + ay * ay + az * az;
+            if (lenSqr < 1.0e-12) {
                 continue;
             }
-            across = across.normalize().scale(HALF_WIDTH);
-            vertex(out, last, camera, from.subtract(across), r, g, b, alphas[k]);
-            vertex(out, last, camera, from.add(across), r, g, b, alphas[k]);
-            vertex(out, last, camera, to.add(across), r, g, b, alphas[k + 1]);
-            vertex(out, last, camera, to.subtract(across), r, g, b, alphas[k + 1]);
+            double scale = HALF_WIDTH / Math.sqrt(lenSqr);
+            ax *= scale;
+            ay *= scale;
+            az *= scale;
+            int alpha0 = (int) (SCRATCH_ALPHA[k] * 255);
+            int alpha1 = (int) (SCRATCH_ALPHA[k + 1] * 255);
+            out.addVertex(last, (float) (fx - ax - camX), (float) (fy - ay - camY), (float) (fz - az - camZ)).setColor(r, g, b, alpha0);
+            out.addVertex(last, (float) (fx + ax - camX), (float) (fy + ay - camY), (float) (fz + az - camZ)).setColor(r, g, b, alpha0);
+            out.addVertex(last, (float) (tx + ax - camX), (float) (ty + ay - camY), (float) (tz + az - camZ)).setColor(r, g, b, alpha1);
+            out.addVertex(last, (float) (tx - ax - camX), (float) (ty - ay - camY), (float) (tz - az - camZ)).setColor(r, g, b, alpha1);
         }
-    }
-
-    private static void vertex(VertexConsumer out, PoseStack.Pose last, Vec3 camera, Vec3 at, int r, int g, int b, float alpha) {
-        out.addVertex(last, (float) (at.x - camera.x), (float) (at.y - camera.y), (float) (at.z - camera.z)).setColor(r, g, b, (int) (alpha * 255));
     }
 }

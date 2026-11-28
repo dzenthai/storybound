@@ -47,13 +47,30 @@ public final class NpcBindings {
     /** Blocks beyond the player's interaction range still accepted for the talk key, like vanilla's leeway for clicks. */
     private static final double TALK_REACH_SLACK = 1.0;
 
+    private record TypeCandidates(
+            List<Map.Entry<ResourceLocation, NpcBinding>> list,
+            boolean usesSavedData,
+            boolean mayMove,
+            boolean mayReactToDamage,
+            boolean mayProximity,
+            boolean mayChatter,
+            boolean mayName) {}
+
     private static List<Map.Entry<ResourceLocation, NpcBinding>> files = List.of();
+    private static List<Map.Entry<ResourceLocation, NpcBinding>> oneFiles = List.of();
     /** Non-"one" bindings pre-filtered lazily per EntityType in id order, cleared on reload. */
-    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Map.Entry<ResourceLocation, NpcBinding>>> BY_TYPE = new HashMap<>();
+    private static final Map<net.minecraft.world.entity.EntityType<?>, TypeCandidates> BY_TYPE = new HashMap<>();
+    /** "One" bindings pre-filtered lazily per EntityType in id order, cleared on reload. */
+    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Map.Entry<ResourceLocation, NpcBinding>>> ONE_BY_TYPE = new HashMap<>();
     /** "One" bindings indexed by id for O(1) lookup via NpcParts.partOf. */
     private static final Map<ResourceLocation, NpcBinding> ONE_BY_ID = new HashMap<>();
-    /** True when any loaded binding inspects NBT/data, so sharingSavedData ThreadLocal is only touched when needed. */
-    private static boolean anySavedData;
+    private static boolean anyOneMoves;
+    private static boolean anyOneReactsToDamage;
+    private static boolean anyOneProximity;
+    private static boolean anyOneChatter;
+    private static boolean anyOneNames;
+    private static boolean anyReactsToDamage;
+    private static boolean anyNames;
     private static double searchRadius = NpcBinding.Proximity.DEFAULT.radius();
     private static double chatterReach;
     /** Some binding writes a movement: until one does, {@link NpcMovement} looks at no entity. */
@@ -77,36 +94,75 @@ public final class NpcBindings {
     public static void rebuild() {
         CACHE.clear();
         BY_TYPE.clear();
+        ONE_BY_TYPE.clear();
         ONE_BY_ID.clear();
         NpcParts.bindingsChanged();
         List<Map.Entry<ResourceLocation, NpcBinding>> sorted = new ArrayList<>(DialogueRegistries.NPC_BINDINGS.serverStore().all().entrySet());
         sorted.sort(Map.Entry.comparingByKey(Comparator.comparing(ResourceLocation::toString)));
         files = List.copyOf(sorted);
-        boolean savedData = false;
+        List<Map.Entry<ResourceLocation, NpcBinding>> ones = new ArrayList<>();
+        boolean oneMoves = false;
+        boolean oneDamage = false;
+        boolean oneProx = false;
+        boolean oneChat = false;
+        boolean oneNames = false;
+        boolean reactsDamage = false;
+        boolean names = false;
+        double maxSearch = 0;
+        double maxChatter = 0;
+        boolean anyMoves = false;
         for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
             NpcBinding binding = entry.getValue();
+            boolean bindingMoves = binding.movement().isPresent() || binding.follow().isPresent();
+            boolean bindingDamage = binding.whenAttacked().isPresent() || binding.invulnerable().orElse(false);
+            boolean bindingProx = binding.proximity().isPresent();
+            boolean bindingChat = binding.chatter().isPresent();
+            boolean bindingNames = binding.displayName().isPresent() || !binding.names().isEmpty();
+            anyMoves |= bindingMoves;
+            reactsDamage |= bindingDamage;
+            names |= bindingNames;
+            if (bindingProx) {
+                maxSearch = Math.max(maxSearch, binding.proximity().get().radius());
+            }
+            if (bindingChat) {
+                maxChatter = Math.max(maxChatter, binding.chatter().get().radius());
+            }
             if (binding.isOne()) {
+                ones.add(entry);
                 ONE_BY_ID.put(entry.getKey(), binding);
-            } else if (binding.usesSavedData()) {
-                savedData = true;
+                oneMoves |= bindingMoves;
+                oneDamage |= bindingDamage;
+                oneProx |= bindingProx;
+                oneChat |= bindingChat;
+                oneNames |= bindingNames;
             }
         }
-        anySavedData = savedData;
-        searchRadius = files.stream().flatMap(entry -> entry.getValue().proximity().stream())
-                .mapToDouble(NpcBinding.Proximity::radius).max().orElse(0);
-        searchRadius = Math.max(searchRadius, NpcBinding.Proximity.DEFAULT.radius());
-        chatterReach = files.stream().flatMap(entry -> entry.getValue().chatter().stream())
-                .mapToDouble(NpcBinding.Chatter::radius).max().orElse(0);
-        moves = files.stream().anyMatch(entry -> entry.getValue().movement().isPresent() || entry.getValue().follow().isPresent());
+        oneFiles = List.copyOf(ones);
+        anyOneMoves = oneMoves;
+        anyOneReactsToDamage = oneDamage;
+        anyOneProximity = oneProx;
+        anyOneChatter = oneChat;
+        anyOneNames = oneNames;
+        anyReactsToDamage = reactsDamage;
+        anyNames = names;
+        searchRadius = Math.max(maxSearch, NpcBinding.Proximity.DEFAULT.radius());
+        chatterReach = maxChatter;
+        moves = anyMoves;
     }
 
-    private static List<Map.Entry<ResourceLocation, NpcBinding>> candidatesFor(net.minecraft.world.entity.EntityType<?> type) {
-        List<Map.Entry<ResourceLocation, NpcBinding>> cached = BY_TYPE.get(type);
+    private static TypeCandidates typeCandidates(net.minecraft.world.entity.EntityType<?> type) {
+        TypeCandidates cached = BY_TYPE.get(type);
         if (cached != null) {
             return cached;
         }
         var holder = BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
         List<Map.Entry<ResourceLocation, NpcBinding>> matching = null;
+        boolean usesSavedData = false;
+        boolean mayMove = false;
+        boolean mayReactToDamage = false;
+        boolean mayProximity = false;
+        boolean mayChatter = false;
+        boolean mayName = false;
         for (Map.Entry<ResourceLocation, NpcBinding> entry : files) {
             NpcBinding binding = entry.getValue();
             if (!binding.isOne() && binding.mayMatchType(holder)) {
@@ -114,11 +170,94 @@ public final class NpcBindings {
                     matching = new ArrayList<>();
                 }
                 matching.add(entry);
+                usesSavedData |= binding.usesSavedData();
+                mayMove |= binding.movement().isPresent() || binding.follow().isPresent();
+                mayReactToDamage |= binding.whenAttacked().isPresent() || binding.invulnerable().orElse(false);
+                mayProximity |= binding.proximity().isPresent();
+                mayChatter |= binding.chatter().isPresent();
+                mayName |= binding.displayName().isPresent() || !binding.names().isEmpty();
+            }
+        }
+        TypeCandidates result = new TypeCandidates(
+                matching == null ? List.of() : List.copyOf(matching),
+                usesSavedData, mayMove, mayReactToDamage, mayProximity, mayChatter, mayName);
+        BY_TYPE.put(type, result);
+        return result;
+    }
+
+    /** "One" binding files whose entity selector may match {@code type}, cached lazily. */
+    static List<Map.Entry<ResourceLocation, NpcBinding>> oneCandidatesFor(net.minecraft.world.entity.EntityType<?> type) {
+        if (oneFiles.isEmpty()) {
+            return List.of();
+        }
+        List<Map.Entry<ResourceLocation, NpcBinding>> cached = ONE_BY_TYPE.get(type);
+        if (cached != null) {
+            return cached;
+        }
+        var holder = BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
+        List<Map.Entry<ResourceLocation, NpcBinding>> matching = null;
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : oneFiles) {
+            if (entry.getValue().mayMatchType(holder)) {
+                if (matching == null) {
+                    matching = new ArrayList<>();
+                }
+                matching.add(entry);
             }
         }
         List<Map.Entry<ResourceLocation, NpcBinding>> result = matching == null ? List.of() : List.copyOf(matching);
-        BY_TYPE.put(type, result);
+        ONE_BY_TYPE.put(type, result);
         return result;
+    }
+
+    static int oneFilesCount() {
+        return oneFiles.size();
+    }
+
+    static boolean mayMove(Entity entity) {
+        if (!moves) {
+            return false;
+        }
+        if (entity.hasData(DialogueRegistries.NPC_BINDING) || typeCandidates(entity.getType()).mayMove()) {
+            return true;
+        }
+        return anyOneMoves && NpcParts.partOf(entity).isPresent();
+    }
+
+    static boolean mayReactToDamage(Entity entity) {
+        if (!anyReactsToDamage && !entity.hasData(DialogueRegistries.NPC_BINDING)) {
+            return false;
+        }
+        if (entity.hasData(DialogueRegistries.NPC_BINDING) || typeCandidates(entity.getType()).mayReactToDamage()) {
+            return true;
+        }
+        return anyOneReactsToDamage && NpcParts.partOf(entity).isPresent();
+    }
+
+    static boolean mayHaveProximity(Entity entity) {
+        if (entity.hasData(DialogueRegistries.NPC_BINDING) || typeCandidates(entity.getType()).mayProximity()) {
+            return true;
+        }
+        return anyOneProximity && NpcParts.partOf(entity).isPresent();
+    }
+
+    static boolean mayChatter(Entity entity) {
+        if (chatterReach <= 0) {
+            return false;
+        }
+        if (entity.hasData(DialogueRegistries.NPC_BINDING) || typeCandidates(entity.getType()).mayChatter()) {
+            return true;
+        }
+        return anyOneChatter && NpcParts.partOf(entity).isPresent();
+    }
+
+    static boolean mayBeNamed(Entity entity) {
+        if (!anyNames && !entity.hasData(DialogueRegistries.NPC_BINDING)) {
+            return false;
+        }
+        if (entity.hasData(DialogueRegistries.NPC_BINDING) || typeCandidates(entity.getType()).mayName()) {
+            return true;
+        }
+        return anyOneNames && NpcParts.partOf(entity).isPresent();
     }
 
     /** Whether some binding writes a movement (see {@link NpcMovement}). */
@@ -144,19 +283,25 @@ public final class NpcBindings {
      * hits and respawns all ask it.
      */
     public static Optional<Found> find(Entity entity) {
+        boolean hasOwn = entity.hasData(DialogueRegistries.NPC_BINDING);
+        ResourceLocation part = ONE_BY_ID.isEmpty() ? null : NpcParts.partOf(entity).orElse(null);
+        TypeCandidates tc = typeCandidates(entity.getType());
+        if (!hasOwn && part == null && tc.list().isEmpty()) {
+            return Optional.empty();
+        }
         long now = entity.level().getGameTime();
         Cached cached = CACHE.get(entity.getUUID());
         if (cached != null && now >= cached.tick() && now - cached.tick() < CACHE_TICKS && cached.same(entity)) {
             return cached.found();
         }
-        // Every binding asks the same entity: its saved data read once for all of them when any binding inspects NBT/data.
-        Found resolved = anySavedData
-                ? dev.dzenthai.storybound.core.logic.EntitySelector.sharingSavedData(() -> resolve(entity))
-                : resolve(entity);
+        // Only enter sharingSavedData when at least one candidate for this entity type actually inspects NBT/data.
+        Found resolved = tc.usesSavedData()
+                ? dev.dzenthai.storybound.core.logic.EntitySelector.sharingSavedData(() -> resolve(entity, hasOwn, part, tc.list()))
+                : resolve(entity, hasOwn, part, tc.list());
         Optional<Found> found = Optional.ofNullable(resolved);
         Set<String> entityTags = entity.getTags();
         CACHE.put(entity.getUUID(), new Cached(now, entityTags.isEmpty() ? Set.of() : Set.copyOf(entityTags), entity.getCustomName(),
-                entity.hasData(DialogueRegistries.NPC_BINDING), found));
+                hasOwn, found));
         return found;
     }
 
@@ -180,13 +325,8 @@ public final class NpcBindings {
         CACHE.remove(entity.getUUID());
     }
 
-    private static @Nullable Found resolve(Entity entity) {
-        boolean hasOwn = entity.hasData(DialogueRegistries.NPC_BINDING);
-        ResourceLocation part = ONE_BY_ID.isEmpty() ? null : NpcParts.partOf(entity).orElse(null);
-        List<Map.Entry<ResourceLocation, NpcBinding>> candidates = candidatesFor(entity.getType());
-        if (!hasOwn && part == null && candidates.isEmpty()) {
-            return null;
-        }
+    private static @Nullable Found resolve(Entity entity, boolean hasOwn, @Nullable ResourceLocation part,
+                                           List<Map.Entry<ResourceLocation, NpcBinding>> candidates) {
         List<Layer> chain = new ArrayList<>();
         if (hasOwn) {
             chain.add(new Layer(null, entity.getData(DialogueRegistries.NPC_BINDING).toBinding(entity), new NpcBinding.Rank(NpcBinding.Rank.OWN, 0), false));
@@ -466,7 +606,7 @@ public final class NpcBindings {
         Set<UUID> previous = NEAR.getOrDefault(playerId, Set.of());
         Set<UUID> near = new HashSet<>();
         AABB box = player.getBoundingBox().inflate(searchRadius);
-        for (Entity entity : player.level().getEntities(player, box, candidate -> candidate instanceof LivingEntity && candidate.isAlive())) {
+        for (Entity entity : player.level().getEntities(player, box, candidate -> candidate instanceof LivingEntity && candidate.isAlive() && mayHaveProximity(candidate))) {
             Found found = find(entity).orElse(null);
             NpcBinding.Proximity proximity = found != null ? found.binding().proximity().orElse(null) : null;
             if (proximity == null || entity.distanceToSqr(player) > proximity.radius() * proximity.radius()

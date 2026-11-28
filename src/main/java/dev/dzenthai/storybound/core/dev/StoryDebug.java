@@ -50,7 +50,7 @@ public final class StoryDebug {
     private StoryDebug() {}
 
     public static void register(IEventBus gameBus) {
-        StoryTrace.tap(player -> WATCHING.containsValue(player), StoryDebug::record);
+        StoryTrace.tap(() -> !WATCHING.isEmpty(), player -> WATCHING.containsValue(player), StoryDebug::record);
         gameBus.addListener(StoryDebug::onServerTick);
         gameBus.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> {
             UUID left = event.getEntity().getUUID();

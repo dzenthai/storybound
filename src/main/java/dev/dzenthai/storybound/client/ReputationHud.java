@@ -122,15 +122,20 @@ public final class ReputationHud {
                 pulse = (1 - t) * (1 - t);
             }
         }
-        for (int slot = 0; slot < SLOTS; slot++) {
-            int iconX = x + slot * (ICON + GAP);
-            float scale = slot == changed ? 1 + 0.6f * pulse : 1;
-            graphics.pose().pushPose();
-            graphics.pose().translate(iconX + ICON / 2f, iconY + ICON / 2f, 0);
-            graphics.pose().scale(scale, scale, 1);
-            icon(graphics, stars, slot < filled, -ICON / 2, -ICON / 2, alpha);
-            graphics.pose().popPose();
-        }
+        final int finalChanged = changed;
+        final float finalPulse = pulse;
+        final float finalAlpha = alpha;
+        graphics.drawManaged(() -> {
+            for (int slot = 0; slot < SLOTS; slot++) {
+                int iconX = x + slot * (ICON + GAP);
+                float scale = slot == finalChanged ? 1 + 0.6f * finalPulse : 1;
+                graphics.pose().pushPose();
+                graphics.pose().translate(iconX + ICON / 2f, iconY + ICON / 2f, 0);
+                graphics.pose().scale(scale, scale, 1);
+                icon(graphics, stars, slot < filled, -ICON / 2, -ICON / 2, finalAlpha);
+                graphics.pose().popPose();
+            }
+        });
         graphics.pose().popPose();
         HudScale.pop(graphics);
     }
@@ -148,29 +153,44 @@ public final class ReputationHud {
             return;
         }
         String[] map = star ? STAR_MAP : SKULL_MAP;
+        int shadowColor = faded(full ? 0xA0000000 : 0x70000000, alpha);
         // With no backing, a shadow a pixel down and right keeps them seen on snow and at night alike.
         for (int row = 0; row < ICON; row++) {
-            for (int column = 0; column < ICON; column++) {
-                if (map[row].charAt(column) == '#') {
-                    graphics.fill(x + column + 1, y + row + 1, x + column + 2, y + row + 2, faded(full ? 0xA0000000 : 0x70000000, alpha));
+            String line = map[row];
+            for (int column = 0; column < ICON; ) {
+                if (line.charAt(column) != '#') {
+                    column++;
+                    continue;
                 }
+                int start = column;
+                while (column < ICON && line.charAt(column) == '#') {
+                    column++;
+                }
+                graphics.fill(x + start + 1, y + row + 1, x + column + 1, y + row + 2, shadowColor);
             }
         }
         for (int row = 0; row < ICON; row++) {
-            for (int column = 0; column < ICON; column++) {
-                if (map[row].charAt(column) != '#') {
+            String line = map[row];
+            int color;
+            if (!full) {
+                // An empty slot: the shape pale, half seen, over its shadow.
+                color = 0x80D8C8A8;
+            } else if (star) {
+                color = row < 3 ? 0xFFFFE08A : row < 6 ? 0xFFE1B34D : 0xFFB08031;
+            } else {
+                color = row < 3 ? 0xFFF5DFB2 : row < 6 ? 0xFFE6C68C : 0xFFCDA269;
+            }
+            int fillColor = faded(color, alpha);
+            for (int column = 0; column < ICON; ) {
+                if (line.charAt(column) != '#') {
+                    column++;
                     continue;
                 }
-                int color;
-                if (!full) {
-                    // An empty slot: the shape pale, half seen, over its shadow.
-                    color = 0x80D8C8A8;
-                } else if (star) {
-                    color = row < 3 ? 0xFFFFE08A : row < 6 ? 0xFFE1B34D : 0xFFB08031;
-                } else {
-                    color = row < 3 ? 0xFFF5DFB2 : row < 6 ? 0xFFE6C68C : 0xFFCDA269;
+                int start = column;
+                while (column < ICON && line.charAt(column) == '#') {
+                    column++;
                 }
-                graphics.fill(x + column, y + row, x + column + 1, y + row + 1, faded(color, alpha));
+                graphics.fill(x + start, y + row, x + column, y + row + 1, fillColor);
             }
         }
     }

@@ -80,7 +80,7 @@ public final class NpcReactions {
     /** Before the damage: a player's hit is counted and reacted to; an invulnerable NPC then takes none. */
     static void onIncomingDamage(LivingIncomingDamageEvent event) {
         LivingEntity npc = event.getEntity();
-        if (!(npc.level() instanceof ServerLevel level) || !Dialogues.isEnabled()) {
+        if (!(npc.level() instanceof ServerLevel level) || !Dialogues.isEnabled() || !NpcBindings.mayReactToDamage(npc)) {
             return;
         }
         NpcBinding binding = NpcBindings.find(npc).map(NpcBindings.Found::binding).orElse(null);

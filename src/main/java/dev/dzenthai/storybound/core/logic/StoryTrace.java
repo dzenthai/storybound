@@ -48,6 +48,7 @@ public final class StoryTrace {
     private static @Nullable BufferedWriter writer;
     private static @Nullable MinecraftServer server;
     /** Players someone watches live ({@code /storybound debug}): their lines also go to {@link #tap}, file or not. */
+    private static java.util.function.BooleanSupplier anyWatching = () -> false;
     private static Predicate<UUID> watched = player -> false;
     private static BiConsumer<UUID, JsonObject> tap = (player, line) -> {};
 
@@ -58,6 +59,12 @@ public final class StoryTrace {
      * debug overlay. {@code sink} gets each line as written (without time and tick).
      */
     public static void tap(Predicate<UUID> watching, BiConsumer<UUID, JsonObject> sink) {
+        tap(() -> true, watching, sink);
+    }
+
+    /** Overload supplying a cheap O(1) {@code hasAnyWatcher} check so {@link #active} short-circuits when idle. */
+    public static void tap(java.util.function.BooleanSupplier hasAnyWatcher, Predicate<UUID> watching, BiConsumer<UUID, JsonObject> sink) {
+        anyWatching = hasAnyWatcher;
         watched = watching;
         tap = sink;
     }
@@ -109,7 +116,10 @@ public final class StoryTrace {
 
     /** Whether anything is written for the player: the file trace, or someone watching them live. */
     public static boolean active(ServerPlayer player) {
-        return toFile(player) || watched.test(player.getUUID());
+        if (!enabled && !anyWatching.getAsBoolean()) {
+            return false;
+        }
+        return toFile(player) || (anyWatching.getAsBoolean() && watched.test(player.getUUID()));
     }
 
     private static boolean toFile(ServerPlayer player) {
@@ -142,6 +152,9 @@ public final class StoryTrace {
      * @param failed the parts that made them fail (see {@link Conditions#check})
      */
     public static void conditions(StoryContext context, String source, boolean passed, List<JsonObject> failed) {
+        if (!active(context.player())) {
+            return;
+        }
         JsonObject line = line(context, "conditions", source);
         line.addProperty("passed", passed);
         if (!failed.isEmpty()) {

@@ -42,7 +42,9 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class Bosses {
     private static List<Map.Entry<ResourceLocation, BossDefinition>> bosses = List.of();
-    /** Boss entity → its fight. */
+    /** Lazily indexed boss definitions per EntityType so bossOf() skips non-boss types in O(1). */
+    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Map.Entry<ResourceLocation, BossDefinition>>> BY_TYPE = new HashMap<>();
+    /** Boss entity -> its fight. */
     private static final Map<UUID, Fight> FIGHTS = new HashMap<>();
 
     private Bosses() {}
@@ -62,13 +64,40 @@ public final class Bosses {
 
     /** Caches the loaded bosses in id order; the first whose selector matches an entity is its boss. */
     static void rebuild() {
+        BY_TYPE.clear();
         List<Map.Entry<ResourceLocation, BossDefinition>> sorted = new ArrayList<>(BossRegistries.BOSSES.serverStore().all().entrySet());
         sorted.sort(Map.Entry.comparingByKey(Comparator.comparing(ResourceLocation::toString)));
         bosses = List.copyOf(sorted);
     }
 
+    private static List<Map.Entry<ResourceLocation, BossDefinition>> candidatesFor(net.minecraft.world.entity.EntityType<?> type) {
+        if (bosses.isEmpty()) {
+            return List.of();
+        }
+        List<Map.Entry<ResourceLocation, BossDefinition>> cached = BY_TYPE.get(type);
+        if (cached != null) {
+            return cached;
+        }
+        var holder = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
+        List<Map.Entry<ResourceLocation, BossDefinition>> matching = null;
+        for (Map.Entry<ResourceLocation, BossDefinition> entry : bosses) {
+            var types = entry.getValue().entity().type();
+            if (types.isEmpty() || types.get().contains(holder)) {
+                if (matching == null) {
+                    matching = new ArrayList<>();
+                }
+                matching.add(entry);
+            }
+        }
+        List<Map.Entry<ResourceLocation, BossDefinition>> result = matching == null ? List.of() : List.copyOf(matching);
+        BY_TYPE.put(type, result);
+        return result;
+    }
+
     public static Optional<ResourceLocation> bossOf(Entity entity) {
-        for (Map.Entry<ResourceLocation, BossDefinition> boss : bosses) {
+        List<Map.Entry<ResourceLocation, BossDefinition>> candidates = candidatesFor(entity.getType());
+        for (int i = 0; i < candidates.size(); i++) {
+            Map.Entry<ResourceLocation, BossDefinition> boss = candidates.get(i);
             if (boss.getValue().entity().matches(entity)) {
                 return Optional.of(boss.getKey());
             }

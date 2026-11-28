@@ -67,7 +67,9 @@ public final class StoryContainer {
     @Nullable
     StoryValue put(ResourceLocation key, StoryValue value) {
         StoryValue old = values.put(key, value);
-        onChange.run();
+        if (!java.util.Objects.equals(old, value)) {
+            onChange.run();
+        }
         return old;
     }
 
@@ -86,10 +88,13 @@ public final class StoryContainer {
             if (quests.remove(quest) == null) {
                 return;
             }
-        } else {
-            quests.put(quest, progress);
+            onChange.run();
+            return;
         }
-        onChange.run();
+        QuestProgress old = quests.put(quest, progress);
+        if (!java.util.Objects.equals(old, progress)) {
+            onChange.run();
+        }
     }
 
     /**

@@ -22,11 +22,13 @@ public final class ShaderPacks {
 
     /** Whether a shader pack is on now; false without Iris or when its API cannot be read. */
     public static boolean inUse() {
+        find();
         return call(inUse);
     }
 
     /** Whether Iris is drawing its shadow pass, where nothing of the mod's own belongs. */
     public static boolean renderingShadowPass() {
+        find();
         return call(shadowPass);
     }
 

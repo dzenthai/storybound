@@ -55,8 +55,15 @@ public final class Waypoints {
     private static Map<ResourceLocation, List<Binding>> stageBindings = Map.of();
     /** Player → what their client has now. */
     private static final Map<UUID, Map<String, ClientWaypoint>> SENT = new HashMap<>();
-    /** Followed entity → where it was last seen, for when it is not loaded (without the entity id: the client has no such entity either). */
-    private static final Map<UUID, WaypointSightings.Sighting> LAST_SEEN = new HashMap<>();
+    /** Followed entity -> where it was last seen, bounded to avoid unbounded growth on long-uptime servers. */
+    private static final Map<UUID, WaypointSightings.Sighting> LAST_SEEN = new LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<UUID, WaypointSightings.Sighting> eldest) {
+            return size() > 4096;
+        }
+    };
+    /** Players whose last visible() pass had at least one active moving waypoint target. */
+    private static final java.util.Set<UUID> FOLLOWING_PLAYERS = new java.util.HashSet<>();
     /**
      * Structure searches from a player start from the middle of the 256-block cell they stand in, so players near
      * each other share one background search, and walking within a cell starts none.
@@ -103,6 +110,7 @@ public final class Waypoints {
         SEARCH_ORIGINS.clear();
         SEARCH_CANDIDATES.clear();
         NEAREST_PICKS.clear();
+        FOLLOWING_PLAYERS.clear();
         StructureLocator.reset();
     }
 
@@ -122,10 +130,17 @@ public final class Waypoints {
     /** What the player should see now, by key. Public for tests. */
     public static Map<String, ClientWaypoint> visible(ServerPlayer player) {
         Map<String, ClientWaypoint> result = new LinkedHashMap<>();
+        UUID playerId = player.getUUID();
         if (!isEnabled()) {
+            FOLLOWING_PLAYERS.remove(playerId);
+            SEARCH_ORIGINS.remove(playerId);
+            SEARCH_CANDIDATES.remove(playerId);
+            NEAREST_PICKS.remove(playerId);
             return result;
         }
         StoryContext context = StoryContext.of(player);
+        java.util.Set<String> activeKeys = new java.util.HashSet<>();
+        boolean[] hasMoving = {false};
         WaypointRegistries.WAYPOINTS.serverStore().all().forEach((id, definition) -> {
             List<Binding> bindings = new ArrayList<>(stageBindings.getOrDefault(id, List.of()));
             definition.quest().ifPresent(quest -> bindings.add(new Binding(quest, definition.stage().orElse(null))));
@@ -141,6 +156,10 @@ public final class Waypoints {
                 return;
             }
             String key = id.toString();
+            activeKeys.add(key);
+            if (moves(definition.target())) {
+                hasMoving[0] = true;
+            }
             Place place = locate(player, key, definition.target(), companions(player, quest));
             if (place != null) {
                 Trail trail = trail(player, key, definition, place);
@@ -154,6 +173,10 @@ public final class Waypoints {
             if (!sees(player, added)) {
                 continue;
             }
+            activeKeys.add(added.key());
+            if (moves(added.target())) {
+                hasMoving[0] = true;
+            }
             Place place = locate(player, added.key(), added.target(), added.scope() == StoryScope.PLAYER ? List.of()
                     : StoryState.onlinePlayersOf(player.server, added.scope(), StoryState.owner(player, added.scope())));
             if (place != null) {
@@ -162,7 +185,29 @@ public final class Waypoints {
                         added.color(), Optional.empty(), place.placed(), added.look().marker(), WaypointTrace.Kind.NONE, List.of(), 0f));
             }
         }
+        if (hasMoving[0]) {
+            FOLLOWING_PLAYERS.add(playerId);
+        } else {
+            FOLLOWING_PLAYERS.remove(playerId);
+        }
+        pruneStaleKeys(SEARCH_ORIGINS, playerId, activeKeys);
+        pruneStaleKeys(SEARCH_CANDIDATES, playerId, activeKeys);
+        pruneStaleKeys(NEAREST_PICKS, playerId, activeKeys);
         return result;
+    }
+
+    private static <V> void pruneStaleKeys(Map<UUID, Map<String, V>> byPlayer, UUID playerId, java.util.Set<String> activeKeys) {
+        Map<String, V> map = byPlayer.get(playerId);
+        if (map != null) {
+            if (activeKeys.isEmpty()) {
+                byPlayer.remove(playerId);
+            } else {
+                map.keySet().retainAll(activeKeys);
+                if (map.isEmpty()) {
+                    byPlayer.remove(playerId);
+                }
+            }
+        }
     }
 
     /** Sends the player everything they see, replacing what their client had. */
@@ -297,6 +342,10 @@ public final class Waypoints {
     }
 
     static void tick(MinecraftServer server) {
+        if (!isEnabled() || (WaypointRegistries.WAYPOINTS.serverStore().all().isEmpty()
+                && WaypointData.get(server).all().isEmpty() && SENT.isEmpty())) {
+            return;
+        }
         int tick = server.getTickCount();
         for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
             // Each player on ticks of their own, so a full server spreads the work instead of a spike.
@@ -315,6 +364,7 @@ public final class Waypoints {
         SEARCH_ORIGINS.remove(player.getUUID());
         SEARCH_CANDIDATES.remove(player.getUUID());
         NEAREST_PICKS.remove(player.getUUID());
+        FOLLOWING_PLAYERS.remove(player.getUUID());
     }
 
     static void reset() {
@@ -323,6 +373,7 @@ public final class Waypoints {
         SEARCH_ORIGINS.clear();
         SEARCH_CANDIDATES.clear();
         NEAREST_PICKS.clear();
+        FOLLOWING_PLAYERS.clear();
         StructureLocator.reset();
     }
 
@@ -418,10 +469,19 @@ public final class Waypoints {
             return remember(player, picks, key, entity);
         }
         double range = target.range();
-        Entity found = level.getEntities((Entity) null, player.getBoundingBox().inflate(range),
-                        candidate -> isCandidate(candidate, target) && candidate.distanceToSqr(player) <= range * range).stream()
-                .min(Comparator.comparingDouble(candidate -> candidate.distanceToSqr(player)))
-                .orElse(null);
+        double[] bestDistSqr = {range * range};
+        Entity[] nearest = {null};
+        level.getEntities((Entity) null, player.getBoundingBox().inflate(range), candidate -> {
+            double distSqr = candidate.distanceToSqr(player);
+            if (distSqr <= bestDistSqr[0] && isCandidate(candidate, target)) {
+                if (nearest[0] == null || distSqr < bestDistSqr[0]) {
+                    bestDistSqr[0] = distSqr;
+                    nearest[0] = candidate;
+                }
+            }
+            return false;
+        });
+        Entity found = nearest[0];
         if (found != null) {
             return remember(player, picks, key, found);
         }
@@ -532,18 +592,9 @@ public final class Waypoints {
         return new Place(entity.level().dimension().location(), pos.add(0, entity.getBbHeight(), 0), loaded ? entity.getId() : ClientWaypoint.NO_ENTITY);
     }
 
-    /** Whether the player sees a waypoint that moves on its own: one that follows an entity or picks the nearest. */
+    /** Whether the player has an active waypoint that moves on its own: one that follows an entity or picks the nearest. */
     private static boolean followsSomething(ServerPlayer player) {
-        Map<String, ClientWaypoint> sent = SENT.get(player.getUUID());
-        if (sent == null || sent.isEmpty()) {
-            return false;
-        }
-        for (WaypointDefinition definition : WaypointRegistries.WAYPOINTS.serverStore().all().values()) {
-            if (moves(definition.target())) {
-                return true;
-            }
-        }
-        return WaypointData.get(player.server).all().stream().anyMatch(added -> moves(added.target()) && sees(player, added));
+        return FOLLOWING_PLAYERS.contains(player.getUUID());
     }
 
     private static boolean moves(WaypointTarget target) {

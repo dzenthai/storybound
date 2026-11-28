@@ -25,6 +25,11 @@ public final class ClientWaypoints {
     private static final List<WaypointRenderer> RENDERERS = new CopyOnWriteArrayList<>();
     private static int version;
     private static boolean hasAreaRings;
+    private static boolean hasTraces;
+    private static List<ClientWaypoint> shownCache = List.of();
+    private static int shownCacheVersion = -1;
+    private static int shownCacheQuestVersion = -1;
+    private static @Nullable StoryboundClientConfig.Untracked shownCacheUntracked;
     private static int shownVersion = -1;
     private static List<ResourceLocation> shownTracked = List.of();
     private static @Nullable ClientLevel shownLevel;
@@ -50,13 +55,24 @@ public final class ClientWaypoints {
 
     private static void recomputeFlags() {
         boolean rings = false;
+        boolean traces = false;
         for (ClientWaypoint waypoint : WAYPOINTS.values()) {
-            if (waypoint.placed() && waypoint.radius() > 0 && waypoint.showRing() && !waypoint.isTrace()) {
+            if (!waypoint.placed()) {
+                continue;
+            }
+            if (waypoint.isTrace()) {
+                if (waypoint.trace().size() >= 2) {
+                    traces = true;
+                }
+            } else if (waypoint.radius() > 0 && waypoint.showRing()) {
                 rings = true;
+            }
+            if (rings && traces) {
                 break;
             }
         }
         hasAreaRings = rings;
+        hasTraces = traces;
     }
 
     public static boolean isEmpty() {
@@ -66,6 +82,11 @@ public final class ClientWaypoints {
     /** True when at least one placed waypoint requests an area ring; lets {@link AreaRings} short-circuit cheaply. */
     public static boolean hasAreaRings() {
         return hasAreaRings;
+    }
+
+    /** True when at least one placed waypoint is a drawable trace; lets {@link TraceTrails} short-circuit cheaply. */
+    public static boolean hasTraces() {
+        return hasTraces;
     }
 
     /** Live unmodifiable view without copying; safe on the render thread when not mutating waypoints. */
@@ -98,6 +119,14 @@ public final class ClientWaypoints {
 
     /** Waypoints that should be drawn at all, in the order received. */
     public static List<ClientWaypoint> shown() {
+        if (WAYPOINTS.isEmpty()) {
+            return List.of();
+        }
+        int questVersion = ClientQuests.version();
+        StoryboundClientConfig.Untracked untracked = StoryboundClientConfig.INSTANCE.untrackedQuestWaypoints.get();
+        if (shownCacheVersion == version && shownCacheQuestVersion == questVersion && shownCacheUntracked == untracked) {
+            return shownCache;
+        }
         List<ClientWaypoint> shown = new ArrayList<>();
         for (ClientWaypoint waypoint : WAYPOINTS.values()) {
             // One with only its dimension known is drawn nowhere: the quest tracker names the dimension.
@@ -105,7 +134,11 @@ public final class ClientWaypoints {
                 shown.add(waypoint);
             }
         }
-        return shown;
+        shownCache = List.copyOf(shown);
+        shownCacheVersion = version;
+        shownCacheQuestVersion = questVersion;
+        shownCacheUntracked = untracked;
+        return shownCache;
     }
 
     /** Pushes changes to the renderers; every client tick, cheap when nothing changed. */
@@ -137,6 +170,9 @@ public final class ClientWaypoints {
     public static void clear() {
         WAYPOINTS.clear();
         hasAreaRings = false;
+        hasTraces = false;
+        shownCache = List.of();
+        shownCacheVersion = -1;
         version++;
         for (WaypointRenderer renderer : RENDERERS) {
             try {

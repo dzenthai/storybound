@@ -32,6 +32,12 @@ public final class DayTimeTracker {
 
     /** Every 10 ticks, with the areas; public for tests. */
     public static void tick(MinecraftServer server) {
+        if (!TriggerDispatcher.hasSubscribers(BuiltinTriggers.TIME.get())) {
+            if (!SEEN.isEmpty()) {
+                SEEN.clear();
+            }
+            return;
+        }
         for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
             WorldConditions.Time.Period now = periodOf(player);
             if (now == null) {

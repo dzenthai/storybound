@@ -32,6 +32,10 @@ public final class StoryEvents {
     private static final String SOURCE = Storybound.id("events").toString();
     static final String ONCE_PREFIX = "once/";
     static final String COOLDOWN_PREFIX = "cooldown/";
+    private record StateEvent(ResourceLocation id, StoryEvent event, StoryScope onceScope, ResourceLocation onceKey) {}
+
+    /** Pre-filtered once events whose trigger announces a state, so checkStates skips irrelevant events. */
+    private static List<StateEvent> stateEvents = List.of();
     /** Per player: once events run by their state that aborted, not tried again while the state keeps holding. */
     private static final Map<UUID, Set<ResourceLocation>> ATTEMPTED = new HashMap<>();
 
@@ -40,8 +44,20 @@ public final class StoryEvents {
     /** Re-subscribes all story events; called after every data load. */
     public static void rebuild() {
         List<Subscription<?>> subscriptions = new ArrayList<>();
-        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> subscriptions.add(subscribe(id, event, event.trigger())));
+        List<StateEvent> states = new ArrayList<>();
+        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> {
+            subscriptions.add(subscribe(id, event, event.trigger()));
+            if (event.once().isPresent() && event.trigger().stateKind() != Trigger.StateKind.NONE) {
+                states.add(new StateEvent(id, event, event.once().get(), onceKey(id)));
+            }
+        });
+        stateEvents = List.copyOf(states);
         TriggerDispatcher.setSubscriptions(SOURCE, subscriptions);
+    }
+
+    /** True when at least one once story event has a state-checked trigger. */
+    public static boolean hasStateEvents() {
+        return !stateEvents.isEmpty();
     }
 
     /** The internal value that holds when a cooling event may run again, in seconds of game time. */
@@ -100,30 +116,41 @@ public final class StoryEvents {
      * state stops holding, so it cannot repeat its earlier actions every second. Conditions are tested quietly.
      */
     public static void checkStates(ServerPlayer player) {
+        if (stateEvents.isEmpty()) {
+            return;
+        }
         StoryContext context = StoryContext.of(player);
-        Set<ResourceLocation> attempted = ATTEMPTED.computeIfAbsent(player.getUUID(), uuid -> new HashSet<>());
-        CoreDefinitions.EVENTS.serverStore().all().forEach((id, event) -> {
-            if (event.once().isEmpty() || event.trigger().stateKind() == Trigger.StateKind.NONE) {
-                return;
+        Set<ResourceLocation> attempted = ATTEMPTED.get(player.getUUID());
+        for (StateEvent entry : stateEvents) {
+            ResourceLocation id = entry.id();
+            // Skip already-completed once events before evaluating expensive POI/structure/biome holdsNow() checks.
+            if (StoryState.getStored(player, entry.onceScope(), entry.onceKey()).isPresent()) {
+                if (attempted != null) {
+                    attempted.remove(id);
+                }
+                continue;
             }
+            StoryEvent event = entry.event();
             boolean holds;
             try {
                 holds = event.trigger().holdsNow(context);
             } catch (RuntimeException e) {
                 Storybound.LOGGER.error("Storybound: checking the state of story event {} failed", id, e);
-                return;
+                continue;
             }
             if (!holds) {
-                attempted.remove(id);
-                return;
+                if (attempted != null) {
+                    attempted.remove(id);
+                }
+                continue;
             }
-            if (attempted.contains(id) || StoryState.getStored(player, event.once().get(), onceKey(id)).isPresent()
-                    || !event.conditions().test(context)) {
-                return;
+            if ((attempted != null && attempted.contains(id)) || !event.conditions().test(context)) {
+                continue;
             }
             StoryTrace.note(player, "story event " + id, "its trigger's state already holds: run");
             run(id, event, context);
-        });
+            attempted = ATTEMPTED.get(player.getUUID());
+        }
     }
 
     public static void forget(UUID player) {

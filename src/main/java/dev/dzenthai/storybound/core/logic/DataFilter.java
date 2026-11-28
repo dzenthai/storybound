@@ -33,9 +33,85 @@ public record DataFilter(Map<String, List<Value>> fields) {
     public static final Codec<DataFilter> CODEC = Codec.unboundedMap(Codec.STRING, VALUES)
             .xmap(map -> new DataFilter(new LinkedHashMap<>(map)), DataFilter::fields);
 
+    private static final int MAX_PATH_CACHE = 1024;
+    private static final java.util.concurrent.ConcurrentHashMap<String, String[]> PATH_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String[] splitPath(String path) {
+        String[] cached = PATH_CACHE.get(path);
+        if (cached != null) {
+            return cached;
+        }
+        String[] parts = path.split("/");
+        if (PATH_CACHE.size() >= MAX_PATH_CACHE) {
+            PATH_CACHE.clear();
+        }
+        PATH_CACHE.put(path, parts);
+        return parts;
+    }
+
     /** Whether every field holds one of its values. */
     public boolean matches(CompoundTag saved) {
-        return fields.entrySet().stream().allMatch(field -> holds(saved, field.getKey(), field.getValue()));
+        for (Map.Entry<String, List<Value>> entry : fields.entrySet()) {
+            if (!holds(saved, entry.getKey(), entry.getValue())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Exact-class fast path for vanilla Villager / ZombieVillager {@code VillagerData/*} filters without calling
+     * {@code entity.saveWithoutId(...)}. Returns null if any field is not a supported VillagerData path so the caller
+     * falls back to full NBT serialization.
+     */
+    @org.jetbrains.annotations.Nullable Boolean matchVanillaVillager(net.minecraft.world.entity.Entity entity) {
+        Class<?> clazz = entity.getClass();
+        if (clazz != net.minecraft.world.entity.npc.Villager.class
+                && clazz != net.minecraft.world.entity.monster.ZombieVillager.class) {
+            return null;
+        }
+        for (String path : fields.keySet()) {
+            if (!path.equals("VillagerData/profession") && !path.equals("VillagerData/type") && !path.equals("VillagerData/level")) {
+                return null;
+            }
+        }
+        net.minecraft.world.entity.npc.VillagerData data = ((net.minecraft.world.entity.npc.VillagerDataHolder) entity).getVillagerData();
+        for (Map.Entry<String, List<Value>> entry : fields.entrySet()) {
+            String path = entry.getKey();
+            List<Value> values = entry.getValue();
+            boolean matched = false;
+            if (path.equals("VillagerData/profession")) {
+                String actual = String.valueOf(net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(data.getProfession()));
+                for (int i = 0; i < values.size(); i++) {
+                    if (values.get(i) instanceof Value.Text(String text) && text.equals(actual)) {
+                        matched = true;
+                        break;
+                    }
+                }
+            } else if (path.equals("VillagerData/type")) {
+                String actual = String.valueOf(net.minecraft.core.registries.BuiltInRegistries.VILLAGER_TYPE.getKey(data.getType()));
+                for (int i = 0; i < values.size(); i++) {
+                    if (values.get(i) instanceof Value.Text(String text) && text.equals(actual)) {
+                        matched = true;
+                        break;
+                    }
+                }
+            } else {
+                int level = data.getLevel();
+                for (int i = 0; i < values.size(); i++) {
+                    Value v = values.get(i);
+                    if ((v instanceof Value.Number(double num) && num == level)
+                            || (v instanceof Value.Flag(boolean on) && (level != 0) == on)) {
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            if (!matched) {
+                return Boolean.FALSE;
+            }
+        }
+        return Boolean.TRUE;
     }
 
     /** The fields that do not, for the trace: "Stage is 1, wanted 2". */
@@ -56,17 +132,29 @@ public record DataFilter(Map<String, List<Value>> fields) {
 
     private static boolean holds(CompoundTag saved, String path, List<Value> values) {
         Tag has = at(saved, path);
-        return has != null && values.stream().anyMatch(value -> value.matches(has));
+        if (has == null) {
+            return false;
+        }
+        for (int i = 0; i < values.size(); i++) {
+            if (values.get(i).matches(has)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The tag at a path ("VillagerData/profession"), null when it is not there. */
     public static Tag at(CompoundTag saved, String path) {
         Tag here = saved;
-        for (String part : path.split("/")) {
-            if (!(here instanceof CompoundTag compound) || !compound.contains(part)) {
+        String[] segments = splitPath(path);
+        for (int i = 0; i < segments.length; i++) {
+            if (!(here instanceof CompoundTag compound)) {
                 return null;
             }
-            here = compound.get(part);
+            here = compound.get(segments[i]);
+            if (here == null) {
+                return null;
+            }
         }
         return here;
     }

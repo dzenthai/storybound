@@ -40,8 +40,7 @@ public record QuestSyncPayload(Map<ResourceLocation, QuestProgress> quests, List
     }
 
     public static void handleOnClient(QuestSyncPayload payload, IPayloadContext context) {
-        DifficultyScale.set(payload.difficulty());
-        DifficultyScale.setQuestScales(payload.questScales());
+        DifficultyScale.setAll(payload.difficulty(), payload.questScales());
         ClientQuests.apply(payload.quests(), payload.pinned(), payload.rewards(), payload.received());
     }
 }

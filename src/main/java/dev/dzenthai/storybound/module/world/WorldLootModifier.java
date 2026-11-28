@@ -50,19 +50,41 @@ public final class WorldLootModifier extends LootModifier {
 
     @Override
     protected ObjectArrayList<ItemStack> doApply(ObjectArrayList<ItemStack> generatedLoot, LootContext context) {
-        List<WorldRules.Entry<LootModifierRule>> rules = WorldRules.lootRules();
-        if (rules.isEmpty()) {
+        if (WorldRules.lootRules().isEmpty()) {
             return generatedLoot;
         }
         ResourceLocation tableId = context.getQueriedLootTableId();
+        List<WorldRules.Entry<LootModifierRule>> tableRules = WorldRules.lootRulesForTable(tableId);
+        Entity killedEntity = findKilledEntity(context);
+        List<WorldRules.Entry<LootModifierRule>> entityRules = killedEntity != null ? WorldRules.lootRulesForEntity(killedEntity.getType()) : null;
+        List<WorldRules.Entry<LootModifierRule>> chestRules = WorldRules.lootChestRules();
+        boolean checkChests = !chestRules.isEmpty() && DocumentDefinition.LootRule.isChestTable(tableId);
+        if (tableRules == null && entityRules == null && !checkChests) {
+            return generatedLoot;
+        }
         ServerLevel level = context.getLevel();
         Vec3 origin = context.getParamOrNull(LootContextParams.ORIGIN);
         BlockPos pos = origin != null ? BlockPos.containing(origin) : null;
         ServerPlayer player = findPlayer(context);
-        Entity killedEntity = findKilledEntity(context);
         RandomSource random = context.getRandom();
 
-        for (WorldRules.Entry<LootModifierRule> entry : rules) {
+        if (tableRules != null) {
+            applyBucket(generatedLoot, tableRules, tableId, killedEntity, level, pos, player, random);
+        }
+        if (entityRules != null) {
+            applyBucket(generatedLoot, entityRules, tableId, killedEntity, level, pos, player, random);
+        }
+        if (checkChests) {
+            applyBucket(generatedLoot, chestRules, tableId, killedEntity, level, pos, player, random);
+        }
+        return generatedLoot;
+    }
+
+    private static void applyBucket(ObjectArrayList<ItemStack> generatedLoot, List<WorldRules.Entry<LootModifierRule>> rules,
+                                    ResourceLocation tableId, @Nullable Entity killedEntity, ServerLevel level,
+                                    @Nullable BlockPos pos, @Nullable ServerPlayer player, RandomSource random) {
+        for (int i = 0; i < rules.size(); i++) {
+            WorldRules.Entry<LootModifierRule> entry = rules.get(i);
             ResourceLocation ruleId = entry.id();
             LootModifierRule rule = entry.rule();
             if (!matchesContext(ruleId, rule, tableId, killedEntity, level, pos, player)) {
@@ -80,7 +102,6 @@ public final class WorldLootModifier extends LootModifier {
                 }
             }
         }
-        return generatedLoot;
     }
 
     private static boolean applyAdd(ObjectArrayList<ItemStack> loot, LootModifierRule rule, RandomSource random) {
@@ -172,7 +193,7 @@ public final class WorldLootModifier extends LootModifier {
             return false;
         }
         if (rule.structure().isPresent()
-                && (pos == null || rule.structure().get().stream().noneMatch(ref -> ref.contains(level, pos)))) {
+                && (pos == null || !dev.dzenthai.storybound.core.logic.StructureRef.containsAny(level, pos, rule.structure().get()))) {
             return false;
         }
         if (rule.once() == DocumentDefinition.LootRule.Once.WORLD) {

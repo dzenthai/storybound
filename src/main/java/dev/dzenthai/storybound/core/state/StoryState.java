@@ -29,7 +29,8 @@ public final class StoryState {
 
     /** Only a value that was actually written. */
     public static Optional<StoryValue> getStored(ServerPlayer player, StoryScope scope, ResourceLocation key) {
-        return container(player, scope).get(key);
+        StoryContainer read = containerOrNull(player, scope);
+        return read != null ? read.get(key) : Optional.empty();
     }
 
     /** World-scoped stored value, usable when no player is involved (e.g. world loot generation). */
@@ -92,7 +93,8 @@ public final class StoryState {
 
     /** A quest's progress in a scope; empty means the quest is unknown there. */
     public static Optional<QuestProgress> getQuest(ServerPlayer player, StoryScope scope, ResourceLocation quest) {
-        return container(player, scope).quest(quest);
+        StoryContainer read = containerOrNull(player, scope);
+        return read != null ? read.quest(quest) : Optional.empty();
     }
 
     /**
@@ -114,14 +116,47 @@ public final class StoryState {
 
     /** Online players who share the storage identified by {@code scope} and {@code owner}. */
     public static List<ServerPlayer> onlinePlayersOf(MinecraftServer server, StoryScope scope, @Nullable UUID owner) {
-        List<ServerPlayer> online = server.getPlayerList().getPlayers();
+        var playerList = server.getPlayerList();
         return switch (scope) {
-            case PLAYER -> online.stream().filter(player -> player.getUUID().equals(owner)).toList();
-            case PARTY -> {
-                PartyData parties = PartyData.get(server);
-                yield online.stream().filter(player -> parties.ownerOf(player.getUUID()).equals(owner)).toList();
+            case PLAYER -> {
+                if (owner == null) {
+                    yield List.of();
+                }
+                ServerPlayer player = playerList.getPlayer(owner);
+                yield player != null ? List.of(player) : List.of();
             }
-            case WORLD -> List.copyOf(online);
+            case PARTY -> {
+                if (owner == null) {
+                    yield List.of();
+                }
+                PartyData parties = PartyData.get(server);
+                Optional<Party> party = parties.party(owner);
+                if (party.isPresent()) {
+                    java.util.Set<UUID> members = party.get().members();
+                    List<ServerPlayer> result = new java.util.ArrayList<>(members.size());
+                    for (UUID memberId : members) {
+                        ServerPlayer member = playerList.getPlayer(memberId);
+                        if (member != null) {
+                            result.add(member);
+                        }
+                    }
+                    yield result;
+                }
+                ServerPlayer solo = playerList.getPlayer(owner);
+                yield solo != null && parties.ownerOf(owner).equals(owner) ? List.of(solo) : List.of();
+            }
+            case WORLD -> List.copyOf(playerList.getPlayers());
+        };
+    }
+
+    static @Nullable StoryContainer containerOrNull(ServerPlayer player, StoryScope scope) {
+        return switch (scope) {
+            case PLAYER -> player.getData(StoryAttachments.PLAYER_STATE);
+            case PARTY -> {
+                PartyData parties = PartyData.get(player.server);
+                yield parties.containerOrNull(parties.ownerOf(player.getUUID()));
+            }
+            case WORLD -> WorldStoryData.get(player.server).container();
         };
     }
 

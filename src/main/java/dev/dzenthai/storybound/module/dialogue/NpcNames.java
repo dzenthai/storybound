@@ -78,12 +78,20 @@ public final class NpcNames {
         if (server.getTickCount() % CHECK_TICKS != 0 || !Dialogues.isEnabled()) {
             return;
         }
+        boolean sortByDistance = NpcParts.hasUnassignedOne(server);
         Set<Entity> seen = new HashSet<>();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            List<Entity> around = new java.util.ArrayList<>(player.level().getEntities(player, player.getBoundingBox().inflate(REACH),
-                    candidate -> candidate instanceof LivingEntity && !(candidate instanceof Player)));
-            // Nearest first: "one" picks the fitting entity nearest the player.
-            around.sort(java.util.Comparator.comparingDouble(entity -> entity.distanceToSqr(player)));
+            List<Entity> around = player.level().getEntities(player, player.getBoundingBox().inflate(REACH),
+                    candidate -> candidate instanceof LivingEntity && !(candidate instanceof Player)
+                            && (candidate.hasData(DialogueRegistries.NPC_NAME) || NpcBindings.mayBeNamed(candidate) || NpcParts.mightCare(server, candidate)));
+            if (around.isEmpty()) {
+                continue;
+            }
+            if (sortByDistance && around.size() > 1) {
+                around = new java.util.ArrayList<>(around);
+                // Nearest first: "one" picks the fitting entity nearest the player.
+                around.sort(java.util.Comparator.comparingDouble(entity -> entity.distanceToSqr(player)));
+            }
             for (Entity entity : around) {
                 if (seen.add(entity)) {
                     // A part picked first, so its holder is named as that NPC at once.
@@ -115,7 +123,8 @@ public final class NpcNames {
             // Known by the name it carries (a name tag's "Murka"): renaming it would lose it, and then name it back.
             return;
         }
-        Given given = given(entity);
+        Given original = given(entity);
+        Given given = original;
         Component current = entity.getCustomName();
         if (given.shown().isPresent() && !given.shown().get().equals(current)) {
             // Renamed by someone else (a name tag) or cleared: its own name now, and the list's forgotten.
@@ -155,8 +164,10 @@ public final class NpcNames {
             given = given.withShown(null);
         }
         if (given.equals(Given.NONE)) {
-            entity.removeData(DialogueRegistries.NPC_NAME);
-        } else {
+            if (entity.hasData(DialogueRegistries.NPC_NAME)) {
+                entity.removeData(DialogueRegistries.NPC_NAME);
+            }
+        } else if (!given.equals(original)) {
             entity.setData(DialogueRegistries.NPC_NAME, given);
         }
     }

@@ -22,6 +22,14 @@ public final class DialogueHud {
     /** Room for the hotbar, health and the action bar text. */
     private static final int BOTTOM_OFFSET = 72;
     private static final int PROMPT_HEIGHT = 11;
+    private static final Component ANSWER_PROMPT = Component.translatable("storybound.dialogue.answer_prompt");
+
+    private static ClientDialogue.@org.jetbrains.annotations.Nullable Line cachedLine;
+    private static int cachedMaxWidth = -1;
+    private static net.minecraft.locale.@org.jetbrains.annotations.Nullable Language cachedLanguage;
+    private static List<FormattedCharSequence> cachedWrapped = List.of();
+    private static boolean cachedNamed;
+    private static int cachedTextWidth;
 
     private DialogueHud() {}
 
@@ -48,7 +56,7 @@ public final class DialogueHud {
         MenuTheme theme = MenuThemes.INSTANCE.theme();
         Font font = minecraft.font;
         Component key = StoryboundClient.TALK.getTranslatedKeyMessage();
-        Component label = Component.translatable("storybound.dialogue.answer_prompt");
+        Component label = ANSWER_PROMPT;
         int keyWidth = font.width(key) + 7;
         int width = keyWidth + 4 + font.width(label);
         int x = (graphics.guiWidth() - width) / 2;
@@ -81,13 +89,25 @@ public final class DialogueHud {
         boolean portrait = DialogueChrome.hasPortrait(minecraft, line);
         int portraitSpace = portrait ? DialogueChrome.PORTRAIT_SIZE + 8 : 0;
         int maxTextWidth = Math.max(80, Math.min(MAX_WIDTH, graphics.guiWidth() - 24 - portraitSpace - PADDING * 2));
-        List<FormattedCharSequence> lines = font.split(line.text(), maxTextWidth);
-        boolean named = !line.name().getString().isEmpty();
-        int textWidth = lines.stream().mapToInt(font::width).max().orElse(0);
-        if (named) {
-            textWidth = Math.max(textWidth, font.width(line.name()));
+        net.minecraft.locale.Language lang = net.minecraft.locale.Language.getInstance();
+        if (cachedLine != line || cachedMaxWidth != maxTextWidth || cachedLanguage != lang) {
+            cachedLine = line;
+            cachedMaxWidth = maxTextWidth;
+            cachedLanguage = lang;
+            cachedWrapped = font.split(line.text(), maxTextWidth);
+            cachedNamed = !line.name().getString().isEmpty();
+            int width = 0;
+            for (FormattedCharSequence wrapped : cachedWrapped) {
+                width = Math.max(width, font.width(wrapped));
+            }
+            if (cachedNamed) {
+                width = Math.max(width, font.width(line.name()));
+            }
+            cachedTextWidth = Math.max(60, width);
         }
-        textWidth = Math.max(60, textWidth);
+        List<FormattedCharSequence> lines = cachedWrapped;
+        boolean named = cachedNamed;
+        int textWidth = cachedTextWidth;
         int contentHeight = (lines.size() + (named ? 1 : 0)) * LINE_HEIGHT - 1;
         int boxWidth = portraitSpace + textWidth + PADDING * 2;
         int boxHeight = Math.max(portrait ? DialogueChrome.PORTRAIT_SIZE + PADDING * 2 : 20, contentHeight + PADDING * 2);

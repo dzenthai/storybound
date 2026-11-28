@@ -65,6 +65,8 @@
   `shot: "group_shot"` shows everyone in the talk at once. An NPC talking with another player is not taken. In the
   editor: the participant's type and "NPC / selector" switches, "rowan → vex" on a line's card, an arrow from the
   dialogue to its NPCs. Debug scenario `council`.
+- `location` condition takes `"outdoors": true`: only sky and leaves above the player, not a cave, a roof or water.
+  For something that should happen in the open, such as an ambush in the woods.
 - Fixed: `note_torn` document style now uses valid texture dimensions and readable default font metrics.
 - A Codex entry's or a document's text that is not there shows in red ("Missing text: …") only to whoever may open the
   dev mode; a player sees nothing in its place.

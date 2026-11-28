@@ -28,6 +28,7 @@ public final class StructureLocator {
         thread.setDaemon(true);
         return thread;
     });
+    private static final int MAX_RESULTS = 4096;
     private static final Map<Search, Optional<BlockPos>> RESULTS = new ConcurrentHashMap<>();
     private static final Set<Search> PENDING = ConcurrentHashMap.newKeySet();
     /** Bumped by {@link #reset}, so a search started before it does not store its now stale result. */
@@ -66,6 +67,9 @@ public final class StructureLocator {
             server.execute(() -> {
                 if (started != generation) {
                     return;
+                }
+                if (RESULTS.size() >= MAX_RESULTS) {
+                    RESULTS.clear();
                 }
                 RESULTS.put(search, answer);
                 PENDING.remove(search);

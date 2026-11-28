@@ -4,11 +4,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 
 /** Keeps clipping and tooltip placement in the same space as book rendering. */
 public final class BookGuiGraphics extends GuiGraphics {
+    private static final TextColor UNDERPRINT_COLOR = TextColor.fromRgb(0x725136);
     private final BookViewport viewport;
 
     public BookGuiGraphics(Minecraft minecraft, GuiGraphics source, BookViewport viewport) {
@@ -37,7 +40,10 @@ public final class BookGuiGraphics extends GuiGraphics {
         if (shadow) return super.drawString(font, text, x, y, color, true);
         boolean[] bold = {false};
         text.accept((index, style, codePoint) -> {
-            bold[0] |= style.isBold();
+            if (style.isBold()) {
+                bold[0] = true;
+                return false;
+            }
             return true;
         });
         // Keep both vanilla impressions and bridge their subpixel sampling gaps inside the same bounds.
@@ -49,8 +55,14 @@ public final class BookGuiGraphics extends GuiGraphics {
                 BookTextRendering.end();
             }
         }
-        FormattedCharSequence underprint = sink -> text.accept((index, style, codePoint) ->
-                sink.accept(index, style.withColor(0x725136), codePoint));
+        FormattedCharSequence underprint = sink -> {
+            Style[] lastIn = {null};
+            Style[] lastOut = {null};
+            return text.accept((index, style, codePoint) -> {
+                Style colored = style == lastIn[0] ? lastOut[0] : (lastOut[0] = (lastIn[0] = style).withColor(UNDERPRINT_COLOR));
+                return sink.accept(index, colored, codePoint);
+            });
+        };
         float localScale = Math.max(1, pose().last().pose().m00() / (float) viewport.scale());
         pose().pushPose();
         pose().translate(0.35f / localScale, 0.35f / localScale, 0);

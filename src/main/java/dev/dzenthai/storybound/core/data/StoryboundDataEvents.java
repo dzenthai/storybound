@@ -26,6 +26,7 @@ public final class StoryboundDataEvents {
         gameBus.addListener(net.neoforged.bus.api.EventPriority.HIGH, StoryboundDataEvents::onServerStarted);
         gameBus.addListener(StoryboundDataEvents::onDatapackSync);
         gameBus.addListener(StoryboundDataEvents::onPlayerLoggedIn);
+        gameBus.addListener((net.neoforged.neoforge.event.server.ServerStoppedEvent event) -> DefinitionLoader.clearPending());
     }
 
     private static void onAddReloadListeners(AddReloadListenerEvent event) {

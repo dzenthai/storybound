@@ -33,6 +33,12 @@ public final class TriggerDispatcher {
 
     private static final Map<String, List<Subscription<?>>> SOURCES = new LinkedHashMap<>();
     private static Map<TriggerType<?, ?>, List<Subscription<?>>> index = Map.of();
+    private static List<Subscription<?>> areaSubscriptions = List.of();
+    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Subscription<?>>> KILLED_BY_TYPE = new HashMap<>();
+    private static final Map<net.minecraft.world.entity.EntityType<?>, List<Subscription<?>>> SEEN_BY_TYPE = new HashMap<>();
+    private static boolean hasSharedKill;
+    private static boolean hasByAnyoneKill;
+    private static int generation;
     private static final Map<UUID, Set<Subscription<?>>> INSIDE_AREAS = new HashMap<>();
     /** Players whose next area check is their first since logging in. */
     private static final Set<UUID> FRESH_LOGINS = new HashSet<>();
@@ -57,7 +63,108 @@ public final class TriggerDispatcher {
         SOURCES.values().forEach(list -> list.forEach(subscription ->
                 next.computeIfAbsent(subscription.trigger().type(), type -> new ArrayList<>()).add(subscription)));
         index = next;
+        KILLED_BY_TYPE.clear();
+        SEEN_BY_TYPE.clear();
+        List<Subscription<?>> areas = new ArrayList<>();
+        areas.addAll(index.getOrDefault(BuiltinTriggers.AREA_ENTERED.get(), List.of()));
+        areas.addAll(index.getOrDefault(BuiltinTriggers.STRUCTURE_ENTERED.get(), List.of()));
+        areas.addAll(index.getOrDefault(BuiltinTriggers.BIOME_ENTERED.get(), List.of()));
+        areas.addAll(index.getOrDefault(BuiltinTriggers.POI_ENTERED.get(), List.of()));
+        areaSubscriptions = List.copyOf(areas);
+        boolean shared = false;
+        boolean byAnyone = false;
+        for (Subscription<?> sub : index.getOrDefault(BuiltinTriggers.ENTITY_KILLED.get(), List.of())) {
+            if (sub.trigger() instanceof CoreTriggers.EntityKilled killed) {
+                shared |= killed.shared();
+                byAnyone |= killed.byAnyone();
+            } else {
+                // Unknown custom trigger on ENTITY_KILLED: stay conservative.
+                shared = true;
+                byAnyone = true;
+            }
+        }
+        hasSharedKill = shared;
+        hasByAnyoneKill = byAnyone;
+        generation++;
         INSIDE_AREAS.clear();
+    }
+
+    static int generation() {
+        return generation;
+    }
+
+    static boolean hasSharedKill() {
+        return hasSharedKill;
+    }
+
+    static boolean hasByAnyoneKill() {
+        return hasByAnyoneKill;
+    }
+
+    static boolean hasEntityKilledFor(net.minecraft.world.entity.EntityType<?> type) {
+        return !killedFor(type).isEmpty();
+    }
+
+    static boolean hasEntitySeenFor(net.minecraft.world.entity.EntityType<?> type) {
+        return !seenFor(type).isEmpty();
+    }
+
+    private static List<Subscription<?>> killedFor(net.minecraft.world.entity.EntityType<?> type) {
+        List<Subscription<?>> all = index.get(BuiltinTriggers.ENTITY_KILLED.get());
+        if (all == null || all.isEmpty()) {
+            return List.of();
+        }
+        List<Subscription<?>> cached = KILLED_BY_TYPE.get(type);
+        if (cached != null) {
+            return cached;
+        }
+        var holder = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
+        List<Subscription<?>> matching = null;
+        for (Subscription<?> sub : all) {
+            boolean fits = true;
+            if (sub.trigger() instanceof CoreTriggers.EntityKilled killed && killed.entity().isPresent()) {
+                var types = killed.entity().get().type();
+                fits = types.isEmpty() || types.get().contains(holder);
+            }
+            if (fits) {
+                if (matching == null) {
+                    matching = new ArrayList<>();
+                }
+                matching.add(sub);
+            }
+        }
+        List<Subscription<?>> result = matching == null ? List.of() : List.copyOf(matching);
+        KILLED_BY_TYPE.put(type, result);
+        return result;
+    }
+
+    private static List<Subscription<?>> seenFor(net.minecraft.world.entity.EntityType<?> type) {
+        List<Subscription<?>> all = index.get(BuiltinTriggers.ENTITY_SEEN.get());
+        if (all == null || all.isEmpty()) {
+            return List.of();
+        }
+        List<Subscription<?>> cached = SEEN_BY_TYPE.get(type);
+        if (cached != null) {
+            return cached;
+        }
+        var holder = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(type);
+        List<Subscription<?>> matching = null;
+        for (Subscription<?> sub : all) {
+            boolean fits = true;
+            if (sub.trigger() instanceof CoreTriggers.EntitySeen seen && seen.entity().isPresent()) {
+                var types = seen.entity().get().type();
+                fits = types.isEmpty() || types.get().contains(holder);
+            }
+            if (fits) {
+                if (matching == null) {
+                    matching = new ArrayList<>();
+                }
+                matching.add(sub);
+            }
+        }
+        List<Subscription<?>> result = matching == null ? List.of() : List.copyOf(matching);
+        SEEN_BY_TYPE.put(type, result);
+        return result;
     }
 
     /** How deep the running chain of triggers is: 0 outside a trigger, 1 in the first one. */
@@ -76,9 +183,9 @@ public final class TriggerDispatcher {
 
     @SuppressWarnings("unchecked")
     public static <E> void fire(TriggerType<?, E> type, StoryContext context, E event) {
-        List<Subscription<?>> subscriptions = index.get(type);
+        List<Subscription<?>> subscriptions = subscriptionsFor(type, event);
         boolean grouped = group >= 0 && depth == groupDepth;
-        if (subscriptions == null || !enter(type)) {
+        if (subscriptions == null || subscriptions.isEmpty() || !enter(type)) {
             return;
         }
         long previous = current;
@@ -156,11 +263,21 @@ public final class TriggerDispatcher {
         return countedBefore.contains(owner == null ? WORLD : owner);
     }
 
+    private static @Nullable List<Subscription<?>> subscriptionsFor(TriggerType<?, ?> type, Object event) {
+        if (type == BuiltinTriggers.ENTITY_KILLED.get() && event instanceof CoreTriggers.Kill kill) {
+            return killedFor(kill.victim().getType());
+        }
+        if (type == BuiltinTriggers.ENTITY_SEEN.get() && event instanceof net.minecraft.world.entity.Entity entity) {
+            return seenFor(entity.getType());
+        }
+        return index.get(type);
+    }
+
     /** True if a subscription of this type would react to the event; lets costly detectors skip what nobody listens for. */
     @SuppressWarnings("unchecked")
     public static <E> boolean anyMatches(TriggerType<?, E> type, StoryContext context, E event) {
-        List<Subscription<?>> subscriptions = index.get(type);
-        if (subscriptions == null) {
+        List<Subscription<?>> subscriptions = subscriptionsFor(type, event);
+        if (subscriptions == null || subscriptions.isEmpty()) {
             return false;
         }
         for (Subscription<?> subscription : subscriptions) {
@@ -187,10 +304,7 @@ public final class TriggerDispatcher {
      */
     @SuppressWarnings("unchecked")
     public static void tickAreas(MinecraftServer server) {
-        List<Subscription<?>> subscriptions = new ArrayList<>(index.getOrDefault(BuiltinTriggers.AREA_ENTERED.get(), List.of()));
-        subscriptions.addAll(index.getOrDefault(BuiltinTriggers.STRUCTURE_ENTERED.get(), List.of()));
-        subscriptions.addAll(index.getOrDefault(BuiltinTriggers.BIOME_ENTERED.get(), List.of()));
-        subscriptions.addAll(index.getOrDefault(BuiltinTriggers.POI_ENTERED.get(), List.of()));
+        List<Subscription<?>> subscriptions = areaSubscriptions;
         if (subscriptions.isEmpty()) {
             return;
         }
@@ -245,6 +359,12 @@ public final class TriggerDispatcher {
     static void reset() {
         SOURCES.clear();
         index = Map.of();
+        areaSubscriptions = List.of();
+        KILLED_BY_TYPE.clear();
+        SEEN_BY_TYPE.clear();
+        hasSharedKill = false;
+        hasByAnyoneKill = false;
+        generation++;
         INSIDE_AREAS.clear();
         FRESH_LOGINS.clear();
         depth = 0;

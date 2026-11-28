@@ -642,7 +642,6 @@ public final class DevModeServer {
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
             DefinitionSync.sendTo(online);
             Quests.sync(online);
-            StoryboundNetwork.sendToPlayer(online, new ConfigTextsPayload(ConfigTexts.current()));
             Waypoints.syncFull(online);
             dev.dzenthai.storybound.module.world.WorldRules.syncPlayer(online, true);
         }

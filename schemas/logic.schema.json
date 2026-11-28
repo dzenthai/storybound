@@ -150,7 +150,8 @@
             "dimension": { "$ref": "#/definitions/id" },
             "biome": { "$ref": "#/definitions/id_list" },
             "area": { "$ref": "#/definitions/area" },
-            "structure": { "description": "The player is within such a structure (inside the box around its pieces).", "$ref": "#/definitions/structure" }
+            "structure": { "description": "The player is within such a structure (inside the box around its pieces).", "$ref": "#/definitions/structure" },
+            "outdoors": { "description": "true: nothing above the player but sky and leaves (not in a cave, under a roof or in water). false: the opposite.", "type": "boolean" }
           },
           "additionalProperties": false
         },

@@ -112,24 +112,73 @@ public record EntitySelector(Optional<HolderSet<EntityType<?>>> type, Optional<S
 
     /** Checked cheapest first: what the entity is, where it is, then its saved data, read once for both. */
     public boolean matches(Entity entity) {
-        return type.map(set -> set.contains(BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()))).orElse(true)
-                && dimension.map(entity.level().dimension()::equals).orElse(true)
-                && tag.map(entity.getTags()::contains).orElse(true)
-                && name.map(value -> value.equals(customName(entity))).orElse(true)
-                && uuid.map(entity.getUUID()::equals).orElse(true)
-                && baby.map(value -> value == isBaby(entity)).orElse(true)
-                && profession.map(set -> villagerData(entity) instanceof VillagerData data && set.contains(professionHolder(data))).orElse(true)
-                && outfit.map(set -> villagerData(entity) instanceof VillagerData data && set.contains(outfitHolder(data))).orElse(true)
-                && variant.map(values -> variantOf(entity) instanceof String has && values.contains(has)).orElse(true)
-                && biome.map(set -> set.contains(biomeHere(entity))).orElse(true)
-                && inVillage.map(value -> value == isInVillage(entity)).orElse(true)
-                && structure.map(structures -> isIn(entity, structures)).orElse(true)
-                && (nbt.isEmpty() && data.isEmpty() || savedMatches(dataOf(entity)));
+        if (type.isPresent() && !type.get().contains(BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()))) {
+            return false;
+        }
+        if (dimension.isPresent() && !dimension.get().equals(entity.level().dimension())) {
+            return false;
+        }
+        if (tag.isPresent() && !entity.getTags().contains(tag.get())) {
+            return false;
+        }
+        if (name.isPresent() && !name.get().equals(customName(entity))) {
+            return false;
+        }
+        if (uuid.isPresent() && !uuid.get().equals(entity.getUUID())) {
+            return false;
+        }
+        if (baby.isPresent() && baby.get() != isBaby(entity)) {
+            return false;
+        }
+        if (profession.isPresent() || outfit.isPresent()) {
+            VillagerData vd = villagerData(entity);
+            if (vd == null) {
+                return false;
+            }
+            if (profession.isPresent() && !profession.get().contains(professionHolder(vd))) {
+                return false;
+            }
+            if (outfit.isPresent() && !outfit.get().contains(outfitHolder(vd))) {
+                return false;
+            }
+        }
+        if (variant.isPresent()) {
+            String has = variantOf(entity);
+            if (has == null || !variant.get().contains(has)) {
+                return false;
+            }
+        }
+        if (biome.isPresent() && !biome.get().contains(biomeHere(entity))) {
+            return false;
+        }
+        if (inVillage.isPresent() && inVillage.get() != isInVillage(entity)) {
+            return false;
+        }
+        if (structure.isPresent() && !isIn(entity, structure.get())) {
+            return false;
+        }
+        if (nbt.isEmpty() && data.isEmpty()) {
+            return true;
+        }
+        if (nbt.isEmpty() && data.isPresent()) {
+            Boolean fast = data.get().matchVanillaVillager(entity);
+            if (fast != null) {
+                return fast;
+            }
+        }
+        return savedMatches(dataOf(entity));
     }
 
     private boolean savedMatches(CompoundTag saved) {
-        return nbt.map(wanted -> NbtUtils.compareNbt(wanted, saved, true)).orElse(true)
-                && data.map(filter -> filter.matches(saved)).orElse(true);
+        if (nbt.isPresent() && !NbtUtils.compareNbt(nbt.get(), saved, true)) {
+            return false;
+        }
+        return data.isEmpty() || data.get().matches(saved);
+    }
+
+    /** True when matching this selector may read the entity's saved NBT via {@code nbt} or {@code data}. */
+    public boolean usesSavedData() {
+        return nbt.isPresent() || data.isPresent();
     }
 
     /** Where it is, as written: for the validator, which says when it can never be. */
@@ -210,8 +259,9 @@ public record EntitySelector(Optional<HolderSet<EntityType<?>>> type, Optional<S
         return type.filter(set -> set.size() == 1 && set.unwrapKey().isEmpty()).map(set -> set.get(0).value());
     }
 
-    private static String customName(Entity entity) {
-        return Optional.ofNullable(entity.getCustomName()).map(Component::getString).orElse(null);
+    private static @Nullable String customName(Entity entity) {
+        Component custom = entity.getCustomName();
+        return custom != null ? custom.getString() : null;
     }
 
     private static boolean isBaby(Entity entity) {
@@ -295,7 +345,7 @@ public record EntitySelector(Optional<HolderSet<EntityType<?>>> type, Optional<S
 
     /** Within one of the structures (a village, a fortress, a mod's), where it stands now. */
     private static boolean isIn(Entity entity, List<StructureRef> structures) {
-        return entity.level() instanceof ServerLevel level && structures.stream().anyMatch(ref -> ref.contains(level, entity.blockPosition()));
+        return entity.level() instanceof ServerLevel level && StructureRef.containsAny(level, entity.blockPosition(), structures);
     }
 
     private static boolean isInVillage(Entity entity) {

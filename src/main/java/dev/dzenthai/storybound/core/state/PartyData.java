@@ -63,6 +63,11 @@ public final class PartyData extends SavedData {
         return containers.computeIfAbsent(owner, key -> track(new StoryContainer()));
     }
 
+    /** Read-only lookup that returns null instead of allocating an empty container on read. */
+    @Nullable StoryContainer containerOrNull(UUID owner) {
+        return containers.get(owner);
+    }
+
     /** Every saved party scope (and solo players' party scope), for migrations. */
     Collection<StoryContainer> containers() {
         return List.copyOf(containers.values());

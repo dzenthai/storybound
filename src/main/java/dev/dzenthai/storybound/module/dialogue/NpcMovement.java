@@ -153,8 +153,11 @@ public final class NpcMovement {
         if (!(event.getEntity() instanceof Mob mob) || !(mob.level() instanceof ServerLevel level)) {
             return;
         }
-        Held held = HELD.get(mob.getUUID());
-        if (held == null && !NpcBindings.moves()) {
+        if (HELD.isEmpty() && !NpcBindings.moves()) {
+            return;
+        }
+        Held held = HELD.isEmpty() ? null : HELD.get(mob.getUUID());
+        if (held == null && !NpcBindings.mayMove(mob)) {
             return;
         }
         int interval = held != null && held.following != null ? FOLLOW_CHECK_TICKS : CHECK_TICKS;

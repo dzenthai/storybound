@@ -91,7 +91,6 @@ public final class StoryboundClient {
         NeoForge.EVENT_BUS.addListener(StoryboundClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.sound.ClientStoryMusic::onSelectMusic);
         NeoForge.EVENT_BUS.addListener(ScreenProjection::capture);
-        NeoForge.EVENT_BUS.addListener(WaypointMarkers::capture);
         NeoForge.EVENT_BUS.addListener(AreaRings::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(dev.dzenthai.storybound.client.waypoint.ScentStrands::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(DialogueCamera::onRenderGuiLayer);
@@ -267,9 +266,15 @@ public final class StoryboundClient {
         dev.dzenthai.storybound.client.codex.CodexImages.clear();
         dev.dzenthai.storybound.client.codex.CodexPhotoPrompt.clear();
         dev.dzenthai.storybound.client.codex.PlayerCodexPhotos.clear();
+        dev.dzenthai.storybound.client.codex.EntityPortraits.clear();
+        dev.dzenthai.storybound.client.dev.MobFields.clear();
         dev.dzenthai.storybound.client.sound.ClientStoryMusic.clear();
         ScreenFadeOverlay.clear();
         ClientWaypoints.clear();
+        WaypointMarkers.clear();
+        AreaRings.clear();
+        dev.dzenthai.storybound.client.waypoint.TraceTrails.clear();
+        dev.dzenthai.storybound.module.quest.DifficultyScale.set(dev.dzenthai.storybound.module.quest.DifficultyScale.DEFAULT);
         ClientModules.clear();
         ClientDialogue.clear();
         TalkHint.clear();

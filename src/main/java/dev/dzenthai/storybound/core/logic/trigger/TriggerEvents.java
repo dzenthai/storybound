@@ -76,35 +76,53 @@ public final class TriggerEvents {
             return;
         }
         LivingEntity victim = event.getEntity();
+        if (!TriggerDispatcher.hasEntityKilledFor(victim.getType())) {
+            return;
+        }
         ServerPlayer killer = event.getSource().getEntity() instanceof ServerPlayer player ? player : null;
+        boolean checkBystanders = TriggerDispatcher.hasByAnyoneKill();
+        if (killer == null && !checkBystanders) {
+            return;
+        }
+        boolean checkParty = killer != null && TriggerDispatcher.hasSharedKill();
         TriggerDispatcher.asOne(() -> {
-            List<ServerPlayer> credited = new java.util.ArrayList<>();
+            List<ServerPlayer> credited = checkBystanders ? new java.util.ArrayList<>() : null;
             if (killer != null) {
-                credited.add(killer);
+                if (credited != null) {
+                    credited.add(killer);
+                }
                 TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(killer, victim), new CoreTriggers.Kill(victim, true, false));
-                for (ServerPlayer member : KillCredit.partyNear(killer, victim)) {
-                    credited.add(member);
-                    TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(member, victim), new CoreTriggers.Kill(victim, false, false));
+                if (checkParty) {
+                    for (ServerPlayer member : KillCredit.partyNear(killer, victim)) {
+                        if (credited != null) {
+                            credited.add(member);
+                        }
+                        TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(member, victim), new CoreTriggers.Kill(victim, false, false));
+                    }
                 }
             }
-            for (ServerPlayer near : KillCredit.playersNear(victim)) {
-                if (!credited.contains(near) && near != victim) {
-                    TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(near, victim), new CoreTriggers.Kill(victim, false, true));
+            if (checkBystanders) {
+                for (ServerPlayer near : KillCredit.playersNear(victim)) {
+                    if (!credited.contains(near) && near != victim) {
+                        TriggerDispatcher.fire(BuiltinTriggers.ENTITY_KILLED.get(), new StoryContext(near, victim), new CoreTriggers.Kill(victim, false, true));
+                    }
                 }
             }
         });
     }
 
     private static void onServerTick(ServerTickEvent.Post event) {
-        if (event.getServer().getTickCount() % AREA_CHECK_INTERVAL == 0) {
+        int tick = event.getServer().getTickCount();
+        if (tick % AREA_CHECK_INTERVAL == 0) {
             TriggerDispatcher.tickAreas(event.getServer());
             DayTimeTracker.tick(event.getServer());
         }
-        int tick = event.getServer().getTickCount();
-        for (ServerPlayer player : List.copyOf(event.getServer().getPlayerList().getPlayers())) {
-            // Each player on a tick of their own, as the quest checks.
-            if (Math.floorMod(tick + player.getId(), STATE_CHECK_INTERVAL) == 0) {
-                StoryEvents.checkStates(player);
+        if (StoryEvents.hasStateEvents()) {
+            for (ServerPlayer player : List.copyOf(event.getServer().getPlayerList().getPlayers())) {
+                // Each player on a tick of their own, as the quest checks.
+                if (Math.floorMod(tick + player.getId(), STATE_CHECK_INTERVAL) == 0) {
+                    StoryEvents.checkStates(player);
+                }
             }
         }
         SeenTracker.tick(event.getServer());

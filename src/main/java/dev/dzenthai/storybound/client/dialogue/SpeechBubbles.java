@@ -99,12 +99,12 @@ public final class SpeechBubbles {
             }
             Vec3 anchor = entity.getPosition(partialTick).add(0, entity.getBbHeight() + 0.75, 0);
             double distance = anchor.distanceTo(camera);
-            if (distance > MAX_RENDER_DISTANCE || !seen(minecraft, camera, entity, partialTick)) {
+            if (distance > MAX_RENDER_DISTANCE) {
                 continue;
             }
             float[] at = ScreenProjection.project(anchor, width, height);
-            float[] above = ScreenProjection.project(anchor.add(up), width, height);
-            if (at == null || above == null) {
+            float[] above = at != null ? ScreenProjection.project(anchor.add(up), width, height) : null;
+            if (at == null || above == null || !seen(minecraft, camera, entity, partialTick)) {
                 continue;
             }
             // HUD pixels per block where the speaker is, so the text keeps its size in the world.
@@ -129,13 +129,26 @@ public final class SpeechBubbles {
             for (int i = bubbles.size() - 1; i >= 0; i--) {
                 Bubble bubble = bubbles.get(i);
                 float alpha = Mth.clamp((bubble.expiresAt() - now) / (float) FADE_MILLIS, 0.05f, 1f);
-                Component text = now < bubble.showAt() ? Component.literal(ThinkTime.dots(now - bubble.createdAt())) : bubble.text();
-                List<FormattedCharSequence> lines = font.split(text, MAX_WIDTH);
+                List<FormattedCharSequence> lines;
+                int[] widths;
+                if (now < bubble.showAt()) {
+                    lines = font.split(Component.literal(ThinkTime.dots(now - bubble.createdAt())), MAX_WIDTH);
+                    widths = new int[lines.size()];
+                    for (int li = 0; li < lines.size(); li++) {
+                        widths[li] = font.width(lines.get(li));
+                    }
+                } else {
+                    bubble.ensureLayout(font);
+                    lines = bubble.cachedLines;
+                    widths = bubble.cachedWidths;
+                }
                 bottom -= lines.size() * 10 + 4;
                 int y = Math.round(bottom);
-                for (FormattedCharSequence line : lines) {
-                    int x = -font.width(line) / 2;
-                    graphics.fill(x - 1, y - 1, x + font.width(line), y + 9, (int) (alpha * 0x90) << 24);
+                for (int li = 0; li < lines.size(); li++) {
+                    FormattedCharSequence line = lines.get(li);
+                    int lineW = widths[li];
+                    int x = -lineW / 2;
+                    graphics.fill(x - 1, y - 1, x + lineW, y + 9, (int) (alpha * 0x90) << 24);
                     graphics.drawString(font, line, x, y, ((int) (alpha * 255) << 24) | 0xFFFFFF, false);
                     y += 10;
                 }
@@ -149,19 +162,48 @@ public final class SpeechBubbles {
     /** Whether the player sees the speaker: nothing solid between the camera and its eyes, or its middle. */
     private static boolean seen(Minecraft minecraft, Vec3 camera, Entity entity, float partialTick) {
         Vec3 feet = entity.getPosition(partialTick);
-        for (double height : new double[]{entity.getEyeHeight(), entity.getBbHeight() / 2}) {
-            Vec3 point = feet.add(0, height, 0);
-            HitResult hit = minecraft.level.clip(new ClipContext(camera, point, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, minecraft.player));
-            if (hit.getType() == HitResult.Type.MISS) {
-                return true;
-            }
+        if (minecraft.level.clip(new ClipContext(camera, feet.add(0, entity.getEyeHeight(), 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, minecraft.player)).getType() == HitResult.Type.MISS) {
+            return true;
         }
-        return false;
+        return minecraft.level.clip(new ClipContext(camera, feet.add(0, entity.getBbHeight() * 0.5, 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, minecraft.player)).getType() == HitResult.Type.MISS;
     }
 
     /** A speaker's bubbles where they go on the HUD this frame. */
     private record Shown(List<Bubble> bubbles, float x, float y, float scale, double distance) {}
 
     /** @param showAt until then the NPC is "thinking": dots instead of the text */
-    private record Bubble(Component text, long createdAt, long showAt, long expiresAt) {}
+    private static final class Bubble {
+        private final Component text;
+        private final long createdAt;
+        private final long showAt;
+        private final long expiresAt;
+        private net.minecraft.locale.@org.jetbrains.annotations.Nullable Language cachedLanguage;
+        List<FormattedCharSequence> cachedLines = List.of();
+        int[] cachedWidths = new int[0];
+
+        Bubble(Component text, long createdAt, long showAt, long expiresAt) {
+            this.text = text;
+            this.createdAt = createdAt;
+            this.showAt = showAt;
+            this.expiresAt = expiresAt;
+        }
+
+        Component text() { return text; }
+        long createdAt() { return createdAt; }
+        long showAt() { return showAt; }
+        long expiresAt() { return expiresAt; }
+
+        void ensureLayout(Font font) {
+            net.minecraft.locale.Language lang = net.minecraft.locale.Language.getInstance();
+            if (cachedLanguage == lang) {
+                return;
+            }
+            cachedLanguage = lang;
+            cachedLines = font.split(text, MAX_WIDTH);
+            cachedWidths = new int[cachedLines.size()];
+            for (int i = 0; i < cachedLines.size(); i++) {
+                cachedWidths[i] = font.width(cachedLines.get(i));
+            }
+        }
+    }
 }

@@ -18,6 +18,7 @@ import dev.dzenthai.storybound.core.logic.StoryContext;
 import dev.dzenthai.storybound.core.logic.StructureRef;
 import dev.dzenthai.storybound.core.state.PartyData;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.registries.Registries;
@@ -28,6 +29,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.levelgen.Heightmap;
 
 /** Checks against the player's inventory, position and party. */
 public final class WorldConditions {
@@ -56,6 +58,33 @@ public final class WorldConditions {
         return count;
     }
 
+    /** Returns true as soon as at least {@code target} matching items are found, avoiding scanning the rest of the inventory. */
+    public static boolean hasAtLeast(Player player, ItemMatcher matcher, int target, boolean worn) {
+        int found = 0;
+        if (worn) {
+            for (net.minecraft.world.item.ItemStack stack : player.getInventory().armor) {
+                if (matcher.test(stack)) {
+                    found += stack.getCount();
+                    if (found >= target) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        Inventory inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            net.minecraft.world.item.ItemStack stack = inventory.getItem(slot);
+            if (matcher.test(stack)) {
+                found += stack.getCount();
+                if (found >= target) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /**
      * {@code { "type": "has_item", "item": "minecraft:emerald", "count": 5 }} or with {@code "tag"}: carried anywhere in
      * the inventory, armour slots too. With {@code "worn": true}, only what the player has on
@@ -79,7 +108,7 @@ public final class WorldConditions {
 
         @Override
         public boolean test(StoryContext context) {
-            return found(context) >= count;
+            return hasAtLeast(context.player(), matcher, count, worn);
         }
 
         @Override
@@ -89,17 +118,27 @@ public final class WorldConditions {
     }
 
     /**
-     * Every given part must match: {@code dimension}, {@code biome} (id, #tag or list), {@code area} and {@code structure}
-     * (id or #tag: the player is within such a structure).
+     * Every given part must match: {@code dimension}, {@code biome} (id, #tag or list), {@code area}, {@code structure}
+     * (id or #tag: the player is within such a structure) and {@code outdoors} (see {@link #outdoors(ServerPlayer)}).
      */
     public record Location(Optional<ResourceKey<Level>> dimension, Optional<HolderSet<Biome>> biome, Optional<Area> area,
-                           Optional<StructureRef> structure) implements Condition {
+                           Optional<StructureRef> structure, Optional<Boolean> outdoors) implements Condition {
         public static final MapCodec<Location> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Level.RESOURCE_KEY_CODEC.optionalFieldOf("dimension").forGetter(Location::dimension),
                 RegistryCodecs.homogeneousList(Registries.BIOME).optionalFieldOf("biome").forGetter(Location::biome),
                 Area.CODEC.optionalFieldOf("area").forGetter(Location::area),
-                StructureRef.CODEC.optionalFieldOf("structure").forGetter(Location::structure)
+                StructureRef.CODEC.optionalFieldOf("structure").forGetter(Location::structure),
+                Codec.BOOL.optionalFieldOf("outdoors").forGetter(Location::outdoors)
         ).apply(instance, Location::new));
+
+        /**
+         * Nothing above the player but air and leaves: not in a cave, under a roof or the Nether's ceiling, and not in
+         * water (the surface counts a fluid as solid, so a swimmer or a boat is not outdoors).
+         */
+        public static boolean outdoors(ServerPlayer player) {
+            BlockPos feet = player.blockPosition();
+            return feet.getY() >= player.level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ());
+        }
 
         @Override
         public ConditionType<?> type() {
@@ -115,10 +154,22 @@ public final class WorldConditions {
         @Override
         public boolean test(StoryContext context) {
             ServerPlayer player = context.player();
-            return dimension.map(player.level().dimension()::equals).orElse(true)
-                    && biome.map(set -> set.contains(player.level().getBiome(player.blockPosition()))).orElse(true)
-                    && area.map(sphere -> sphere.contains(player)).orElse(true)
-                    && structure.map(ref -> ref.contains(player.serverLevel(), player.blockPosition())).orElse(true);
+            if (dimension.isPresent() && !dimension.get().equals(player.level().dimension())) {
+                return false;
+            }
+            if (area.isPresent() && !area.get().contains(player)) {
+                return false;
+            }
+            if (outdoors.isPresent() && outdoors.get() != outdoors(player)) {
+                return false;
+            }
+            if (biome.isPresent() && !biome.get().contains(player.level().getBiome(player.blockPosition()))) {
+                return false;
+            }
+            if (structure.isPresent() && !structure.get().contains(player.serverLevel(), player.blockPosition())) {
+                return false;
+            }
+            return true;
         }
     }
 
@@ -288,8 +339,32 @@ public final class WorldConditions {
 
         @Override
         public boolean test(StoryContext context) {
-            int count = count(context);
-            return count >= 0 && count >= least() && count <= max.orElse(Integer.MAX_VALUE);
+            int minRequired = least();
+            int maxAllowed = max.orElse(Integer.MAX_VALUE);
+            int limit = max.isPresent() ? maxAllowed + 1 : minRequired;
+            int found = countUpTo(context, limit);
+            return found >= 0 && found >= minRequired && found <= maxAllowed;
+        }
+
+        /** Counts matching entities around the place, stopping early once {@code limit} matches are found. */
+        private int countUpTo(StoryContext context, int limit) {
+            SceneActions.Place.Resolved where;
+            try {
+                where = place.resolve(context);
+            } catch (StoryException e) {
+                return -1;
+            }
+            if (limit <= 0) {
+                return 0;
+            }
+            Vec3 centre = where.pos();
+            double reach = radius * radius;
+            java.util.List<LivingEntity> matched = new java.util.ArrayList<>(Math.min(limit, 16));
+            where.level().getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(LivingEntity.class),
+                    new AABB(centre, centre).inflate(radius),
+                    found -> found.isAlive() && !found.isSpectator() && found.distanceToSqr(centre) <= reach && entity.matches(found),
+                    matched, limit);
+            return matched.size();
         }
 
         /** The entities that match around the place; -1 when the place cannot be found (no entity of the moment). */

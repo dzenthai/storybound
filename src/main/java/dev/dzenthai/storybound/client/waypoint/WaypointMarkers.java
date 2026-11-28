@@ -122,13 +122,12 @@ public final class WaypointMarkers {
         return tracked != 0 ? tracked : Double.compare(b.distance(), a.distance());
     };
 
-    private static @Nullable Matrix4f view;
-    private static @Nullable Matrix4f projection;
-    private static Vec3 cameraPos = Vec3.ZERO;
+    private static final Vector4f SCRATCH_EYE = new Vector4f();
+    private static final Vector4f SCRATCH_CLIP = new Vector4f();
     private static final Map<String, Vec3> SMOOTHED = new HashMap<>();
-    /** Waypoint key → the entity its marker is drawn at, while the client has that entity. */
+    /** Waypoint key -> the entity its marker is drawn at, while the client has that entity. */
     private static final Map<String, Integer> FOLLOWED = new HashMap<>();
-    /** Waypoint key → a glide from where the marker was to a newly followed entity. */
+    /** Waypoint key -> a glide from where the marker was to a newly followed entity. */
     private static final Map<String, Glide> GLIDES = new HashMap<>();
     private static long lastFrame;
 
@@ -144,13 +143,14 @@ public final class WaypointMarkers {
 
     private WaypointMarkers() {}
 
-    /** Keeps the camera matrices of the frame being drawn; the HUD is drawn right after the level. */
-    public static void capture(RenderLevelStageEvent event) {
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL) {
-            view = new Matrix4f(event.getModelViewMatrix());
-            projection = new Matrix4f(event.getProjectionMatrix());
-            cameraPos = event.getCamera().getPosition();
-        }
+    /** Releases smoothed positions and text caches on world logout. */
+    public static void clear() {
+        SMOOTHED.clear();
+        FOLLOWED.clear();
+        GLIDES.clear();
+        inAreaText = null;
+        DISTANCE_CACHE.clear();
+        NAME_CACHE.clear();
     }
 
     public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
@@ -159,7 +159,7 @@ public final class WaypointMarkers {
         }
         Minecraft minecraft = Minecraft.getInstance();
         StoryboundClientConfig config = StoryboundClientConfig.INSTANCE;
-        if (minecraft.level == null || minecraft.player == null || view == null || projection == null
+        if (minecraft.level == null || minecraft.player == null || !dev.dzenthai.storybound.client.ScreenProjection.ready()
                 || !config.waypointMarkers.get() || !ClientModules.isEnabled("waypoints") || (CutsceneClient.playing() || dev.dzenthai.storybound.client.scene.ClientScene.playing())) {
             return;
         }
@@ -608,12 +608,14 @@ public final class WaypointMarkers {
      * screen edge along its direction from the centre, for the edge arrow.
      */
     static Screen project(Vec3 point, int width, int height) {
-        Vector4f eye = new Vector4f((float) (point.x - cameraPos.x), (float) (point.y - cameraPos.y), (float) (point.z - cameraPos.z), 1f);
-        view.transform(eye);
-        Vector4f clip = projection.transform(new Vector4f(eye));
-        if (clip.w > 0.05f) {
-            float ndcX = clip.x / clip.w;
-            float ndcY = clip.y / clip.w;
+        Vec3 cameraPos = dev.dzenthai.storybound.client.ScreenProjection.camera();
+        SCRATCH_EYE.set((float) (point.x - cameraPos.x), (float) (point.y - cameraPos.y), (float) (point.z - cameraPos.z), 1f);
+        dev.dzenthai.storybound.client.ScreenProjection.viewMatrix().transform(SCRATCH_EYE);
+        SCRATCH_CLIP.set(SCRATCH_EYE);
+        dev.dzenthai.storybound.client.ScreenProjection.projectionMatrix().transform(SCRATCH_CLIP);
+        if (SCRATCH_CLIP.w > 0.05f) {
+            float ndcX = SCRATCH_CLIP.x / SCRATCH_CLIP.w;
+            float ndcY = SCRATCH_CLIP.y / SCRATCH_CLIP.w;
             float x = (ndcX * 0.5f + 0.5f) * width;
             float y = (0.5f - ndcY * 0.5f) * height;
             if (Math.abs(ndcX) <= 1 && Math.abs(ndcY) <= 1) {
@@ -621,8 +623,8 @@ public final class WaypointMarkers {
             }
         }
         // The direction on screen: right and up in camera space; straight behind points down.
-        float dirX = eye.x;
-        float dirY = eye.y;
+        float dirX = SCRATCH_EYE.x;
+        float dirY = SCRATCH_EYE.y;
         if (Math.abs(dirX) < 1e-4 && Math.abs(dirY) < 1e-4) {
             dirY = -1;
         }

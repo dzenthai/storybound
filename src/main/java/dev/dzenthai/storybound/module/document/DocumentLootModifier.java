@@ -45,28 +45,99 @@ public final class DocumentLootModifier extends LootModifier {
         return Storybound.id(ONCE_PREFIX + documentId.getNamespace() + "/" + documentId.getPath());
     }
 
+    private record IndexedDoc(ResourceLocation id, DocumentDefinition doc) {}
+
+    private record LootIndex(Map<ResourceLocation, java.util.List<IndexedDoc>> byTable, java.util.List<IndexedDoc> chestDocs, boolean empty) {}
+
+    private static volatile Map<ResourceLocation, DocumentDefinition> indexedFor;
+    private static volatile LootIndex lootIndex = new LootIndex(Map.of(), java.util.List.of(), true);
+
+    private static LootIndex indexFor(Map<ResourceLocation, DocumentDefinition> documents) {
+        if (documents == indexedFor) {
+            return lootIndex;
+        }
+        Map<ResourceLocation, java.util.List<IndexedDoc>> byTable = new java.util.HashMap<>();
+        java.util.List<IndexedDoc> chestDocs = new java.util.ArrayList<>();
+        for (Map.Entry<ResourceLocation, DocumentDefinition> entry : documents.entrySet()) {
+            DocumentDefinition doc = entry.getValue();
+            if (doc.loot().isEmpty()) {
+                continue;
+            }
+            IndexedDoc indexed = new IndexedDoc(entry.getKey(), doc);
+            boolean addedChest = false;
+            java.util.Set<ResourceLocation> addedTables = null;
+            for (DocumentDefinition.LootRule rule : doc.loot()) {
+                if (rule.tables().isEmpty()) {
+                    if (!addedChest) {
+                        chestDocs.add(indexed);
+                        addedChest = true;
+                    }
+                } else {
+                    if (addedTables == null) {
+                        addedTables = new java.util.HashSet<>();
+                    }
+                    for (ResourceLocation table : rule.tables()) {
+                        if (addedTables.add(table)) {
+                            byTable.computeIfAbsent(table, k -> new java.util.ArrayList<>()).add(indexed);
+                        }
+                    }
+                }
+            }
+        }
+        LootIndex built = new LootIndex(byTable, java.util.List.copyOf(chestDocs), byTable.isEmpty() && chestDocs.isEmpty());
+        lootIndex = built;
+        indexedFor = documents;
+        return built;
+    }
+
     @Override
     protected ObjectArrayList<ItemStack> doApply(ObjectArrayList<ItemStack> generatedLoot, LootContext context) {
         Map<ResourceLocation, DocumentDefinition> documents = DocumentRegistries.DOCUMENTS.serverStore().all();
         if (documents.isEmpty()) {
             return generatedLoot;
         }
+        LootIndex index = indexFor(documents);
+        if (index.empty()) {
+            return generatedLoot;
+        }
         ResourceLocation tableId = context.getQueriedLootTableId();
+        java.util.List<IndexedDoc> tableDocs = index.byTable().get(tableId);
+        boolean checkChests = !index.chestDocs().isEmpty() && DocumentDefinition.LootRule.isChestTable(tableId);
+        if (tableDocs == null && !checkChests) {
+            return generatedLoot;
+        }
         ServerLevel level = context.getLevel();
         Vec3 origin = context.getParamOrNull(LootContextParams.ORIGIN);
         BlockPos pos = origin != null ? BlockPos.containing(origin) : null;
         ServerPlayer player = findPlayer(context);
+        java.util.Set<ResourceLocation> spawned = (tableDocs != null && checkChests) ? new java.util.HashSet<>() : null;
 
-        for (Map.Entry<ResourceLocation, DocumentDefinition> entry : documents.entrySet()) {
-            DocumentDefinition doc = entry.getValue();
-            if (doc.loot().isEmpty()) {
+        if (tableDocs != null) {
+            applyDocs(generatedLoot, tableDocs, spawned, tableId, level, pos, player, context);
+        }
+        if (checkChests) {
+            applyDocs(generatedLoot, index.chestDocs(), spawned, tableId, level, pos, player, context);
+        }
+        return generatedLoot;
+    }
+
+    private static void applyDocs(ObjectArrayList<ItemStack> generatedLoot, java.util.List<IndexedDoc> docs,
+                                  @Nullable java.util.Set<ResourceLocation> spawned, ResourceLocation tableId,
+                                  ServerLevel level, @Nullable BlockPos pos, @Nullable ServerPlayer player, LootContext context) {
+        for (int i = 0; i < docs.size(); i++) {
+            IndexedDoc entry = docs.get(i);
+            ResourceLocation docId = entry.id();
+            if (spawned != null && spawned.contains(docId)) {
                 continue;
             }
-            ResourceLocation docId = entry.getKey();
+            DocumentDefinition doc = entry.doc();
             for (DocumentDefinition.LootRule rule : doc.loot()) {
                 if (matches(docId, rule, tableId, level, pos, player, context)) {
                     generatedLoot.add(Documents.createStack(docId, doc));
                     recordOnce(docId, rule.once(), level, player);
+                    if (spawned != null) {
+                        spawned.add(docId);
+                    }
                     if (player != null) {
                         StoryTrace.note(player, "document " + docId, "loot spawned from " + tableId);
                     }
@@ -75,7 +146,6 @@ public final class DocumentLootModifier extends LootModifier {
                 }
             }
         }
-        return generatedLoot;
     }
 
     private static boolean matches(ResourceLocation docId, DocumentDefinition.LootRule rule, ResourceLocation tableId,
@@ -93,7 +163,7 @@ public final class DocumentLootModifier extends LootModifier {
             return false;
         }
         if (rule.structure().isPresent()
-                && (pos == null || rule.structure().get().stream().noneMatch(ref -> ref.contains(level, pos)))) {
+                && (pos == null || !dev.dzenthai.storybound.core.logic.StructureRef.containsAny(level, pos, rule.structure().get()))) {
             return false;
         }
         if (rule.once() == DocumentDefinition.LootRule.Once.WORLD) {

@@ -23,6 +23,9 @@ public record ItemMatcher(Optional<Holder<Item>> item, Optional<TagKey<Item>> ta
         if (stack.isEmpty()) {
             return false;
         }
-        return item.map(stack::is).orElseGet(() -> stack.is(tag.orElseThrow()));
+        if (item.isPresent()) {
+            return stack.is(item.get());
+        }
+        return stack.is(tag.orElseThrow());
     }
 }

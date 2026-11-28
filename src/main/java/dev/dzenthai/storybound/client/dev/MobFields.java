@@ -54,7 +54,7 @@ import org.jetbrains.annotations.Nullable;
  * </ul>
  * Values that are ids of a registry of the game stand for the registry whole (all professions, mods' too).
  */
-final class MobFields {
+public final class MobFields {
     /** Where what was met is remembered, under the game folder. */
     static final String FILE = "storybound_dev/mob_fields.json";
     /** At most this many mobs of a kind read on the server. */
@@ -105,6 +105,13 @@ final class MobFields {
     private static @Nullable ClientLevel probesLevel;
 
     private MobFields() {}
+
+    /** Releases client probe entities and level reference on world logout. */
+    public static void clear() {
+        PROBES.clear();
+        probesLevel = null;
+        GATHERED.clear();
+    }
 
     /**
      * The fields of the kinds (of several, those they share), the values met among all.

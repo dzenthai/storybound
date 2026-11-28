@@ -110,8 +110,20 @@ public final class AreaRings {
     private static double standing = Double.NaN;
     private static double height = Double.NaN;
     private static long lastFrame;
+    /** Cached 8-sample ground-edge height per (blockX, blockZ, radius) refreshed every 10 ticks to avoid 16 lookups/frame. */
+    private record EdgeHeightKey(int x, int z, int radiusTenths) {}
+    private record EdgeHeightValue(double high, long bucket) {}
+    private static @org.jetbrains.annotations.Nullable ClientLevel edgeHeightLevel;
+    private static final java.util.Map<EdgeHeightKey, EdgeHeightValue> EDGE_HEIGHT_CACHE = new java.util.HashMap<>();
 
     private AreaRings() {}
+
+    public static void clear() {
+        standing = Double.NaN;
+        height = Double.NaN;
+        edgeHeightLevel = null;
+        EDGE_HEIGHT_CACHE.clear();
+    }
 
     public static void onRenderLevel(RenderLevelStageEvent event) {
         if (!ClientWaypoints.hasAreaRings() || !ShaderPacks.isWorldOverlayStage(event.getStage())) {
@@ -183,14 +195,32 @@ public final class AreaRings {
         }
         double high = center.y;
         if (!level.dimensionType().hasCeiling()) {
-            for (int i = 0; i < EDGE_SAMPLES; i++) {
-                double angle = Mth.TWO_PI * i / EDGE_SAMPLES;
-                int bx = Mth.floor(center.x + Math.cos(angle) * radius);
-                int bz = Mth.floor(center.z + Math.sin(angle) * radius);
-                if (level.hasChunk(SectionPos.blockToSectionCoord(bx), SectionPos.blockToSectionCoord(bz))) {
-                    high = Math.max(high, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz));
-                }
+            if (edgeHeightLevel != level) {
+                edgeHeightLevel = level;
+                EDGE_HEIGHT_CACHE.clear();
             }
+            long bucket = level.getGameTime() / 10L;
+            EdgeHeightKey key = new EdgeHeightKey(Mth.floor(center.x), Mth.floor(center.z), (int) Math.round(radius * 10.0));
+            EdgeHeightValue cached = EDGE_HEIGHT_CACHE.get(key);
+            double edgeHigh;
+            if (cached != null && cached.bucket() == bucket) {
+                edgeHigh = cached.high();
+            } else {
+                edgeHigh = Double.NEGATIVE_INFINITY;
+                for (int i = 0; i < EDGE_SAMPLES; i++) {
+                    double angle = Mth.TWO_PI * i / EDGE_SAMPLES;
+                    int bx = Mth.floor(center.x + Math.cos(angle) * radius);
+                    int bz = Mth.floor(center.z + Math.sin(angle) * radius);
+                    if (level.hasChunk(SectionPos.blockToSectionCoord(bx), SectionPos.blockToSectionCoord(bz))) {
+                        edgeHigh = Math.max(edgeHigh, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz));
+                    }
+                }
+                if (EDGE_HEIGHT_CACHE.size() >= 128) {
+                    EDGE_HEIGHT_CACHE.clear();
+                }
+                EDGE_HEIGHT_CACHE.put(key, new EdgeHeightValue(edgeHigh, bucket));
+            }
+            high = Math.max(high, edgeHigh);
         }
         return (float) Mth.clamp(1 - (y - high - ABOVE_FULL) / ABOVE_FADE, 0, 1);
     }
@@ -230,76 +260,86 @@ public final class AreaRings {
         int rgb = edge.rgb();
         float alpha = edge.alpha();
         int pieces = Mth.clamp((int) Math.ceil(Mth.TWO_PI * radius / STEP), 16, MAX_PIECES);
-        Vec3 previous = null;
-        float previousFade = 0;
-        for (int i = 0; i <= pieces; i++) {
-            double angle = Mth.TWO_PI * i / pieces;
-            double x = center.x + Math.cos(angle) * radius;
-            double z = center.z + Math.sin(angle) * radius;
-            double distance = Math.hypot(x - player.x, z - player.z);
-            if (distance > REACH) {
-                previous = null;
-                continue;
+        int startIdx = 0;
+        int endIdx = pieces;
+        double dxPlayer = player.x - center.x;
+        double dzPlayer = player.z - center.z;
+        double horizontal = Math.hypot(dxPlayer, dzPlayer);
+        if (horizontal > 1.0e-4 && radius > 1.0e-4 && horizontal + radius > REACH) {
+            double cosDelta = (horizontal * horizontal + radius * radius - REACH * REACH) / (2.0 * horizontal * radius);
+            if (cosDelta > 1.0) {
+                return;
             }
-            Vec3 point = new Vec3(x, y, z);
-            float fade = alpha * (float) Mth.clamp(1 - distance / REACH, 0, 1);
-            if (previous != null) {
-                if (band) {
-                    bandPiece(pose, out, camera, center, previous, point, rgb, previousFade, fade);
-                } else {
-                    piece(pose, out, camera, previous, point, rgb, previousFade, fade);
+            if (cosDelta > -1.0) {
+                double theta0 = Math.atan2(dzPlayer, dxPlayer);
+                double delta = Math.acos(cosDelta);
+                startIdx = (int) Math.floor((theta0 - delta) * pieces / Mth.TWO_PI) - 1;
+                endIdx = (int) Math.ceil((theta0 + delta) * pieces / Mth.TWO_PI) + 1;
+                if (endIdx - startIdx >= pieces) {
+                    startIdx = 0;
+                    endIdx = pieces;
                 }
             }
-            previous = point;
-            previousFade = fade;
         }
-    }
-
-    /** A piece of the band: a flat quad {@link #BAND} wide across the edge, from the middle outwards. */
-    private static void bandPiece(PoseStack pose, VertexConsumer band, Vec3 camera, Vec3 center, Vec3 from, Vec3 to, int rgb,
-                                  float fromAlpha, float toAlpha) {
-        PoseStack.Pose last = pose.last();
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
-        Vec3[] corners = {across(center, from, -1), across(center, from, 1), across(center, to, 1), across(center, to, -1)};
-        float[] alphas = {fromAlpha, fromAlpha, toAlpha, toAlpha};
-        for (int i = 0; i < 4; i++) {
-            band.addVertex(last, (float) (corners[i].x - camera.x), (float) (corners[i].y - camera.y), (float) (corners[i].z - camera.z))
-                    .setColor(r, g, b, (int) (alphas[i] * 255));
-        }
-    }
-
-    /** A point of the edge moved half the band's width towards the middle (-1) or away from it (1). */
-    private static Vec3 across(Vec3 center, Vec3 point, int side) {
-        double dx = point.x - center.x;
-        double dz = point.z - center.z;
-        double length = Math.hypot(dx, dz);
-        if (length < 1.0e-6) {
-            return point;
-        }
-        double shift = side * BAND / 2 / length;
-        return new Vec3(point.x + dx * shift, point.y, point.z + dz * shift);
-    }
-
-    private static void piece(PoseStack pose, VertexConsumer lines, Vec3 camera, Vec3 from, Vec3 to, int rgb, float fromAlpha, float toAlpha) {
-        float nx = (float) (to.x - from.x);
-        float ny = (float) (to.y - from.y);
-        float nz = (float) (to.z - from.z);
-        float length = Mth.sqrt(nx * nx + ny * ny + nz * nz);
-        if (length < 1.0e-4f) {
-            return;
-        }
-        nx /= length;
-        ny /= length;
-        nz /= length;
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
         int b = rgb & 0xFF;
         PoseStack.Pose last = pose.last();
-        lines.addVertex(last, (float) (from.x - camera.x), (float) (from.y - camera.y), (float) (from.z - camera.z))
-                .setColor(r, g, b, (int) (fromAlpha * 255)).setNormal(last, nx, ny, nz);
-        lines.addVertex(last, (float) (to.x - camera.x), (float) (to.y - camera.y), (float) (to.z - camera.z))
-                .setColor(r, g, b, (int) (toAlpha * 255)).setNormal(last, nx, ny, nz);
+        double camX = camera.x;
+        double camY = camera.y;
+        double camZ = camera.z;
+        double halfBand = BAND * 0.5;
+        float relY = (float) (y - camY);
+        boolean hasPrev = false;
+        double prevX = 0.0;
+        double prevZ = 0.0;
+        double prevCos = 0.0;
+        double prevSin = 0.0;
+        float prevFade = 0.0f;
+        for (int i = startIdx; i <= endIdx; i++) {
+            double angle = Mth.TWO_PI * i / pieces;
+            double cos = Math.cos(angle);
+            double sin = Math.sin(angle);
+            double x = center.x + cos * radius;
+            double z = center.z + sin * radius;
+            double distance = Math.hypot(x - player.x, z - player.z);
+            if (distance > REACH) {
+                hasPrev = false;
+                continue;
+            }
+            float fade = alpha * (float) Mth.clamp(1 - distance / REACH, 0, 1);
+            if (hasPrev) {
+                int fromA = (int) (prevFade * 255);
+                int toA = (int) (fade * 255);
+                if (band) {
+                    double prevShiftX = prevCos * halfBand;
+                    double prevShiftZ = prevSin * halfBand;
+                    double currShiftX = cos * halfBand;
+                    double currShiftZ = sin * halfBand;
+                    out.addVertex(last, (float) (prevX - prevShiftX - camX), relY, (float) (prevZ - prevShiftZ - camZ)).setColor(r, g, b, fromA);
+                    out.addVertex(last, (float) (prevX + prevShiftX - camX), relY, (float) (prevZ + prevShiftZ - camZ)).setColor(r, g, b, fromA);
+                    out.addVertex(last, (float) (x + currShiftX - camX), relY, (float) (z + currShiftZ - camZ)).setColor(r, g, b, toA);
+                    out.addVertex(last, (float) (x - currShiftX - camX), relY, (float) (z - currShiftZ - camZ)).setColor(r, g, b, toA);
+                } else {
+                    float nx = (float) (x - prevX);
+                    float nz = (float) (z - prevZ);
+                    float length = Mth.sqrt(nx * nx + nz * nz);
+                    if (length >= 1.0e-4f) {
+                        nx /= length;
+                        nz /= length;
+                        out.addVertex(last, (float) (prevX - camX), relY, (float) (prevZ - camZ))
+                                .setColor(r, g, b, fromA).setNormal(last, nx, 0f, nz);
+                        out.addVertex(last, (float) (x - camX), relY, (float) (z - camZ))
+                                .setColor(r, g, b, toA).setNormal(last, nx, 0f, nz);
+                    }
+                }
+            }
+            prevX = x;
+            prevZ = z;
+            prevCos = cos;
+            prevSin = sin;
+            prevFade = fade;
+            hasPrev = true;
+        }
     }
 }

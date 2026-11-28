@@ -158,6 +158,20 @@ public final class NpcParts extends SavedData {
         return binding.getPath().replace('/', '_');
     }
 
+    static boolean hasUnassignedOne(MinecraftServer server) {
+        int total = NpcBindings.oneFilesCount();
+        return total > 0 && get(server).parts.size() < total;
+    }
+
+    static boolean mightCare(MinecraftServer server, Entity entity) {
+        NpcParts data = get(server);
+        UUID uuid = entity.getUUID();
+        if (data.byHolder.containsKey(uuid) || data.untag.containsKey(uuid)) {
+            return true;
+        }
+        return data.parts.size() < NpcBindings.oneFilesCount() && !NpcBindings.oneCandidatesFor(entity.getType()).isEmpty();
+    }
+
     /**
      * An entity near a player, worked out: its part's place kept up to date, or, when it fits an empty part, picked for
      * it. Called where names are put on; public for tests.
@@ -174,22 +188,25 @@ public final class NpcParts extends SavedData {
             data.setDirty();
             NpcBindings.forget(entity);
         }
-        Optional<ResourceLocation> held = partOf(entity);
-        if (held.isPresent()) {
-            Part part = data.parts.get(held.get());
-            if (entity.addTag(tagOf(held.get()))) {
+        ResourceLocation held = data.byHolder.get(entity.getUUID());
+        if (held != null) {
+            Part part = data.parts.get(held);
+            if (entity.addTag(tagOf(held))) {
                 // Its binding was renamed: the new name's tag (the old one came off above or at the rename).
                 NpcBindings.forget(entity);
             }
             if (!part.dimension().equals(level.dimension()) || !part.pos().equals(entity.blockPosition())) {
-                data.parts.put(held.get(), new Part(part.holder(), level.dimension(), entity.blockPosition(), false));
+                data.parts.put(held, new Part(part.holder(), level.dimension(), entity.blockPosition(), false));
                 data.setDirty();
             }
             return;
         }
-        for (Map.Entry<ResourceLocation, NpcBinding> entry : NpcBindings.files()) {
+        if (data.parts.size() >= NpcBindings.oneFilesCount()) {
+            return;
+        }
+        for (Map.Entry<ResourceLocation, NpcBinding> entry : NpcBindings.oneCandidatesFor(entity.getType())) {
             NpcBinding binding = entry.getValue();
-            if (!binding.isOne() || data.parts.containsKey(entry.getKey()) || !binding.matches(entity)) {
+            if (data.parts.containsKey(entry.getKey()) || !binding.matches(entity)) {
                 continue;
             }
             if (byHand(entity)) {
